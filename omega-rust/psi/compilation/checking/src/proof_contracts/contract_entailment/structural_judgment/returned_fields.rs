@@ -18,9 +18,10 @@ use crate::proof_contracts::contract_entailment::{
     citations::machine_requires_facts,
     completed_values::{CompletedValueProjection, observed_projections, term_field_paths},
     observed_projections::project_observed_value,
-    structural_case_arms::recognize_structural_case_arms,
+    structural_case_arms::{StructuralCaseArm, fold_structural_case_arms},
 };
 use facts::PlaceSegment;
+use std::ops::ControlFlow;
 use typed_trees::{
     machine::{Machine, MachineBodyStatus},
     signature::StateParameter,
@@ -182,98 +183,29 @@ impl StructuralJudge<'_> {
         std::sync::Arc::make_mut(&mut judge.returned_field_owners).push(callee.symbol);
         judge.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
-        let Some(leaves) = phase_profile::scope("05.rf.recognize", || {
-            recognize_structural_case_arms(
+        let mut intersection = ReturnedFieldIntersection::default();
+        let completed = phase_profile::scope("05.rf.recognize", || {
+            fold_structural_case_arms(
                 program,
                 callee,
                 &judge,
                 &crate::proof_only_classification(program),
                 &mut diagnostics,
-                None,
+                &mut |leaf| Some(intersection.observe(&judge, parameters, entry.return_type, leaf)),
             )
-        }) else {
+        });
+        if completed.is_none() || !diagnostics.is_empty() {
             store_template(Vec::new());
-            return decline("normal-return paths are incomplete or recurrent");
-        };
-        let Some(first) = leaves.first().filter(|_| diagnostics.is_empty()) else {
+            return decline("normal-return paths are incomplete, recurrent, or unproved");
+        }
+        let Some(template) = intersection.candidates else {
             store_template(Vec::new());
             return decline("no independently checked normal-return leaves");
         };
-        let first_value = first
-            .normal_judge
-            .completed_value_identity(first.value.clone());
-        let mut projections = Vec::new();
-        observed_projections(
-            program,
-            entry.return_type,
-            &first_value,
-            &mut Vec::new(),
-            &mut projections,
-        );
-        // A forwarded completed call has opaque root identity. Its retained
-        // typed equations supply demands without reconstructing its record.
-        for names in first
-            .normal_judge
-            .completed_value_projection_paths(&first_value)
-        {
-            for path in term_field_paths(
-                program,
-                entry.return_type,
-                &first_value,
-                &names.split('.').collect::<Vec<_>>(),
-            ) {
-                if !projections.iter().any(|projection| projection.path == path) {
-                    projections.push(CompletedValueProjection {
-                        path,
-                        sources: Vec::new(),
-                        terminal: true,
-                    });
-                }
-            }
+        if matches!(completed, Some(ControlFlow::Break(()))) && !template.is_empty() {
+            // A partial nonempty intersection proves no universal relation.
+            return decline("field correspondence stopped before exhausting its candidates");
         }
-        let template: Vec<(Vec<PlaceSegment>, StructuralTerm)> = projections
-            .into_iter()
-            .filter_map(|projection| {
-                if projection.path.is_empty() {
-                    return None;
-                }
-                let reference =
-                    owned_projection_type(program, entry.return_type, &projection.path)?;
-                let primitive = program.primitive_type_reference(reference)?;
-                if !primitive.is_fixed_integer() && primitive != PrimitiveType::Bool {
-                    return None;
-                }
-                let values = leaves
-                    .iter()
-                    .map(|leaf| {
-                        let value = leaf
-                            .normal_judge
-                            .completed_value_identity(leaf.value.clone());
-                        let projected = project_observed_value(
-                            program,
-                            entry.return_type,
-                            value,
-                            &projection.path,
-                        )?;
-                        let projected = leaf.normal_judge.completed_value_identity(projected);
-                        // Preserve a shared input identity before using a
-                        // branch-specific equality. Both paths may forward x
-                        // even when just one path independently knows x == 17.
-                        let projected = if declaration_input_value(&judge, parameters, &projected) {
-                            projected
-                        } else {
-                            leaf.normal_judge.resolve(projected)
-                        };
-                        declaration_input_value(&judge, parameters, &projected).then_some(projected)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let value = values.first()?.clone();
-                if values.iter().any(|other| *other != value) {
-                    return None;
-                }
-                Some((projection.path, value))
-            })
-            .collect();
         let equations = template
             .iter()
             .filter_map(|(path, value)| {
@@ -284,6 +216,92 @@ impl StructuralJudge<'_> {
             .collect();
         store_template(template);
         equations
+    }
+}
+
+/// Each completed arm constrains the same immutable-input correspondence.
+/// Empty is absorbing: later normal paths cannot restore an eliminated row.
+/// Declaration validation in `program_validation::validate` still checks every
+/// authored statement in its per-state body loop. This optional query stops
+/// only when it will export no value equations.
+#[derive(Default)]
+struct ReturnedFieldIntersection {
+    candidates: Option<Vec<(Vec<PlaceSegment>, StructuralTerm)>>,
+}
+
+impl ReturnedFieldIntersection {
+    fn observe(
+        &mut self,
+        entry_judge: &StructuralJudge<'_>,
+        parameters: &[StateParameter],
+        result_type: TypeReferenceHandle,
+        leaf: StructuralCaseArm<'_>,
+    ) -> ControlFlow<()> {
+        let program = entry_judge.program;
+        let value = leaf.normal_judge.completed_value_identity(leaf.value);
+        let projected_input = |path: &[PlaceSegment]| {
+            let projected = project_observed_value(program, result_type, value.clone(), path)?;
+            let projected = leaf.normal_judge.completed_value_identity(projected);
+            // Preserve a shared input identity before branch-specific equality.
+            let projected = if declaration_input_value(entry_judge, parameters, &projected) {
+                projected
+            } else {
+                leaf.normal_judge.resolve(projected)
+            };
+            declaration_input_value(entry_judge, parameters, &projected).then_some(projected)
+        };
+        if let Some(candidates) = &mut self.candidates {
+            candidates.retain(|(path, original)| projected_input(path).as_ref() == Some(original));
+        } else {
+            let mut projections = Vec::new();
+            observed_projections(
+                program,
+                result_type,
+                &value,
+                &mut Vec::new(),
+                &mut projections,
+            );
+            // Forwarded completed calls retain typed projection equations,
+            // rather than a reconstructed owned root.
+            for names in leaf.normal_judge.completed_value_projection_paths(&value) {
+                for path in term_field_paths(
+                    program,
+                    result_type,
+                    &value,
+                    &names.split('.').collect::<Vec<_>>(),
+                ) {
+                    if !projections.iter().any(|projection| projection.path == path) {
+                        projections.push(CompletedValueProjection {
+                            path,
+                            sources: Vec::new(),
+                            terminal: true,
+                        });
+                    }
+                }
+            }
+            self.candidates = Some(
+                projections
+                    .into_iter()
+                    .filter_map(|projection| {
+                        if projection.path.is_empty() {
+                            return None;
+                        }
+                        let reference =
+                            owned_projection_type(program, result_type, &projection.path)?;
+                        let primitive = program.primitive_type_reference(reference)?;
+                        if !primitive.is_fixed_integer() && primitive != PrimitiveType::Bool {
+                            return None;
+                        }
+                        Some((projection.path.clone(), projected_input(&projection.path)?))
+                    })
+                    .collect(),
+            );
+        }
+        if self.candidates.as_ref().is_some_and(Vec::is_empty) {
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
+        }
     }
 }
 
