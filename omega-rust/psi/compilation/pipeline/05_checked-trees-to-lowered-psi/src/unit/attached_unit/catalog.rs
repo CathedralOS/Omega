@@ -914,6 +914,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                     source_identity: identity,
                     native_identity: plan.native_identity.as_deref(),
                     policy_identity: plan.native_policy_identity.as_deref(),
+                    semantic_identity: plan.native_semantic_identity.as_deref(),
                     fields: native_fields,
                 });
                 StructuralTypeShape::Record {

@@ -18,6 +18,7 @@ pub(crate) struct NativeRecordProjection<'checked> {
     pub(super) source_identity: TypeIdentityId,
     pub(super) native_identity: Option<&'checked str>,
     pub(super) policy_identity: Option<&'checked str>,
+    pub(super) semantic_identity: Option<&'checked str>,
     pub(super) fields: Vec<(StructuralFieldId, Option<&'checked str>)>,
 }
 
@@ -94,9 +95,8 @@ pub(super) fn lower(
                 .map(|identity| identities.intern(identity))
                 .unwrap_or_default(),
             policy,
-            source
-                .native_semantic_identity
-                .as_deref()
+            record
+                .semantic_identity
                 .map(|identity| identities.intern(identity))
                 .unwrap_or_default(),
             fields,
