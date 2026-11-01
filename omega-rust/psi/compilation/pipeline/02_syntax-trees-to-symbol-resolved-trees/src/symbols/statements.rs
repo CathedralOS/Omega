@@ -45,6 +45,7 @@ fn assign_machine_references(
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
                 data_definitions,
+                type_aliases,
                 machines,
                 ..
             },
@@ -111,6 +112,7 @@ fn assign_machine_references(
             owned_data: machine_owned_data.span_or_empty(*owned_data),
             prior_statements: &[],
             data_definitions,
+            type_aliases,
             data_members,
             data_type_parameters,
             data_payload_fields: &tables.declarations.data_payload_fields,
