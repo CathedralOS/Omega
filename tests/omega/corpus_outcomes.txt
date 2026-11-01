@@ -30,6 +30,8 @@ fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09
 	calling policy rejected the boundary: normal Terminal rejection
 fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
+fail/calls/array_copy_preserves_declared_extent rejected 16791ms expected @0f29300672c4
+	argument `pending` for state `entry` expects `[Condition; 127][in Trapping]`, got `named value`
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -356,6 +358,288 @@ fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms ex
 fail/facts/darwin_stat_abi/record_through_target_body_rejected rejected 51346ms expected @f19844409a95
 	machine `verify` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/data_decomposition/call_result rejected 1909ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/borrowed_case_view rejected 1754ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/case_view rejected 1777ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/expression_case_view rejected 1750ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/gadt rejected 2277ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/call_result/gadt_embedding rejected 7621ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/call_result/irrefutable_case_view rejected 1665ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/named_domain rejected 1961ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/owned rejected 3872ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/call_result/owned_positional rejected 3639ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/call_result/positional_case_view rejected 1725ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/call_result/positional_expression_case_view rejected 1682ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name rejected 2020ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/borrowed_case_view rejected 1849ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/case_view rejected 1960ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/expression_case_view rejected 2222ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/gadt rejected 2410ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/const_name/gadt_embedding rejected 2038ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/const_name/irrefutable_case_view rejected 1558ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/named_domain rejected 2591ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/positional_case_view rejected 2079ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/const_name/positional_expression_case_view rejected 3325ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result rejected 4233ms expected @0f29300672c4
+	cannot prove requires contract for call classify from choose: value < 2 (needs fact `value < 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result/recursive rejected 4223ms expected @0f29300672c4
+	cannot prove requires contract for call read from Table::multiplicity: handle < 3 (needs fact `handle < 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `multiplicity`
+fail/facts/data_decomposition/field rejected 1996ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/borrowed_case_view rejected 2441ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/case_view rejected 1607ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/expression_case_view rejected 2255ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/gadt rejected 2308ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/field/gadt_embedding rejected 2730ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/field/irrefutable_case_view rejected 1345ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/named_domain rejected 2053ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/owned rejected 4631ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/field/owned_positional rejected 4004ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/field/positional_case_view rejected 2195ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/field/positional_expression_case_view rejected 2168ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local rejected 2442ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/borrowed_case_view rejected 2204ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/case_view rejected 2202ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/expression_case_view rejected 2038ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/gadt rejected 2040ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/local/gadt_embedding rejected 2221ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/local/irrefutable_case_view rejected 1519ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/named_domain rejected 1739ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/owned rejected 4700ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/local/owned_positional rejected 4744ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/local/positional_case_view rejected 2115ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/local/positional_expression_case_view rejected 2070ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join rejected 2000ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/borrowed_case_view rejected 2039ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/case_view rejected 2038ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/expression_case_view rejected 1614ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/gadt rejected 2254ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/match_join/gadt_embedding rejected 2549ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/match_join/irrefutable_case_view rejected 1236ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/named_domain rejected 1967ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/owned rejected 4558ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/match_join/owned_positional rejected 3917ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `dispose` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/match_join/positional_case_view rejected 1573ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/match_join/positional_expression_case_view rejected 2222ms expected @0f29300672c4
+	exact arithmetic in machine `bind_components` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine rejected 1971ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/borrowed_case_view rejected 2101ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/case_view rejected 2089ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/expression_case_view rejected 2662ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/gadt rejected 2025ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/other_machine/gadt_embedding rejected 1826ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/other_machine/irrefutable_case_view rejected 1249ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/named_domain rejected 1981ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/owned rejected 4337ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `forwarded` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/other_machine/owned_positional rejected 5259ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `forwarded` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/other_machine/positional_case_view rejected 1740ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_machine/positional_expression_case_view rejected 1705ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state rejected 1913ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/borrowed_case_view rejected 2137ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/case_view rejected 2679ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/expression_case_view rejected 2016ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/gadt rejected 2182ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/other_state/gadt_embedding rejected 2181ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/other_state/irrefutable_case_view rejected 1364ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/named_domain rejected 1905ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/owned rejected 4241ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `consume` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/other_state/owned_positional rejected 4408ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `consume` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/other_state/positional_case_view rejected 1700ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/other_state/positional_expression_case_view rejected 1599ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter rejected 2598ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/borrowed_case_view rejected 2045ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/case_view rejected 2202ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/expression_case_view rejected 2212ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/gadt rejected 2259ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/parameter/gadt_embedding rejected 2377ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/parameter/irrefutable_case_view rejected 1403ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/named_domain rejected 1948ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/owned rejected 4143ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `consume` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/parameter/owned_positional rejected 4097ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `consume` state `entry` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/parameter/positional_case_view rejected 2071ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/parameter/positional_expression_case_view rejected 2028ms expected @0f29300672c4
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body rejected 3294ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/borrowed_case_view rejected 2829ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/case_view rejected 2190ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/expression_case_view rejected 3079ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/gadt rejected 2443ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/target_body/gadt_embedding rejected 2475ms expected @0f29300672c4
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
+	match arms produce incompatible values
+	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
+fail/facts/data_decomposition/target_body/irrefutable_case_view rejected 1620ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/named_domain rejected 2438ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/owned rejected 4484ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `LinuxReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `LinuxArmReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `MacReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `WindowsReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/target_body/owned_positional rejected 4393ms expected @0f29300672c4
+	cannot use `operation::Ready.payload` in machine `LinuxReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `LinuxArmReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `MacReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+	cannot use `operation::Ready.payload` in machine `WindowsReader::read` state `read` (statement 5) after `operation::Ready.payload` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `operation::Ready.payload` first
+fail/facts/data_decomposition/target_body/positional_case_view rejected 2744ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_decomposition/target_body/positional_expression_case_view rejected 2652ms expected @0f29300672c4
+	exact arithmetic in machine `LinuxReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `WindowsReader::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -2066,7 +2350,7 @@ pass/atomics/runtime_atomic_fetch_add_exit checked 16541ms check-target:macos_ar
 pass/atomics/runtime_atomic_operand_order_exit checked 3953ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_authored_fence_name_exit checked 3945ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_case_payload_atomic_events_exit checked 4228ms check-target:macos_arm64 @ccdb99ca2214
-pass/atomics/runtime_mixed_common_atomic_cell_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
+pass/atomics/runtime_mixed_common_atomic_cell_exit checked 6577ms check-target:macos_arm64 @0f29300672c4
 pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_projected_state_operands_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 16443ms check-target:macos_arm64 @ccdb99ca2214
@@ -2308,7 +2592,7 @@ pass/borrows/runtime_carrier_reference_store_exit checked 16825ms check-target:m
 pass/borrows/runtime_case_byte_field_length_cleanup_exit rejected 2847ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `receive` state `entry` statement 2: cannot prove selected case for payload access `__transition_subject#30.view.bytes`: captured source `envelope::Held.view.bytes` has no live case evidence
 pass/borrows/runtime_case_descriptor_retirement_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_case_payload_partial_transfer_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_case_payload_partial_transfer_exit checked 6665ms check-target:macos_arm64 @0f29300672c4
 pass/borrows/runtime_case_reference_mixed_state_returns_exit checked 3246ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_reference_reordered_state_returns_exit checked 3527ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_return_parameter_order_exit checked 3716ms check-target:macos_arm64 @ccdb99ca2214
@@ -2798,7 +3082,7 @@ pass/calls/local_record_shared_argument_exit checked 16248ms check-target:macos_
 pass/calls/local_records_mixed_record_result_arguments_exit checked 17923ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/machine_self_call_recursion_compile checked 3852ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/mixed_projection_sources_in_one_call checked 15832ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/mixed_value_forwarding_exit checked 17633ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/mixed_value_forwarding_exit checked 83641ms check-target:macos_arm64 @0f29300672c4
 pass/calls/mutable_output_host_call checked 17019ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/mutable_receiver_computation_exit checked 15525ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/mutable_receiver_scalar_destinations_exit checked 15913ms check-target:macos_arm64 @ccdb99ca2214
@@ -2873,6 +3157,7 @@ pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:m
 pass/calls/runtime_affine_record_call_results_reused_exit checked 4248ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 17560ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_anonymous_result_local_namespace_exit checked 15404ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_array_copy_with_index_policy_exit checked 6854ms check-target:macos_arm64 @0f29300672c4
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 16933ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_atomic_case_shared_argument_exit checked 3741ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_authored_numeric_guard_result_exit checked 3622ms check-target:macos_arm64 @ccdb99ca2214
@@ -2897,8 +3182,8 @@ pass/calls/runtime_completed_operand_then_shared_borrow_exit checked 2803ms chec
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 3444ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 3387ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constant_tail_requires_argument_exit checked 12027ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_constructed_copy_payload_arguments_exit checked 4142ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 7194ms check-target:macos_arm64 @0f29300672c4
+pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6370ms check-target:macos_arm64 @0f29300672c4
 pass/calls/runtime_constructed_payload_arguments_exit checked 3415ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_byte_predicate_snapshot_exit checked 3778ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_child_declared_membership_exit checked 3397ms check-target:macos_arm64 @ccdb99ca2214
@@ -3121,7 +3406,7 @@ pass/cases/match_guard_slice_index checked 3285ms @ccdb99ca2214
 pass/cases/match_record_field checked 3214ms @ccdb99ca2214
 pass/cases/match_reference_local checked 4167ms @ccdb99ca2214
 pass/cases/mid_arm_value_return checked 3543ms @ccdb99ca2214
-pass/cases/mixed_record_cases checked 3082ms @ccdb99ca2214
+pass/cases/mixed_record_cases checked 6249ms @0f29300672c4
 pass/cases/ordered_underscore_arms checked 3417ms @ccdb99ca2214
 pass/cases/param_case_payload_return checked 3064ms @ccdb99ca2214
 pass/cases/runtime_borrowed_case_subject_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
@@ -3459,10 +3744,7 @@ pass/control_flow/borrowed_single_case_dispatch_exit checked 18106ms check-targe
 pass/control_flow/borrowed_state_argument checked 11090ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/call_subject_wildcard_dispatch_compile checked 2918ms @ccdb99ca2214
 pass/control_flow/call_then_transition_sequence_compile checked 2709ms @ccdb99ca2214
-pass/control_flow/captured_nominal_result_region_identity_exit rejected 1450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `observe_one` state `entry` reads a nested member `stamp`, but data `Message` has no field `stamp` (check the spelling of the field name)
-	machine `observe_permuted` state `entry` reads a nested member `stamp`, but data `Pair` has no field `stamp` (check the spelling of the field name)
-	machine `observe_repeated` state `entry` reads a nested member `stamp`, but data `Pair` has no field `stamp` (check the spelling of the field name)
+pass/control_flow/captured_nominal_result_region_identity_exit checked 9659ms check-target:macos_arm64 @0f29300672c4
 pass/control_flow/case_arm_payload_receiver_call checked 16835ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 11575ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 12066ms check-target:macos_arm64 @ccdb99ca2214
@@ -3625,9 +3907,7 @@ pass/control_flow/runtime_returned_nested_case_payload_capture_exit checked 4264
 pass/control_flow/runtime_root_float_case_payload_exit checked 20653ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_saved_transition_empty_sibling_exit checked 13719ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/control_flow/runtime_saved_transition_subject_exit checked 4690ms check-target:macos_arm64 @315fc899b3df+wt
-pass/control_flow/runtime_scalar_case_arm_evaluation_exit rejected 1248ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `once_common` state `entry` reads a nested member `stamp`, but data `Message` has no field `stamp` (check the spelling of the field name)
-	machine `common_pattern` state `entry` reads a nested member `stamp`, but data `Message` has no field `stamp` (check the spelling of the field name)
+pass/control_flow/runtime_scalar_case_arm_evaluation_exit checked 8415ms check-target:macos_arm64 @0f29300672c4
 pass/control_flow/runtime_scalar_dispatch_value_before_sibling_write_exit checked 16751ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_selected_copy_repeated_call_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_selected_parent_state_loan_exit checked 3599ms check-target:macos_arm64 @ccdb99ca2214
@@ -3765,7 +4045,7 @@ pass/data/case_membership_union_guard_exit checked 10221ms check-target:macos_ar
 pass/data/closed_literal_nested_predicates checked 2140ms @ccdb99ca2214
 pass/data/match_exhaustive_by_case_union_domain incomplete 11200ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: terminator: guarded jump successors: roster); in state `Main::main::main`
-pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 15988ms check-target:macos_arm64 @ccdb99ca2214
+pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 75325ms check-target:macos_arm64 @0f29300672c4
 pass/data/opaque_copy_selected checked 3382ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/opaque_nested_field_selected checked 3677ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/payload_less_case_equality checked 2058ms @ccdb99ca2214
@@ -3779,11 +4059,11 @@ pass/data/runtime_constructor_observation_exit checked 11738ms check-target:maco
 pass/data/runtime_data_properties_exit checked 11841ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_mixed_case_common_fields_exit checked 12533ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_mixed_case_nested_common_fields_exit checked 3773ms check-target:macos_arm64 @ccdb99ca2214
-pass/data/runtime_mixed_case_payload_dispatch_exit checked 12545ms check-target:macos_arm64 @ccdb99ca2214
-pass/data/runtime_mixed_shape_exit checked 13014ms check-target:macos_arm64 @ccdb99ca2214
+pass/data/runtime_mixed_case_payload_dispatch_exit checked 76006ms check-target:macos_arm64 @0f29300672c4
+pass/data/runtime_mixed_shape_exit checked 78531ms check-target:macos_arm64 @0f29300672c4
 pass/data/runtime_proof_only_data_declared_exit checked 13209ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_record_field_value_pattern_exit checked 12307ms check-target:macos_arm64 @ccdb99ca2214
-pass/data/runtime_zeroed_first_case_enum_payload_exit checked 17383ms check-target:macos_arm64 @ccdb99ca2214
+pass/data/runtime_zeroed_first_case_enum_payload_exit checked 79278ms check-target:macos_arm64 @0f29300672c4
 pass/data/runtime_zeroed_first_case_float_payload_exit checked 19738ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/boundary_equality_recast_witness_compile rejected 699ms regressed-from:checked @ccdb99ca2214
 	machine `read` state `entry`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
@@ -3797,7 +4077,7 @@ pass/dependent/case_where_generic_type_bound_coverage rejected 95ms regressed-fr
 pass/dependent/case_where_match_contributes rejected 2233ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call take from Main::main: main.interval.lo <= main.interval.hi (needs fact `lo <= hi` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 pass/dependent/case_where_zero_decided_first_case checked 3019ms @ccdb99ca2214
-pass/dependent/closed_case_common_and_active_payload_projection checked 3161ms @ccdb99ca2214
+pass/dependent/closed_case_common_and_active_payload_projection checked 5296ms @0f29300672c4
 pass/dependent/collection_predicate_element_store_restored checked 10844ms @ccdb99ca2214
 pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 5493ms @ccdb99ca2214
 pass/dependent/collection_predicate_proved_element_store checked 46075ms @ccdb99ca2214
@@ -3985,7 +4265,7 @@ pass/domains/runtime_authored_result_composed_domain_exit checked 6575ms check-t
 pass/domains/runtime_authored_result_generic_domain_exit checked 6067ms check-target:linux_x86_64 @ccdb99ca2214
 pass/domains/runtime_authored_result_shadow_result_domain_exit checked 6434ms check-target:linux_x86_64 @ccdb99ca2214
 pass/domains/runtime_bodyless_routed_primitive_receiver_replacement_exit checked 11207ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/runtime_case_constructor_child_memberships_exit checked 2991ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/runtime_case_constructor_child_memberships_exit checked 7284ms check-target:macos_arm64 @0f29300672c4
 pass/domains/runtime_completed_routed_record_join_exit checked 3432ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_computed_qualification_exit rejected 2414ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
@@ -5824,6 +6104,114 @@ pass/facts/darwin_stat_abi_through_other_machine_exit checked 167919ms check-tar
 pass/facts/darwin_stat_abi_through_other_state_exit checked 153431ms check-target:macos_arm64 @f19844409a95
 pass/facts/darwin_stat_abi_through_parameter_exit checked 91331ms check-target:macos_arm64 @1a31aa120cdd
 pass/facts/darwin_stat_abi_through_target_body_exit checked 159803ms check-target:macos_arm64 @f19844409a95
+pass/facts/data_decomposition/call_result checked 6759ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/borrowed_case_view checked 7171ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/case_view checked 6363ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/expression_case_view checked 6768ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/gadt checked 6818ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/gadt_embedding checked 7645ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/irrefutable_case_view checked 6079ms @0f29300672c4
+pass/facts/data_decomposition/call_result/named_domain checked 7181ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/owned checked 6818ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/owned_positional checked 7109ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/positional_case_view checked 6762ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/call_result/positional_expression_case_view checked 6309ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name checked 7524ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/borrowed_case_view checked 7046ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/case_view checked 7555ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/expression_case_view checked 7136ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/gadt checked 7271ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/gadt_embedding checked 7036ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/irrefutable_case_view checked 5604ms @0f29300672c4
+pass/facts/data_decomposition/const_name/named_domain checked 6987ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/positional_case_view checked 7396ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/const_name/positional_expression_case_view checked 7271ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result checked 7031ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result/recursive checked 6973ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field checked 6975ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/borrowed_case_view checked 7749ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/case_view checked 6512ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/expression_case_view checked 6634ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/gadt checked 7010ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/gadt_embedding checked 8524ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/irrefutable_case_view checked 5356ms @0f29300672c4
+pass/facts/data_decomposition/field/named_domain checked 6867ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/owned checked 7033ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/owned_positional checked 7293ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/positional_case_view checked 6907ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/field/positional_expression_case_view checked 7015ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local checked 6561ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/borrowed_case_view checked 7402ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/case_view checked 7081ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/expression_case_view checked 6951ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/gadt checked 7077ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/gadt_embedding checked 8432ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/irrefutable_case_view checked 5237ms @0f29300672c4
+pass/facts/data_decomposition/local/named_domain checked 6353ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/owned checked 6878ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/owned_positional checked 7004ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/positional_case_view checked 6602ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/local/positional_expression_case_view checked 6479ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join checked 7747ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/borrowed_case_view checked 6490ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/case_view checked 6454ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/expression_case_view checked 6954ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/gadt checked 7501ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/gadt_embedding checked 9015ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/irrefutable_case_view checked 7424ms @0f29300672c4
+pass/facts/data_decomposition/match_join/named_domain checked 9198ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/owned checked 7307ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/owned_positional checked 6879ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/positional_case_view checked 7449ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/match_join/positional_expression_case_view checked 7983ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine checked 6844ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/borrowed_case_view checked 7455ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/case_view checked 7213ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/expression_case_view checked 7077ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/gadt checked 7260ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/gadt_embedding checked 6446ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/irrefutable_case_view checked 5231ms @0f29300672c4
+pass/facts/data_decomposition/other_machine/named_domain checked 7824ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/owned checked 7337ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/owned_positional checked 7394ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/positional_case_view checked 7775ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_machine/positional_expression_case_view checked 7210ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state checked 7406ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/borrowed_case_view checked 7109ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/case_view checked 8116ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/expression_case_view checked 7541ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/gadt checked 8053ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/gadt_embedding checked 7917ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/irrefutable_case_view checked 5684ms @0f29300672c4
+pass/facts/data_decomposition/other_state/named_domain checked 7088ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/owned checked 7257ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/owned_positional checked 7144ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/positional_case_view checked 6827ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/other_state/positional_expression_case_view checked 8132ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter checked 6752ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/borrowed_case_view checked 6867ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/case_view checked 7342ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/expression_case_view checked 7780ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/gadt checked 7337ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/gadt_embedding checked 8012ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/irrefutable_case_view checked 5351ms @0f29300672c4
+pass/facts/data_decomposition/parameter/named_domain checked 6861ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/owned checked 6982ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/owned_positional checked 7098ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/positional_case_view checked 7079ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/parameter/positional_expression_case_view checked 7824ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body checked 7884ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/borrowed_case_view checked 8478ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/case_view checked 7484ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/expression_case_view checked 7349ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/gadt checked 7708ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/gadt_embedding checked 6858ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/irrefutable_case_view checked 5572ms @0f29300672c4
+pass/facts/data_decomposition/target_body/named_domain checked 9081ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/owned checked 7746ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/owned_positional checked 7582ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/positional_case_view checked 7825ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/target_body/positional_expression_case_view checked 7824ms check-target:macos_arm64 @0f29300672c4
 pass/facts/data_where_private_write_multiple_arrivals_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_snapshot_exit checked 3281ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_through_call_result_exit checked 3348ms check-target:macos_arm64 @ccdb99ca2214
@@ -11058,11 +11446,7 @@ pass/generics/runtime_captured_map_shadowed_contract checked 3685ms check-target
 pass/generics/runtime_captured_map_shadowed_method_body checked 3649ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_two_method_tuples checked 6962ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/generics/runtime_captured_map_type_body checked 3660ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_case_qualified_reference_storage_exit rejected 2923ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `joined` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#329.target`: captured source `selection::Left.target` has no live case evidence
-	machine `joined` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#329.target.value`: captured source `selection::Left.target.value` has no live case evidence
-	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target`: captured source `selection::Right.target` has no live case evidence
-	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target.value`: captured source `selection::Right.target.value` has no live case evidence
+pass/generics/runtime_case_qualified_reference_storage_exit checked 7511ms check-target:macos_arm64 @0f29300672c4
 pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_closed_scalar_and_record_const_fields_exit checked 13106ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_computed_closed_call_identity_exit checked 3961ms check-target:macos_arm64 @ccdb99ca2214
@@ -11169,8 +11553,7 @@ pass/generics/runtime_machine_equation_nested_boolean_exit checked 3838ms check-
 pass/generics/runtime_machine_equation_nested_const_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 3905ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_machine_equation_selected_const_exit checked 4254ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_mixed_generic_erased_sum_exit rejected 8349ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	construction of erased generic data `Mixed` is unsupported in this context; use a closed generic record in an explicitly typed local initializer
+pass/generics/runtime_mixed_generic_erased_sum_exit checked 98678ms check-target:macos_arm64 @0f29300672c4
 pass/generics/runtime_nested_array_extent_binder_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_nested_generic_instantiations_exit checked 11978ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_qualified_closed_equation_exit checked 4103ms check-target:macos_arm64 @ccdb99ca2214
@@ -11990,7 +12373,7 @@ pass/proofs/borrowed_descriptor_bound_local_result_exit rejected 2334ms check-ta
 pass/proofs/builtin_unsigned_integer_ordering checked 2386ms @ccdb99ca2214
 pass/proofs/captured_entry_comparison_after_mutation checked 2621ms @ccdb99ca2214
 pass/proofs/captured_scalar_field_observations checked 3299ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/case_call_premises checked 701ms @836691c69aa1
+pass/proofs/case_call_premises checked 5465ms @0f29300672c4
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
 pass/proofs/citation_requires_discharged checked 15694ms @ccdb99ca2214
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 15779ms @ccdb99ca2214
@@ -12771,7 +13154,7 @@ pass/storage/forwarded_context_byte_field_read_store_exit rejected 10390ms check
 	cannot prove default-domain field requirement for call step from shift::entry: parameter main.out requires [u8; N]::Utf8
 	cannot prove index `main.i` is within length 5 in shift::entry
 	cannot prove index `main.i` is within length 5 in shift::entry
-pass/storage/large_zero_initialized_local_exit checked 12549ms check-target:macos_arm64 @ccdb99ca2214
+pass/storage/large_zero_initialized_local_exit checked 74089ms check-target:macos_arm64 @0f29300672c4
 pass/storage/runtime_alias_field_binary checked 2264ms @ccdb99ca2214
 pass/storage/runtime_alias_integer_write checked 2754ms @ccdb99ca2214
 pass/storage/runtime_bounded_effectful_initializer_exit checked 3056ms check-target:macos_arm64 @ccdb99ca2214
@@ -12783,7 +13166,7 @@ pass/storage/runtime_parameter_slice_forward_exit checked 11808ms check-target:m
 pass/storage/runtime_primitive_local_literal_composition_exit checked 12629ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/affine_record_state_clone checked 12250ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/affine_result_constructor checked 11884ms check-target:macos_arm64 @ccdb99ca2214
-pass/structs/case_field_type_store_shapes checked 12006ms check-target:macos_arm64 @ccdb99ca2214
+pass/structs/case_field_type_store_shapes checked 83945ms check-target:macos_arm64 @0f29300672c4
 pass/structs/copied_array_field_shared_record checked 11632ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/deep_nested_write_paths_exit checked 13097ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/mutable_array_record_state_transfer checked 12617ms check-target:macos_arm64 @ccdb99ca2214
@@ -12794,11 +13177,11 @@ pass/structs/record_literal_array_field checked 12401ms check-target:macos_arm64
 pass/structs/runtime_array_member_snapshot_exit checked 13884ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_case_array_payload_exit checked 12609ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_completed_array_elements_exit checked 11878ms check-target:macos_arm64 @ccdb99ca2214
-pass/structs/runtime_composed_case_payload_reads_exit checked 13785ms check-target:macos_arm64 @ccdb99ca2214
+pass/structs/runtime_composed_case_payload_reads_exit checked 71141ms check-target:macos_arm64 @0f29300672c4
 pass/structs/runtime_declared_record_member_fill_exit checked 13347ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_local_array_snapshot_exit checked 12744ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_local_record_policy_exit checked 13274ms check-target:macos_arm64 @ccdb99ca2214
-pass/structs/runtime_mixed_common_field_store_exit checked 4607ms check-target:macos_arm64 @ccdb99ca2214
+pass/structs/runtime_mixed_common_field_store_exit checked 7110ms check-target:macos_arm64 @0f29300672c4
 pass/structs/runtime_named_array_record_member_exit checked 12463ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_nested_struct_construction_exit checked 12555ms check-target:macos_arm64 @ccdb99ca2214
 pass/structs/runtime_nonzero_array_elements_exit checked 11827ms check-target:macos_arm64 @ccdb99ca2214
@@ -12833,7 +13216,7 @@ pass/structural/runtime_nested_constructor_payload_exit checked 3380ms check-tar
 pass/structural/runtime_provider_payload_array_exit checked 10570ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/runtime_scalar_record_reclamation_exit checked 3709ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/runtime_selected_case_record_member_exit checked 12434ms check-target:macos_arm64 @ccdb99ca2214
-pass/structural/runtime_state_local_whole_store_exit checked 12374ms check-target:macos_arm64 @ccdb99ca2214
+pass/structural/runtime_state_local_whole_store_exit checked 81672ms check-target:macos_arm64 @0f29300672c4
 pass/structural/runtime_structural_operand_snapshot_exit checked 12251ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/runtime_structural_result_crash_branch_exit checked 3147ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/selected_record_payload_observations_exit checked 11739ms check-target:macos_arm64 @ccdb99ca2214
@@ -13161,9 +13544,8 @@ pass/text/runtime_chained_string_append_exit checked 11784ms check-target:macos_
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 12353ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_decimal_scalar_across_output_exit checked 11243ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_element_guard_bounds_parse_exit checked 12284ms check-target:macos_arm64 @ccdb99ca2214
-pass/text/runtime_inline_byte_case_payload_variants_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
-pass/text/runtime_inline_byte_case_values_exit rejected 3489ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy { machine: MachineId(3), operation: OperationId(34), reason: "copy path does not select a readable declared leaf" })
+pass/text/runtime_inline_byte_case_payload_variants_exit checked 6441ms check-target:macos_arm64 @0f29300672c4
+pass/text/runtime_inline_byte_case_values_exit checked 8976ms check-target:macos_arm64 @0f29300672c4
 pass/text/runtime_later_arm_guard_reads_exit checked 12524ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_mixed_byte_field_equality_exit rejected 12117ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(23)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("structural edge argument has no transport from its retained source storage") }))
