@@ -440,10 +440,6 @@ retired-syntax deletions to completion.
     callers call the leaf satisfier directly (the `*ByteViews` precedent); a
     call to a trait member adds that trait to the caller's `invokes` edges, so
     the public portable requirements must not silently gain platform edges.
-  - Migrate `pass/host/runtime_descriptor_{direct_array,nested_array_window,output_streams}_exit`:
-    their foreign `&[u8]` leaves rely on the standalone row's compatibility
-    slice ABI, which trait members refuse without an explicit `Calling<C>`
-    policy.
   - Preserve source-selected trait tokens
     (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
