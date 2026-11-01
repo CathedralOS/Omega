@@ -19,7 +19,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 pub struct CallingPolicyCode {
     /// Association only: this never keeps source alive or enters the interpreter.
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
-    pub artifact: CanonicalTerminalArtifact,
+    pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub entries: Vec<(SymbolHandle, Result<MachineId, Vec<Diagnostic>>)>,
 }
 

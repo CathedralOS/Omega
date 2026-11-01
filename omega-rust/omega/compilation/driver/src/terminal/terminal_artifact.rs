@@ -12,7 +12,7 @@ use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use native_production::TerminalApplication;
 use optimization_core::OptimizationSelections;
-use psi_compiler::{TerminalApplicationCustody, TerminalProductionCustody};
+use psi_compiler::TerminalApplicationCustody;
 use std::sync::Arc;
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
@@ -224,7 +224,7 @@ impl<'a> PreparedTerminalProduct<'a> {
     fn prepare_application(
         &self,
         observer: &mut impl psi_compiler::PsiCompilationObserver,
-    ) -> TerminalApplicationCustody<'_> {
+    ) -> TerminalApplicationCustody<'a> {
         TerminalApplicationCustody::prepare(
             self.request.view.program,
             psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
@@ -271,6 +271,13 @@ pub(crate) fn produce_retained_terminal_artifacts(
     for mut cohort in cohorts {
         let mut timings = std::mem::take(cohort[0].request.view.timings);
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
+        let applications = {
+            let mut observer = PsiStageTimings::new(&mut timings);
+            cohort
+                .iter()
+                .map(|application| application.prepare_application(&mut observer))
+                .collect::<Vec<_>>()
+        };
         let started = std::time::Instant::now();
         let produced = produce_shared_terminal(&cohort, &mut timings);
         let elapsed = started.elapsed().as_micros();
@@ -317,7 +324,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
         }
         match produced.and_then(|produced| {
             produced
-                .into_parts()
+                .into_shared_portable()
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])
         }) {
             Err(diagnostics) => {
@@ -325,14 +332,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     outcomes.push((application.position, Err(diagnostics.clone())));
                 }
             }
-            Ok((artifact, applications)) => {
-                let artifact = Arc::new(artifact);
-                let mut applications = applications.into_iter();
-                for application in cohort {
-                    let outcome = match applications.next() {
-                        Some(produced) => produced.and_then(|produced| {
+            Ok(program) => {
+                for (application, custody) in cohort.into_iter().zip(applications) {
+                    let mut timings = std::mem::take(application.request.view.timings);
+                    let produced = program
+                        .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
+                    *application.request.view.timings = timings;
+                    let outcome = produced.and_then(|produced| {
                             if let Some(policy) = &application.policy {
-                                policy.admit(artifact.semantic_module(), &mut produced.roots.into_iter())?;
+                                policy.admit(program.artifact().semantic_module(), &mut produced.roots.into_iter())?;
                             }
                             let receipt = produced.receipt?.ok_or_else(|| {
                                 vec![Diagnostic::error(
@@ -347,17 +355,13 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .and_then(|entry| entry.physical_adapter())
                                     .is_some(),
                                 provider_proposals: application.provider_publication.publish(
-                                    artifact.view(),
+                                    program.artifact().view(),
                                     application.request.selections.identity(),
                                 ),
-                                artifact: Arc::clone(&artifact),
+                                artifact: Arc::clone(program.artifact()),
                                 receipt,
                             }))
-                        }),
-                        None => Err(vec![Diagnostic::error(
-                            "Terminal production lost an application outcome",
-                        )]),
-                    };
+                        });
                     outcomes.push((application.position, outcome));
                 }
             }
@@ -395,7 +399,6 @@ fn produce_shared_terminal(
                 machines: &[],
                 boundaries: &boundary_roots,
             },
-            &[],
             timings,
         );
     }
@@ -430,13 +433,6 @@ fn produce_shared_terminal(
                     .is_some_and(|machine| machine.target_family_interface)
         })
         .map_or(default, |family| family.canonical);
-    let applications = {
-        let mut observer = PsiStageTimings::new(timings);
-        cohort
-            .iter()
-            .map(|application| application.prepare_application(&mut observer))
-            .collect::<Vec<_>>()
-    };
     produce_terminal(
         view,
         first.request.selections,
@@ -445,7 +441,6 @@ fn produce_shared_terminal(
             machines: &machines,
             boundaries: &boundary_roots,
         },
-        &applications,
         timings,
     )
 }
@@ -488,7 +483,6 @@ fn produce_terminal(
     selections: &OptimizationSelections,
     machine: psi_compiler::TerminalMachineSelection<'_>,
     roots: psi_compiler::TerminalProgramRoots<'_>,
-    applications: &[TerminalApplicationCustody<'_>],
     timings: &mut CompileTimings,
 ) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
     psi_compiler::TerminalProductionRequest {
@@ -501,10 +495,7 @@ fn produce_terminal(
         roots,
         optimization_selections: selections.project_psi().selections().clone(),
     }
-    .produce(
-        TerminalProductionCustody { applications },
-        &mut PsiStageTimings::new(timings),
-    )
+    .produce(Default::default(), &mut PsiStageTimings::new(timings))
     .map_err(|error| error.diagnostics())
 }
 

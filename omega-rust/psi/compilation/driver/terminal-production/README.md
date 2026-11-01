@@ -13,24 +13,28 @@ Publication consumes the validated optimization-stage result.
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody` and a
-caller-owned observer. Product callers supply their own timing adapter and
-composition policy; Psi retains no Omega reporting dependency. The custody
-holds ordered application rows, each with optional ProgramEntry
-source-signature identity and an optional composition admission that a product
-caller fills from its `TerminalBehaviorExclusions` policy. Every shared
-entry closure runs the same
-lowering, optimization and publication legs; an entry identity
-adds the ProgramEntry receipt legs, which check the unique Unit entry before
-publication and rejoin the published semantic identity afterward. The
-`ProducedTerminalProgram` returns one artifact beside each application's
-refusal or requested entry receipt. A refusal does not reject sibling applications,
-and successful artifact production alone admits none of them. No lowering or
-unoptimized clone leaves production. Before optimization,
-each policy borrows the same Terminal module and a diagnostic attribution
-companion. Exclusion admission uses exact service owners retained in boundary
-declarations, not checked trees or a callable-name lookup. The same operation
-admits program entries and callback thunks; an admission cannot mutate the
-module, replace a stage or choose whether optimization runs.
+caller-owned observer. Product callers supply their own timing adapter;
+Psi retains no Omega reporting dependency. Source preparation freezes exact
+entry and adapter identities in `TerminalApplicationCustody`, alongside the
+source-free callback roster and optional ProgramEntry signature identity.
+
+Every shared entry closure runs the same lowering, optimization and publication
+legs. `ProducedTerminalProgram::into_shared_portable` retains one immutable
+artifact and its source-issued Build and diagnostic companions. Consumers can
+then call `PortableTerminalProgram::attach_application` without checked trees,
+source handles or another production request. The diagnostic companion survives
+compiler-private record recovery; it is not canonical semantics or authority.
+The producer can also attach applications supplied with its production request.
+Both routes use the same attachment operation after publication.
+
+Attachment returns ordered entry, callback and physical-adapter roots plus the
+optional Unit entry receipt bound to the sealed artifact. Each refusal belongs
+to its application; it neither rejects a sibling nor mutates shared code.
+Omega's exclusion policy consumes those roots and retained pre-optimization
+behavior afterward. It uses exact service owners in boundary declarations,
+not checked trees or a callable-name lookup. No lowering or unoptimized clone
+leaves production, and no admission can replace a stage or choose whether
+optimization runs.
 
 Permission-ledger validation belongs to the stage-05 lowering entrance, not
 this coordinator. Its work is included in the lowering timing row; there is
@@ -44,8 +48,8 @@ implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 
 The [stage-07 entry receipt owner](../../pipeline/07_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
-unique Unit entry, records its identity and delegates explicit context eligibility
-to its own child before publication.
+unique Unit entry in the published artifact and binds its exact semantic identity.
+Source preparation delegates explicit context eligibility to its own child.
 
 ProgramEntry retains source-derived eligibility for the exact declared context
 parameter when its record is ZII-valid and needs no executable nominal cleanup.

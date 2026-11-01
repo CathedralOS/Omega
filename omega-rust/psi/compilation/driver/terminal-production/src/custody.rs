@@ -43,6 +43,7 @@ pub struct ProducedTerminalProgram {
     pub(super) build_requests: TerminalBuildRequests,
     pub(super) build_filesystem: TerminalBuildFilesystem,
     pub(super) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
+    pub(super) provenance: terminal_psi::TerminalMachineProvenance,
 }
 
 // Source-completion receipts retain portable production. Recover its canonical
@@ -71,7 +72,8 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             companion!(self.build_bindings.native_formations_for(view));
             companion!(self.build_requests.calls_for(view));
             companion!(self.build_filesystem.calls_for(view));
-            self.applications.write(output)
+            self.applications.write(output)?;
+            self.provenance.write(output)
         })
     }
 
@@ -91,6 +93,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             let filesystem: Arc<[TerminalBuildFilesystemCall]> = Record::read(input)?;
             let applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>> =
                 Record::read(input)?;
+            let provenance = Record::read(input)?;
             for application in &applications {
                 if let Ok(application) = application {
                     if let Ok(Some(receipt)) = &application.receipt {
@@ -120,6 +123,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 build_requests,
                 build_filesystem,
                 applications,
+                provenance,
             })
         })
     }
@@ -137,6 +141,7 @@ impl ProducedTerminalProgram {
             build_requests: self.build_requests,
             build_filesystem: self.build_filesystem,
             applications: self.applications,
+            provenance: self.provenance,
         })
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
@@ -194,9 +199,26 @@ pub struct PortableTerminalProgram {
     build_requests: TerminalBuildRequests,
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
+    provenance: terminal_psi::TerminalMachineProvenance,
 }
 
 impl PortableTerminalProgram {
+    /// Attach a source-issued description to this already published code. The
+    /// description and diagnostic companion carry no source lifetime or handles;
+    /// target/provider admission remains the consuming application's job.
+    pub fn attach_application(
+        &self,
+        application: &crate::TerminalApplicationCustody<'_>,
+        observer: &mut impl crate::PsiCompilationObserver,
+    ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
+        application.attach(
+            self.artifact.view().into(),
+            Ok(&self.artifact),
+            &self.provenance,
+            observer,
+        )
+    }
+
     pub fn artifact(&self) -> &Arc<CanonicalTerminalArtifact> {
         &self.artifact
     }

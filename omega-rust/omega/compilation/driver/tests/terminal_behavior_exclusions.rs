@@ -15,6 +15,74 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
 }
 
 #[test]
+fn late_application_attachment_outlives_source_and_preserves_recovered_attribution() {
+    // Descriptions escape this scope without borrowing the checked program.
+    let (program, recovered, valid, invalid) = {
+        let prepared = prepare("tests/omega/pass/build/retained_behavior_admission/main.omg");
+        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
+        request.package_inputs = prepared.package_inputs;
+        let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+            .result
+            .expect("source checks");
+        let source = checked.execution().provider_source.program();
+        let sources = checked.sources().exact_toolchain_sources();
+        let describe = |name| {
+            psi_compiler::TerminalApplicationCustody::prepare(
+                source,
+                psi_compiler::TerminalMachineSelection::Name(name),
+                None,
+                Some(psi_compiler::TerminalCompositionRoots::default()),
+                sources,
+                &mut psi_compiler::UnmeasuredProduction,
+            )
+        };
+        let valid = describe("main");
+        let invalid = describe("missing_entry");
+        let produced = psi_compiler::TerminalProductionRequest::new(
+            source,
+            psi_compiler::TerminalMachineSelection::Name("main"),
+            sources,
+        )
+        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .expect("publish without applications");
+        let encoded = compiler_storage::encode(&produced, Default::default())
+            .expect("encode source companion");
+        let recovered: psi_compiler::ProducedTerminalProgram =
+            compiler_storage::decode(&encoded, Default::default())
+                .expect("recover source companion");
+        (
+            produced.into_shared_portable().unwrap(),
+            recovered.into_shared_portable().unwrap(),
+            valid,
+            invalid,
+        )
+    };
+    for published in [&program, &recovered] {
+        let identity = published.artifact().view().identity();
+        assert!(
+            published
+                .attach_application(&invalid, &mut psi_compiler::UnmeasuredProduction)
+                .is_err()
+        );
+        let application = published
+            .attach_application(&valid, &mut psi_compiler::UnmeasuredProduction)
+            .expect("late valid application");
+        let [root] = <[_; 1]>::try_from(application.roots).expect("one exact root");
+        let root = root.expect("root retained");
+        assert!(root.provenance.label(root.machine).contains("main"));
+        assert_eq!(
+            published.artifact().view().identity(),
+            identity,
+            "attachment cannot replace code"
+        );
+    }
+    assert_eq!(
+        program.artifact().semantic_module(),
+        recovered.artifact().semantic_module()
+    );
+}
+
+#[test]
 fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     let prepared = prepare("tests/omega/pass/build/executed_exclusion_values_exit/main.omg");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
