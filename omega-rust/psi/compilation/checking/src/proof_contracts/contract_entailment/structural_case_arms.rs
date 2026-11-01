@@ -1258,17 +1258,16 @@ fn recognize_structural_state_leaves_from<'a>(
     // Ancestry above is the actual recursion boundary. Optional work reuse
     // remains cyclic-only, and requires the complete proof/observation cut:
     // identical forwarded values under different guards are different inputs.
-    // Cache entries belong to actual arrivals. Keeping a full judge at each
-    // statement continuation pins every prior COW storage/result epoch until
-    // the root walk ends. Continuations still traverse their unchanged body;
-    // omitting optional reuse does not cover or suppress any incoming path.
+    // Only genuine arrivals are eligible. A statement continuation advances
+    // through finite execution order and traverses its unchanged body; omitting
+    // optional reuse does not cover or suppress any incoming path.
     let dedup_applies = start_index == 0 && state_lies_on_prefix_cycle(program, invocation, state);
     let arrival = dedup_applies.then(|| StructuralArrival {
         state: state.symbol,
         start_index,
         collect_citations,
         parent: arrival_parent,
-        judge: judge.clone(),
+        inputs: judge.traversal_inputs(),
         parameter_names: parameter_names.to_vec(),
         environment: environment.clone(),
         hypotheses: case_hypotheses.clone(),
