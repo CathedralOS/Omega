@@ -252,7 +252,7 @@ fn observations(
             }
         }
     }
-    (!sources.is_empty()).then_some(sources)
+    (!sources.is_empty() || supplied.lifetime_access.is_some()).then_some(sources)
 }
 
 struct Inputs<'request, 'symbols> {
@@ -354,9 +354,9 @@ impl ArgumentOrigins for Inputs<'_, '_> {
                 }
                 sources.push(leaf.origin?);
                 sources.extend(
-                    leaf.lifetime_dependencies
+                    leaf.lifetime_dependencies?
                         .into_iter()
-                        .map(completed_dependency),
+                        .map(ReferenceSource::captured_dependency),
                 );
             }
             return Some(sources);
@@ -398,9 +398,9 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         let returned = returned?;
         let mut sources = Vec::new();
         for leaf in returned.references {
-            for dependency in leaf.lifetime_dependencies {
-                if !sources.contains(&completed_dependency(dependency.clone())) {
-                    sources.push(completed_dependency(dependency));
+            for dependency in leaf.lifetime_dependencies? {
+                if !sources.contains(&ReferenceSource::captured_dependency(dependency.clone())) {
+                    sources.push(ReferenceSource::captured_dependency(dependency));
                 }
             }
             let origin = leaf.origin?;
@@ -450,14 +450,56 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         )?;
         let mut references = Vec::new();
         for mut leaf in returned.references {
+            if leaf.kind == stored_origins::StoredOriginKind::LifetimeDependency {
+                // Logical carriers load their debt at this completed input cut,
+                // retaining the old backing while naming this actual token home.
+                let current = stored_origins::reference_leaves_before_statement_for_query(
+                    self.program,
+                    state,
+                    before,
+                    expression,
+                    reference,
+                    Some(&captured.context.stored),
+                    Some(&captured.inference),
+                    true,
+                )?;
+                let carrier =
+                    super::super::FrameSourcePlace::from_expression(self.program, expression)
+                        .append_segments(&leaf.local_segments);
+                if !carrier.root.is_valid() && carrier.output_identity().is_none() {
+                    return None;
+                }
+                let mut dependencies = Vec::new();
+                let mut found = false;
+                for current in current.references.iter().filter(|current| {
+                    current.kind == leaf.kind && current.local_segments == leaf.local_segments
+                }) {
+                    found = true;
+                    for dependency in current.lifetime_dependencies.as_ref()? {
+                        let mut dependency = dependency.clone();
+                        dependency.carrier = carrier.clone();
+                        dependency.carrier_backing = None;
+                        if !dependencies.contains(&dependency) {
+                            dependencies.push(dependency);
+                        }
+                    }
+                }
+                if !found {
+                    return None;
+                }
+                leaf.origin = None;
+                leaf.lifetime_dependencies = Some(dependencies);
+                references.push(leaf);
+                continue;
+            }
             let Some(origin) = leaf.origin.clone() else {
                 references.push(leaf);
                 continue;
             };
             let (sources, dependencies) = partition_sources(self.capture_source(captured, origin)?);
             for dependency in dependencies {
-                if !leaf.lifetime_dependencies.contains(&dependency) {
-                    leaf.lifetime_dependencies.push(dependency);
+                if !leaf.lifetime_dependencies.as_ref()?.contains(&dependency) {
+                    leaf.lifetime_dependencies.as_mut()?.push(dependency);
                 }
             }
             if sources.is_empty() {
@@ -657,13 +699,14 @@ impl Inputs<'_, '_> {
                 };
                 for mut leaf in observed.references {
                     leaf.lifetime_dependencies
+                        .as_mut()?
                         .extend(dependencies.iter().cloned());
                     if let Some(source) = leaf.origin.clone() {
                         let (sources, debts) =
                             partition_sources(self.capture_source(captured, source)?);
                         for debt in debts {
-                            if !leaf.lifetime_dependencies.contains(&debt) {
-                                leaf.lifetime_dependencies.push(debt);
+                            if !leaf.lifetime_dependencies.as_ref()?.contains(&debt) {
+                                leaf.lifetime_dependencies.as_mut()?.push(debt);
                             }
                         }
                         if sources.is_empty() {
@@ -774,13 +817,4 @@ fn inference_at(captured: &SlotArgumentCapture, enclosing: &FrameInference) -> F
         }
     }
     observed
-}
-
-/// Reintroduce an existing leaf debt at a query boundary without projecting it.
-fn completed_dependency(source: SlotSource) -> ReferenceSource {
-    ReferenceSource::Captured(CapturedReferenceSource {
-        base: source.origin.clone(),
-        substitution: source.origin.source.clone(),
-        source,
-    })
 }

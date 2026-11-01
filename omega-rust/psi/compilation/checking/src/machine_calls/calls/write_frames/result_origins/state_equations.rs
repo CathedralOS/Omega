@@ -366,7 +366,7 @@ fn finite_substitutions(
                                     precision: FramePathPrecision::Exact,
                                     source,
                                 })),
-                                lifetime_dependencies: Vec::new(),
+                                lifetime_dependencies: Some(Vec::new()),
                             }],
                             ..Default::default()
                         }
@@ -484,13 +484,19 @@ fn finite_substitutions(
                     Some(())
                 };
                 for leaf in actual.references {
-                    let origin = leaf.origin?.into_symbolic_place()?;
-                    record(
-                        Some(&leaf.local_segments),
-                        &origin.source,
-                        origin.precision != FramePathPrecision::Exact,
-                    )?;
-                    for dependency in leaf.lifetime_dependencies {
+                    if let Some(origin) = leaf.origin {
+                        let origin = origin.into_symbolic_place()?;
+                        record(
+                            Some(&leaf.local_segments),
+                            &origin.source,
+                            origin.precision != FramePathPrecision::Exact,
+                        )?;
+                    } else if leaf.kind
+                        != super::super::stored_origins::StoredOriginKind::LifetimeDependency
+                    {
+                        return None;
+                    }
+                    for dependency in leaf.lifetime_dependencies? {
                         record(
                             Some(&leaf.local_segments),
                             &dependency.origin.source,

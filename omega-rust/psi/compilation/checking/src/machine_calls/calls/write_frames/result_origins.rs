@@ -30,6 +30,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionTargetNode};
 
+mod declared_lifetimes;
 mod input_moves;
 mod input_sources;
 mod primitive_results;
@@ -48,7 +49,17 @@ pub(super) fn call_result_origins(
     inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     let call = expression_table(program).call_node(expression)?;
-    let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
+    let Some((machine, state)) = machine_state_by_symbol(program, call.target_symbol) else {
+        return declared_lifetimes::call_result(
+            program,
+            caller_machine,
+            expression,
+            symbols,
+            inference,
+            include_shared,
+            inputs,
+        );
+    };
     let alternatives =
         if primitive_results::result_origins(program, machine, state, expected, include_shared)
             .is_some()
@@ -645,7 +656,7 @@ pub(super) fn reference_result_relation(
                 local_segments: Vec::new(),
                 may_select: false,
                 origin: Some(ReferenceSource::Symbolic(origin.place)),
-                lifetime_dependencies: Vec::new(),
+                lifetime_dependencies: Some(Vec::new()),
             })
             .collect(),
         ..Default::default()
@@ -962,7 +973,7 @@ fn instantiate_result_origins(
         // dependencies namespace-free. Substitute every debt before either
         // the unknown or spatial result branch leaves the callee.
         let mut lifetime_dependencies = Vec::new();
-        for dependency in &leaf.lifetime_dependencies {
+        for dependency in leaf.lifetime_dependencies.as_ref()? {
             if dependency.origin.source.is_static() {
                 lifetime_dependencies.push(dependency.clone());
                 continue;
@@ -1009,7 +1020,7 @@ fn instantiate_result_origins(
         }
         let Some(origin) = &leaf.origin else {
             returned.references.push(ReferenceLeaf {
-                lifetime_dependencies,
+                lifetime_dependencies: Some(lifetime_dependencies),
                 ..leaf.clone()
             });
             continue;
@@ -1023,7 +1034,7 @@ fn instantiate_result_origins(
             // named state or call returns it; never infer static storage from
             // an absent parameter root.
             returned.references.push(ReferenceLeaf {
-                lifetime_dependencies,
+                lifetime_dependencies: Some(lifetime_dependencies),
                 ..leaf.clone()
             });
             continue;
@@ -1035,7 +1046,7 @@ fn instantiate_result_origins(
             // A shared unknown is still a leaf, not an empty result footprint.
             // Mutable unknowns cannot be issued by the reference resolver.
             returned.references.push(ReferenceLeaf {
-                lifetime_dependencies,
+                lifetime_dependencies: Some(lifetime_dependencies),
                 ..leaf.clone()
             });
             continue;
@@ -1068,7 +1079,7 @@ fn instantiate_result_origins(
         if origins.is_empty() {
             returned.references.push(ReferenceLeaf {
                 origin: None,
-                lifetime_dependencies,
+                lifetime_dependencies: Some(lifetime_dependencies),
                 ..leaf.clone()
             });
             continue;
@@ -1080,7 +1091,7 @@ fn instantiate_result_origins(
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,
                 origin: Some(origin),
-                lifetime_dependencies: lifetime_dependencies.clone(),
+                lifetime_dependencies: Some(lifetime_dependencies.clone()),
             });
         }
     }

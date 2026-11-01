@@ -117,6 +117,20 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         ) {
             continue;
         }
+        if leaf.kind == super::super::stored_origins::StoredOriginKind::LifetimeDependency {
+            // Debt has no subaddress: its complete carrier occurrence supplies
+            // all dependencies, including a proven empty actual frontier.
+            if relative.source.segments.len() != leaf.local_segments.len() {
+                return None;
+            }
+            for dependency in leaf.lifetime_dependencies? {
+                let source = ReferenceSource::captured_dependency(dependency);
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
+            }
+            continue;
+        }
         let suffix = place_suffix(&boundary.local_path, &relative.path).unwrap_or("");
         let remaining = FrameSourcePlace {
             recasts: relative.source.recasts.clone(),
@@ -140,7 +154,9 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     }
     // A selected reference cannot become private just because its selected
     // payload or element supplied no corresponding actual reference leaf.
-    (!sources.is_empty()).then_some(sources)
+    (!sources.is_empty()
+        || boundary.kind == super::super::stored_origins::StoredOriginKind::LifetimeDependency)
+        .then_some(sources)
 }
 
 /// The declared boundary above proves this is a stored reference, and the

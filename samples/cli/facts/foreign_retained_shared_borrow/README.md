@@ -104,9 +104,26 @@ into ownership. The generic owned-sibling declaration under
 `tests/omega/pass/core/content_owned_sibling_in_loan_carrier` pins the converse:
 a disjoint borrowed field does not take away an actual owned content source.
 
+The [persistent-slot control](controls/persistent_retention/main.omg) replaces
+caller-owned storage through an ordinary helper, completes the old registration,
+and then observes 91 through the new registration. Its
+[twin](controls/persistent_retention/invalid/main.omg) writes that new backing
+while the stored loan is still live. The
+[restore control](controls/persistent_restore/main.omg) instead restores the old
+slot and completes the temporarily installed registration; its
+[twin](controls/persistent_restore/invalid/main.omg) writes the still-retained
+original backing. Distinct 37/91 values and opposite permitted writes make the
+current slot and loan epoch observable. Both pairs have matching pass/fail pins.
+
+The former receiver-namespace refusal was an implementation limit: matching
+explicit lifetimes permit the helper once its complete normal-exit loan relation
+is carried to the caller. A historical install that is subsequently consumed or
+replaced cannot supply that relation, and an unrelated loan at the same path
+cannot cover its source. These controls require actual loan transport rather
+than preservation of the obsolete namespace restriction.
+
 The controls additionally require early disposal, capacity reuse, repeated
-completion, call-scoped retention and unsupported persistent retention
-to reject for their stated obligations. Two simultaneous registrations remain
+completion and call-scoped retention to reject for their stated obligations. Two simultaneous registrations remain
 independent; completing one leaves the other loan live. A post-completion write
 and raw values of the same carrier (including a factory with an unused borrow)
 remain valid. Returning local backing or redeeming borrowed content as independent

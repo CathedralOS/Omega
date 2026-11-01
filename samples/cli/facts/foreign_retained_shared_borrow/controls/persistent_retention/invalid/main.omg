@@ -1,0 +1,62 @@
+// Expected exit: 0. Replacing caller storage transports the exact second loan;
+// completion observes 91 and the first backing is writable after its completion.
+use omega::language::core::content;
+use omega::language::core::drop;
+public data ByteUnit {}
+public data Buffer [linear] { value: u64; }
+machine Buffer::drop(buffer: &mut Buffer) {}
+public domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Pending<'source> [linear] { slot: u64; }
+public domain Pending::Retained established by Reader::register;
+machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
+satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Capacity [linear] { token: u64; }
+public domain Capacity::Available established by Reader::acquire, Reader::complete;
+public boundary trait Reader {
+    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
+    machine register<'source>(capacity: Capacity in Capacity::Available, buffer: &'source Buffer in Buffer::Owned) -> Pending<'source>
+    reaches
+    ensures result in Pending::Retained crashes Trap;
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    reaches
+    ensures result in Capacity::Available crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
+}
+data Main<'a> { stored: Pending<'a> in Pending::Retained; }
+machine store_pending<'a>(main: &mut Main<'a>, source: Pending<'a> in Pending::Retained)
+reaches Reader crashes Trap {
+    let old: Pending<'a> in Pending::Retained = main.stored;
+    main.stored = source;
+    let mut observed: u64 = 0;
+    let capacity: Capacity in Capacity::Available = Reader::complete(old, &mut observed);
+    Reader::release(capacity);
+}
+machine main() reaches Reader crashes Trap {
+    let first_capacity: Capacity in Capacity::Available = Reader::acquire();
+    let second_capacity: Capacity in Capacity::Available = Reader::acquire();
+    let mut first_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let mut second_buffer: Buffer in Buffer::Owned = Buffer { value: 91 };
+    let first: Pending in Pending::Retained = Reader::register(first_capacity, &first_buffer);
+    let second: Pending in Pending::Retained = Reader::register(second_capacity, &second_buffer);
+    let mut state: Main = Main { stored: first };
+    store_pending(&mut state, second);
+    first_buffer.value = 99;
+    second_buffer.value = 99;
+    let current: Pending in Pending::Retained = state.stored;
+    let mut observed: u64 = 0;
+    let capacity: Capacity in Capacity::Available = Reader::complete(current, &mut observed);
+    Reader::release(capacity);
+    let first_value: u64 = first_buffer.value;
+    let second_value: u64 = second_buffer.value;
+    drop(first_buffer);
+    drop(second_buffer);
+    transition first_value == 99 && second_value == 91 && observed == 91 { true -> good() _ -> bad() }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

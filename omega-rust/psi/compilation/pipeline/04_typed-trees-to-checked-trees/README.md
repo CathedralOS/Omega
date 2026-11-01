@@ -499,8 +499,13 @@ persistent copies. Named-state must-analysis preserves stable field/case/index
 paths only when every predecessor agrees; runtime index rebinding needs exact
 immutable forwarding. Disjoint complete call frames preserve paths, whereas
 unknown origins, overlapping writes, or missing predecessors retire them.
-General parameter-backed persistent storage and loan-root rebasing remain
-unfinished; a successful origin query is not authority to store a borrow.
+Ordinary writable-parameter stores use the body-derived normal-exit slot
+relation in `validation` for both physical references and nonspatial retained
+loans. Complete current sources survive replacement and input-capture cuts;
+consumed or overwritten epochs supply no outgoing debt. Logical slots never
+supply pointer geometry or issuance. The graph-state fence remains for persistent
+machine storage whose complete outgoing loan propagation is unavailable; a
+successful origin query alone grants no storage authority.
 
 `flow/ownership/result_storage.rs` distinguishes owned call-result storage from
 caller places without crossing references or slices. `checks/multiplicity/temporary_results.rs`

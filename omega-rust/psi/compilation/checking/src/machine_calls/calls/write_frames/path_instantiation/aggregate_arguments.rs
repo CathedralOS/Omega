@@ -91,6 +91,16 @@ pub(in crate::machine_calls::calls::write_frames) struct CapturedReferenceSource
 }
 
 impl ReferenceSource {
+    /// Preserve an already captured nonspatial source without projecting it.
+    pub(in crate::machine_calls::calls::write_frames) fn captured_dependency(
+        source: super::super::stored_calls::SlotSource,
+    ) -> Self {
+        Self::Captured(CapturedReferenceSource {
+            base: source.origin.clone(),
+            substitution: source.origin.source.clone(),
+            source,
+        })
+    }
     pub(in crate::machine_calls::calls::write_frames) fn place(&self) -> &FramePlaceOrigin {
         match self {
             Self::Symbolic(origin) => origin,
@@ -152,7 +162,7 @@ pub(in crate::machine_calls::calls::write_frames) fn partition_sources(
 /// aggregate declarations. Only the string view coarsens array selectors.
 #[derive(Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
-    pub lifetime_dependencies: Vec<super::super::stored_calls::SlotSource>,
+    pub lifetime_dependencies: Option<Vec<super::super::stored_calls::SlotSource>>,
     pub kind: super::super::stored_origins::StoredOriginKind,
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
@@ -377,6 +387,26 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             }
             continue;
         }
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::StructLiteral(_)
+        ) && matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        ) && crate::borrow_contracts::retained_lifetime_owner_paths(program, reference)
+            .is_some_and(|paths| paths.iter().any(Vec::is_empty))
+        {
+            // A raw checked constructor creates no protocol loan. Borrowed
+            // fields are still traversed independently below.
+            leaves.references.push(ReferenceLeaf {
+                kind: super::super::stored_origins::StoredOriginKind::LifetimeDependency,
+                local_suffix: local_suffix.clone(),
+                local_segments: local_segments.clone(),
+                may_select: false,
+                origin: None,
+                lifetime_dependencies: Some(Vec::new()),
+            });
+        }
         // A resolved payload-free case name constructs a fresh value; unlike
         // an ordinary name it has no previous binding whose origins can be
         // transferred. Keep the selected declaration's case evidence rather
@@ -481,7 +511,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         local_segments,
                         may_select: false,
                         origin: None,
-                        lifetime_dependencies: Vec::new(),
+                        lifetime_dependencies: Some(Vec::new()),
                     });
                     continue;
                 };
@@ -493,7 +523,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         local_segments,
                         may_select: false,
                         origin: None,
-                        lifetime_dependencies,
+                        lifetime_dependencies: Some(lifetime_dependencies),
                     });
                     continue;
                 }
@@ -509,7 +539,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         local_segments: local_segments.clone(),
                         may_select: false,
                         origin: Some(origin),
-                        lifetime_dependencies: lifetime_dependencies.clone(),
+                        lifetime_dependencies: Some(lifetime_dependencies.clone()),
                     });
                 }
             }

@@ -58,7 +58,7 @@ pub(super) fn effects(
     super::complete_applied_output_transfer(context, relation.readiness, effects)
 }
 
-pub(super) fn owner_segments(
+pub(in crate::machine_calls::calls::write_frames) fn owner_segments(
     path: &[checked_trees::BorrowLoanOwnerSegment],
 ) -> Option<Vec<PlaceSegment>> {
     path.iter()

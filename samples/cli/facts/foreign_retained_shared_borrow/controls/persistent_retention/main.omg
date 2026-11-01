@@ -1,5 +1,5 @@
-// Expected exit: 0. Completion observes the original value 37 through the
-// retained shared backing; a live registration excludes overlapping writes.
+// Expected exit: 0. Replacing caller storage transports the exact second loan;
+// completion observes 91 and the first backing is writable after its completion.
 use omega::language::core::content;
 use omega::language::core::drop;
 public data ByteUnit {}
@@ -37,6 +37,25 @@ reaches Reader crashes Trap {
     let capacity: Capacity in Capacity::Available = Reader::complete(old, &mut observed);
     Reader::release(capacity);
 }
-machine run_main<'a>(main: &mut Main<'a>) {}
-
-machine main() {}
+machine main() reaches Reader crashes Trap {
+    let first_capacity: Capacity in Capacity::Available = Reader::acquire();
+    let second_capacity: Capacity in Capacity::Available = Reader::acquire();
+    let mut first_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let mut second_buffer: Buffer in Buffer::Owned = Buffer { value: 91 };
+    let first: Pending in Pending::Retained = Reader::register(first_capacity, &first_buffer);
+    let second: Pending in Pending::Retained = Reader::register(second_capacity, &second_buffer);
+    let mut state: Main = Main { stored: first };
+    store_pending(&mut state, second);
+    first_buffer.value = 99;
+    let current: Pending in Pending::Retained = state.stored;
+    let mut observed: u64 = 0;
+    let capacity: Capacity in Capacity::Available = Reader::complete(current, &mut observed);
+    Reader::release(capacity);
+    let first_value: u64 = first_buffer.value;
+    let second_value: u64 = second_buffer.value;
+    drop(first_buffer);
+    drop(second_buffer);
+    transition first_value == 99 && second_value == 91 && observed == 91 { true -> good() _ -> bad() }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

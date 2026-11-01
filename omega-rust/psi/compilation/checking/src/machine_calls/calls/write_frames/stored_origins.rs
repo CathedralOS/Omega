@@ -133,9 +133,10 @@ pub(super) struct StoredWriteOrigin {
     /// survive transport and prevent overlapping writes from being discarded
     /// as private local storage; it proves no actual referent identity.
     pub origin: Option<FramePlaceOrigin>,
-    /// Opaque completion's retained lifetime debt, never spatial alternatives.
-    /// An absent origin remains unknown even when these dependencies are known.
-    pub lifetime_dependencies: Vec<super::stored_calls::SlotSource>,
+    /// Complete retained lifetime debt, never spatial alternatives. None
+    /// withholds the frontier; Some([]) establishes a value with no debt.
+    /// An absent physical origin remains unknown beside known dependencies.
+    pub lifetime_dependencies: Option<Vec<super::stored_calls::SlotSource>>,
 }
 
 /// A possible hidden pointer contributes a conservative write footprint, but
@@ -143,6 +144,8 @@ pub(super) struct StoredWriteOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StoredOriginKind {
     Reference(language_semantics::ReferenceAccess),
+    /// A retained carrier holds debt without containing a pointer descriptor.
+    LifetimeDependency,
     OpaqueRegion,
 }
 
