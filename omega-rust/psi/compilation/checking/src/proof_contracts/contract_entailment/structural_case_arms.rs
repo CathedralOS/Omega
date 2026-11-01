@@ -322,6 +322,30 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    recognize_structural_state_prefix_batched(
+        program,
+        machine,
+        state,
+        judge,
+        classification,
+        diagnostics,
+        std::slice::from_mut(&mut requirement),
+    )
+}
+
+/// One state-prefix walk for several visitors. The walk prunes by each
+/// visitor's site and completion, and its verdict and diagnostics are shared,
+/// so it matches every visitor's solo walk only when they all sit at one site
+/// and complete alike.
+pub(super) fn recognize_structural_state_prefix_batched<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -349,7 +373,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         &mut StructuralArrivalLog::new(),
         usize::MAX,
         &mut 0,
-        std::slice::from_mut(&mut requirement),
+        visitors,
         CitationFacts::default(),
     )
 }
