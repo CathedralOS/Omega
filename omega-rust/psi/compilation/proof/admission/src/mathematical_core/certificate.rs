@@ -96,14 +96,11 @@ impl MathematicalCertificate {
     }
 }
 
-/// Stack still reserved for kernel verification and bounded elaboration.
-/// The checkers recurse over the certificate's term structure — elaborated
-/// judgments from real programs nest far deeper than the default thread
-/// stack admits — so the public verification entries run on a dedicated
-/// stack rather than trusting the caller's, exactly as the checked
-/// interpreter runs its tree-walker. The reservation is virtual: pages
-/// commit only as recursion actually descends. Assumption and receipt collection
-/// use arena-handle worklists on their caller's stack.
+/// Stack still reserved for bounded certificate traversal and elaboration.
+/// Those source-evidence consumers retain recursive paths. Mathematical term
+/// import, typing, checking, conversion, and assumption collection use handle
+/// worklists on their caller's stack. Raw mathematical verification never enters
+/// this worker; bounded admission keeps it until its own traversal is migrated.
 const VERIFICATION_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 #[cfg(test)]
@@ -144,19 +141,6 @@ pub(crate) fn run_on_verification_stack<T: Send>(f: impl FnOnce() -> T + Send) -
 /// context. Resource exhaustion surfaces as `CoreError::StepCeiling`,
 /// never as a false judgment.
 pub fn verify_mathematical_certificate(
-    arena: &mut TermArena,
-    certificate: &MathematicalCertificate,
-    budget: &mut Budget,
-) -> Result<(), CoreError> {
-    run_on_verification_stack(|| {
-        verify_mathematical_certificate_on_current_thread(arena, certificate, budget)
-    })
-}
-
-/// [`verify_mathematical_certificate`] on the caller's stack: used by the
-/// bounded-certificate route, which already runs its whole elaboration and
-/// verification inside [`run_on_verification_stack`].
-pub(crate) fn verify_mathematical_certificate_on_current_thread(
     arena: &mut TermArena,
     certificate: &MathematicalCertificate,
     budget: &mut Budget,
