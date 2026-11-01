@@ -12,7 +12,6 @@ use semantic_vocabulary::{
 };
 
 use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
 
 // Structural Unit call requirements occupy the upper half of the module-wide
 // obligation namespace. Existing contract and cleanup producers allocate from
