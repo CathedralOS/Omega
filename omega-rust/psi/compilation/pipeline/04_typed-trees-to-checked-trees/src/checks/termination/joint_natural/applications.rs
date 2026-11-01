@@ -10,7 +10,7 @@ pub(super) struct Application {
     pub(super) measure: symbols::SymbolHandle,
     pub(super) parameter: symbols::SymbolHandle,
     pub(super) body: typed_trees::expression::ExpressionHandle,
-    pub(super) input_primitive: typed_trees::types::PrimitiveType,
+    pub(super) input_type: typed_trees::types::TypeReferenceHandle,
     pub(super) result_primitive: typed_trees::types::PrimitiveType,
 }
 
@@ -20,23 +20,35 @@ pub(super) struct ObservedApplication {
 }
 
 impl Application {
+    pub(super) fn shape(
+        self,
+        program: &dyn validation::CheckingInput,
+    ) -> Option<validation::DeclaredInputShape> {
+        validation::declared_input_shape(
+            program,
+            program
+                .measures()
+                .iter()
+                .find(|declaration| declaration.symbol == self.measure)?,
+        )
+    }
+
     pub(super) fn observe(
         self,
         values: &CurrentScalarValues<'_>,
         machine: &typed_trees::machine::Machine,
-        input: ScopedArithmeticValue,
+        input_type: typed_trees::types::TypeReferenceHandle,
+        bindings: Vec<validation::ScopedArithmeticBinding>,
     ) -> Option<ObservedApplication> {
         let expression = ScopedArithmeticExpression {
             owner: self.measure,
             expression: self.body,
-            bindings: vec![validation::ScopedArithmeticBinding {
-                binder: validation::ScopedArithmeticBinder::Symbol(self.parameter),
-                value: input,
-            }],
+            bindings,
         };
         let formation = values.declared_integer_application_formation(
             machine,
             &expression,
+            input_type,
             self.result_primitive,
         )?;
         let (minimum, maximum) = self.result_primitive.integer_bounds()?;

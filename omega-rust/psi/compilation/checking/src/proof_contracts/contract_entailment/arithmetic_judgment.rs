@@ -11,7 +11,9 @@ use typed_trees::expression::TableMatchExpression;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 mod application_formation;
+mod application_inputs;
 pub use application_formation::IntegerApplicationFormation;
+pub(in crate::proof_contracts::contract_entailment) use application_inputs::IntegerApplicationInput;
 #[cfg(test)]
 mod denotation_tests;
 mod denotations;
@@ -219,7 +221,7 @@ impl Polynomial {
 pub(super) enum OpaqueTerm {
     DeclarationApplication {
         measure: SymbolHandle,
-        input: Polynomial,
+        input: IntegerApplicationInput,
     },
     Conditional {
         arms: Vec<ConditionalValueArm>,
@@ -316,6 +318,7 @@ pub(super) struct Engine<'program> {
     /// A callee telescope denotes completed caller values before any operation
     /// simplifies. This overlays symbol identity, not arithmetic capabilities.
     formal_arguments: Option<Vec<(SymbolHandle, Polynomial)>>,
+    formal_read_arguments: Vec<(ExpressionHandle, Polynomial)>,
     strict_symbol_bindings_valid: bool,
     /// Only the exact-meaning call adapter licenses widening while capturing
     /// actuals. Other strict readers (ranges and saved locals) have not checked
@@ -430,6 +433,7 @@ impl<'program> Engine<'program> {
             parameter_atoms: Vec::new(),
             strict_symbol_bindings,
             formal_arguments: None,
+            formal_read_arguments: Vec::new(),
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
@@ -574,7 +578,11 @@ impl<'program> Engine<'program> {
                 | OpaqueTerm::ShiftRight { value, count, .. } => {
                     poly_mentions(value) || poly_mentions(count)
                 }
-                OpaqueTerm::DeclarationApplication { input, .. } => poly_mentions(input),
+                OpaqueTerm::DeclarationApplication { input, .. } => {
+                    let mut mentions = false;
+                    input.visit_values(|value| mentions |= poly_mentions(value));
+                    mentions
+                }
                 OpaqueTerm::Conditional { arms } => arms.iter().any(|arm| {
                     let mut mentions = false;
                     arm.visit_operands(|value| mentions |= poly_mentions(value));
@@ -1229,6 +1237,13 @@ impl<'program> Engine<'program> {
             .strict_occurrences
             .iter()
             .find(|(candidate, _)| *candidate == expression)
+        {
+            return Some(value.clone());
+        }
+        if let Some((_, value)) = self
+            .formal_read_arguments
+            .iter()
+            .find(|(source, _)| *source == expression)
         {
             return Some(value.clone());
         }

@@ -42,26 +42,12 @@ fn retain_component(
             entry_indexes,
         });
     let measure = if input.measure.is_valid() {
-        let formal = program
-            .measures()
+        let rows = input
+            .application_bindings
             .iter()
-            .find(|definition| definition.symbol == input.measure)
-            .and_then(|definition| definition.parameter.as_ref())
-            .ok_or("an admitted rank application has no supplying declaration formal")?;
-        let entry = admitted
-            .coordinates
-            .insert(checked_trees::CheckedRankCoordinate {
-                parameter: formal.symbol,
-                ..Default::default()
-            });
-        let bindings =
-            admitted
-                .bindings
-                .insert_many([checked_trees::CheckedRankCoordinateBinding {
-                    entry,
-                    destination: coordinate,
-                    ..Default::default()
-                }]);
+            .map(|binding| binding.retain(admitted))
+            .collect::<Vec<_>>();
+        let bindings = admitted.bindings.insert_many(rows);
         let formation = if let Some(application) = &input.application {
             let (owner, _) = validation::find_state(program, state)
                 .ok_or("a formed rank application lost its exact state owner")?;

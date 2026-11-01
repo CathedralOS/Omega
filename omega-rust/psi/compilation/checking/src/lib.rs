@@ -270,8 +270,8 @@ pub use crate::declarations::selection_authority::{
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, RuntimeRankInput,
-    RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
+    RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankComponents,
+    RuntimeRankInput, RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
@@ -491,12 +491,12 @@ pub use proof_contracts::contract_entailment::proof_integer::{
     anonymous_integer_math_literal, proof_integer_expression,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
-    ArithmeticCallObservation, CapturedRankEntry, RankArrivalCompatibility,
-    RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,
-    RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,
-    RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,
-    RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof, RankingRangeMeasure,
-    RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
+    ArithmeticCallObservation, CapturedRankApplicationInput, CapturedRankEntry,
+    RankArrivalCompatibility, RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding,
+    RankCoordinateTransport, RankLocalCapture, RankPremiseCoordinate, RankPremiseInput,
+    RankPremiseObservation, RankProtectedPath, RankReceivingCoordinate, RankStateBindings,
+    RankSubjectCoordinate, RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof,
+    RankingRangeMeasure, RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
     arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,
     frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,
     prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,
@@ -508,8 +508,9 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     ranking_slice_length_observation, select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
-    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
-    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
+    ComputationBodyShape, DeclaredInputRead, DeclaredInputShape, DeclaredScalarView,
+    MeasureBodyShape, ProjectionStep, ScalarViewComputation, computation_body_shape,
+    declared_input_shape, declared_input_type_matches, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
 };
 pub use proof_contracts::contract_entailment::refuted_requires::instantiated_value_call_requires_proven;

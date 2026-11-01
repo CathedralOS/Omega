@@ -129,31 +129,15 @@ pub(super) fn natural_rank_plans_for_fused(
                                             ..
                                         },
                                     ) => {
-                                        let Some([binding]) = admitted.bindings.span(bindings)
-                                        else {
-                                            return false;
-                                        };
-                                        let input = admitted.coordinates.get(binding.destination);
-                                        let formal = admitted.coordinates.get(binding.entry);
+                                        let Some(retained) = admitted.bindings.span(bindings).and_then(|bindings| {
+                                            bindings.iter().map(|binding| validation::RuntimeRankApplicationBinding::from_checked(admitted, binding))
+                                                .collect::<Option<Vec<_>>>()
+                                        }) else { return false; };
                                         measure == state.measure
                                             && measure.is_valid()
                                             && primitive_type == state.primitive_type
-                                            && program
-                                                .measures()
-                                                .iter()
-                                                .find(|definition| definition.symbol == measure)
-                                                .and_then(|definition| {
-                                                    definition.parameter.as_ref()
-                                                })
-                                                .is_some_and(|parameter| {
-                                                    parameter.symbol == formal.parameter
-                                                })
-                                            && formal.path.is_empty()
-                                            && input.parameter == state.coordinate.parameter
-                                            && admitted.path_segments.span(input.path)
-                                                == Some(state.coordinate.path.as_slice())
-                                            && admitted.entry_indexes.span(input.entry_indexes)
-                                                == Some(state.entry_indexes.as_slice())
+                                            && retained == state.application_bindings
+
                                     }
                                     (
                                         validation::RuntimeRankInput::Value(

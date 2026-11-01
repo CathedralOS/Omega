@@ -59,6 +59,32 @@ pub(in crate::checks::termination) fn prove_with_formation(
             if let Some(range) = authored_range {
                 expressions.extend([range.start, range.end]);
             }
+            let record = match measure {
+                RankingRangeMeasure::Computed {
+                    subject,
+                    parameter,
+                    body,
+                    ..
+                } => {
+                    let formal = program.measures().iter().find_map(|declaration| {
+                        declaration
+                            .parameter
+                            .as_ref()
+                            .filter(|formal| formal.symbol == parameter)
+                    })?;
+                    if program
+                        .primitive_type_reference(formal.type_reference)
+                        .is_some()
+                    {
+                        None
+                    } else {
+                        Some(super::declaration_inputs::RecordInput::prepare(
+                            program, machine, root, subject, parameter, body,
+                        )?)
+                    }
+                }
+                _ => None,
+            };
             let mut paths = parameter_projection_paths(program, machine, root);
             let mut pending = expressions;
             while let Some(expression) = pending.pop() {
@@ -78,8 +104,26 @@ pub(in crate::checks::termination) fn prove_with_formation(
                     |child| pending.push(child),
                 );
             }
+            if let Some(record) = &record {
+                for path in record.paths() {
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                    }
+                }
+            }
             let prepared = super::at_entry(program, machine, root, frames, &paths)?;
-            let subject = prepared.expression(subject)?;
+            let subject = match &record {
+                Some(record) => ScopedArithmeticExpression {
+                    owner: root.symbol,
+                    expression: record.subject,
+                    bindings: Vec::new(),
+                },
+                None => prepared.expression(subject)?,
+            };
+            let application_input = match &record {
+                Some(record) => Some(record.capture(&prepared)?),
+                None => None,
+            };
             let paired_subject = match paired {
                 Some(value) => Some(prepared.expression(value)?),
                 None => None,
@@ -112,6 +156,7 @@ pub(in crate::checks::termination) fn prove_with_formation(
                 measure,
                 &CapturedRankEntry {
                     subject,
+                    application_input,
                     paired_subject,
                     range_start,
                     range_end,

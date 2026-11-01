@@ -15,11 +15,17 @@ use typed_trees::expression::ExpressionHandle;
 /// bounds of those typed values, never the proposed rank or desired interval.
 pub struct CapturedRankEntry {
     pub subject: ScopedArithmeticExpression,
+    pub application_input: Option<CapturedRankApplicationInput>,
     pub paired_subject: Option<ScopedArithmeticExpression>,
     pub range_start: Option<ScopedArithmeticExpression>,
     pub range_end: Option<ScopedArithmeticExpression>,
     pub hypotheses: Vec<ScopedArithmeticHypothesis>,
     pub inputs: Vec<ScopedArithmeticValue>,
+}
+
+pub struct CapturedRankApplicationInput {
+    pub input_type: typed_trees::types::TypeReferenceHandle,
+    pub expression: ScopedArithmeticExpression,
 }
 
 pub fn prove_captured_ranking_range_entry(
@@ -113,16 +119,45 @@ fn prove(
     {
         return None;
     }
-    let input = engine.normalize(subject.expression)?;
     let rank = match measure {
         RankingRangeMeasure::Computed {
             subject,
             parameter,
             body,
             ..
-        } => RankValue::computed(program, &mut engine, subject, parameter, body)?,
-        RankingRangeMeasure::Single(_) => RankValue::scalar(input),
+        } => {
+            if let Some(input) = &observed.application_input {
+                let declaration = program.measures().iter().find(|declaration| {
+                    declaration
+                        .parameter
+                        .as_ref()
+                        .is_some_and(|formal| formal.symbol == parameter)
+                })?;
+                if declaration.symbol != input.expression.owner
+                    || input.expression.expression != body
+                    || crate::declared_place_type_raw(program, machine, Some(root), subject)
+                        != Some(input.input_type)
+                {
+                    return None;
+                }
+                let input_expression = calls.expression(&input.expression)?;
+                if !engine.install_scoped_expression(&input_expression) {
+                    return None;
+                }
+                let captured =
+                    super::super::arithmetic_judgment::IntegerApplicationInput::captured(
+                        &engine,
+                        declaration.symbol,
+                        input.input_type,
+                    )?;
+                RankValue::with_input(program, &mut engine, parameter, body, captured)?
+            } else {
+                RankValue::computed(program, &mut engine, subject, parameter, body)?
+            }
+        }
+        RankingRangeMeasure::Single(_) => RankValue::scalar(engine.normalize(subject.expression)?),
         RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. } => {
+            let input = engine.normalize(subject.expression)?;
             let paired = paired.as_ref()?;
             if !engine.install_scoped_expression(paired) {
                 return None;

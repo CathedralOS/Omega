@@ -186,7 +186,6 @@ fn admit_complete(
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
             | RankingOrder::SliceLength
-            | RankingOrder::CustomStructView { .. }
     ) {
         // Arbitrary custom expressions and lexicographic ranges need their
         // exact produced-value projection, not an assumed operand polynomial.
@@ -221,15 +220,6 @@ fn admit_complete(
         },
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
             RankingRangeMeasure::SliceLength(subject)
-        }
-        // The relational field coordinate follows the declared view's exact
-        // projection chain, nested or direct, and reads a borrowed subject's
-        // referent; validation re-resolves that chain from the declaration.
-        (RankingOrder::CustomStructView { measure, .. }, DecreaseMeasure::Single(subject)) => {
-            RankingRangeMeasure::Field {
-                subject,
-                measure: *measure,
-            }
         }
         (RankingOrder::BoundedDistance, DecreaseMeasure::Distance { lower, upper }) => {
             RankingRangeMeasure::Distance { lower, upper }

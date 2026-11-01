@@ -24,7 +24,7 @@ impl IntegerDenotation {
 impl OpaqueTerm {
     pub(super) fn visit_operands(&self, mut visit: impl FnMut(&Polynomial)) {
         match self {
-            Self::DeclarationApplication { input, .. } => visit(input),
+            Self::DeclarationApplication { input, .. } => input.visit_values(visit),
             Self::Conditional { arms } => {
                 arms.iter().for_each(|arm| arm.visit_operands(&mut visit))
             }
@@ -130,7 +130,7 @@ impl Engine<'_> {
         let mapped = |value: &Polynomial| apply_argument_map(value, substitutions);
         match operation {
             OpaqueTerm::DeclarationApplication { measure, input } => {
-                self.declared_application_value(*measure, mapped(input)?)
+                self.declared_application_value(*measure, input.mapped(mapped)?)
             }
             OpaqueTerm::Conditional { arms } => self.conditional_value(
                 arms.iter()

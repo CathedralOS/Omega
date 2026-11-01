@@ -1,6 +1,7 @@
 //! Denotation and its pending application travel together until caller facts
 //! are installed. Normalizing a rank never proves its intermediate operations.
 
+use super::super::arithmetic_judgment::IntegerApplicationInput;
 use super::{BTreeMap, Engine, ExpressionHandle, Polynomial, identity_views};
 
 pub(super) struct RankValue {
@@ -10,7 +11,7 @@ pub(super) struct RankValue {
 
 struct DeclaredApplication {
     measure: symbols::SymbolHandle,
-    input: Polynomial,
+    input: IntegerApplicationInput,
 }
 
 impl RankValue {
@@ -29,6 +30,16 @@ impl RankValue {
         body: ExpressionHandle,
     ) -> Option<Self> {
         let input = engine.normalize(subject)?;
+        Self::with_input(program, engine, parameter, body, input.into())
+    }
+
+    pub(super) fn with_input(
+        program: &dyn crate::CheckingInput,
+        engine: &mut Engine<'_>,
+        parameter: symbols::SymbolHandle,
+        body: ExpressionHandle,
+        input: IntegerApplicationInput,
+    ) -> Option<Self> {
         let value =
             identity_views::computed_measure_value(program, engine, parameter, body, &input)?;
         Some(Self {
@@ -41,14 +52,15 @@ impl RankValue {
     }
 
     pub fn after_arrival(&self, substitutions: &BTreeMap<String, Polynomial>) -> Option<Self> {
-        let substitute =
-            |value| super::inductive_judgment::apply_argument_map(value, substitutions);
+        let substitute = |value: &Polynomial| {
+            super::inductive_judgment::apply_argument_map(value, substitutions)
+        };
         Some(Self {
             value: substitute(&self.value)?,
             application: match &self.application {
                 Some(application) => Some(DeclaredApplication {
                     measure: application.measure,
-                    input: substitute(&application.input)?,
+                    input: application.input.mapped(substitute)?,
                 }),
                 None => None,
             },

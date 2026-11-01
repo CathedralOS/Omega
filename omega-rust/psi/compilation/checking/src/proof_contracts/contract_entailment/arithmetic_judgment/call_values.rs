@@ -2,7 +2,7 @@
 //! Reserving a value publishes no precondition, result bound or guarantee;
 //! application formation owns those decisions after its children have formed.
 
-use super::{BinaryOperator, Engine, OpaqueTerm, Polynomial};
+use super::{BinaryOperator, Engine, IntegerApplicationInput, OpaqueTerm, Polynomial};
 use crate::frozen_program::expression_table;
 use std::sync::atomic::Ordering;
 use symbols::SymbolHandle;
@@ -36,7 +36,10 @@ impl Engine<'_> {
                     self.selected_call_value(owner, expression, target, normalized)
                 }
                 OpaqueTerm::DeclarationApplication { measure, input } => {
-                    let normalized = self.substituted(input);
+                    let Some(normalized) = input.mapped(|value| Some(self.substituted(value)))
+                    else {
+                        return false;
+                    };
                     if normalized == *input {
                         continue;
                     }
@@ -68,13 +71,13 @@ impl Engine<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn declared_application_value(
         &mut self,
         measure: SymbolHandle,
-        input: Polynomial,
+        input: impl Into<IntegerApplicationInput>,
     ) -> Option<Polynomial> {
         self.program
             .measures()
             .iter()
             .find(|definition| definition.symbol == measure)?;
-        let input = self.substituted(&input);
+        let input = input.into().mapped(|value| Some(self.substituted(value)))?;
         if let Some((atom, _)) = self.opaque_terms.iter().find(|(_, operation)| {
             matches!(operation, OpaqueTerm::DeclarationApplication { measure: existing, input: value }
                 if *existing == measure && *value == input)

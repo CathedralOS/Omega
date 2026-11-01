@@ -6,7 +6,7 @@
 use super::Builder;
 use checked_trees::CheckedScalarComputationHandle;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 impl Builder<'_, '_> {
@@ -14,15 +14,17 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Result<Option<(CheckedScalarComputationHandle, TypeReferenceHandle)>, &'static str> {
-        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
+        let Some(place) = validation::canonical_place_from_expression(self.program, expression)
         else {
             return Ok(None);
         };
-        let symbol = name.symbol;
+        let Some(symbol) = place.root.as_symbol() else {
+            return Ok(None);
+        };
         let mut captures = self
             .declaration_values
             .iter()
-            .filter(|(formal, _)| *formal == symbol);
+            .filter(|(formal, _)| *formal == place);
         if let Some((_, value)) = captures.next() {
             if captures.next().is_some() {
                 return Err("a declaration input has multiple completed captures");
@@ -32,23 +34,22 @@ impl Builder<'_, '_> {
                 .iter()
                 .find(|formal| formal.symbol == symbol)
                 .ok_or("a captured declaration input has no source formal")?;
-            if self.program.primitive_type_reference(formal.type_reference)
-                != Some(self.plans.nodes.get(*value).primitive_type)
-            {
+            let geometry = validation::structural_scalar_coordinate_in_type(
+                self.program,
+                place.root,
+                formal.type_reference,
+                &place.segments,
+            )
+            .ok_or("a captured declaration read has no exact formal geometry")?;
+            if Some(geometry.primitive_type) != Some(self.plans.nodes.get(*value).primitive_type) {
                 return Err("a completed declaration capture has the wrong formal carrier");
             }
-            return Ok(Some((*value, formal.type_reference)));
+            return Ok(Some((*value, geometry.result_type_reference)));
         }
-        if !self
-            .program
-            .expression_table
-            .name_path_is_single_member(name)
-        {
-            return Ok(None);
-        }
-        let mut bindings = self.declaration_bindings.iter().filter(|(formal, _)| {
-            formal.root == facts::PlaceRoot::Symbol(symbol) && formal.segments.is_empty()
-        });
+        let mut bindings = self
+            .declaration_bindings
+            .iter()
+            .filter(|(formal, _)| *formal == place);
         let Some((_, coordinate)) = bindings.next() else {
             return Ok(None);
         };
@@ -56,12 +57,19 @@ impl Builder<'_, '_> {
             return Err("a declaration input has multiple destination coordinates");
         }
         let coordinate = coordinate.clone();
-        let reference = self
+        let formal = self
             .declaration_parameters
             .iter()
             .find(|formal| formal.symbol == symbol)
-            .ok_or("a declaration coordinate has no source formal")?
-            .type_reference;
+            .ok_or("a declaration coordinate has no source formal")?;
+        let reference = validation::structural_scalar_coordinate_in_type(
+            self.program,
+            place.root,
+            formal.type_reference,
+            &place.segments,
+        )
+        .ok_or("a declaration coordinate has no exact scalar geometry")?
+        .result_type_reference;
         let primitive = self
             .program
             .primitive_type_reference(reference)
@@ -86,7 +94,7 @@ impl Builder<'_, '_> {
         }
         struct Bindings<'bindings> {
             bindings: &'bindings [(validation::CanonicalPlace, validation::CanonicalPlace)],
-            captures: &'bindings [(SymbolHandle, CheckedScalarComputationHandle)],
+            captures: &'bindings [(validation::CanonicalPlace, CheckedScalarComputationHandle)],
             found: bool,
             visited: Vec<ExpressionHandle>,
         }
@@ -96,7 +104,10 @@ impl Builder<'_, '_> {
                     self.bindings
                         .iter()
                         .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
-                        || self.captures.iter().any(|(formal, _)| *formal == symbol)
+                        || self
+                            .captures
+                            .iter()
+                            .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
                 });
             }
         }

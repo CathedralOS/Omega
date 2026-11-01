@@ -38,12 +38,14 @@ impl<'program> Engine<'program> {
         let previous_owner = self.source_owner;
         let previous_arguments = self.formal_arguments.replace(arguments.to_vec());
         let previous_occurrences = std::mem::take(&mut self.strict_occurrences);
+        let previous_reads = std::mem::take(&mut self.formal_read_arguments);
         let previous_conditions = std::mem::take(&mut self.saved_conditions);
         self.source_owner = owner;
         let value = query(self);
         self.source_owner = previous_owner;
         self.formal_arguments = previous_arguments;
         self.strict_occurrences = previous_occurrences;
+        self.formal_read_arguments = previous_reads;
         self.saved_conditions = previous_conditions;
         value
     }

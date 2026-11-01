@@ -28,6 +28,8 @@ use crate::proof_contracts::contract_entailment::{
 use projection::RankProjection;
 mod inputs;
 pub use inputs::{RuntimeRankInput, RuntimeRankOperand};
+mod application_bindings;
+pub use application_bindings::RuntimeRankApplicationBinding;
 
 /// Exact scalar coordinates from the runtime component judgment. These are
 /// transient query results, not another executable representation.
@@ -42,6 +44,8 @@ pub struct ValidatedRuntimeNaturalState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeIntegerRank {
     pub application: Option<crate::IntegerApplicationFormation>,
+    pub application_bindings: Vec<RuntimeRankApplicationBinding>,
+    pub input_type: typed_trees::types::TypeReferenceHandle,
     /// Exact declared application, or ZII for a normalized primitive view.
     pub measure: SymbolHandle,
     pub parameter: SymbolHandle,
@@ -777,7 +781,6 @@ fn admit_ranked_edge(
             | projection::RankOrder::SliceLength
             | projection::RankOrder::DeclaredIdentity { .. }
             | projection::RankOrder::DeclaredComputation { .. }
-            | projection::RankOrder::CustomStructView { .. }
     ) {
         let caller_rank = &ranks[caller_rank_index];
         match prove_ranking_range_call(

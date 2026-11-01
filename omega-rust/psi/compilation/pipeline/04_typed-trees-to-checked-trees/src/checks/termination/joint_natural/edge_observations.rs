@@ -89,20 +89,31 @@ pub(super) fn compare(
     destination: &Rank,
     order: Order,
 ) -> Option<bool> {
-    let actual = *edge.arguments.get(destination.coordinate.position)?;
+    let actual = *edge.arguments.get(destination.subject.position())?;
     let initial = &source.entry_value;
-    let next = destination.coordinate.current(
-        &edge.values,
-        actual,
-        machines[edge.destination],
-        edge.arguments,
-    )?;
     let next = if let Some(application) = destination.application {
+        let (input_type, bindings) =
+            destination
+                .subject
+                .bindings(program, application, |coordinate| {
+                    coordinate.current(
+                        &edge.values,
+                        actual,
+                        machines[edge.destination],
+                        edge.arguments,
+                    )
+                })?;
         application
-            .observe(&edge.values, machines[edge.source], next)?
+            .observe(&edge.values, machines[edge.source], input_type, bindings)?
             .value
     } else {
-        next
+        let coordinate = destination.subject.scalar()?;
+        coordinate.bounded_value(coordinate.current(
+            &edge.values,
+            actual,
+            machines[edge.destination],
+            edge.arguments,
+        )?)?
     };
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values
@@ -151,7 +162,7 @@ pub(super) fn compare(
                 return None;
             }
             let normalize = |value: &ScopedArithmeticValue| {
-                let (minimum, maximum) = source.coordinate.primitive.integer_bounds()?;
+                let (minimum, maximum) = source.subject.scalar()?.primitive.integer_bounds()?;
                 let value = ScopedArithmeticValue::BoundedInteger {
                     value: Box::new(value.clone()),
                     interval: BigIntInterval {
@@ -164,7 +175,7 @@ pub(super) fn compare(
                     left: Box::new(ScopedArithmeticValue::Integer(BigInt::from_u64(
                         order
                             .function()
-                            .complement_ceiling(source.coordinate.primitive)?,
+                            .complement_ceiling(source.subject.scalar()?.primitive)?,
                     ))),
                     right: Box::new(value),
                 })
@@ -179,15 +190,9 @@ pub(super) fn compare(
     // An explicit declaration's result is a finite integer, including its
     // negative half. Builtin distance normalizations keep their zero floor.
     let minimum = |rank: &Rank| -> Option<ScopedArithmeticValue> {
-        let minimum = if order == Order::Descending {
-            match rank.application {
-                Some(application) => application.result_primitive.integer_bounds()?.0,
-                None => 0,
-            }
-        } else {
-            0
-        };
-        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(minimum)))
+        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(
+            rank.minimum,
+        )))
     };
     let source_minimum = minimum(source)?;
     let destination_minimum = minimum(destination)?;

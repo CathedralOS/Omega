@@ -256,3 +256,8 @@ entry selectors and bounds while observing the replacement value after mutation.
 [Computed distance endpoints](parameter/bounded_distance/moving_upper/computed_upper/README.md)
 carry the same fact through arithmetic over explicit entry inputs in all nine
 places, preserving completed captures and each formal's carrier and policy.
+
+[Whole-record computed measures](parameter/declared_measure/computed_record/README.md)
+carry this same fact, bound and counter operation through a declared integer
+application that reads both endpoints of one nominal record. All nine places
+retain the full read roster; exact increment-zero twins reject non-descent.

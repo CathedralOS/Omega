@@ -58,7 +58,7 @@ pub(super) fn select(
     if !validation::place_has_builtin_coordinates(program, machine, Some(entry), subject) {
         return None;
     }
-    let mut place =
+    let place =
         validation::canonical_place_from_expression_in_state(program, entry.symbol, 0, subject)?;
     let mut application = None;
     let (order, declaration, observation, upper, measure) = match selected {
@@ -100,16 +100,14 @@ pub(super) fn select(
             measure,
             parameter,
             body,
-            input_carrier,
+            input_type,
             result_carrier,
         } if subjects.len() == 1 => {
             application = Some(Application {
                 measure,
                 parameter,
                 body,
-                input_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
-                    input_carrier,
-                )?,
+                input_type,
                 result_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
                     result_carrier,
                 )?,
@@ -134,37 +132,6 @@ pub(super) fn select(
             None,
             RankingRangeMeasure::Single(subject),
         ),
-        RankingOrder::CustomStructView {
-            measure,
-            path,
-            field_symbol,
-            ..
-        } if subjects.len() == 1 => {
-            // These identities come from the validated measure body. Compose
-            // its produced coordinate with the actual subject; spelling and
-            // another same-typed field supply no observation.
-            place
-                .segments
-                .extend(path.iter().map(|step| facts::PlaceSegment::Field {
-                    symbol: step.field_symbol,
-                }));
-            place.segments.push(facts::PlaceSegment::Field {
-                symbol: field_symbol,
-            });
-            validation::structural_scalar_coordinate(
-                program,
-                program.state_parameters(entry),
-                place.root.as_symbol()?,
-                &place.segments,
-            )?;
-            (
-                Order::Descending,
-                Some(measure),
-                RankPremiseObservation::Value,
-                None,
-                RankingRangeMeasure::Field { subject, measure },
-            )
-        }
         // Other view families retain their ordinary formation/comparison owner.
         // A computation above keeps its application; its input is not the rank.
         _ => return None,

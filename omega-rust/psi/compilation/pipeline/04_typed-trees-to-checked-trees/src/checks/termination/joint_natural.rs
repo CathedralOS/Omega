@@ -12,6 +12,7 @@ mod coordinates;
 mod edge_observations;
 mod observations;
 mod ranges;
+mod subjects;
 pub(super) use observations::retain_observation;
 mod views;
 
