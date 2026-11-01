@@ -411,7 +411,7 @@ fn hash_loan_path_segment(
             hash.raw(&index.to_le_bytes());
         }
         StructuralPathSegment::Referent => hash.byte(3),
-        StructuralPathSegment::FixedByteRange { start, end } => {
+        StructuralPathSegment::FixedRange { start, end } => {
             hash.byte(4);
             hash.raw(&start.to_le_bytes());
             hash.raw(&end.to_le_bytes());

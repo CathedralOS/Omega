@@ -416,7 +416,7 @@ fn argument_contract(
                     matches!(
                         segment,
                         CheckedUnitStructuralPathSegment::Field(_)
-                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                            | CheckedUnitStructuralPathSegment::FixedRange { .. }
                     )
                 })
             {

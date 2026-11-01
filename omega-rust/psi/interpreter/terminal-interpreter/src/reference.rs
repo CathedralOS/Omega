@@ -602,15 +602,41 @@ impl TerminalExecution<'_> {
                         &source.path,
                     ),
                 };
-                let original_type = tip.or(inline_byte).ok_or_else(malformed)?;
-                if offset_type.is_address()
-                    || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
-                    || !terminal_semantics::reference_storage_source_compatible(
+                let array_window = terminal_semantics::reference_storage_region(
+                    self.structural_types().values(),
+                    root_type,
+                    &source.path,
+                )
+                .and_then(|region| region.array);
+                let mut backing_source = source.clone();
+                if array_window.is_some() {
+                    // Capture the existing array home; the original range
+                    // remains on the formation and its loan provenance.
+                    backing_source.path.pop().ok_or_else(malformed)?;
+                }
+                let original_type = tip
+                    .or(inline_byte)
+                    .or_else(|| array_window.map(|window| window.declaration))
+                    .ok_or_else(malformed)?;
+                let compatible = if array_window.is_some() {
+                    terminal_semantics::reference_storage_region_source_compatible(
+                        self.structural_types().values(),
+                        root_type,
+                        &source.path,
+                        reference_type,
+                        None,
+                    )
+                } else {
+                    terminal_semantics::reference_storage_source_compatible(
                         self.structural_types().values(),
                         original_type,
                         reference_type,
                         None,
                     )
+                };
+                if offset_type.is_address()
+                    || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                    || !compatible
                 {
                     return Err(malformed());
                 }
@@ -654,7 +680,7 @@ impl TerminalExecution<'_> {
                 if collection_loan.is_none() && !byte_endpoint {
                     let argument = StructuralArgument {
                         access,
-                        ..source.clone()
+                        ..backing_source.clone()
                     };
                     collection_loan = self.prepare_scalar_array_reference(
                         original_type,
@@ -674,9 +700,9 @@ impl TerminalExecution<'_> {
                             (backing.clone(), None)
                         } else {
                             let projected = self.resolve_live_storage_projection(
-                                source.place,
-                                &source.path,
-                                source.access,
+                                backing_source.place,
+                                &backing_source.path,
+                                backing_source.access,
                             )?;
                             collection_loan = projected
                                 .array_loan
@@ -686,30 +712,49 @@ impl TerminalExecution<'_> {
                         }
                     }
                 };
-                let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
+                let relative_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
+                let array_offset = array_window.map_or(0, |window| window.byte_offset);
+                let byte_offset = relative_offset
+                    .checked_add(usize::try_from(array_offset).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?;
                 let captured = self.reference_byte_region(&projected)?;
                 if captured.is_none() && !byte_endpoint {
                     // Aggregate storage with identical geometry keeps its own
                     // typed cells: the view names that whole backing under
                     // its declaration, and crossings retain the selected window.
-                    let source_length = terminal_semantics::reference_storage_size(
-                        self.structural_types().values(),
-                        original_type,
-                    )
-                    .and_then(|length| usize::try_from(length).ok());
-                    if byte_offset != 0 || source_length != Some(byte_length) {
+                    let source_length = array_window
+                        .map(|window| window.byte_length)
+                        .or_else(|| {
+                            terminal_semantics::reference_storage_size(
+                                self.structural_types().values(),
+                                original_type,
+                            )
+                        })
+                        .and_then(|length| usize::try_from(length).ok());
+                    if relative_offset != 0 || source_length != Some(byte_length) {
                         return Err(malformed());
                     }
                     let mut region =
                         AggregateViewRegion::whole(&self.structural_types(), referent_type)
                             .ok_or_else(malformed)?;
+                    region.byte_offset = u64::try_from(byte_offset).map_err(|_| malformed())?;
                     if let Some(AggregateViewTip::Aggregate { view, backing }) = projected_view {
                         if backing != projected.structural_type
-                            || view.byte_length != region.byte_length
+                            || terminal_semantics::reference_storage_size(
+                                self.structural_types().values(),
+                                original_type,
+                            ) != Some(view.byte_length)
+                            || region
+                                .byte_offset
+                                .checked_add(region.byte_length)
+                                .is_none_or(|end| end > view.byte_length)
                         {
                             return Err(malformed());
                         }
-                        region.byte_offset = view.byte_offset;
+                        region.byte_offset = view
+                            .byte_offset
+                            .checked_add(region.byte_offset)
+                            .ok_or_else(malformed)?;
                     }
                     aggregate_view = Some(region);
                     region_referent = Some(projected);

@@ -1013,6 +1013,22 @@ pub(super) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let compatible = match storage {
+        Some(storage)
+            if matches!(
+                source.path.last(),
+                Some(StructuralPathSegment::FixedRange { .. })
+            ) =>
+        {
+            source_contract(function, live, source.place).is_some_and(|root| {
+                terminal_semantics::reference_storage_region_source_compatible(
+                    types.values().copied(),
+                    root,
+                    &source.path,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+            })
+        }
         Some(storage) => {
             reference_source_type(function, live, types, source).is_some_and(|actual| {
                 terminal_semantics::reference_storage_source_compatible(

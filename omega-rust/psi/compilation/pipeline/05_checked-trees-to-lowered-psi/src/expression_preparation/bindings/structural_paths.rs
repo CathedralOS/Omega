@@ -97,8 +97,8 @@ pub(crate) fn lower_structural_path(
             | CheckedUnitStructuralPathSegment::ComputedIndex(_) => unsupported(
                 "a runtime-index projection is lowered by the emitter that evaluates its index",
             ),
-            CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
-                Ok(StructuralPathSegment::FixedByteRange {
+            CheckedUnitStructuralPathSegment::FixedRange { start, end } => {
+                Ok(StructuralPathSegment::FixedRange {
                     start: *start,
                     end: *end,
                 })
@@ -222,7 +222,7 @@ enum PreparedArgumentTip<'a> {
     Declaration(&'a terminal_psi::StructuralTypeDeclaration),
     Inline(&'a terminal_psi::StructuralFieldType),
     ByteElement,
-    ByteWindow,
+    CollectionWindow,
 }
 
 /// The coordinate system in which a checked projection was produced. A
@@ -657,7 +657,7 @@ fn prepare_argument_projection<'a>(
                 _ => None,
             },
             Tip::Inline(field) => field.byte_sequence_carrier(),
-            Tip::ByteElement | Tip::ByteWindow => None,
+            Tip::ByteElement | Tip::CollectionWindow => None,
         };
         if matches!(
             step,
@@ -786,24 +786,12 @@ fn prepare_argument_projection<'a>(
                 tip = Tip::Declaration(declaration(*referent)?);
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Referent)
             }
-            CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
+            CheckedUnitStructuralPathSegment::FixedRange { start, end } => {
                 let capacity = match shape {
                     Some(StructuralTypeShape::FixedArray {
-                        element,
                         length: terminal_psi::ArrayExtent::Literal(length),
-                    }) if declaration(*element)?.shape
-                        == StructuralTypeShape::PrimitiveScalar(
-                            semantic_vocabulary::ScalarType::Integer(
-                                semantic_vocabulary::IntegerType::new(
-                                    semantic_vocabulary::IntegerSign::Unsigned,
-                                    8,
-                                )
-                                .expect("u8 is a supported integer carrier"),
-                            ),
-                        ) =>
-                    {
-                        Some(*length)
-                    }
+                        ..
+                    }) => Some(*length),
                     _ => match bytes {
                         Some(
                             ByteSequenceCarrier::BoundedOwned { capacity }
@@ -811,15 +799,15 @@ fn prepare_argument_projection<'a>(
                         ) => Some(capacity),
                         Some(ByteSequenceCarrier::BorrowedView { .. }) => None,
                         _ => {
-                            return unsupported("argument window has no byte storage");
+                            return unsupported("argument window has no collection storage");
                         }
                     },
                 };
                 if start > end || capacity.is_some_and(|capacity| *end > capacity) {
-                    return unsupported("argument window exceeds its byte storage");
+                    return unsupported("argument window exceeds its collection storage");
                 }
-                tip = Tip::ByteWindow;
-                PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedByteRange {
+                tip = Tip::CollectionWindow;
+                PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedRange {
                     start: *start,
                     end: *end,
                 })

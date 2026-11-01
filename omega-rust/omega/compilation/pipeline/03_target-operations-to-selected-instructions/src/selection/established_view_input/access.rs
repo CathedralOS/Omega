@@ -342,7 +342,7 @@ fn projected_source_access(
                 _ => return None,
             }
         }
-        StructuralStorageProjection::ByteWindow { .. } => return None,
+        StructuralStorageProjection::CollectionWindow { .. } => return None,
     };
     (supplies(authority, requested) && supplies(ceiling, requested)).then_some(())
 }

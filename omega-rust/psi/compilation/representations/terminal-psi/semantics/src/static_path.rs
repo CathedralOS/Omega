@@ -143,23 +143,23 @@ pub fn structural_paths_may_overlap(
                 StructuralPathSegment::AllElements,
                 StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::FixedByteRange { .. },
+                | StructuralPathSegment::FixedRange { .. },
             )
             | (
                 StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::FixedByteRange { .. },
+                | StructuralPathSegment::FixedRange { .. },
                 StructuralPathSegment::AllElements,
             ) => true,
             // Empty loans still retain their backing: do not derive exclusive
             // alias freedom from the absence of writable bytes. Invalid ranges
             // are rejected by presentation validation, never trusted here.
             (
-                StructuralPathSegment::FixedByteRange {
+                StructuralPathSegment::FixedRange {
                     start: left_start,
                     end: left_end,
                 },
-                StructuralPathSegment::FixedByteRange {
+                StructuralPathSegment::FixedRange {
                     start: right_start,
                     end: right_end,
                 },
@@ -169,12 +169,12 @@ pub fn structural_paths_may_overlap(
                     || (left_start < right_end && right_start < left_end)
             }
             (
-                StructuralPathSegment::FixedByteRange { start, end },
+                StructuralPathSegment::FixedRange { start, end },
                 StructuralPathSegment::FixedIndex(index),
             )
             | (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralPathSegment::FixedByteRange { start, end },
+                StructuralPathSegment::FixedRange { start, end },
             ) => start >= end || (start <= index && index < end),
             // A runtime index may select any element inside its proven
             // bounds: it overlaps a fixed index, another runtime index, and

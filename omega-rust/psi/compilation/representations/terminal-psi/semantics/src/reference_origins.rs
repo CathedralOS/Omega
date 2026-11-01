@@ -396,7 +396,7 @@ pub fn reference_origin_type<'types>(
                 if matches!(
                     segment,
                     StructuralPathSegment::RuntimeIndex { .. }
-                        | StructuralPathSegment::FixedByteRange { .. }
+                        | StructuralPathSegment::FixedRange { .. }
                 ) {
                     return None;
                 }

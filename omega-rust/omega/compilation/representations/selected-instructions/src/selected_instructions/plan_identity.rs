@@ -611,7 +611,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                     push_encoded(bytes, case.get().to_le_bytes());
                 }
                 terminal_psi::StructuralPathSegment::Referent => bytes.push(2),
-                terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
+                terminal_psi::StructuralPathSegment::FixedRange { start, end } => {
                     bytes.push(3);
                     push_encoded(bytes, start.to_le_bytes());
                     push_encoded(bytes, end.to_le_bytes());

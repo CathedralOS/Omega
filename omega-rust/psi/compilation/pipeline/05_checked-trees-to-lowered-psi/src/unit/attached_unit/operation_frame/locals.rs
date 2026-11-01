@@ -825,7 +825,7 @@ impl OperationFrame<'_, '_> {
                 matches!(
                     segment,
                     terminal_psi::StructuralPathSegment::Referent
-                        | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                        | terminal_psi::StructuralPathSegment::FixedRange { .. }
                 )
             }) {
                 return unsupported("owned store operand crosses borrowed storage");
