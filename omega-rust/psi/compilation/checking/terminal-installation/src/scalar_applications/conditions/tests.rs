@@ -1,3 +1,4 @@
+use super::super::ScalarConditionScope;
 use super::*;
 use arena::Arena;
 use numerics::{bignum::BigInt, scalar_predicates::ScalarValue};
@@ -117,7 +118,7 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             false,
             [(boundary, MachineId::new(body).unwrap())],
             &[],
-            None,
+            &ScalarConditionScope::Source,
         )
         .unwrap();
         assert_eq!(selected.ranges(), ranges);
@@ -127,9 +128,16 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             [ScalarApplicationId::new(7).unwrap()]
         );
     }
-    let none =
-        ScalarConditionSelection::select(&scope, &conditions, "macos_arm64", false, [], &[], None)
-            .unwrap();
+    let none = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "macos_arm64",
+        false,
+        [],
+        &[],
+        &ScalarConditionScope::Source,
+    )
+    .unwrap();
     assert_eq!(none.ranges(), [0, 5]);
     assert!(
         ScalarConditionSelection::select(
@@ -139,7 +147,7 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             false,
             [(boundary, MachineId::new(99).unwrap())],
             &[],
-            None
+            &ScalarConditionScope::Source
         )
         .is_err()
     );
@@ -156,7 +164,7 @@ fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_sep
         false,
         [],
         &[],
-        None,
+        &ScalarConditionScope::Source,
     )
     .unwrap();
     assert_eq!(secondary.ranges(), [5]);
@@ -168,7 +176,7 @@ fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_sep
         true,
         [],
         &[pending],
-        None,
+        &ScalarConditionScope::Source,
     )
     .unwrap();
     // The untargeted selected machines are primary seeds; declaration 5 owes
@@ -207,18 +215,32 @@ fn scalar_condition_scope_selects_family_members_without_rooting_other_targets()
         }
     });
     for (target, predicate) in [("macos_arm64", 1), ("windows_x86_64", 2)] {
-        let selected =
-            ScalarConditionSelection::select(&scope, &conditions, target, true, [], &[], None)
-                .unwrap();
+        let selected = ScalarConditionSelection::select(
+            &scope,
+            &conditions,
+            target,
+            true,
+            [],
+            &[],
+            &ScalarConditionScope::Source,
+        )
+        .unwrap();
         assert_eq!(selected.predicates(), [predicate, 5]);
         assert!(
             !selected.predicates().contains(&0),
             "family head is not a selected body"
         );
     }
-    let unavailable =
-        ScalarConditionSelection::select(&scope, &conditions, "linux_arm64", false, [], &[], None)
-            .unwrap();
+    let unavailable = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "linux_arm64",
+        false,
+        [],
+        &[],
+        &ScalarConditionScope::Source,
+    )
+    .unwrap();
     assert_eq!(unavailable.predicates(), [5]);
     assert_eq!(unavailable.ranges(), [5]);
 }
