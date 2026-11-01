@@ -7,7 +7,7 @@ use crate::preparation::generic_data::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
 };
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
 };
@@ -29,6 +29,37 @@ impl Expansion<'_, '_> {
         }
         let mut expressions = HashSet::new();
         collect_statement_expression_handles(syntax, statement, &mut expressions);
+        if let StatementNode::Transition(transition) = syntax.statements.statement(statement) {
+            let selectors = syntax
+                .statements
+                .outcome_proof_selectors(transition.proof_selectors);
+            if !selectors.is_empty() {
+                let mut target_expressions = HashSet::new();
+                let mut target_bound = bound.to_vec();
+                target_bound.extend(
+                    selectors
+                        .iter()
+                        .map(|selector| selector.binding.as_str(syntax).to_owned()),
+                );
+                for target in transition.targets() {
+                    match syntax.statements.transition_target(target) {
+                        syntax_trees::statement::TransitionTargetNode::Value(value) => {
+                            collect_expression_handles(syntax, *value, &mut target_expressions)
+                        }
+                        syntax_trees::statement::TransitionTargetNode::Named {
+                            arguments, ..
+                        } => {
+                            for value in syntax.statements.expression_handles(*arguments) {
+                                collect_expression_handles(syntax, *value, &mut target_expressions);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                expressions.retain(|expression| !target_expressions.contains(expression));
+                self.static_expression_inputs(syntax, target_expressions, &target_bound)?;
+            }
+        }
         self.static_expression_inputs(syntax, expressions, bound)
     }
 
@@ -49,10 +80,46 @@ impl Expansion<'_, '_> {
         expressions: HashSet<ExpressionHandle>,
         bound: &[String],
     ) -> Result<(), Diagnostic> {
+        // Runtime pattern aliases have already become saved-subject member
+        // reads in the parser. Erased arm proofs remain lexical names: retain
+        // their exact guard/body scope instead of selecting a global alias.
+        let mut proof_scopes: HashMap<ExpressionHandle, Vec<String>> = HashMap::new();
+        for &expression in &expressions {
+            if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
+                for arm in syntax.expressions.match_arms(dispatch.arms) {
+                    let syntax_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
+                    else {
+                        continue;
+                    };
+                    let selectors = syntax
+                        .statements
+                        .outcome_proof_selectors(pattern.proof_selectors);
+                    if selectors.is_empty() {
+                        continue;
+                    }
+                    let mut scoped = HashSet::new();
+                    collect_expression_handles(syntax, arm.value, &mut scoped);
+                    collect_expression_handles(syntax, pattern.guard, &mut scoped);
+                    for expression in scoped {
+                        proof_scopes.entry(expression).or_default().extend(
+                            selectors
+                                .iter()
+                                .map(|selector| selector.binding.as_str(syntax).to_owned()),
+                        );
+                    }
+                }
+            }
+        }
         let mut expressions = expressions.into_iter().collect::<Vec<_>>();
         expressions
             .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
         for expression in expressions {
+            let scoped_bound = proof_scopes.get(&expression).map(|proofs| {
+                let mut scoped = bound.to_vec();
+                scoped.extend(proofs.iter().cloned());
+                scoped
+            });
+            let bound = scoped_bound.as_deref().unwrap_or(bound);
             if let ExpressionNode::Binary(binary) =
                 syntax.expressions.expression(expression).clone()
                 && matches!(
@@ -136,6 +203,38 @@ impl Expansion<'_, '_> {
             _ => {}
         }
         Ok(())
+    }
+
+    pub(super) fn retain_contract_bindings(
+        syntax: &SyntaxTrees,
+        contracts: arena::HandleSpan<syntax_trees::item::CapabilityContract>,
+        bound: &mut Vec<String>,
+    ) {
+        bound.extend(
+            syntax
+                .items
+                .capability_contracts(contracts)
+                .iter()
+                .filter_map(|contract| contract.binding.as_ref())
+                .map(|binding| binding.as_str(syntax).to_owned()),
+        );
+    }
+
+    pub(super) fn retain_statement_bindings(
+        syntax: &SyntaxTrees,
+        statement: StatementHandle,
+        bound: &mut Vec<String>,
+    ) {
+        match syntax.statements.statement(statement) {
+            StatementNode::LocalData(local) => bound.push(local.name.as_str(syntax).to_owned()),
+            StatementNode::ProofOutputBindingStatement(output) => bound.extend(
+                output
+                    .bindings
+                    .iter()
+                    .map(|selector| selector.binding.as_str(syntax).to_owned()),
+            ),
+            _ => {}
+        }
     }
 
     pub(super) fn contract_static_operands(

@@ -34,3 +34,10 @@ The canonical positive and reject mirrors are
 Runtime acceptance of the changed producer is pending. This is one composition
 inside the existing nine-place row, not completion of the full parent alias,
 representation, retained Product or other-host requirements.
+
+The focused [shadowed-proof control](controls/shadowed_proof/main.omg) keeps a
+global type alias and a same-named erased callable proof binding. The comparison
+uses the lexical proof, so it must reject mixing a type with that operand; alias
+normalization cannot substitute the global declaration. Contract/output proof
+bindings and arm proof selectors retain their source scopes. Runtime pattern
+aliases keep the parser's existing saved-subject rewriting.

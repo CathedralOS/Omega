@@ -658,6 +658,7 @@ impl Expansion<'_, '_> {
                         .to_owned()
                 }),
         );
+        Self::retain_contract_bindings(syntax, signature.contracts, &mut expression_bound);
         self.contract_static_operands(syntax, signature.contracts, &expression_bound)?;
         let statements = syntax.items.statements(signature.default_body).to_vec();
         self.statements(syntax, &statements, &expression_bound)
@@ -671,15 +672,45 @@ impl Expansion<'_, '_> {
     ) -> Result<(), Diagnostic> {
         let mut bound = bound.to_vec();
         for statement in statements {
+            if let syntax_trees::statement::StatementNode::Assembly(handle) =
+                syntax.statements.statement(*statement)
+            {
+                let blocks = syntax
+                    .statements
+                    .assembly_blocks(syntax.statements.assembly(*handle).blocks)
+                    .to_vec();
+                for block in blocks {
+                    let requires = syntax
+                        .statements
+                        .assembly_expressions(block.requires)
+                        .to_vec();
+                    for expression in requires {
+                        self.expression_static_operands(syntax, expression, &bound)?;
+                    }
+                    let instructions = syntax
+                        .statements
+                        .assembly_instructions(block.instructions)
+                        .to_vec();
+                    self.statements(syntax, &instructions, &bound)?;
+                    let mut completed_bound = bound.clone();
+                    for instruction in instructions {
+                        Self::retain_statement_bindings(syntax, instruction, &mut completed_bound);
+                    }
+                    let ensures = syntax
+                        .statements
+                        .assembly_expressions(block.ensures)
+                        .to_vec();
+                    for expression in ensures {
+                        self.expression_static_operands(syntax, expression, &completed_bound)?;
+                    }
+                }
+                continue;
+            }
             self.statement_static_operands(syntax, *statement, &bound)?;
             for reference in super::generic_data::statement_type_inputs(syntax, *statement) {
                 self.reference(syntax, reference, &bound)?;
             }
-            if let syntax_trees::statement::StatementNode::LocalData(local) =
-                syntax.statements.statement(*statement)
-            {
-                bound.push(local.name.as_str(syntax).to_owned());
-            }
+            Self::retain_statement_bindings(syntax, *statement, &mut bound);
         }
         Ok(())
     }
@@ -690,7 +721,8 @@ impl Expansion<'_, '_> {
         machine: &syntax_trees::item::Machine,
         inherited: &[String],
     ) -> Result<(), Diagnostic> {
-        let bound = self.parameters(syntax, machine.type_parameters, inherited)?;
+        let mut bound = self.parameters(syntax, machine.type_parameters, inherited)?;
+        Self::retain_contract_bindings(syntax, machine.contracts, &mut bound);
         let states = syntax.items.state_handles(machine.states).to_vec();
         let mut entry_bound = bound.clone();
         if let Some(entry) = states.first() {
@@ -732,6 +764,7 @@ impl Expansion<'_, '_> {
                         .to_owned()
                 },
             ));
+            Self::retain_contract_bindings(syntax, state.contracts, &mut expression_bound);
             self.contract_static_operands(syntax, state.contracts, &expression_bound)?;
             let statements = syntax.items.statements(state.statements).to_vec();
             self.statements(syntax, &statements, &expression_bound)?;
