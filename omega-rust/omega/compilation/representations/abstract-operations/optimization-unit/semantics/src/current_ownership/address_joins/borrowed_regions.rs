@@ -64,7 +64,7 @@ impl BorrowedRegions {
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        call_accesses: &crate::current_ownership::CallAccesses,
+        call_accesses: &mut crate::current_ownership::CallAccesses,
     ) -> Self {
         let mut result = call_accesses
             .take_borrowed_origins(function.machine)

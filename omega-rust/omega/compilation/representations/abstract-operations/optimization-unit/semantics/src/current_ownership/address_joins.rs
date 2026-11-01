@@ -74,7 +74,7 @@ impl AddressJoinPins {
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        call_accesses: &super::CallAccesses,
+        call_accesses: &mut super::CallAccesses,
     ) -> Self {
         let borrowed_regions =
             BorrowedRegions::new(function, functions, structural_types, call_accesses);

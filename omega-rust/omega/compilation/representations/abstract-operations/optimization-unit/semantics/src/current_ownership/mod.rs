@@ -60,7 +60,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         &BoundaryMachineDeclaration,
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    call_accesses: &CallAccesses,
+    call_accesses: &mut CallAccesses,
     facts: &mut Vec<OwnershipFrontierFact>,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,

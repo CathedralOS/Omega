@@ -221,7 +221,7 @@ pub(super) fn validate_current_ownership_cfg(
         &BoundaryMachineDeclaration,
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    call_accesses: &super::CallAccesses,
+    call_accesses: &mut super::CallAccesses,
     entry: CurrentOwnership,
     psi: terminal_psi::TerminalPsiIdentity,
     facts: &mut Vec<OwnershipFrontierFact>,
