@@ -842,10 +842,7 @@ helper that passes does not close an item.
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
-    migrations; retain explicit named policies for sparse views. Complete the
-    remaining nested-machine, other-machine and selected-target places for
-    [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
-    preserving complete SDK fields, timestamp pairs and signed carriers.
+    migrations; retain explicit named policies for sparse views.
   - Supply ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
