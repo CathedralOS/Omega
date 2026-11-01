@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // `second::Counter` encodes two fields (13 bytes worst case); the
 // same-named `first::Counter` encodes one (7 bytes). The out buffer is
 // sized for `first`'s schema, so this call passes only if the receiver
@@ -17,5 +19,25 @@ machine Main::main(main: &mut Main) {
         timestamp: 9
     };
 
-    second::Counter::encode(&msg, &mut main.buffer, &mut main.written);
+    BoundedCounterCodec::encode(&msg, &mut main.buffer, &mut main.written);
 }
+
+data BoundedCounterCodec {}
+machine second_bound(bound: &mut ScalarBound) {
+    reflect::inspect_record_fields<second::Counter, CompactBinary::max_scalar_field>(bound);
+}
+const SECOND_BOUND: ScalarBound = CompactBinary::scalar_bound<second_bound>();
+machine BoundedCounterCodec::fields(value: &second::Counter, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<second::Counter, CompactBinary::scalar_field>(value, context);
+}
+machine BoundedCounterCodec::encode<const N: u64>(value: &second::Counter, bytes: &mut [u8; N], written: &mut u64)
+requires SECOND_BOUND.valid && N >= SECOND_BOUND.bytes
+{
+    let mut scratch: [u8; N]; let mut fields: [EncodedField; 2];
+    transition CompactBinary::encode<second::Counter, BoundedCounterCodec::fields>(value, &mut bytes[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next) _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+
+machine entry_start() { let mut storage: Main; Main::main(&mut storage); }

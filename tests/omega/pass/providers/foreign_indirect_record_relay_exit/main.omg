@@ -13,9 +13,10 @@ public data AllocationStatistics {
     available_bytes: u64;
     releasable_bytes: u64;
 }
-public data AllocationProbe {}
-public boundary requirement AllocationProbe::statistics() -> AllocationStatistics;
-public boundary requirement AllocationProbe::exit_with(code: i32);
+public boundary trait AllocationProbe {
+    machine statistics() -> AllocationStatistics reaches;
+    machine exit_with(code: i32) reaches;
+}
 data AllocationProvider {}
 linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 9, 10> {
     ForeignBinding::DllImport {

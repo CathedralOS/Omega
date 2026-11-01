@@ -137,6 +137,29 @@ pub fn selected_value_call_requirement_entailed(
     else {
         return false;
     };
+    // Pure type obligations do not require a runtime observation of a generic
+    // referent. Authenticate the selected tuple and the original contract first,
+    // then discharge it in the caller's established type worlds. Inherited
+    // clauses retain their independent correspondence path below.
+    let type_context = if call_expression.is_valid() {
+        call_expression
+    } else {
+        crate::call_site_argument_expressions(program, &site)
+            .first()
+            .copied()
+            .unwrap_or_default()
+    };
+    if inherited.is_none()
+        && let Some(application) = super::specification_calls::AppliedProofBindings::for_call_site(
+            program,
+            machine.symbol,
+            &owner,
+            site,
+        )
+        && program.static_type_requirement_entailed(expression, type_context, &application.types)
+    {
+        return true;
+    }
     // The physical invocation telescope remains with capture/reference
     // authentication. A migrated clause independently binds its public
     // declaration through the exact call-owned contract reference.
@@ -668,6 +691,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     continue;
                 };
                 substitution.push((predicate_parameter.name.as_str().to_owned(), value));
+            }
+            let type_context = if self.call_expression.is_valid() {
+                self.call_expression
+            } else {
+                self.arguments.first().copied().unwrap_or_default()
+            };
+            if program.static_type_requirement_entailed(
+                self.expression,
+                type_context,
+                &type_substitution,
+            ) {
+                continue;
             }
             self.proven &= matches!(
                 instantiated_selected_fact_judgment(

@@ -171,7 +171,7 @@ use crate::{
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
     const_evaluation::const_lengths, const_evaluation::data_layout_queries,
     const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::access_views,
-    layouts::plan_laid, layouts::wire_plans,
+    layouts::plan_laid,
 };
 
 /// One pre-resolution evaluation request. Standalone syntax has no source
@@ -876,14 +876,6 @@ impl PreCheckEvaluation {
                 typed,
                 &self.access_view_records,
                 self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.wire_plans", || {
-            wire_plans::compute_wire_plans_in(
-                typed,
-                self.selection_authority.clone(),
-                self.wire_schema_frontier,
                 &self.domain,
             )
         })?;

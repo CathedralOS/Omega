@@ -1,17 +1,21 @@
-//! One immutable checked owner supplies both source consumers and retention.
+//! Source-issued declaration facts outlive their checked producer.
 
 use super::{ExternalProviderDeclarations, project_external_provider_declarations};
 use checked_trees::CheckedTrees;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use terminal_psi::{
     ExternalProviderConformance, NominalDeclarationIdentity, TerminalIdentityIndex,
     TerminalIdentityTableBuilder, TerminalModule,
 };
 
 pub struct PreparedExternalProviderDeclarations {
-    checked: Arc<CheckedTrees>,
+    // Pin allocation identity without keeping source trees alive. Weak also
+    // prevents Arc::get_mut from replacing live projected custody; every
+    // policy input is owned by declarations and review below.
+    checked: Weak<CheckedTrees>,
     sources: Arc<[(source::SourceId, [u8; 32])]>,
     declarations: ExternalProviderDeclarations,
+    review: language_semantics::boundary_provider_review::RetainedBoundaryProviderReview,
 }
 
 impl std::fmt::Debug for PreparedExternalProviderDeclarations {
@@ -26,9 +30,10 @@ impl std::fmt::Debug for PreparedExternalProviderDeclarations {
 
 impl PartialEq for PreparedExternalProviderDeclarations {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.checked, &other.checked)
+        Weak::ptr_eq(&self.checked, &other.checked)
             && self.sources == other.sources
             && self.declarations == other.declarations
+            && self.review == other.review
     }
 }
 
@@ -59,7 +64,7 @@ impl PreparedExternalProviderDeclarations {
     pub fn boundary_provider_review(
         &self,
     ) -> language_semantics::boundary_provider_review::BoundaryProviderReview<'_> {
-        super::boundary_review::prepare(&self.checked.facts, &self.declarations)
+        self.review.borrow()
     }
 
     /// Prepare source declarations without selecting a target or granting execution.
@@ -68,10 +73,12 @@ impl PreparedExternalProviderDeclarations {
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<Self, crate::LoweringError> {
         let declarations = project_external_provider_declarations(&checked, sources)?;
+        let review = super::boundary_review::prepare(&checked.facts, &declarations).retain();
         Ok(Self {
-            checked,
+            checked: Arc::downgrade(&checked),
             sources: sources.into(),
             declarations,
+            review,
         })
     }
 
@@ -82,7 +89,7 @@ impl PreparedExternalProviderDeclarations {
         checked: &CheckedTrees,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<(), crate::LoweringError> {
-        if !std::ptr::eq(self.checked.as_ref(), checked) || self.sources.as_ref() != sources {
+        if !std::ptr::eq(self.checked.as_ptr(), checked) || self.sources.as_ref() != sources {
             return Err(crate::LoweringError::Unsupported(
                 "external declarations belong to another checked program or source custody",
             ));
@@ -179,4 +186,52 @@ fn remap(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn policy_view_outlives_the_checked_producer() {
+        let checked = Arc::new(CheckedTrees::default());
+        let lifetime = Arc::downgrade(&checked);
+        let prepared = PreparedExternalProviderDeclarations::prepare(Arc::clone(&checked), &[])
+            .expect("empty declaration projection");
+        prepared.require_owner(&checked, &[]).unwrap();
+        assert!(
+            prepared
+                .require_owner(&CheckedTrees::default(), &[])
+                .is_err()
+        );
+        drop(checked);
+        assert!(
+            lifetime.upgrade().is_none(),
+            "policy data retains checked source"
+        );
+        let review = prepared.boundary_provider_review();
+        assert!(review.declarations.is_empty());
+        assert!(review.operator_uses.is_empty());
+        assert!(review.requirement_uses.is_empty());
+    }
+
+    #[test]
+    fn retained_facts_do_not_transfer_their_source_namespace() {
+        let mut checked = Arc::new(CheckedTrees::default());
+        let sources = [(source::SourceId(7), [19; 32])];
+        let prepared =
+            PreparedExternalProviderDeclarations::prepare(Arc::clone(&checked), &sources)
+                .expect("empty declaration projection");
+        assert!(Arc::get_mut(&mut checked).is_none());
+        let clone = checked.as_ref().clone();
+        assert_eq!(&clone, checked.as_ref());
+        assert!(prepared.require_owner(&clone, &sources).is_err());
+        assert!(prepared.require_owner(&checked, &[]).is_err());
+        assert!(
+            prepared
+                .require_owner(&checked, &[(source::SourceId(7), [20; 32])])
+                .is_err()
+        );
+        prepared.require_owner(&checked, &sources).unwrap();
+    }
 }

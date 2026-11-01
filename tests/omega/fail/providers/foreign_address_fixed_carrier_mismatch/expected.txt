@@ -1,1 +1,1 @@
-expects `pointer: addr`, got `pointer: u64`
+does not satisfy trait `AddressProbe` machine `release` parameter `pointer`: expected `addr`, got `u64`

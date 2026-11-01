@@ -26,6 +26,8 @@ fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d
 	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09bb8258f924
 	calling policy rejected the boundary: normal Terminal rejection
+fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -329,6 +331,30 @@ fail/facts/generic_terminated_array_through_parameter rejected 738ms expected @a
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/generic_terminated_array_through_target_body rejected 678ms expected @a889c2d8b84c
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/in_place_view_argument_through_call_result_rejected rejected 6882ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_const_name_rejected rejected 6808ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_field_rejected rejected 7180ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/in_place_view_argument_through_local_rejected rejected 7160ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_match_join_rejected rejected 8076ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from choose: match first { true => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes11:shared left15:common:name:tag1:516:common:name:tail1:9, _ => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes12:shared right15:common:name:tag1:516:common:name:tail1:9 }.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_machine_rejected rejected 10644ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from relay: constructor:79:package:e04e150308d22a5303408da0d4afb493e3c32640f84d2380d32150635f2ff2ee::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_state_rejected rejected 5342ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_parameter_rejected rejected 5302ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from probe: constructor:79:package:0044af01741cbdc92a0d30dd58701590b9b33c3a55f6513c90c82f786fe01daa::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_target_body_rejected rejected 4814ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/independent_call_result_bound_applied_requirement_rejected rejected 8402ms expected @1efc2536b3bc+wt
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
@@ -2123,6 +2149,7 @@ pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/terminal_calling_policy_execution checked 70583ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @b440743b0d1c
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
@@ -4898,20 +4925,10 @@ pass/facts/closed_integer_bound_through_parameter_exit checked 3406ms check-targ
 pass/facts/closed_integer_bound_through_target_body_exit checked 3565ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/completed_operand_saved_reference_origin_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/completed_operand_selected_aggregate_index_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
-pass/facts/compound_guard_through_call_result_compile rejected 1884ms regressed-from:checked @ccdb99ca2214
-	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-pass/facts/compound_guard_through_const_name_compile checked 2154ms @ccdb99ca2214
 pass/facts/compound_guard_through_distinct_match_calls_compile rejected 1771ms regressed-from:checked @ccdb99ca2214
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-pass/facts/compound_guard_through_field_compile checked 2573ms @ccdb99ca2214
-pass/facts/compound_guard_through_local_compile checked 2628ms @ccdb99ca2214
-pass/facts/compound_guard_through_match_join_compile checked 2995ms @ccdb99ca2214
-pass/facts/compound_guard_through_other_machine_compile checked 3064ms @ccdb99ca2214
-pass/facts/compound_guard_through_other_state_compile checked 2865ms @ccdb99ca2214
-pass/facts/compound_guard_through_parameter_compile checked 2576ms @ccdb99ca2214
 pass/facts/compound_guard_through_stored_call_result_compile rejected 1759ms regressed-from:checked @ccdb99ca2214
 	cannot prove index `main.b * 20 + main.saved` is within length 200 in put::entry
-pass/facts/compound_guard_through_target_body_compile checked 2620ms @ccdb99ca2214
 pass/facts/compound_index_guard_through_call_result_exit checked 3511ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/compound_index_guard_through_const_name_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/compound_index_guard_through_field_exit checked 4183ms check-target:macos_arm64 @ccdb99ca2214
@@ -5786,15 +5803,6 @@ pass/facts/float_comparison_route_through_other_machine_exit checked 6481ms chec
 pass/facts/float_comparison_route_through_other_state_exit checked 7191ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_parameter_exit checked 6441ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_target_body_exit checked 6835ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_call_result_exit checked 6594ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_const_name_exit checked 6705ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_field_exit checked 6323ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_local_exit checked 6455ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_match_join_exit checked 7114ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_other_machine_exit checked 5863ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_other_state_exit checked 6752ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_parameter_exit checked 7202ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_delivery_through_target_body_exit checked 8576ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_meaning_result_through_call_result_exit checked 6145ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_meaning_result_through_const_name_exit checked 6615ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_meaning_result_through_field_exit checked 6466ms check-target:macos_arm64 @ccdb99ca2214
@@ -5913,15 +5921,6 @@ pass/facts/foreign_scalar_backing_through_other_machine_exit checked 4857ms chec
 pass/facts/foreign_scalar_backing_through_other_state_exit checked 4376ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_backing_through_parameter_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_backing_through_target_body_exit checked 3557ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_call_result_exit checked 3682ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_const_name_exit checked 3949ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_field_exit checked 4068ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_local_exit checked 3744ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_match_join_exit checked 4529ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_other_machine_exit checked 4043ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_other_state_exit checked 3791ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_parameter_exit checked 4692ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_record_result_direct_through_target_body_exit checked 2998ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_call_result_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_const_name_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_field_exit checked 3827ms check-target:macos_arm64 @ccdb99ca2214
@@ -6110,6 +6109,15 @@ pass/facts/ieee_guard_i32_from_f64_other_machine checked 1953ms check-target:mac
 pass/facts/ieee_guard_i32_from_f64_other_state checked 1952ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_parameter checked 1948ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_target_body checked 1934ms check-target:macos_arm64 @da380b16b89b+wt
+pass/facts/in_place_view_argument_through_call_result_exit checked 12157ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_const_name_exit checked 10996ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_field_exit checked 10919ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_local_exit checked 10903ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_match_join_exit checked 9468ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_other_machine_exit checked 10987ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_other_state_exit checked 9456ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_parameter_exit checked 9683ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_target_body_exit checked 9912ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/facts/independent_call_result_bound_applied_requirement_exit checked 10603ms check-target:macos_arm64 @1efc2536b3bc+wt
 pass/facts/independent_call_result_bound_through_call_result_exit checked 9994ms check-target:macos_arm64 @1efc2536b3bc+wt
 pass/facts/independent_call_result_bound_through_const_name_exit checked 10023ms check-target:macos_arm64 @1efc2536b3bc+wt
@@ -6299,15 +6307,6 @@ pass/facts/integer_multiple_remainder_through_other_machine_exit checked 3470ms 
 pass/facts/integer_multiple_remainder_through_other_state_exit checked 3454ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_multiple_remainder_through_parameter_exit checked 4338ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_multiple_remainder_through_target_body_exit checked 3284ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_call_result_exit checked 4233ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_const_name_exit checked 3251ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_field_exit checked 3426ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_local_exit checked 4709ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_match_join_exit checked 3311ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_other_machine_exit checked 3771ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_other_state_exit checked 5578ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_parameter_exit checked 3673ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/integer_range_delivery_through_target_body_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_call_result_exit checked 3673ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_const_name_exit checked 3619ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_field_exit checked 3413ms check-target:macos_arm64 @ccdb99ca2214
@@ -6806,15 +6805,6 @@ pass/facts/named_conformance_dispatch_through_target_body_exit rejected 1533ms c
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_call_result_exit checked 3315ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_const_name_exit checked 3231ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_field_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_local_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_match_join_exit checked 3160ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_machine_exit checked 3624ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_state_exit checked 4242ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_parameter_exit checked 3853ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_exit checked 4833ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit checked 4237ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit checked 3239ms check-target:macos_arm64 @ccdb99ca2214
@@ -8115,7 +8105,7 @@ pass/facts/opaque_independent_copy_through_other_machine_exit checked 7767ms che
 pass/facts/opaque_independent_copy_through_other_state_exit checked 8085ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_copy_through_parameter_exit checked 9613ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_copy_through_target_body_exit checked 7160ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_inherited_result_through_local_exit checked 6704ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/opaque_independent_inherited_result_through_local_exit checked 25083ms check-target:macos_arm64 @c375270acaf3
 pass/facts/opaque_independent_linear_through_call_result_exit checked 8901ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_linear_through_const_name_exit checked 8454ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_linear_through_field_exit checked 8535ms check-target:macos_arm64 @ccdb99ca2214
@@ -8125,20 +8115,20 @@ pass/facts/opaque_independent_linear_through_other_machine_exit checked 7521ms c
 pass/facts/opaque_independent_linear_through_other_state_exit checked 7499ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_linear_through_parameter_exit checked 7951ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_independent_linear_through_target_body_exit checked 7449ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_import_alias_exit checked 8210ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit checked 7229ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_call_result_exit checked 8178ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_const_name_exit checked 7083ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_field_exit checked 5933ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_local_exit checked 7203ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_match_join_exit checked 7145ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_other_machine_exit checked 8271ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_other_state_exit checked 6739ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_parameter_exit checked 7239ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_through_target_body_exit checked 7689ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_result_import_alias_exit checked 7862ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit checked 7011ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_result_through_local_exit checked 8080ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/opaque_independent_qualified_input_import_alias_exit checked 20918ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit checked 28095ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_call_result_exit checked 17145ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_const_name_exit checked 15844ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_field_exit checked 17018ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_local_exit checked 21042ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_match_join_exit checked 21087ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_other_machine_exit checked 24929ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_other_state_exit checked 25016ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_parameter_exit checked 19300ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_input_through_target_body_exit checked 18133ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_result_import_alias_exit checked 17536ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit checked 16922ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_qualified_result_through_local_exit checked 16572ms check-target:macos_arm64 @c375270acaf3
 pass/facts/opaque_inherited_result_scalar_parent_tag_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_nested_carrier_exchange_exit checked 45215ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @ccdb99ca2214
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 22228ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @ccdb99ca2214
@@ -8524,15 +8514,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_call_result_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_const_name_exit checked 3533ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_field_exit checked 3454ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_local_exit checked 3836ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_match_join_exit checked 3617ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_other_machine_exit checked 4085ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_other_state_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_parameter_exit checked 3883ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/result_cleanup_guarantee_through_target_body_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214
@@ -9571,51 +9552,15 @@ pass/facts/target_layout_derived_constant_through_other_state_exit rejected 1558
 	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/target_layout_derived_constant_through_parameter_exit checked 3934ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_layout_derived_constant_through_target_body_exit checked 4434ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_recursive_bound_through_call_result_exit rejected 2963ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_const_name_exit rejected 2968ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_field_exit rejected 2457ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_local_exit rejected 2848ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_match_join_exit rejected 2534ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_other_machine_exit rejected 2381ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_other_state_exit rejected 2329ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_parameter_exit rejected 2918ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_target_body_exit rejected 2448ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/facts/target_recursive_bound_through_call_result_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_const_name_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_field_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_local_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_match_join_exit checked 2689ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_other_machine_exit checked 2686ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_other_state_exit checked 2491ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_parameter_exit checked 3034ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_target_body_exit checked 2554ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_scoped_constant_multi_method_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_scoped_constant_realization_exit checked 3677ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_scoped_constant_realization_through_call_result_exit checked 5061ms check-target:macos_arm64 @ccdb99ca2214
@@ -12292,31 +12237,23 @@ pass/providers/cross_package_public_slot_exit checked 3802ms check-target:macos_
 pass/providers/direct_boundary_array_snapshot_exit checked 13126ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/direct_foreign_tables_exit checked 3679ms check-target:windows_x86_64 @ccdb99ca2214
 pass/providers/external_boundary_contract_exit checked 3622ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/external_boundary_requirement_via_exit rejected 3699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	no provider is selected for boundary requirement `ForeignMath::exit_with`, which the program entry reaches on target `macos_arm64`
+pass/providers/external_boundary_requirement_via_exit checked 20380ms check-target:macos_arm64 @a562d4060f10+wt
 pass/providers/external_leaf_dllimport_compile checked 3165ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/finite_requirement_boolean_const_exit checked 4230ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/finite_requirement_correlated_tuple_exit checked 3800ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/finite_requirement_direct_provider_exit checked 3882ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/finite_requirement_forwarded_const_exit checked 3851ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/foreign_address_result_release_exit rejected 3533ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
-	no provider is selected for boundary requirement `AllocationProbe::release`, which the program entry reaches on target `linux_x86_64`
-pass/providers/foreign_indirect_record_distinct_exit rejected 4543ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
-	no provider is selected for boundary requirement `AllocationProbe::release`, which the program entry reaches on target `linux_x86_64`
-pass/providers/foreign_indirect_record_relay_exit rejected 3711ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
-pass/providers/foreign_indirect_record_result_exit rejected 3605ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+pass/providers/foreign_address_result_release_exit checked 20459ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
+	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
+pass/providers/foreign_indirect_record_relay_exit checked 22698ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_indirect_record_result_exit checked 18346ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/foreign_multiregister_result_exit checked 16373ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/foreign_out_parameter_write_observed_exit checked 11767ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/foreign_owned_record_exit checked 11565ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/foreign_packed_record_reuse_exit rejected 3434ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+pass/providers/foreign_packed_record_reuse_exit checked 17433ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/foreign_record_result_exit checked 13682ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/foreign_register_record_reuse_exit rejected 3784ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+pass/providers/foreign_register_record_reuse_exit checked 17445ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/generic_boundary_multiple_arguments_compile checked 3213ms @ccdb99ca2214
 pass/providers/generic_owned_outcome_exit checked 11262ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/generic_provider_structural_result_composition_exit checked 4197ms check-target:macos_arm64 @ccdb99ca2214
@@ -12335,8 +12272,7 @@ pass/providers/inline_provider_owner_lifetime_telescope_unapplied rejected 3335m
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Reading::read),parameters(),result-dispatch())` has no admitted installation for selected provider `ReadingProvider` adapter `named-callable(path(ReadingProvider::read),parameters(),result-dispatch())`
 pass/providers/inline_provider_owner_static_telescope_unapplied rejected 2999ms expected check-target:macos_arm64 native-rejection:match @ccdb99ca2214
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Reading::read),parameters(),result-dispatch())` has no admitted installation for selected provider `ReadingProvider` adapter `named-callable(path(ReadingProvider::read),parameters(),result-dispatch())`
-pass/providers/kernel_import_result_chain_exit rejected 4006ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	no provider is selected for boundary requirement `ProcessProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+pass/providers/kernel_import_result_chain_exit checked 18637ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11568ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/linear_structural_provider_pure_exit checked 10982ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/linear_structural_provider_return_exit rejected 10552ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -12898,8 +12834,8 @@ pass/targets/imported_target_family_heads_exit checked 4334ms check-target:macos
 pass/targets/per_target_import_satisfies checked 2452ms @ccdb99ca2214
 pass/targets/portable_family_entry_installations_exit checked 4245ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/targets/private_target_supplies_remain_disclosed checked 12103ms check-target:macos_arm64 @ccdb99ca2214
-pass/targets/provider_family_private_contracts_exit rejected 3697ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Value::read),parameters(),result-dispatch())` has duplicate canonical realizations
+pass/targets/provider_family_private_contracts_exit rejected 19662ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a562d4060f10+wt
+	selected provider requirement `named-callable(path(nominal\\(package-owner\\(32:a2d44e6ee660d3c9cd7a0ade7fc1e4ee9f8753ed092ad7a7d12733358fafb8ae\\)\\,path\\(Value::read\\)\\)),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/targets/retained_target_family_bodies checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/retained_target_provider_family_exit checked 11853ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/runtime_closed_generic_attached_family_exit checked 3617ms check-target:macos_arm64 @ccdb99ca2214
@@ -13260,16 +13196,16 @@ pass/text/zii_default_string_equality_exit checked 12329ms check-target:macos_ar
 pass/time/runtime_checked_time_arith_exit checked 48581ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_clock_out_parameter_loans_exit checked 4342ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 3777ms check-target:macos_arm64 @ccdb99ca2214
-pass/time/runtime_clock_shared_import_slots_exit rejected 3822ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	no provider is selected for boundary requirement `ClockProbe::wait_unit`, which the program entry reaches on target `macos_arm64`
+pass/time/runtime_clock_shared_import_slots_exit checked 22098ms check-target:macos_arm64 @a562d4060f10+wt
 pass/time/runtime_duration_core_exit checked 49541ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_duration_units_and_scaling_exit checked 50624ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 76819ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation` but its checked body reaches undeclared service `TimeHost`
 pass/time/runtime_kernel_clock_wait_loans_exit checked 3559ms check-target:linux_x86_64 @ccdb99ca2214
+pass/time/runtime_std_time_host_binding_exit checked 32450ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_elapsed_since_exit rejected 41635ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Clock + Console` but its checked body reaches undeclared service `TimeHost`
-pass/time/runtime_time_host_native_darwin_exit checked 13334ms check-target:macos_arm64 @ccdb99ca2214
+pass/time/runtime_time_host_native_darwin_exit checked 32180ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 19924ms check-target:macos_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_native_windows_exit checked 18645ms check-target:windows_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_virtual_exit checked 16625ms @ccdb99ca2214
@@ -13380,8 +13316,7 @@ pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms che
 pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 4282ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_stored_byte_input incomplete 3835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `Main::main::main`, statement 3
+pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
@@ -21366,27 +21301,6 @@ fail/facts/compound_guard_mutated_coordinate_compile rejected 1757ms expected @c
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 fail/facts/compound_guard_shorter_slice_compile rejected 1900ms expected @ccdb99ca2214
 	cannot prove index `b * 20 + a` is within length 20 in put::entry
-fail/facts/compound_guard_through_call_result_compile rejected 2011ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_guard_through_const_name_compile rejected 2648ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_guard_through_field_compile rejected 1800ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_guard_through_local_compile rejected 2146ms expected @ccdb99ca2214
-	cannot prove index `b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_guard_through_match_join_compile rejected 1863ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_guard_through_other_machine_compile rejected 2268ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
-fail/facts/compound_guard_through_other_state_compile rejected 2244ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_guard_through_parameter_compile rejected 2385ms expected @ccdb99ca2214
-	cannot prove index `b * 20 + a` is within length 200 in store::entry
-fail/facts/compound_guard_through_target_body_compile rejected 2029ms expected @ccdb99ca2214
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2559ms expected @ccdb99ca2214
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 fail/facts/compound_index_guard_through_call_result_rejected rejected 2062ms expected @ccdb99ca2214
@@ -23105,27 +23019,6 @@ fail/facts/float_comparison_route_through_target_body_rejected rejected 1752ms e
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
-fail/facts/float_delivery_through_call_result_rejected rejected 4165ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_const_name_rejected rejected 4810ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_field_rejected rejected 4286ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: holder.reading.value >= 0.0 && holder.reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_local_rejected rejected 4015ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_match_join_rejected rejected 4043ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_other_machine_rejected rejected 4470ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from deliver: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_other_state_rejected rejected 4415ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from deliver: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_parameter_rejected rejected 3939ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_delivery_through_target_body_rejected rejected 4368ms expected @ccdb99ca2214
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_meaning_result_through_call_result_wrong_meaning rejected 2552ms expected @ccdb99ca2214
 	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 	machine `produce` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(1.0), F32.meaning(2.0))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
@@ -23406,24 +23299,6 @@ fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 4310ms e
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_record_result_direct_through_call_result_rejected rejected 2139ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_const_name_rejected rejected 2627ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_field_rejected rejected 2405ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_local_rejected rejected 2544ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_match_join_rejected rejected 2262ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_other_machine_rejected rejected 2482ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_other_state_rejected rejected 1974ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_parameter_rejected rejected 2925ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_scalar_record_result_direct_through_target_body_rejected rejected 2056ms expected @ccdb99ca2214
-	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_call_result_rejected rejected 2151ms expected @ccdb99ca2214
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_const_name_rejected rejected 2912ms expected @ccdb99ca2214
@@ -24371,27 +24246,6 @@ fail/facts/integer_multiple_remainder_through_target_body_rejected rejected 1489
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 2684ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 3127ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_field_missing_bound rejected 2480ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from read: reading.index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_local_missing_bound rejected 2554ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_match_join_missing_bound rejected 3150ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from choose: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_other_machine_missing_bound rejected 2483ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from forward: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_other_state_missing_bound rejected 3060ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_parameter_missing_bound rejected 3199ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 2669ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_width_truncation_mask_bound_through_call_result_rejected rejected 707ms expected @ccdb99ca2214
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/integer_width_truncation_mask_bound_through_const_name_rejected rejected 928ms expected @ccdb99ca2214
@@ -25132,25 +24986,6 @@ fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 1442
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_call_result_rejected rejected 837ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_const_name_rejected rejected 938ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_field_rejected rejected 653ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_local_rejected rejected 961ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_match_join_rejected rejected 587ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_machine_rejected rejected 629ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_state_rejected rejected 902ms expected @ccdb99ca2214
-	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_parameter_rejected rejected 1014ms expected @ccdb99ca2214
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_rejected rejected 705ms expected @ccdb99ca2214
-	exact arithmetic in machine `X86Probe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmProbe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_rejected rejected 676ms expected @ccdb99ca2214
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_rejected rejected 916ms expected @ccdb99ca2214
@@ -27564,7 +27399,7 @@ fail/facts/opaque_independent_copy_through_parameter_rejected rejected 6638ms ex
 	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/opaque_independent_copy_through_target_body_rejected rejected 5731ms expected @ccdb99ca2214
 	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 4077ms expected @ccdb99ca2214
+fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 14895ms expected @c375270acaf3
 	`as ... in InternetAddress::Classified::Ready` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified::Ready
 fail/facts/opaque_independent_linear_through_call_result_unconsumed rejected 8441ms expected @ccdb99ca2214
@@ -27608,7 +27443,7 @@ fail/facts/opaque_independent_qualified_input_through_parameter_unissued rejecte
 	cannot prove requires contract for call receive from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
 fail/facts/opaque_independent_qualified_input_through_target_body_unissued rejected 6815ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 2894ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 8712ms expected @c375270acaf3
 	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified
 fail/facts/opaque_nested_carrier_cleanup rejected 7047ms expected @ccdb99ca2214
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
@@ -28098,11 +27933,9 @@ fail/facts/range_fact_delivery_through_other_state_rejected rejected 2225ms expe
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/range_fact_delivery_through_parameter_rejected rejected 2200ms expected @ccdb99ca2214
 	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/range_fact_delivery_through_target_body_rejected rejected 2145ms expected @ccdb99ca2214
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_target_body_rejected rejected 2733ms expected @b78bed0caa28+wt
+	cannot prove requires contract for call count from X86Deliver::deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+	cannot prove requires contract for call count from ArmDeliver::deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
 fail/facts/readonly_byte_literal_subslice_unproved_call_result rejected 1556ms expected @ccdb99ca2214
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/readonly_byte_literal_subslice_unproved_const_name rejected 1527ms expected @ccdb99ca2214
@@ -28298,28 +28131,6 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 1274ms expe
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/result_cleanup_guarantee_through_call_result_rejected rejected 2733ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_const_name_rejected rejected 1896ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_field_rejected rejected 2169ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&holder.seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_local_rejected rejected 1688ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_match_join_rejected rejected 1904ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&first_seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_other_machine_rejected rejected 1861ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_other_state_rejected rejected 1927ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from onward state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_parameter_rejected rejected 1941ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 2953ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantees_through_call_result_rejected rejected 1834ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantees_through_const_name_rejected rejected 2044ms expected @ccdb99ca2214
@@ -28337,11 +28148,9 @@ fail/facts/result_cleanup_guarantees_through_other_state_rejected rejected 2324m
 	cannot prove automatic cleanup requires at selected edge from onward state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantees_through_parameter_rejected rejected 2004ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 2141ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 2787ms expected @b78bed0caa28+wt
+	cannot prove automatic cleanup requires at selected edge from X86Across::across state across after statement 2: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from ArmAcross::across state across after statement 2: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/returned_indexed_linear_residual_through_call_result rejected 3697ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(seed.code).items[1] does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/returned_indexed_linear_residual_through_const_name rejected 3782ms expected @ccdb99ca2214
@@ -30512,52 +30321,24 @@ fail/facts/target_layout_derived_constant_through_parameter_reject rejected 4822
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_layout_derived_constant_through_target_body_reject rejected 4672ms unexpected @ccdb99ca2214
 	constant checking: scalar range condition 4: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_recursive_bound_through_call_result_rejected rejected 1542ms expected @ccdb99ca2214
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_const_name_rejected rejected 1494ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_field_rejected rejected 2007ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_local_rejected rejected 1770ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_match_join_rejected rejected 1728ms expected @ccdb99ca2214
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_other_machine_rejected rejected 1240ms expected @ccdb99ca2214
+fail/facts/target_recursive_bound_through_call_result_rejected rejected 1876ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from deliver: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_const_name_rejected rejected 1653ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_field_rejected rejected 1521ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_local_rejected rejected 1665ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_match_join_rejected rejected 1664ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from record_result: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_other_machine_rejected rejected 751ms expected @5dc7fa33c4de
 	machine `main` state `entry` value call to `Worker::deliver` violates required fact `value <= 60`: the instantiated fact is structurally false (`61 <= 60`)
-fail/facts/target_recursive_bound_through_other_state_rejected rejected 1460ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_parameter_rejected rejected 1081ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_target_body_rejected rejected 1347ms expected @ccdb99ca2214
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_other_state_rejected rejected 1692ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_parameter_rejected rejected 1545ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_target_body_rejected rejected 1416ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from EvaluationCode::evaluate: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `evaluate`
 fail/facts/target_scoped_constant_false_contract rejected 3347ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
 fail/facts/target_scoped_constant_missing_method rejected 616ms expected @ccdb99ca2214
@@ -35094,8 +34875,8 @@ fail/providers/checked_completion_service_redispatch rejected 3035ms expected @c
 	selected completion provider `NativeConsole::exit_process`: external-completion provider has a cyclic checked invocation path
 fail/providers/checked_reference_provider_local_escape rejected 2355ms expected @ccdb99ca2214
 	machine `Provider::locate` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/providers/checked_view_provider_wrong_extent rejected 1987ms expected @ccdb99ca2214
-	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
+fail/providers/checked_view_provider_wrong_extent rejected 11598ms expected @a562d4060f10+wt
+	machine `Provider::at` realizes `Window::at` but requires `index < second.len`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/providers/consuming_requirement_without_provider rejected 44280ms expected @959aa53558d2
 	no provider is selected for boundary requirement `ReceiptAck::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/consuming_trait_requirement_without_provider rejected 3975ms expected @ccdb99ca2214
@@ -35126,8 +34907,8 @@ fail/providers/finite_requirement_crossed_tuple rejected 1690ms expected @ccdb99
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
 fail/providers/finite_requirement_forwarded_const_without_predicate rejected 1806ms expected @ccdb99ca2214
 	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
-fail/providers/foreign_address_fixed_carrier_mismatch rejected 1551ms expected @ccdb99ca2214
-	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
+fail/providers/foreign_address_fixed_carrier_mismatch rejected 10875ms expected @a562d4060f10+wt
+	machine `Imports::release` state `release` does not satisfy trait `AddressProbe` machine `release` parameter `pointer`: expected `addr`, got `u64`
 fail/providers/generic_boundary_relay_wrong_argument_rejected rejected 980ms expected @ccdb99ca2214
 	argument `value` for state `entry` expects `u64`, got `bool`
 fail/providers/generic_owned_outcome_unissued rejected 13876ms expected @ccdb99ca2214
@@ -35229,12 +35010,11 @@ fail/providers/qualified_state_without_issuance rejected 2189ms expected @ccdb99
 	cannot prove requires contract for call consume from Main::main: root in Root::Granted in state `main`
 fail/providers/returned_write_only_call_observation rejected 1084ms expected @ccdb99ca2214
 	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/providers/satisfier_extra_parameter_rejected rejected 1996ms expected @ccdb99ca2214
+fail/providers/satisfier_extra_parameter_rejected rejected 6445ms expected @a562d4060f10+wt
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
-	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `DirectTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_exit` state `entry` declares 2 parameter(s), but trait `Process` machine `exit` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
-	machine `stateful_count` declares 2 parameter(s), but top-level boundary requirement `Arithmetic::count` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_count` state `entry` declares 2 parameter(s), but trait `ArithmeticCount` machine `count` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_offset` declares 2 parameter(s), but requirement `Arithmetic::offset` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_select_left` declares 3 parameter(s), but requirement `Arithmetic::select_left` declares 2: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 fail/providers/scalar_membership_boundary_false rejected 2025ms expected @ccdb99ca2214
@@ -36815,9 +36595,7 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 9316m
 	machine `observe` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/selected_provider_range_arguments rejected 5398ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	selected provider requirement `named-callable(path(Counter::count),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
+run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/calls/static_boundary_terminal_arguments checked 2950ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/table_report_call_survival checked 10101ms check-target:macos_arm64 @ccdb99ca2214
 run/contained_health_loop_command_branch checked 10574ms check-target:macos_arm64 @ccdb99ca2214
@@ -37036,8 +36814,7 @@ run/traits/named_map_record_result_contract checked 2913ms check-target:macos_ar
 run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
 	call `fill` has an invalid argument correspondence: selected call has no admitted public application
-run/traits/target_scoped_map_method_arguments rejected 5607ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
+run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
 run/variant_record_normalization_repeats rejected 12132ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly

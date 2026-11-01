@@ -9,6 +9,9 @@
 use crate::CheckedBodyCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
+mod retained;
+pub use retained::RetainedBoundaryProviderReview;
+
 #[derive(Clone, Copy)]
 pub struct BoundaryRequirementReview<'facts> {
     pub schema_identity: &'facts str,
@@ -31,7 +34,7 @@ pub enum BoundaryOperatorApplication<'facts> {
     Closed(Result<Vec<CheckedBodyCandidate<'facts, ()>>, BoundaryApplicationEvidenceError>),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryApplicationEvidenceError {
     ApplicationCount(usize),
     MissingBodySpan,

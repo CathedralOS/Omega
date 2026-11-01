@@ -3523,20 +3523,10 @@ pass/facts/closed_integer_bound_through_parameter_exit built 2056ms exit:0 inter
 pass/facts/closed_integer_bound_through_target_body_exit built 1939ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/completed_operand_saved_reference_origin_exit built 2039ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/completed_operand_selected_aggregate_index_exit built 2306ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/compound_guard_through_call_result_compile rejected 1359ms @6e42425cd720
-	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-pass/facts/compound_guard_through_const_name_compile checked 1664ms @6e42425cd720
 pass/facts/compound_guard_through_distinct_match_calls_compile rejected 1304ms @6e42425cd720
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-pass/facts/compound_guard_through_field_compile checked 1686ms @6e42425cd720
-pass/facts/compound_guard_through_local_compile checked 1990ms @6e42425cd720
-pass/facts/compound_guard_through_match_join_compile checked 1654ms @6e42425cd720
-pass/facts/compound_guard_through_other_machine_compile checked 1669ms @6e42425cd720
-pass/facts/compound_guard_through_other_state_compile checked 1676ms @6e42425cd720
-pass/facts/compound_guard_through_parameter_compile checked 1650ms @6e42425cd720
 pass/facts/compound_guard_through_stored_call_result_compile rejected 1320ms @6e42425cd720
 	cannot prove index `main.b * 20 + main.saved` is within length 200 in put::entry
-pass/facts/compound_guard_through_target_body_compile checked 1770ms @6e42425cd720
 pass/facts/compound_index_guard_through_call_result_exit built 2100ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/compound_index_guard_through_const_name_exit built 1989ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/compound_index_guard_through_field_exit built 2197ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -4373,15 +4363,6 @@ pass/facts/float_comparison_route_through_other_machine_exit built 4745ms exit:0
 pass/facts/float_comparison_route_through_other_state_exit built 4781ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_comparison_route_through_parameter_exit built 4747ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_comparison_route_through_target_body_exit built 4515ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_call_result_exit built 4524ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_const_name_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_field_exit built 4469ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_local_exit built 4742ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_match_join_exit built 5382ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_other_machine_exit built 4754ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_other_state_exit built 4091ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_parameter_exit built 4718ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_delivery_through_target_body_exit built 4657ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_meaning_result_through_call_result_exit built 5021ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_meaning_result_through_const_name_exit built 4324ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_meaning_result_through_field_exit built 4681ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -4581,24 +4562,6 @@ pass/facts/foreign_scalar_backing_through_other_machine_exit built 1989ms exit:0
 pass/facts/foreign_scalar_backing_through_other_state_exit built 2084ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6e42425cd720
 pass/facts/foreign_scalar_backing_through_parameter_exit built 2141ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6e42425cd720
 pass/facts/foreign_scalar_backing_through_target_body_exit built 2029ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6e42425cd720
-pass/facts/foreign_scalar_record_result_direct_through_call_result_exit built 2130ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_const_name_exit built 2082ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_field_exit built 2110ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_local_exit built 2006ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_match_join_exit built 2076ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_other_machine_exit built 2066ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_other_state_exit built 2060ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_parameter_exit built 1997ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/foreign_scalar_record_result_direct_through_target_body_exit built 2020ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/foreign_scalar_record_result_through_call_result_exit built 2108ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/foreign_scalar_record_result_through_const_name_exit built 2050ms exit:0 @6e42425cd720
@@ -4957,15 +4920,6 @@ pass/facts/integer_multiple_remainder_through_other_machine_exit built 2131ms ex
 pass/facts/integer_multiple_remainder_through_other_state_exit built 2078ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/integer_multiple_remainder_through_parameter_exit built 2133ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/integer_multiple_remainder_through_target_body_exit built 2119ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_call_result_exit built 2137ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_const_name_exit built 2120ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_field_exit built 2178ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_local_exit built 2154ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_match_join_exit built 2215ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_other_machine_exit built 2202ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_other_state_exit built 2193ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_parameter_exit built 2176ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/integer_range_delivery_through_target_body_exit built 2228ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/integer_width_truncation_mask_bound_through_call_result_exit built 2035ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/integer_width_truncation_mask_bound_through_const_name_exit built 2187ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/integer_width_truncation_mask_bound_through_field_exit built 1998ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -5446,15 +5400,6 @@ pass/facts/named_conformance_dispatch_through_target_body_exit rejected 838ms in
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_call_result_exit built 2208ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_const_name_exit built 1975ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_field_exit built 1986ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_local_exit built 1979ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_match_join_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_machine_exit built 1935ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_state_exit built 1965ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_parameter_exit built 1986ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_exit built 2671ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit built 1897ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit built 1989ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -6939,15 +6884,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 1950ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2074ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/replaced_field_loan_through_parameter_exit built 1909ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/replaced_field_loan_through_target_body_exit built 2124ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_call_result_exit built 2133ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_const_name_exit built 1895ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_field_exit built 2057ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_local_exit built 2089ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_match_join_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_other_machine_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_other_state_exit built 2075ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_parameter_exit built 2038ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/result_cleanup_guarantee_through_target_body_exit built 1922ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/result_cleanup_guarantees_through_call_result_exit built 2269ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/result_cleanup_guarantees_through_const_name_exit built 2030ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/result_cleanup_guarantees_through_field_exit built 1972ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

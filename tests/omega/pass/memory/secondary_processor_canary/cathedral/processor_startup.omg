@@ -11,7 +11,7 @@
 // resolves its acknowledgement requirement by calling
 // `StartupAcknowledgementProtocol::confirm`, and reaching `confirm` is the only
 // arrival witness the supervisor's ledger accepts. The supervisor's
-// authored cancellation route is `StartupEnvelope::request_cancel` — a
+// authored cancellation route is `StartupEnvelopeCancel::request_cancel` — a
 // borrowed request that keeps `Pending` established while asking, not
 // proof the processor stopped. Sending the request or constructing an
 // envelope is not arrival; a settlement answer must attest both that
@@ -93,7 +93,9 @@ public boundary trait StartupAcknowledgementProtocol {
 // `request_cancel` convention: the route is open exactly while the
 // attempt is outstanding, and a racing `confirm` or settlement still
 // discharges the claim exactly once.
-public boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvelope);
+public boundary trait StartupEnvelopeCancel {
+    machine request_cancel(envelope: &StartupEnvelope) reaches;
+}
 
 // ---------------------------------------------------------------------------
 // The physical carrier

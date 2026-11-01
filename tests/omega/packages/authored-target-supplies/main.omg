@@ -8,8 +8,9 @@ public machine marker() -> i32 {
 
 // These private leaves are unused. Review must disclose both under their
 // authored target, without selecting either as an executable provider.
-data Wait {}
-boundary requirement Wait::poll(descriptors: u64, count: u32, timeout: i32);
+boundary trait Wait {
+    machine poll(descriptors: u64, count: u32, timeout: i32) reaches;
+}
 data WaitLeaf {}
 
 linux_x86_64 machine WaitLeaf::poll(descriptors: u64, count: u32, timeout: i32)

@@ -1,7 +1,9 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 use omega::language::core::numeric_conversion;
 
 // FAIL canary (mint arc rung 2b): the authored plan is LOAD-BEARING -- a
-// `CompactBinary::plan` that frames every field LengthPrefixed (the schema's
+// `AuthoredCompactBinary::plan` that frames every field LengthPrefixed (the schema's
 // scalars must be Varint) is a COMPILE ERROR naming both sides, never a
 // silent re-framing of the bytes.
 data Message {
@@ -9,11 +11,9 @@ data Message {
     #1 flag: bool;
 }
 
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, align >= 1, align <= 16 {
-    size: u64; align: u64; number: i64; kind: FieldKind;
-}
-data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
+data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
+data WireSchemaField [copy] { number: i64; kind: FieldKind; }
+data WireSchema [copy] where field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
@@ -22,23 +22,23 @@ data FieldPlan [copy] {
 }
 data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 
-data CompactBinary {
+data AuthoredCompactBinary {
     plans: [FieldPlan; 32];
     index: u64 in Wrapping;
     tag: u64;
 }
-machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
-    CompactBinary::evaluate(compact_binary, schema, 96)
+machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {
+    AuthoredCompactBinary::evaluate(compact_binary, schema, 96)
 }
 
-machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
+machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
 requires fuel >= 1 && fuel <= 96
 terminates by fuel
 {
     compact_binary.index = 0;
     transition { _ -> fill(compact_binary, schema, fuel) }
 
-    machine fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
+    machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
     requires fuel >= 1 && fuel <= 96
     {
         transition fuel > 1 && compact_binary.index < 32 && compact_binary.index < schema.field_count {
@@ -46,7 +46,7 @@ terminates by fuel
             _ -> done(compact_binary, schema)
         }
     }
-    machine put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
+    machine put_wrong(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
     requires fuel >= 1 && fuel <= 96
     {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[compact_binary.index].number);
@@ -55,7 +55,7 @@ terminates by fuel
         compact_binary.index = compact_binary.index + 1;
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1) _ -> done(compact_binary, schema) }
     }
-    machine done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    machine done(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {
         Plan {
             fields: compact_binary.plans,
             entry_count: schema.field_count,
@@ -67,4 +67,66 @@ terminates by fuel
 }
 
 data Main { }
-machine Main::main() { }
+machine Main::main() { policy_gate(POLICY_ACCEPTED); }
+
+
+// The explicit 32-slot budget belongs to this authored example policy. It is
+// not a reflection or codec limit (the library's 40-field witness exceeds it).
+data PolicyKind [copy] { supported: bool; kind: FieldKind; }
+data PolicyCapture { schema: WireSchema; valid: bool; }
+const POLICY_ACCEPTED: bool = selected_policy_is_valid();
+machine policy_gate(valid: bool) requires valid {}
+machine describe_policy_member<Kind>(capture: &mut PolicyCapture, info: &reflect::FieldInfo) {
+    let kind: PolicyKind = policy_kind<Kind>();
+    transition info.has_stable_number && !info.is_erased && kind.supported && info.declaration_position < 32u64 {
+        true -> put(capture, info, kind.kind)
+        false -> invalid(capture)
+    }
+    machine put(capture: &mut PolicyCapture, info: &reflect::FieldInfo, kind: FieldKind)
+    requires info.declaration_position < 32u64
+    {
+        capture.schema.fields[info.declaration_position] = WireSchemaField { number: narrow_u64_to_i64_wrapping(info.stable_number), kind: kind };
+        capture.schema.field_count = info.declaration_position + 1u64;
+    }
+    machine invalid(capture: &mut PolicyCapture) { capture.valid = false; }
+}
+machine selected_policy_is_valid() -> bool {
+    let mut capture: PolicyCapture;
+    capture.valid = true;
+    reflect::inspect_record_fields<Message, describe_policy_member>(&mut capture);
+    let mut policy: AuthoredCompactBinary;
+    let selected: Plan = AuthoredCompactBinary::plan(&mut policy, capture.schema);
+    capture.valid && selected.entry_count == capture.schema.field_count && policy_matches(&capture.schema, &selected, 0u64, 100u64)
+}
+machine policy_kind<Kind>() -> PolicyKind {
+    transition {
+        Kind == u32 || Kind == i32 || Kind == bool -> PolicyKind { supported: true, kind: FieldKind::Scalar }
+
+        _ -> PolicyKind { supported: false, kind: FieldKind::Scalar }
+    }
+}
+machine policy_matches(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
+requires fuel > 0u64
+terminates by fuel
+{
+    transition {
+        index == schema.field_count -> true
+        index < schema.field_count && index < 32u64 && fuel > 1u64 -> member(schema, plan, index, fuel)
+        _ -> false
+    }
+    machine member(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
+    requires index < schema.field_count && index < 32u64 && fuel > 1u64
+    {
+        transition policy_member_matches(&schema.fields[index].kind, &plan.fields[index], narrow_i64_to_u64_wrapping(schema.fields[index].number)) {
+            true -> policy_matches(schema, plan, index + 1u64, fuel - 1u64)
+            false -> false
+        }
+    }
+}
+machine policy_member_matches(kind: &FieldKind, placement: &FieldPlan, number: u64) -> bool {
+    transition placement {
+        FieldPlan::Varint { tag } -> (tag == number && kind == FieldKind::Scalar)
+        FieldPlan::LengthPrefixed { tag } -> (tag == number && kind != FieldKind::Scalar)
+        _ -> false
+    }
+}

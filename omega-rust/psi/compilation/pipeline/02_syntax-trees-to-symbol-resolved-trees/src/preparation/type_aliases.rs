@@ -13,6 +13,8 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, TypeAliasDefinition, TypeParameterKind};
 use syntax_trees::types::{TypeAliasApplicationOrigin, TypeReferenceHandle, TypeReferenceNode};
 
+mod static_operands;
+
 struct Expansion<'a, 'base> {
     selection: &'a ConstantSelection<'base>,
     declarations: Vec<&'a SyntaxTrees>,
@@ -652,6 +654,7 @@ impl Expansion<'_, '_> {
         bound: &[String],
     ) -> Result<(), Diagnostic> {
         for statement in statements {
+            self.statement_static_operands(syntax, *statement, bound)?;
             for reference in super::generic_data::statement_type_inputs(syntax, *statement) {
                 self.reference(syntax, reference, bound)?;
             }
@@ -768,7 +771,8 @@ impl Expansion<'_, '_> {
                 }
             }
             Item::Const(definition) => {
-                self.reference(syntax, definition.type_reference, inherited)?
+                self.reference(syntax, definition.type_reference, inherited)?;
+                self.expression_static_operands(syntax, definition.value, inherited)?;
             }
             _ => {}
         }

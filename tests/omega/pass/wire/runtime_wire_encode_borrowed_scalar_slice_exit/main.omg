@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // A borrowed scalar slice carries its runtime element count in the fat
 // descriptor. compact_binary measures the exact packed-varint body, proves
 // the trailing output capacity, then walks the elements again to emit them.
@@ -18,7 +20,7 @@ data Telemetry {
 }
 
 data TelemetrySample {
-    readings: &[i32];
+    #0 readings: &[i32];
 }
 
 data Main {
@@ -34,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let sample: TelemetrySample =
         TelemetrySample { readings: main.source[0..3] };
 
-    Telemetry::encode(&sample, &mut main.buffer, &mut main.written);
+    TelemetryCodec::encode(&sample, &mut main.buffer, &mut main.written);
 
     let ok: bool = main.written == 8
         && main.buffer[0] == 0
@@ -64,4 +66,19 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The semantic owner supplies visitation. The library owns all byte grammar.
+data TelemetryCodec {}
+machine TelemetryCodec::fields(value: &TelemetrySample, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<TelemetrySample, CompactBinary::packed_slice_field>(value, context);
+}
+machine TelemetryCodec::encode<const N: u64>(value: &TelemetrySample, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<TelemetrySample, TelemetryCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
 }

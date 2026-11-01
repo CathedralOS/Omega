@@ -213,7 +213,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
     machines
 }
 
-pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(
+pub(in crate::preparation) fn collect_statement_expression_handles(
     syntax: &SyntaxTrees,
     statement: syntax_trees::statement::StatementHandle,
     handles: &mut impl ExpressionMarks,

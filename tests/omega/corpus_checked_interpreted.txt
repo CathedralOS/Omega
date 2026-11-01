@@ -228,11 +228,6 @@ fail/facts/checked_asm_view_move_through_target_body_rejected rejected 1ms expec
 	tests/omega/fail/facts/checked_asm_view_move_through_target_body_rejected/main.omg:8:9: asm instruction `mov` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/closed_integer_bound_through_target_body_rejected rejected 1032ms expected @3c1b7104e4f6+wt
 	cannot prove assignment value `6` satisfies bounded target `value` in `establish.entry`; expected 0..=5
-fail/facts/compound_guard_through_target_body_compile rejected 1110ms expected @3c1b7104e4f6+wt
-	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/compound_index_guard_through_target_body_rejected rejected 1054ms expected @3c1b7104e4f6+wt
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
@@ -462,11 +457,6 @@ fail/facts/float_comparison_route_through_target_body_rejected rejected 1180ms e
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
-fail/facts/float_delivery_through_target_body_rejected rejected 3309ms expected @3c1b7104e4f6+wt
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_meaning_result_through_target_body_wrong_meaning rejected 2182ms expected @3c1b7104e4f6+wt
 	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/facts/float_range_delivery_through_target_body_rejected rejected 2649ms expected @3c1b7104e4f6+wt
@@ -625,11 +615,6 @@ fail/facts/integer_multiple_remainder_through_target_body_rejected rejected 554m
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 1169ms expected @3c1b7104e4f6+wt
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_width_truncation_mask_bound_through_target_body_rejected rejected 402ms expected @3c1b7104e4f6+wt
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -786,11 +771,6 @@ fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 1865
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_rejected rejected 454ms expected @3c1b7104e4f6+wt
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_rejected rejected 616ms expected @3c1b7104e4f6+wt
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -1159,11 +1139,6 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 558ms expec
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 1428ms expected @3c1b7104e4f6+wt
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 1711ms expected @3c1b7104e4f6+wt
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
@@ -1859,7 +1834,6 @@ pass/facts/checked_asm_rank_decrease_through_target_body_exit checked 3833ms che
 pass/facts/checked_asm_register_contract_bound_through_target_body_exit checked 4028ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/checked_asm_view_move_through_target_body_exit checked 4097ms check-target:linux_x86_64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/closed_integer_bound_through_target_body_exit checked 3820ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/compound_guard_through_target_body_compile checked 1162ms @3c1b7104e4f6+wt
 pass/facts/compound_index_guard_through_target_body_exit checked 3516ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/computed_constant_array_extent_through_target_body_exit checked 3568ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/computed_nested_state_loan_through_target_body_exit checked 3968ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
@@ -1901,7 +1875,6 @@ pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_bod
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_exit checked 5295ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_value_through_target_body_exit checked 4007ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/float_comparison_route_through_target_body_exit checked 9047ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/float_delivery_through_target_body_exit checked 9682ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/float_meaning_result_through_target_body_exit checked 9676ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/float_range_delivery_through_target_body_exit checked 9549ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/float_result_equality_through_target_body_exit checked 9384ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
@@ -1929,7 +1902,6 @@ pass/facts/inferred_array_equation_call_through_target_body_exit checked 3611ms 
 pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit checked 4009ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/inline_byte_view_argument_snapshot_through_target_body_exit checked 3395ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/integer_multiple_remainder_through_target_body_exit checked 3738ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/integer_range_delivery_through_target_body_exit checked 3499ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/integer_width_truncation_mask_bound_through_target_body_exit checked 3859ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/length_through_target_body_exit checked 3719ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/lexical_generic_bound_through_target_body_exit checked 3692ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
@@ -1958,7 +1930,6 @@ pass/facts/multi_exit_callee_saved_restoration_through_target_body_exit checked 
 pass/facts/mutable_borrow_field_writeback_through_target_body_exit checked 4033ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/mutable_slice_element_write_bound_through_target_body_exit checked 4026ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/named_conformance_dispatch_through_target_body_exit checked 3675ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_exit checked 3481ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_exit checked 4089ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/narrow_to_wide_sign_extension_through_target_body_exit checked 3604ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_target_body_exit checked 3888ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt

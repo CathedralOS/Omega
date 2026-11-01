@@ -15,6 +15,8 @@ pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
 pub mod product_entries;
 pub mod product_queries;
+// Shared by typed elaboration and compile-time evaluation, which depends on it.
+pub mod reflection;
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,

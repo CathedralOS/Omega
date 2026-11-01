@@ -168,21 +168,6 @@ pub(crate) fn validate_call_node(
     ) {
         return;
     }
-    // `Schema::encode(...)` / `Schema::decode(...)`: the wire module owns the
-    // synthesized encoder/decoder calls' diagnostics (chapter 20, wire
-    // stage 2). This runs before the state-receiver gate below: a schema
-    // receiver names a compile-time declaration, never current-state
-    // storage, and its resolved symbol may be a module-qualified path that
-    // gate cannot see.
-    if crate::value_custody::wire::validate_wire_schema_call(
-        program,
-        call,
-        current_machine,
-        current_state,
-        diagnostics,
-    ) {
-        return;
-    }
     if !call_gates::receiver_is_declared(&scope, receiver_members, arguments, diagnostics) {
         return;
     }
@@ -701,31 +686,38 @@ pub(crate) fn validate_call_arguments(
         // Reject when both parameter and argument resolve to concrete data types
         // that differ (every non-data form is skipped, so no false positive on
         // trait/generic parameters or computed arguments).
-        report_data_type_conflict(
-            program,
-            current_machine,
-            current_state,
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
+        // No closed type world reaches this exact operand. Nominal call
+        // compatibility is checked in every inhabited specialization; other
+        // source formation checks still run below.
+        if !program.static_type_context_is_unreachable(*argument) {
+            report_data_type_conflict(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                "argument",
+                diagnostics,
+            );
+        }
         // Scalar-vs-data shape guard: `take_struct(5)` (a scalar for a struct param)
         // or `take_int(self.struct)` (a struct for a scalar param). Unlike the
         // array/scalar check below, this is SAFE at the argument position -- it fires
         // only on scalar-vs-DATA-type crossings, and `&buffer`/`addr`/text args
         // involve no data type on either side, so they never trigger it.
-        crate::value_custody::expression_types::report_scalar_data_shape_mismatch(
-            program,
-            current_machine,
-            current_state,
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
+        if !program.static_type_context_is_unreachable(*argument) {
+            crate::value_custody::expression_types::report_scalar_data_shape_mismatch(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                "argument",
+                diagnostics,
+            );
+        }
         crate::proof_contracts::domain_weakening::validate_argument_domain_weakening(
             program,
             current_machine,

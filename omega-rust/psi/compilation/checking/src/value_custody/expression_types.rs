@@ -266,6 +266,24 @@ fn argument_matches_type_reference_using(
     correspondence: reference_values::ReferenceCorrespondence,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    // A static equality applies to the complete delivered type, including
+    // reference shells. Comparing only an outer named carrier loses `T == U`
+    // at `&T` calls; the equality never supplies a loan or changes access.
+    if let Some(actual) = delivered_types::delivered_value_type(program, argument)
+        && program.type_identities_match_in_static_context(
+            argument,
+            TypeIdentityRequest {
+                substitutions: &actual.substitutions,
+                ..TypeIdentityRequest::ordinary(actual.reference)
+            },
+            TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(type_reference)
+            },
+        )
+    {
+        return true;
+    }
     let (type_reference, required_substitutions) = reference_values::substituted_required_reference(
         program,
         type_reference,
@@ -328,6 +346,18 @@ fn argument_matches_type_reference_using(
                 TypeReferenceNode::Reference { .. }
             )
         {
+            // An explicitly requested reference to a stored descriptor lends
+            // that exact descriptor. This checks type correspondence only;
+            // ordinary place/permission/loan admission still has to supply
+            // its storage. Reborrows below retain their existing relation.
+            if substituted_identity(program, actual, &substitutions)
+                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                    substitutions: required_substitutions,
+                    ..TypeIdentityRequest::ordinary(*referee)
+                })
+            {
+                return true;
+            }
             // Explicit attenuation changes access, not the selected referent.
             // Bare forwarding still uses reference correspondence below and
             // cannot silently acquire write-only authority. Formation and loan

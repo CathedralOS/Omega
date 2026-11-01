@@ -562,21 +562,30 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        if let Some(prepared) = self.prepare_byte_descriptor_argument(parameter, argument)? {
+        if let Some(prepared) = self
+            .prepare_byte_descriptor_argument(parameter, argument)
+            .map_err(|error| error.in_argument_preparation("prepare resident byte descriptor"))?
+        {
             return Ok(Some(prepared));
         }
-        if let Some(prepared) = self.prepare_owner_view_argument(parameter, argument)? {
+        if let Some(prepared) = self
+            .prepare_owner_view_argument(parameter, argument)
+            .map_err(|error| error.in_argument_preparation("prepare byte owner view"))?
+        {
             return Ok(Some(prepared));
         }
         // Reuse the ordinary call's exact initialized-array binding. It can
         // enter a checked provider and be forwarded again. External staging
         // lends its exact range, never field-reaccess authority.
-        if let Some(prepared) = self.prepare_array_view_argument_staged(
-            parameter,
-            argument,
-            identity_cursor,
-            local_array_roots,
-        )? {
+        if let Some(prepared) = self
+            .prepare_array_view_argument_staged(
+                parameter,
+                argument,
+                identity_cursor,
+                local_array_roots,
+            )
+            .map_err(|error| error.in_argument_preparation("prepare byte array view"))?
+        {
             return Ok(Some(prepared));
         }
         let declaration = self.structural_declaration(parameter.structural_type)?;
@@ -619,7 +628,9 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            let (referent, binding) = self.resolve_shared_boundary_binding(parameter, argument)?;
+            let (referent, binding) = self
+                .resolve_shared_boundary_binding(parameter, argument)
+                .map_err(|error| error.in_argument_preparation("prepare shared byte field"))?;
             // A lent view field must satisfy every domain the formal
             // names (`text: &[u8] in Utf8` from `main.name`). As for a
             // whole shared descriptor, execution checks the bytes the

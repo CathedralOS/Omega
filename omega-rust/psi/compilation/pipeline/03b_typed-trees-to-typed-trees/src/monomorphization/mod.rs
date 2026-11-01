@@ -57,6 +57,7 @@ mod explicit_arguments;
 mod layout_storage_policies;
 mod native_query_lifetimes;
 mod provider_tuple_closure;
+mod reflection;
 mod requirement_providers;
 mod selection;
 mod trait_implementation_arguments;
@@ -359,6 +360,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
         let generic_changed = !generic_owners.is_empty();
         changed_owners.extend(generic_owners);
+        if reflection::elaborate_calls(program, &candidates, &selections, &mut changed_owners)? {
+            continue;
+        }
         let mut diagnostics = Vec::new();
         // A catalog operation selects an installed entry, not a body clone.
         // Its closed tuple may be independent of an enclosing generic API.

@@ -85,27 +85,9 @@ impl<'input> NativeScalarCompletion<'input> {
             .completed
             .as_ref()
             .ok_or_else(|| vec![Diagnostic::error("native scalar work has not completed")])?;
-        let selection = self
-            .provider_proposals()
-            .iter()
-            .find(|proposal| proposal.target == self.target())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "native scalar work lost its target provider companion",
-                )]
-            })?
-            .selection
-            .as_ref()
-            .map_err(|reasons| {
-                reasons
-                    .iter()
-                    .cloned()
-                    .map(Diagnostic::error)
-                    .collect::<Vec<_>>()
-            })?;
         Ok(Some(NativeScalarApplications {
             completed,
-            provider_declarations: &selection.plans,
+            provider_declarations: &self.proposal.providers().declarations,
         }))
     }
 }

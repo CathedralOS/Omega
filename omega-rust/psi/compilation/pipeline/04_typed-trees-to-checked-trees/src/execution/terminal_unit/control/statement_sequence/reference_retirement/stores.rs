@@ -278,6 +278,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     retirement: &Retirement<'_>,
     operation: &OperationPlan,
 ) -> Option<Vec<OperationPlan>> {
+    let _profile = phase_profile::guard("05.unit.reference_retirement.stores");
     if super::unique_borrow_state(
         retirement.facts,
         retirement.machine,

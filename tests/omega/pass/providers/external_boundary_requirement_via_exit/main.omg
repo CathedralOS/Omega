@@ -1,5 +1,5 @@
-// The `via` sibling of `checked_boundary_requirement_*`: public top-level
-// boundary requirements whose unique covering satisfiers are external leaves.
+// The `via` sibling of `checked_boundary_requirement_*`: public boundary-trait
+// requirements whose unique covering satisfiers are external leaves.
 // Selection keeps each direct call ON the requirement — the requirement is
 // itself a boundary declaration, so the call lowers through its retained
 // boundary seam (a demanded Terminal boundary keyed on the requirement's
@@ -13,11 +13,13 @@
 // declaration retains it in Terminal Psi and every call owes its obligation.
 use omega::language::core::external_binding;
 
-public data ForeignMath {}
 
-public boundary requirement ForeignMath::absolute(value: i32) -> i32
-requires value > -2147483648;
-public boundary requirement ForeignMath::exit_with(code: i32);
+public boundary trait ForeignMath {
+    machine absolute(value: i32) -> i32
+    reaches
+    requires value > -2147483648;
+    machine exit_with(code: i32) reaches;
+}
 
 data ForeignMathProvider {}
 

@@ -71,8 +71,6 @@ pub const COMPONENT_DESCRIPTION_SCHEMA_V3: u32 = 3;
 pub(crate) const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
 /// Hard bound on any single roster inside a description.
 pub(crate) const MAX_DESCRIPTION_ROSTER: usize = 4096;
-/// Hard bound on one declared or derived identity string.
-pub(crate) const MAX_IDENTITY_BYTES: usize = 1024;
 
 /// How far the checked component evidence has advanced.
 ///
@@ -432,6 +430,8 @@ pub enum DescribeError {
     ArtifactIdentity(terminal_codec::CodecError),
     /// A called boundary machine had no declaration in the module.
     UndeclaredBoundary(BoundaryMachineId),
+    /// The description would exceed a bound its decoder enforces.
+    BoundExceeded(&'static str),
 }
 
 impl std::fmt::Display for DescribeError {
@@ -448,6 +448,12 @@ impl std::fmt::Display for DescribeError {
             }
             Self::UndeclaredBoundary(id) => {
                 write!(formatter, "called boundary machine {id} has no declaration")
+            }
+            Self::BoundExceeded(what) => {
+                write!(
+                    formatter,
+                    "component description {what} exceeds the hard bound"
+                )
             }
         }
     }
@@ -466,7 +472,7 @@ pub enum DescriptionDecodeRejection {
     UnsupportedTag(&'static str),
     /// A roster exceeded its hard bound.
     RosterBoundExceeded(&'static str),
-    /// An identity string exceeded its bound or was not UTF-8.
+    /// An identity string was not UTF-8.
     IdentityInvalid(&'static str),
     /// A roster was not in canonical order or contained a duplicate.
     NonCanonicalOrder(&'static str),
@@ -1205,12 +1211,15 @@ fn roster_len(
     Ok(count)
 }
 
-/// One length-framed identity string, bounded before it is read.
+/// One length-framed identity string.
+///
+/// Identities copy Terminal identity strings, which the Terminal codec admits up
+/// to `MAX_CONTENT_IDENTITY_BYTES` each, and an export identity joins three of
+/// them. The whole-description bound already limits every length frame, so an
+/// identity has no smaller bound of its own; a 1 KiB cap rejected real exports
+/// whose producer had published them.
 fn read_identity(reader: &mut Reader<'_>) -> Result<String, DescriptionDecodeRejection> {
     let length = reader.u32()? as usize;
-    if length > MAX_IDENTITY_BYTES {
-        return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
-    }
     String::from_utf8(reader.take(length)?.to_vec())
         .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
 }
@@ -1226,6 +1235,49 @@ fn push_u64(out: &mut Vec<u8>, value: u64) {
 fn push_identity(out: &mut Vec<u8>, identity: &str) {
     push_u32(out, identity.len() as u32);
     out.extend_from_slice(identity.as_bytes());
+}
+
+/// Refuse to publish a description its decoder would reject for size.
+///
+/// These are the decoder's own bounds, read from the same constants, so a
+/// producer never writes bytes that `decode_component_description` refuses.
+pub(crate) fn check_publication_bounds(
+    description: &ComponentDescription,
+    encoded: &[u8],
+) -> Result<(), DescribeError> {
+    if encoded.len() > MAX_COMPONENT_DESCRIPTION_BYTES {
+        return Err(DescribeError::BoundExceeded("byte length"));
+    }
+    let rosters = [
+        ("import roster", description.imports.len()),
+        ("export roster", description.exports.len()),
+        ("entry roster", description.entries.len()),
+        ("outgoing authority roster", description.outgoing.len()),
+        ("service bound roster", description.service_bounds.len()),
+        ("custody roster", description.custody.len()),
+        ("provider roster", description.providers.len()),
+        ("obligation roster", description.obligations.len()),
+        ("assumption roster", description.assumptions.len()),
+    ]
+    .into_iter()
+    .chain(
+        description
+            .service_bounds
+            .iter()
+            .map(|row| ("service bound services roster", row.bound.len())),
+    )
+    .chain(description.providers.iter().map(|provider| {
+        (
+            "provider requirement roster",
+            provider.requirement_identities.len(),
+        )
+    }));
+    for (what, count) in rosters {
+        if count > MAX_DESCRIPTION_ROSTER {
+            return Err(DescribeError::BoundExceeded(what));
+        }
+    }
+    Ok(())
 }
 
 /// Encode one description to its canonical wire form.
@@ -1664,4 +1716,20 @@ pub fn description_subject(
             .map_err(DescribeError::ArtifactFormat)?;
     let module = artifact.semantic_module();
     terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An export identity joins three Terminal identities; the decoder must
+    /// read back any length the encoder writes within the description bound.
+    #[test]
+    fn identity_longer_than_one_kibibyte_round_trips() {
+        let identity = "export:requirement:".to_owned() + &"x".repeat(4096);
+        let mut encoded = Vec::new();
+        push_identity(&mut encoded, &identity);
+        let mut reader = Cursor::new(&encoded);
+        assert_eq!(read_identity(&mut reader), Ok(identity));
+    }
 }

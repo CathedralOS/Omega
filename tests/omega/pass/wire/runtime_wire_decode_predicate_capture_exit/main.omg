@@ -1,7 +1,9 @@
 // Expected exit: 70
-// Generated decoder bindings preserve grouped field reads, stable siblings,
+// The owner constructor preserves grouped field reads, stable siblings,
 // exact nonconvex predicates, and authored constants with colliding names.
 use omega_language_std::console;
+use omega_language_std::wire;
+use omega::language::core::reflect;
 data Msg {
     #0 payload: u32;
     #1 delta: i32;
@@ -19,7 +21,7 @@ requires
     delta: i32;
     payload: u32;
 }
-data WireVerdict {
+data CapturedVerdict {
     case Invalid;
     case Sound;
 }
@@ -27,9 +29,9 @@ data WireVerdict {
 data Main {
     buffer: [u8; 32];
     bad_read: u64;
-    bad_verdict: WireVerdict;
+    bad_verdict: CapturedVerdict;
     good_read: u64;
-    good_verdict: WireVerdict;
+    good_verdict: CapturedVerdict;
 }
 machine Main::main(main: &mut Main) reaches Console {
     // era 0, tag 0, value 200 (varint C8 01), tag 1, delta 3
@@ -42,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[4] = 1;
     main.buffer[5] = 6;
     let bad: Retained = Retained { payload: 42, delta: 7 };
-    Msg::decode(
+    CapturedCodec::decode(
         &mut bad,
         &main.buffer,
         &mut main.bad_read,
@@ -54,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[3] = 1;
     main.buffer[4] = 9;
     let good: Retained = Retained { payload: 42, delta: 7 };
-    Msg::decode(
+    CapturedCodec::decode(
         &mut good,
         &main.buffer,
         &mut main.good_read,
@@ -62,9 +64,9 @@ machine Main::main(main: &mut Main) reaches Console {
     );
 
     transition {
-        main.bad_verdict == WireVerdict::Sound -> accepted_hostile(main)
+        main.bad_verdict == CapturedVerdict::Sound -> accepted_hostile(main)
         bad.payload != 42 || bad.delta != 7 -> corrupted_on_reject(main)
-        main.good_verdict == WireVerdict::Sound && good.payload == 50 && good.delta == 0 - 5 -> proven(main)
+        main.good_verdict == CapturedVerdict::Sound && good.payload == 50 && good.delta == 0 - 5 -> proven(main)
         _ -> broken(main)
     }
     machine accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
@@ -77,4 +79,43 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// Schema, selected codec and established value remain separate. The owner
+// supplies reflection and construction; the library owns the wire grammar.
+data CapturedCodec {}
+machine capture_plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Msg, CompactBinary::plan_scalar>(context);
+}
+machine capture_value(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<Retained> {
+    transition fields.len == 2u64 { true -> read(fields) false -> DecodeResult::Invalid }
+    machine read(fields: &[ScalarSlot]) -> DecodeResult<Retained>
+    requires fields.len == 2u64
+    {
+        let v: u64 = fields[0u64].unsigned;
+        let delta: i64 = fields[1u64].signed;
+        transition v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64
+        && (delta == (0i64 - 5i64) || delta == 7i64) {
+            true -> create(v, delta)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine create(v: u64, delta: i64) -> DecodeResult<Retained>
+    requires v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64
+        && (delta == (0i64 - 5i64) || delta == 7i64)
+    {
+        DecodeResult::Sound { value: Retained { payload: v as u32, delta: delta as i32 } }
+    }
+}
+machine CapturedCodec::decode<const N: u64>(value: &mut Retained, bytes: &[u8; N], read: &mut u64, verdict: &mut CapturedVerdict) {
+    let mut slots: [ScalarSlot; 2];
+    transition CompactBinary::decode_record<Retained, capture_plan, capture_value>(&bytes[..], &mut slots[..], read, 100u64) {
+        DecodeResult::Sound { value as created } -> commit(value, created, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut Retained, created: Retained, verdict: &mut CapturedVerdict) {
+        value = created;
+        verdict = CapturedVerdict::Sound;
+    }
+    machine invalid(verdict: &mut CapturedVerdict) { verdict = CapturedVerdict::Invalid; }
 }

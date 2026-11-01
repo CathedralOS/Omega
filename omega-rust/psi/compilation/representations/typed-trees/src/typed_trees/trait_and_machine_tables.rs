@@ -581,13 +581,14 @@ impl TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
-        self.data_type_parameters.iter().find_map(|(_, parameter)| {
-            let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
-                return None;
-            };
-            (parameter.symbol == symbol)
-                .then(|| self.machine_parameter_contract_view(contract))
-                .flatten()
+        self.with_type_parameter_declarations(symbol, |rows| {
+            rows.iter().find_map(|(_, handle)| {
+                let parameter = self.data_type_parameters.get(*handle);
+                let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+                    return None;
+                };
+                self.machine_parameter_contract_view(contract)
+            })
         })
     }
 
@@ -598,7 +599,12 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &signature::StateSignature)> {
-        self.data_type_parameter_by_symbol(symbol)?;
+        // Only a parameter with an actual callable contract can have a
+        // signature in a lexical scope. A type/const binder, or an absent
+        // symbol, cannot require a walk over every machine. This is only a
+        // negative filter; the unchanged scope walk still selects ownership,
+        // shadowing and the first matching contract.
+        self.retained_static_machine_contract(symbol)?;
         self.machines().iter().find_map(|machine| {
             self.machine_parameter_signature_in(machine, symbol)
                 .map(|signature| (machine, signature))

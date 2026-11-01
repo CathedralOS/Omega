@@ -1,4 +1,4 @@
-// Provider dispatch is reach. The entry calls only the boundary requirement
+// Provider dispatch is reach. The entry calls only the boundary-trait requirement
 // `Value::read`; the build selects the portable `RelayValue` provider, whose
 // body calls a UEFI-only machine. A hosted realization installs that provider,
 // so the call demands a body the target does not have and rejects, naming the
@@ -12,8 +12,9 @@ uefi_x86_64 machine Helper::firmware_only(input: i32) -> i32 {
     transition { _ -> 63 }
 }
 
-public data Value {}
-public boundary requirement Value::read(input: i32) -> i32;
+public boundary trait Value {
+    machine read(input: i32) -> i32 reaches;
+}
 
 public data RelayValue {}
 machine RelayValue::read(input: i32) -> i32

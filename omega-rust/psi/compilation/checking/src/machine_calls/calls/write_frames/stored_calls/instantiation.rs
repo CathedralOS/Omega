@@ -20,7 +20,7 @@ pub(super) fn instantiate(
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<InstantiatedSlots> {
-    if parameters.len() != arguments.len() || !context.divergent.is_empty() {
+    if parameters.len() != arguments.len() {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
                 "CHECKSITE stored-reference-input-context-refusal machine={:?} phase={} parameter_count={} capture_count={} divergent_count={}",
@@ -40,14 +40,11 @@ pub(super) fn instantiate(
     // Every demanded actual uses its own completed input inventory. The
     // evaluator has already retained all ordered argument effects in context;
     // applying those effects again here would retarget an earlier descriptor.
-    let argument = |index: usize| {
-        let captured = arguments.get(index)?;
-        captured.context.divergent.is_empty().then_some(captured)
-    };
+    let argument = |index: usize| arguments.get(index);
     let substitute = |root, segments: &[PlaceSegment]| {
         let index = typed_trees::signature::state_parameter_position(parameters, root)?;
         let captured = argument(index)?;
-        destination_source(
+        destination_sources(
             program,
             machine,
             &parameters[index],
@@ -65,7 +62,7 @@ pub(super) fn instantiate(
         if effect.incoming && effect.sources.as_ref()?.is_empty() {
             continue;
         }
-        let Some((destination, input)) = substitute(effect.root, &effect.segments) else {
+        let Some(destinations) = substitute(effect.root, &effect.segments) else {
             trace_instantiation_refusal(
                 machine,
                 parameters,
@@ -83,8 +80,10 @@ pub(super) fn instantiate(
                     [typed_trees::signature::state_parameter_position(parameters, effect.root)?],
             )
         };
-        if !substitutions.contains(&(formal.clone(), input.clone())) {
-            substitutions.push((formal, input));
+        for (_, input) in &destinations {
+            if !substitutions.contains(&(formal.clone(), input.clone())) {
+                substitutions.push((formal.clone(), input.clone()));
+            }
         }
         let mut sources = Vec::new();
         for supplied in effect.sources.as_ref()? {
@@ -112,14 +111,19 @@ pub(super) fn instantiate(
                 }
             }
         }
-        output.push(SlotEffect {
-            root: destination.root,
-            segments: destination.segments,
-            sources: Some(sources),
-            incoming: effect.incoming,
-            may_select: effect.may_select,
-            kind: effect.kind,
-        });
+        let conditional = destinations.len() > 1;
+        for (destination, _) in destinations {
+            output.push(SlotEffect {
+                root: destination.root,
+                segments: destination.segments,
+                sources: Some(sources.clone()),
+                // One exact alternative is chosen at runtime. Preserve the
+                // incoming contents of every other enumerated destination.
+                incoming: effect.incoming || conditional,
+                may_select: effect.may_select,
+                kind: effect.kind,
+            });
+        }
     }
     Some(InstantiatedSlots {
         effects: output,
@@ -185,10 +189,29 @@ pub(super) fn destination_source(
     machine: &Machine,
     parameter: &StateParameter,
     captured: &SlotArgumentCapture,
-    mut segments: &[PlaceSegment],
+    segments: &[PlaceSegment],
     entry: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<(FrameSourcePlace, FrameSourcePlace)> {
+    let mut destinations = destination_sources(
+        program, machine, parameter, captured, segments, entry, symbols,
+    )?;
+    (destinations.len() == 1).then(|| destinations.remove(0))
+}
+
+/// Enumerate a finite set of exact addresses. Each crossed descriptor must
+/// have a complete captured backing relation; alternatives never authorize a
+/// wildcard selector or pair independent carrier/backing observations.
+#[allow(clippy::too_many_arguments)]
+fn destination_sources(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    parameter: &StateParameter,
+    captured: &SlotArgumentCapture,
+    segments: &[PlaceSegment],
+    entry: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<Vec<(FrameSourcePlace, FrameSourcePlace)>> {
     if segments.iter().any(|segment| {
         !matches!(
             segment,
@@ -199,15 +222,14 @@ pub(super) fn destination_source(
     }) {
         return None;
     }
-    let mut reference = parameter.type_reference;
-    let mut base = None;
-    let mut input = None;
+    let mut pending = Vec::new();
+    let reference = parameter.type_reference;
     if let Some(shell) = crate::reference_shell(program, reference) {
         if !shell.access.is_exclusive() {
             return None;
         }
         let relative = FrameSourcePlace::parameter_root(parameter);
-        let mut sources = aggregate_argument_sources(
+        let sources = aggregate_argument_sources(
             program,
             machine,
             parameter,
@@ -215,17 +237,36 @@ pub(super) fn destination_source(
             &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
             entry,
             symbols,
-        )?
-        .into_iter();
-        let source = sources.next()?;
-        if source.lifetime_access.is_some() || sources.next().is_some() {
+        )?;
+        if sources.is_empty() {
             return None;
         }
-        input = Some(source.origin.source.clone());
-        base = Some(source.origin);
-        reference = shell.referee;
+        let finite_alternatives = sources.len() > 1;
+        for source in sources {
+            if source.lifetime_access.is_some()
+                || (finite_alternatives && source.origin.precision != FramePathPrecision::Exact)
+            {
+                return None;
+            }
+            let input = source.origin.source.clone();
+            pending.push((
+                shell.referee,
+                segments,
+                Some(source.origin),
+                Some(input),
+                Vec::new(),
+            ));
+        }
+    } else {
+        pending.push((reference, segments, None, None, Vec::new()));
     }
-    loop {
+    let mut completed = Vec::new();
+    while let Some((reference, segments, base, input, mut ancestors)) = pending.pop() {
+        let identity = (reference, segments.to_vec(), base.clone());
+        if ancestors.contains(&identity) {
+            return None;
+        }
+        ancestors.push(identity);
         let inventory = stored_origins::declared_origins_for_query(
             program,
             parameter.symbol,
@@ -246,7 +287,11 @@ pub(super) fn destination_source(
             {
                 return None;
             }
-            return Some((base.source.append_segments(segments), input?));
+            let row = (base.source.append_segments(segments), input?);
+            if !completed.contains(&row) {
+                completed.push(row);
+            }
+            continue;
         };
         if boundaries.next().is_some() {
             return None;
@@ -258,13 +303,13 @@ pub(super) fn destination_source(
         if !shell.access.is_exclusive() {
             return None;
         }
-        let candidates = if let Some(captured) = &base {
-            let mut projected = captured.clone();
-            projected.source = captured.source.append_segments(&boundary.local_segments);
+        let candidates = if let Some(base) = &base {
+            let mut projected = base.clone();
+            projected.source = base.source.append_segments(&boundary.local_segments);
             projected.path = path(program, &projected.source);
             stored_origins::captured_reference_projection_origins(
                 program,
-                captured,
+                base,
                 &projected,
                 &entry.stored,
             )
@@ -275,7 +320,7 @@ pub(super) fn destination_source(
                 segments: boundary.local_segments.clone(),
                 ..FrameSourcePlace::parameter_root(parameter)
             };
-            aggregate_argument_sources(
+            let sources = aggregate_argument_sources(
                 program,
                 machine,
                 parameter,
@@ -283,23 +328,35 @@ pub(super) fn destination_source(
                 &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
                 entry,
                 symbols,
-            )?
-            .into_iter()
-            .map(|source| source.origin)
-            .collect()
+            )?;
+            let mut candidates = Vec::new();
+            for source in sources {
+                if source.lifetime_access.is_some() {
+                    return None;
+                }
+                candidates.push(source.origin);
+            }
+            candidates
         };
-        let mut candidates = candidates.into_iter();
-        let selected = candidates.next()?;
-        if input.is_none() {
-            input = Some(selected.source.clone());
-        }
-        base = Some(selected);
-        if candidates.next().is_some() {
+        if candidates.is_empty() {
             return None;
         }
-        reference = shell.referee;
-        segments = &segments[boundary.local_segments.len()..];
+        let finite_alternatives = candidates.len() > 1;
+        for selected in candidates {
+            if finite_alternatives && selected.precision != FramePathPrecision::Exact {
+                return None;
+            }
+            let input = input.clone().unwrap_or_else(|| selected.source.clone());
+            pending.push((
+                shell.referee,
+                &segments[boundary.local_segments.len()..],
+                Some(selected),
+                Some(input),
+                ancestors.clone(),
+            ));
+        }
     }
+    (!completed.is_empty()).then_some(completed)
 }
 
 /// Returned source substitution uses each operand's completed observation.

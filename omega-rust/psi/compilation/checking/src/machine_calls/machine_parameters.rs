@@ -22,6 +22,7 @@ pub use closed_types::closed_static_call_type_bindings;
 use typed_trees::static_applications::StaticMachineBindingValue;
 pub(crate) mod contract_facts;
 mod nominal_admission;
+mod reflection_coverage;
 mod type_refinement;
 pub use type_refinement::infer_call_type_arguments;
 
@@ -763,6 +764,7 @@ fn form_call_selection(
             &rendered,
             &generic_types,
             &mut bindings,
+            Some(site),
             diagnostics,
         );
         // Retain which selection this binder admitted even when no nominal
@@ -929,6 +931,7 @@ fn validate_declaration_machine_selection(
         selected_name,
         generic_types,
         &mut bindings,
+        None,
         diagnostics,
     );
     let applied_requirement = program

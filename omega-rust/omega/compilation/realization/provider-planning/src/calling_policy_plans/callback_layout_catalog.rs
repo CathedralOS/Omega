@@ -88,7 +88,7 @@ impl BoundaryCallbackLayoutEntry {
                 layout: terminal.layout,
                 slot: terminal.slot,
                 requirement: terminal.requirement,
-                conformance_commitment: terminal.slot_application.commitment.as_bytes(),
+                conformance_commitment: terminal.slot_application.application_commitment,
                 offset: terminal.offset as u64,
                 size: terminal.byte_size as u64,
                 alignment: terminal.alignment as u64,

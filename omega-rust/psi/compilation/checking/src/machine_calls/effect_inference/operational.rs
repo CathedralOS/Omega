@@ -18,6 +18,7 @@
 
 use crate::CheckingInput;
 use arena::HandleSpan;
+use std::collections::HashMap;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
@@ -513,31 +514,96 @@ struct OperationalContext {
     summary: DirectCallOperational,
 }
 
-fn context_index(
-    machines: &[MachineWork],
-    contexts: &mut Vec<OperationalContext>,
-    machine: usize,
-    mut selectors: Vec<Option<Vec<SymbolHandle>>>,
-) -> usize {
-    selectors.resize(machines[machine].parameters.len(), None);
-    if let Some(position) = contexts
-        .iter()
-        .position(|context| context.machine == machine && context.selectors == selectors)
-    {
-        return position;
+type SelectorArguments = Vec<Option<Vec<SymbolHandle>>>;
+
+struct MachineContextInputs {
+    parameter_count: usize,
+    initial_summary: DirectCallOperational,
+    unknown_context: Option<usize>,
+    selected_contexts: HashMap<SelectorArguments, usize>,
+}
+
+/// One inference invocation owns context identity and discovery order. The
+/// lookup tables are never iterated to publish results; complete selector
+/// tuples, including unknown/empty distinctions and symbol generations, remain
+/// the same equality key as the original context walk.
+struct OperationalContexts {
+    entries: Vec<OperationalContext>,
+    machines: Vec<MachineContextInputs>,
+    machine_positions: HashMap<SymbolHandle, usize>,
+}
+
+impl OperationalContexts {
+    fn new(machines: &[MachineWork]) -> Self {
+        let mut machine_positions = HashMap::with_capacity(machines.len());
+        let inputs = machines
+            .iter()
+            .enumerate()
+            .map(|(position, machine)| {
+                // Match the original first-position scan for duplicate symbols.
+                machine_positions.entry(machine.symbol).or_insert(position);
+                MachineContextInputs {
+                    parameter_count: machine.parameters.len(),
+                    initial_summary: DirectCallOperational {
+                        may_suspend: machine.uses_published_contract
+                            && machine.published_may_suspend,
+                        may_block: machine.uses_published_contract && machine.published_may_block,
+                    },
+                    unknown_context: None,
+                    selected_contexts: HashMap::new(),
+                }
+            })
+            .collect();
+        Self {
+            entries: Vec::with_capacity(machines.len()),
+            machines: inputs,
+            machine_positions,
+        }
     }
-    let owner = &machines[machine];
-    let position = contexts.len();
-    contexts.push(OperationalContext {
-        machine,
-        selectors,
-        body: DirectCallOperational::default(),
-        summary: DirectCallOperational {
-            may_suspend: owner.uses_published_contract && owner.published_may_suspend,
-            may_block: owner.uses_published_contract && owner.published_may_block,
-        },
-    });
-    position
+
+    fn position_of_machine(&self, symbol: SymbolHandle) -> Option<usize> {
+        self.machine_positions.get(&symbol).copied()
+    }
+
+    fn intern(&mut self, machine: usize, mut selectors: SelectorArguments) -> usize {
+        let inputs = &mut self.machines[machine];
+        // Empty actuals are the already-known unknown input tuple. Avoid
+        // allocating a padded tuple for every unselected call in each round.
+        if selectors.is_empty() {
+            if let Some(position) = inputs.unknown_context {
+                return position;
+            }
+        }
+        selectors.resize(inputs.parameter_count, None);
+        let is_unknown = selectors.iter().all(Option::is_none);
+        if is_unknown {
+            if let Some(position) = inputs.unknown_context {
+                return position;
+            }
+        } else if let Some(position) = inputs.selected_contexts.get(selectors.as_slice()) {
+            return *position;
+        }
+        let position = self.entries.len();
+        if is_unknown {
+            inputs.unknown_context = Some(position);
+        } else {
+            inputs.selected_contexts.insert(selectors.clone(), position);
+        }
+        self.entries.push(OperationalContext {
+            machine,
+            selectors,
+            body: DirectCallOperational::default(),
+            summary: inputs.initial_summary,
+        });
+        position
+    }
+}
+
+impl std::ops::Deref for OperationalContexts {
+    type Target = [OperationalContext];
+    fn deref(&self) -> &Self::Target {
+        &self.entries
+    }
 }
 
 fn selector_actual(
@@ -578,7 +644,7 @@ fn call_envelope(
     program: &dyn CheckingInput,
     machines: &[MachineWork],
     captured: &flow_effects::CapturedSelectorCalls,
-    contexts: &mut Vec<OperationalContext>,
+    contexts: &mut OperationalContexts,
     owner: &MachineWork,
     selectors: &[Option<Vec<SymbolHandle>>],
     state: SymbolHandle,
@@ -620,7 +686,7 @@ fn call_envelope(
             !targets.is_empty()
                 && targets
                     .iter()
-                    .all(|target| machines.iter().any(|machine| machine.symbol == *target))
+                    .all(|target| contexts.position_of_machine(*target).is_some())
         }) {
             Some(targets) => {
                 envelope = DirectCallOperational::default();
@@ -632,13 +698,21 @@ fn call_envelope(
         (vec![call.target_machine_symbol], 0)
     };
     for target in targets {
-        let Some(machine) = machines.iter().position(|machine| machine.symbol == target) else {
+        let Some(machine) = contexts.position_of_machine(target) else {
             continue;
         };
-        let arguments = (0..machines[machine].parameters.len())
-            .map(|position| selector_actual(captured, record, position + offset, owner, selectors))
-            .collect();
-        let target = context_index(machines, contexts, machine, arguments);
+        let arguments = if record.is_some() {
+            (0..machines[machine].parameters.len())
+                .map(|position| {
+                    selector_actual(captured, record, position + offset, owner, selectors)
+                })
+                .collect()
+        } else {
+            // No captured occurrence supplies any selector actual. This is the
+            // ordinary unknown context, with its unchanged declared ceiling.
+            Vec::new()
+        };
+        let target = contexts.intern(machine, arguments);
         envelope.may_suspend |= contexts[target].summary.may_suspend;
         envelope.may_block |= contexts[target].summary.may_block;
     }
@@ -651,12 +725,12 @@ fn propagate_operational_may(
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     captured: &flow_effects::CapturedSelectorCalls,
 ) {
-    let mut contexts = Vec::new();
+    let mut contexts = OperationalContexts::new(machines);
     let roots = (0..machines.len())
-        .map(|machine| context_index(machines, &mut contexts, machine, Vec::new()))
+        .map(|machine| contexts.intern(machine, Vec::new()))
         .collect::<Vec<_>>();
     loop {
-        let previous = contexts.clone();
+        let previous = contexts.entries.clone();
         for position in 0..previous.len() {
             let owner = &machines[contexts[position].machine];
             let selectors = contexts[position].selectors.clone();
@@ -682,9 +756,8 @@ fn propagate_operational_may(
             for target in dependencies.iter().filter_map(|(_, dependency)| {
                 (dependency.caller_machine == owner.symbol).then_some(dependency.target_machine)
             }) {
-                if let Some(machine) = machines.iter().position(|machine| machine.symbol == target)
-                {
-                    let target = context_index(machines, &mut contexts, machine, Vec::new());
+                if let Some(machine) = contexts.position_of_machine(target) {
+                    let target = contexts.intern(machine, Vec::new());
                     body.may_suspend |= contexts[target].summary.may_suspend;
                     body.may_block |= contexts[target].summary.may_block;
                 }
@@ -692,17 +765,14 @@ fn propagate_operational_may(
             // A target family owns an envelope, not a source body to validate.
             let mut family = DirectCallOperational::default();
             for target in &owner.family_members {
-                if let Some(machine) = machines
-                    .iter()
-                    .position(|machine| machine.symbol == *target)
-                {
-                    let target = context_index(machines, &mut contexts, machine, selectors.clone());
+                if let Some(machine) = contexts.position_of_machine(*target) {
+                    let target = contexts.intern(machine, selectors.clone());
                     family.may_suspend |= contexts[target].summary.may_suspend;
                     family.may_block |= contexts[target].summary.may_block;
                 }
             }
-            contexts[position].body = body;
-            contexts[position].summary = if owner.uses_published_contract {
+            contexts.entries[position].body = body;
+            contexts.entries[position].summary = if owner.uses_published_contract {
                 DirectCallOperational {
                     may_suspend: owner.published_may_suspend,
                     may_block: owner.published_may_block,
@@ -714,7 +784,7 @@ fn propagate_operational_may(
                 }
             };
         }
-        if contexts == previous {
+        if contexts.entries == previous {
             break;
         }
     }
@@ -890,4 +960,111 @@ fn build_plan(program: &dyn CheckingInput, machines: Vec<MachineWork>) -> Operat
     }
 
     plan
+}
+
+#[cfg(test)]
+mod context_tests {
+    use super::*;
+
+    fn machine(symbol: SymbolHandle, parameter_count: u32, published: bool) -> MachineWork {
+        MachineWork {
+            symbol,
+            family_members: Vec::new(),
+            parameters: (1..=parameter_count)
+                .map(|position| SymbolHandle::from_parts(position, 1))
+                .collect(),
+            uses_published_contract: published,
+            published_may_suspend: published,
+            published_may_block: published,
+            transitive_may_suspend: false,
+            transitive_may_block: false,
+            body_may_suspend: false,
+            body_may_block: false,
+            states: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn operational_context_identity_preserves_arity_order_and_generations() {
+        let implementation = SymbolHandle::from_parts(40, 1);
+        let next_generation = SymbolHandle::from_parts(40, 2);
+        let owner = SymbolHandle::from_parts(10, 1);
+        let machines = [
+            machine(owner, 2, false),
+            machine(owner, 0, true),
+            machine(SymbolHandle::from_parts(10, 2), 1, false),
+        ];
+        let mut contexts = OperationalContexts::new(&machines);
+        assert_eq!(contexts.position_of_machine(owner), Some(0));
+        assert_eq!(
+            contexts.position_of_machine(SymbolHandle::from_parts(10, 2)),
+            Some(2)
+        );
+        assert_eq!(
+            contexts.position_of_machine(SymbolHandle::from_parts(11, 1)),
+            None
+        );
+        let queries = [
+            (0, vec![]),
+            (0, vec![None, None]),
+            (0, vec![Some(vec![implementation])]),
+            (0, vec![Some(vec![implementation]), None]),
+            (0, vec![Some(vec![next_generation])]),
+            (0, vec![Some(vec![])]),
+            (0, vec![None, Some(vec![implementation])]),
+            (1, vec![Some(vec![implementation])]),
+            (1, vec![]),
+            (2, vec![Some(vec![implementation, next_generation])]),
+            (2, vec![Some(vec![next_generation, implementation])]),
+        ];
+        let mut reference: Vec<(usize, SelectorArguments)> = Vec::new();
+        for (machine, selectors) in queries {
+            // Independent linear identity oracle: normalize arity, then retain
+            // the first exact tuple, as the pre-optimization evaluator did.
+            let mut normalized = selectors.clone();
+            normalized.resize(machines[machine].parameters.len(), None);
+            let expected = reference
+                .iter()
+                .position(|entry| *entry == (machine, normalized.clone()))
+                .unwrap_or_else(|| {
+                    let position = reference.len();
+                    reference.push((machine, normalized));
+                    position
+                });
+            assert_eq!(contexts.intern(machine, selectors), expected);
+        }
+        assert_eq!(contexts.len(), reference.len());
+    }
+
+    #[test]
+    fn operational_context_summaries_do_not_change_selector_identity() {
+        let machines = [machine(SymbolHandle::from_parts(10, 1), 1, true)];
+        let mut contexts = OperationalContexts::new(&machines);
+        let unknown = contexts.intern(0, Vec::new());
+        assert_eq!(
+            contexts[unknown].summary,
+            DirectCallOperational {
+                may_suspend: true,
+                may_block: true
+            }
+        );
+        let actual = vec![Some(vec![SymbolHandle::from_parts(20, 1)])];
+        let selected = contexts.intern(0, actual.clone());
+        assert_ne!(unknown, selected);
+        contexts.entries[selected].body = DirectCallOperational {
+            may_suspend: true,
+            may_block: false,
+        };
+        contexts.entries[selected].summary = DirectCallOperational::default();
+        assert_eq!(contexts.intern(0, actual), selected);
+        assert_eq!(contexts.intern(0, vec![None]), unknown);
+        assert_eq!(
+            contexts[unknown].summary,
+            DirectCallOperational {
+                may_suspend: true,
+                may_block: true
+            }
+        );
+        assert_eq!(contexts.len(), 2);
+    }
 }

@@ -2,20 +2,18 @@
 //! binders and the closure of
 //! outbound and direct callback materializations.
 
-use super::policy_signature::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
 use crate::calling_policy_plans::callback_layout_catalog;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
     BoundaryCallbackBinder, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
-    BoundaryNativeParameterShape, MaterializedBoundarySignature,
+    MaterializedBoundarySignature,
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
-    CallbackRequirementId, NativeCallbackDemand, NativePlace,
-    ValidatedBoundaryEntryPlan, callback_requirement_id,
-    validate_boundary_entry_plan_with_callback_materializations,
+    CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
+    callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
@@ -432,49 +430,59 @@ fn close_direct_callback_parameters(
     signature: &mut MaterializedBoundarySignature,
     target: NativeTarget,
 ) -> Result<Vec<NativeCallbackDemand>, String> {
-    signature.native_parameters.retain(|parameter| {
-        matches!(
-            parameter.origin,
-            BoundaryNativeParameterOrigin::SemanticFormal { .. }
-        )
-    });
-
-    let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
-    for direct in &signature.direct_callback_parameters {
-        validate_fresh_native_parameter_report_identity(
-            signature
-                .native_parameters
-                .iter()
-                .map(|parameter| parameter.identity),
-            direct.identity,
-            direct.native_ordinal,
-        )?;
-        signature.native_parameters.push(BoundaryNativeParameter {
+    let semantic = signature
+        .native_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.origin,
+                BoundaryNativeParameterOrigin::SemanticFormal { .. }
+            )
+        })
+        .map(
+            |parameter| calling_conventions::BoundaryNativeParameterGeometry {
+                identity: parameter.identity,
+                native_ordinal: parameter.native_ordinal,
+                shape: parameter.shape,
+                origin: parameter.origin,
+            },
+        );
+    let callbacks = signature.direct_callback_parameters.iter().map(|direct| {
+        terminal_psi::CallingDirectCallback {
             identity: direct.identity,
             native_ordinal: direct.native_ordinal,
-            shape: BoundaryNativeParameterShape::function_pointer(target)?,
-            origin: BoundaryNativeParameterOrigin::PrivateCallback {
-                binder: direct.binder,
-                requirement: direct.requirement,
-            },
-            layout_data_symbol: symbols::SymbolHandle::invalid(),
-        });
-        demands.push(NativeCallbackDemand {
-            destination: NativePlace::Parameter(direct.identity),
+            binder: direct.binder,
             requirement: direct.requirement,
+        }
+    });
+    let closed = calling_conventions::NativeParameterTelescope::close(semantic, callbacks, target)?;
+    let demands = closed.direct_demands().collect();
+    let mut parameters = Vec::with_capacity(closed.parameters.len());
+    for parameter in closed.parameters {
+        let layout_data_symbol = match parameter.origin {
+            BoundaryNativeParameterOrigin::SemanticFormal { .. } => {
+                signature
+                    .native_parameters
+                    .iter()
+                    .find(|source| {
+                        source.identity == parameter.identity && source.origin == parameter.origin
+                    })
+                    .ok_or("native telescope lost its exact semantic layout correspondence")?
+                    .layout_data_symbol
+            }
+            BoundaryNativeParameterOrigin::PrivateCallback { .. } => {
+                symbols::SymbolHandle::invalid()
+            }
+        };
+        parameters.push(BoundaryNativeParameter {
+            identity: parameter.identity,
+            native_ordinal: parameter.native_ordinal,
+            shape: parameter.shape,
+            origin: parameter.origin,
+            layout_data_symbol,
         });
     }
-    signature
-        .native_parameters
-        .sort_unstable_by_key(|parameter| parameter.native_ordinal);
-    for (expected, parameter) in signature.native_parameters.iter().enumerate() {
-        if usize::try_from(parameter.native_ordinal).ok() != Some(expected) {
-            return Err(format!(
-                "native parameter telescope has position {} where contiguous position {expected} is required",
-                parameter.native_ordinal,
-            ));
-        }
-    }
+    signature.native_parameters = parameters;
     Ok(demands)
 }
 

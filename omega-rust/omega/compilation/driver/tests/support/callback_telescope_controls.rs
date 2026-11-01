@@ -48,6 +48,32 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
         if settle(calling)? != baseline {
             return Err("decoded Terminal callback placement changed".into());
         }
+        let mut declaration = artifact.semantic_module().clone();
+        let signature = declaration
+            .calling_signatures
+            .iter_mut()
+            .find(|signature| {
+                declaration.identities.text(signature.requirement_identity)
+                    == Some(calling[registrar].requirement_identity.as_str())
+            })
+            .ok_or("callback telescope control lost its exact declaration")?;
+        let telescope = signature
+            .telescope
+            .as_mut()
+            .map_err(|reason| reason.to_owned())?;
+        let semantic = telescope
+            .parameters
+            .first()
+            .ok_or("mixed telescope has no semantic parameter")?;
+        let callback = telescope
+            .direct_callbacks
+            .first_mut()
+            .ok_or("mixed telescope has no direct callback")?;
+        callback.native_ordinal = semantic.native_ordinal;
+        require_refusal(
+            settle_native_callback_placements(&declaration, selected, calling),
+            "native parameter telescope has position",
+        )?;
         let mut changed = calling.clone();
         let inbound = changed
             .iter_mut()
