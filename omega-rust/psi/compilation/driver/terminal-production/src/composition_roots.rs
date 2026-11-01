@@ -10,6 +10,11 @@ use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 use diagnostics::Diagnostic;
 use terminal_psi::TerminalMachineProvenance;
 
+use checked_trees::CheckedTrees;
+use checked_trees_to_lowered_psi::{lowered_machine_provenance, select_terminal_machine};
+use lowered_psi::LoweredPsi;
+use lowered_psi_to_terminal_psi::retained_source_machine;
+
 /// One exact retained body and its root-specific diagnostic attribution.
 /// This is invocation-local input, not a portable grant or a source handle.
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
@@ -36,8 +41,8 @@ impl TerminalApplicationCustody<'_> {
     /// until the consumer reaches it, so it cannot hide an earlier policy refusal.
     pub(crate) fn prepare_roots<'checked>(
         &self,
-        checked: &'checked checked_trees::CheckedTrees,
-        lowered: &lowered_psi::LoweredPsi,
+        checked: &'checked CheckedTrees,
+        lowered: &LoweredPsi,
         default_machine: crate::TerminalMachineSelection<'_>,
         sources: &[(source::SourceId, [u8; 32])],
         observer: &mut impl PsiCompilationObserver,
@@ -50,10 +55,7 @@ impl TerminalApplicationCustody<'_> {
         }
         let selection = observer
             .record_result(PsiCompilationStage::MachineSelection, || {
-                checked_trees_to_lowered_psi::select_terminal_machine(
-                    checked,
-                    self.entry_machine.unwrap_or(default_machine),
-                )
+                select_terminal_machine(checked, self.entry_machine.unwrap_or(default_machine))
             })
             .map_err(|error| TerminalArtifactProductionError::Lowering(error).diagnostics())?;
         let roots = if let Some(composition) = self.composition {
@@ -82,8 +84,8 @@ impl TerminalApplicationCustody<'_> {
 }
 
 fn project_callback_root(
-    checked: &checked_trees::CheckedTrees,
-    lowered: &lowered_psi::LoweredPsi,
+    checked: &CheckedTrees,
+    lowered: &LoweredPsi,
     root: Result<checked_trees_to_lowered_psi::RetainedTerminalRoot<'_>, String>,
 ) -> Result<TerminalAdmissionRoot, Vec<Diagnostic>> {
     let root = root.map_err(|reason| {
@@ -91,7 +93,7 @@ fn project_callback_root(
             "callback composition root: {reason}"
         ))]
     })?;
-    let provenance = checked_trees_to_lowered_psi::lowered_machine_provenance(
+    let provenance = lowered_machine_provenance(
         checked,
         lowered,
         root.machine,
@@ -104,27 +106,20 @@ fn project_callback_root(
 }
 
 fn project_root(
-    checked: &checked_trees::CheckedTrees,
-    lowered: &lowered_psi::LoweredPsi,
+    checked: &CheckedTrees,
+    lowered: &LoweredPsi,
     machine: symbols::SymbolHandle,
     sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<TerminalAdmissionRoot, Vec<Diagnostic>> {
-    let entry = lowered_psi_to_terminal_psi::retained_source_machine(
-        checked,
-        machine,
-        sources,
-        &lowered.semantic_module,
-    )
-    .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
+    let entry = retained_source_machine(checked, machine, sources, &lowered.semantic_module)
+        .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
     let entry_name = checked.typed.machine(machine).map(|body| {
         (
             body.name.as_str(),
             checked.typed.symbols.symbol_source_span(machine),
         )
     });
-    let provenance = checked_trees_to_lowered_psi::lowered_machine_provenance(
-        checked, lowered, entry.id, entry_name,
-    );
+    let provenance = lowered_machine_provenance(checked, lowered, entry.id, entry_name);
     Ok(TerminalAdmissionRoot {
         machine: entry.id,
         provenance,

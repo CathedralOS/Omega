@@ -401,6 +401,22 @@ impl PreparedScalarQualifications {
     }
 }
 
+/// The type a direct module callee's scalar formal receives an actual as. A
+/// formal may carry a predicate-free, route-free tag the actual lacks: such a
+/// tag "adds no membership obligation" (domains.md, declaration and
+/// membership), so checking admitted the call, and the actual arrives through a
+/// qualification edge exactly as an explicit `as` would. Only membership may
+/// change on arrival; a carrier disagreement stays for the call binding to
+/// refuse. Scalar-computation calls and Unit-body calls share this rule.
+pub(crate) fn received_scalar_type(
+    formal: Option<QualifiedScalarType>,
+    actual: QualifiedScalarType,
+) -> QualifiedScalarType {
+    formal
+        .filter(|formal| formal.scalar_type == actual.scalar_type)
+        .unwrap_or(actual)
+}
+
 /// Catalog registration is shared by executable signatures and boundary
 /// admission rows. They name one exact theory, never equivalent predicates.
 fn retain_domain(

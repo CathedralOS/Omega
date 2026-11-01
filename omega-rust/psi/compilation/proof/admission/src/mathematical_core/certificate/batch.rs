@@ -142,6 +142,7 @@ impl ImportedTerms {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mathematical_core::Level;
     use crate::mathematical_core::{
         DEFAULT_CONVERSION_STEPS, Sort, verify_mathematical_certificate,
     };
@@ -237,9 +238,7 @@ mod tests {
     fn batch_rechecks_changed_signature_body_and_context_formation() {
         let (first, certificate) = judgment(false);
         let (mut second, mut changed) = judgment(true);
-        changed.signature[0].body = Some(second.insert(Term::Sort(Sort::Type(
-            crate::mathematical_core::Level::Constant(0),
-        ))));
+        changed.signature[0].body = Some(second.insert(Term::Sort(Sort::Type(Level::Constant(0)))));
         let failure = verify_mathematical_certificates(
             &[(&first, &certificate), (&second, &changed)],
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),

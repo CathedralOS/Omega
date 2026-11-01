@@ -26,8 +26,10 @@ use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::{
     installed_provider_internal_call_identity, target_family_internal_call_identity,
 };
+use crate::physical::fragment_publication::FragmentPublicationBinding;
 use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
+use machine_code::SemanticCodeSite;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::InvocationSite;
 use target::{Architecture, NativeTarget, TargetProfile};
@@ -166,9 +168,7 @@ pub(crate) fn derive_boundary_internal_call_child(
     requirement_identity: &str,
     selected_plan: Option<&NativeSelectedProviderPlan>,
     target: NativeTarget,
-    fragment_publication: Option<
-        &crate::physical::fragment_publication::FragmentPublicationBinding,
-    >,
+    fragment_publication: Option<&FragmentPublicationBinding>,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
     // The emitted call must still rejoin exactly one Terminal boundary call
     // on the occurrence's machine. This lane binds the plain internal-call
@@ -209,7 +209,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             (
                 boundary,
                 completion_receipts.as_slice(),
-                machine_code::SemanticCodeSite::Operation(source_operation),
+                SemanticCodeSite::Operation(source_operation),
             )
         }
         InvocationSite::ExternalCompletion(source_edge) => {
@@ -232,11 +232,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             };
             // External completion carries no returning claim receipts. The
             // selected-call replay retains its complete edge and operands.
-            (
-                boundary,
-                &[][..],
-                machine_code::SemanticCodeSite::Edge(source_edge),
-            )
+            (boundary, &[][..], SemanticCodeSite::Edge(source_edge))
         }
     };
     if *boundary != occurrence.boundary() {

@@ -8,25 +8,25 @@ boundary trait Parent {
 boundary trait Child: Parent { machine choose() -> i32 reaches; }
 
 FirstMap satisfies Child {
-    Parent::echo = echo;
-    Parent::spare = spare;
-    Child::choose = first;
+    machine echo(value: i32) -> i32 { echo_realization(value) }
+    machine spare() -> i32 { spare_realization() }
+    machine choose() -> i32 { first() }
 }
 SecondMap satisfies Child {
-    Parent::echo = echo;
-    Parent::spare = spare;
-    Child::choose = second;
+    machine echo(value: i32) -> i32 { echo_realization(value) }
+    machine spare() -> i32 { spare_realization() }
+    machine choose() -> i32 { second() }
 }
 FirstParentMap satisfies Parent {
-    Parent::echo = echo;
-    Parent::spare = spare;
+    machine echo(value: i32) -> i32 { echo_realization(value) }
+    machine spare() -> i32 { spare_realization() }
 }
 SecondParentMap satisfies Parent {
-    Parent::echo = echo;
-    Parent::spare = spare;
+    machine echo(value: i32) -> i32 { echo_realization(value) }
+    machine spare() -> i32 { spare_realization() }
 }
-machine echo(value: i32) -> i32 { value }
-machine spare() -> i32 { 33 }
+machine echo_realization(value: i32) -> i32 { value }
+machine spare_realization() -> i32 { 33 }
 machine first() -> i32 { 1 }
 machine second() -> i32 { 2 }
 

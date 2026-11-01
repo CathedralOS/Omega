@@ -351,7 +351,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
             let completed_satisfies = || {
                 !validation::field_domains::domain_requires_provenance(program, domain_symbol)
                     && program
-                        .domain_definition(domain_symbol)
+                        .domain_definition_for_instance(domain_symbol, semantic_domain)
                         .is_some_and(|domain| {
                             !program.proof_facts(domain).is_empty()
                                 && program.proof_facts(domain).iter().all(|fact| {
@@ -359,13 +359,13 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                         program
                                             .state_in_machine(machine, exit.state_symbol)
                                             .is_some_and(|state| {
-                                                validation::completed_value_proves_domain_predicate(
+                                                validation::completed_value_proves_bound_domain_predicate(
                                                     program,
                                                     machine,
                                                     state,
                                                     exit.statement_index,
                                                     returned,
-                                                    domain_symbol,
+                                                    domain,
                                                     *predicate,
                                                     &path,
                                                 )

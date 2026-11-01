@@ -1,4 +1,7 @@
 use super::*;
+use equality_rules::predicate_denotation_relation;
+use integer_order_rules::math_order_translation;
+use integer_order_rules::order_antisymmetry;
 
 /// The denotation of one proof tree, tracking the scoped premise roster
 /// exactly as `accept_certificate`'s traversal does: `roster` holds the
@@ -374,12 +377,8 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::PredicateDenotation { premise } => {
                 let evidence = self.node(premise)?;
-                equality_rules::predicate_denotation_relation(
-                    self.context,
-                    &premise.conclusion,
-                    &proof.conclusion,
-                )
-                .map_err(BoundedDenotationError::Certificate)?;
+                predicate_denotation_relation(self.context, &premise.conclusion, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::PredicateDenotation);
                 let premise_ty = self.denotation.denote(&premise.conclusion)?;
                 let goal_ty = self.denotation.denote(&proof.conclusion)?;
@@ -621,12 +620,8 @@ impl<'a> Elaboration<'a> {
             ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
                 let forward_evidence = self.node(forward)?;
                 let backward_evidence = self.node(backward)?;
-                integer_order_rules::order_antisymmetry(
-                    &forward.conclusion,
-                    &backward.conclusion,
-                    &proof.conclusion,
-                )
-                .map_err(BoundedDenotationError::Certificate)?;
+                order_antisymmetry(&forward.conclusion, &backward.conclusion, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
                     .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
                 let Proposition::LessOrEqual(left, right) = &forward.conclusion else {
@@ -643,12 +638,8 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 let evidence = self.node(relation)?;
-                integer_order_rules::math_order_translation(
-                    &relation.conclusion,
-                    addend,
-                    &proof.conclusion,
-                )
-                .map_err(BoundedDenotationError::Certificate)?;
+                math_order_translation(&relation.conclusion, addend, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
                     .insert(AcceptedProofRule::IntegerMathOrderTranslation);
                 self.denotation.mathematical_order_translation(

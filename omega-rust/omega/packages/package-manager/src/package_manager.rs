@@ -11,11 +11,12 @@ mod source_review;
 mod state;
 
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
-use crate::declarations::BuildFileReplacement;
-use crate::lock::{PackageLock, PackageLockRecoveryLimits};
+use crate::declarations::{BuildFileReplacement, PackageKey};
+use crate::digest_encoder::content_identity;
+use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::operations::{
-    PackageChangeReview, PackageFileTransaction, PackagePublicationLimits,
-    publish_reviewed_package_change, stage_build_dependency_edit,
+    LOCAL_PROJECT_CONTEXT, PackageChangeReview, PackageFileTransaction, PackagePublicationLimits,
+    publish_reviewed_package_change, review_package_change_reusing, stage_build_dependency_edit,
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
@@ -24,13 +25,14 @@ use crate::resolution::graph::{
 use crate::resolution::source::{
     AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
-use crate::review::CompileResolvedPackageReviewsError;
+use crate::review::{CompileResolvedPackageReviewsError, PackageReviewExecutor};
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
+use state::{LIMITS, PROPOSAL, discard, file_failure, read, text, write_proposal};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -99,7 +101,7 @@ impl PackageCommandTransaction {
             ..
         } = options.clone();
         let files = &self.files;
-        let pending_file = state::read(files, state::PROPOSAL)?;
+        let pending_file = read(files, PROPOSAL)?;
         let (before_build, before_lock) = transaction.read_pair().map_err(failure)?;
         let before = std::str::from_utf8(&before_build)
             .map_err(|_| failure("build.omg is not UTF-8 Omega source"))?;
@@ -149,8 +151,7 @@ impl PackageCommandTransaction {
                 let file = pending_file.as_ref().ok_or_else(|| {
                     failure("no pending package review; start an install or update first")
                 })?;
-                let proposal =
-                    PendingPackageChange::recover(state::text(file)?).map_err(failure)?;
+                let proposal = PendingPackageChange::recover(text(file)?).map_err(failure)?;
                 if proposal.kind != kind {
                     return Err(failure(
                         "pending proposal belongs to the other package command",
@@ -241,7 +242,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PackageCommandError> {
         AcquiredBuildSource::capture_staged(
             &self.stage,
-            ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT),
+            ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         )
         .map_err(failure)
     }
@@ -264,7 +265,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             let matches_root = matches!(source.root().request(),
                 crate::resolution::graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
                 if requested_root == self.stage.requested_root().as_os_str().as_encoded_bytes()
-                    && source_context == &ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT));
+                    && source_context == &ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT));
             if !matches_root {
                 return Err(failure("accepted Git pins belong to another root request"));
             }
@@ -287,7 +288,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
     fn root_request(&self) -> PackageRootSourceRequest {
         PackageRootSourceRequest::ExternalLocal {
             requested_root: self.stage.requested_root().to_path_buf(),
-            source_context: ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT),
+            source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         }
     }
 
@@ -385,7 +386,7 @@ pub struct PackageCommandPreparation<'workspace, 'storage> {
     before_build: Vec<u8>,
     build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
     recovered: Option<PendingPackageChange>,
-    updates: Option<Vec<crate::declarations::PackageKey>>,
+    updates: Option<Vec<PackageKey>>,
     offline: bool,
 }
 
@@ -401,7 +402,7 @@ pub struct PackageCommandReviewRequest<'request> {
     identity: &'request Arc<CommandReviewIdentity>,
     source_closure: &'request ResolvedPackageSourceClosure,
     target: TargetProfile,
-    accepted: Option<&'request crate::lock::PackageLockTarget>,
+    accepted: Option<&'request PackageLockTarget>,
     build_snapshot: Option<&'request package_compilation::BuildSnapshotRequest>,
 }
 
@@ -424,9 +425,9 @@ impl PackageCommandReviewRequest<'_> {
         self,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
-        execute: &mut crate::review::PackageReviewExecutor<'_>,
+        execute: &mut PackageReviewExecutor<'_>,
     ) -> Result<PackageCommandReview, PackageCommandError> {
-        let review = crate::operations::review_package_change_reusing(
+        let review = review_package_change_reusing(
             self.source_closure.clone(),
             self.target,
             self.accepted,
@@ -537,16 +538,14 @@ impl PreparedPackageCommand<'_, '_> {
         if let Some(text) = proposal_text {
             // Publish the proposal only after every target's findings are present.
             // It is review state, never the accepted pair's commit intent.
-            state::write_proposal(files, &text)?;
-            pending_file = state::read(files, state::PROPOSAL)?;
+            write_proposal(files, &text)?;
+            pending_file = read(files, PROPOSAL)?;
         }
         if let Some(file) = &mut pending_file {
-            file.verify_current(state::LIMITS)
-                .map_err(state::file_failure)?;
+            file.verify_current(LIMITS).map_err(file_failure)?;
         }
         for file in &mut choices.reads {
-            file.verify_current(state::LIMITS)
-                .map_err(state::file_failure)?;
+            file.verify_current(LIMITS).map_err(file_failure)?;
         }
         if choices.blocked {
             choices.report.push_str("\nAccepted project files are unchanged. Edit each pending decision to accept or reject, then rerun this command with --resume. Use --discard-review to abandon the proposal.");
@@ -577,9 +576,9 @@ impl PreparedPackageCommand<'_, '_> {
             published.targets().len()
         ));
         if let Some(file) = pending_file
-            && let Err(error) = file.remove(state::LIMITS)
+            && let Err(error) = file.remove(LIMITS)
         {
-            choices.report.push_str(&format!("\nAccepted files were published, but proposal cleanup failed: {}. Use --discard-review before starting another change.", state::file_failure(error)));
+            choices.report.push_str(&format!("\nAccepted files were published, but proposal cleanup failed: {}. Use --discard-review before starting another change.", file_failure(error)));
         }
         Ok(PackageCommandOutcome {
             status: PackageCommandStatus::Published,
@@ -598,11 +597,11 @@ pub fn discard_package_review(
         PackageFileTransaction::open(project_root, PackagePublicationLimits::default())
             .map_err(failure)?;
     transaction.recover().map_err(failure)?;
-    state::discard(&transaction)
+    discard(&transaction)
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
-    crate::digest_encoder::content_identity(&bytes).into()
+    content_identity(&bytes).into()
 }
 
 fn targets(

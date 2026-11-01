@@ -11,9 +11,8 @@ use machine_code::SelectedFormEncodingRow;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-};
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
+use super::super::StagedOptimizedResolvedSelectedFormLayout;
 
 mod function;
 mod order;
@@ -26,11 +25,11 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     policy: super::super::SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<(), Error> {
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if artifact.functions().len() != selected_plan.functions.len() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let mut pre_rows = pre_layout.rows().iter();
     for ((selected_function, machine_function), candidate) in selected_plan
@@ -51,7 +50,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         )?;
     }
     if pre_rows.next().is_some() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+        return Err(Error::RootMismatch);
     }
     Ok(())
 }

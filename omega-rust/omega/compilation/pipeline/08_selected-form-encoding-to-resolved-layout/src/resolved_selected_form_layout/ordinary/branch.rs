@@ -8,10 +8,10 @@ use selected_instructions::{
 };
 use target::Architecture;
 
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
-    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
-    declared_size_matches,
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence, declared_size_matches,
 };
 use super::plan::{branch_size, unexpected};
 
@@ -95,8 +95,7 @@ pub(super) fn resolve(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     widened: bool,
-) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), OptimizedResolvedSelectedFormLayoutError>
-{
+) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), Error> {
     if let SelectedTerminator::Jump {
         instruction: jump,
         successor,
@@ -105,21 +104,21 @@ pub(super) fn resolve(
         if jump.id != instruction.id {
             return unexpected(instruction.id);
         }
-        let target_offset = *block_offsets.get(&successor.block).ok_or(
-            OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
-        )?;
+        let target_offset = *block_offsets
+            .get(&successor.block)
+            .ok_or(Error::BranchFallthroughMismatch(instruction.id))?;
         let (bytes, displacement, effects) = match architecture {
             Architecture::X86_64 => {
                 let end = instruction_offset
                     .checked_add(5)
-                    .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                    .ok_or(Error::OffsetOverflow)?;
                 let displacement = super::plan::byte_displacement(target_offset, end)?;
                 let result = isa_x86_64::encode_x86_64_selected_jump_form(
                     physical,
                     machine.alternative.key,
                     displacement,
                 )
-                .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+                .map_err(Error::X86_64)?;
                 (
                     result.bytes().to_vec(),
                     displacement,
@@ -134,7 +133,7 @@ pub(super) fn resolve(
                     machine.alternative.key,
                     displacement,
                 )
-                .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+                .map_err(Error::Aarch64)?;
                 (
                     result.bytes().to_vec(),
                     displacement,
@@ -174,14 +173,14 @@ pub(super) fn resolve(
         return unexpected(instruction.id);
     }
     if machine.alternative.key.family != conditional_branch_family(predicate) {
-        return Err(OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id));
+        return Err(Error::AlternativeMismatch(instruction.id));
     }
-    let taken_offset = *block_offsets.get(&when_taken.block).ok_or(
-        OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
-    )?;
-    let fallthrough_offset = *block_offsets.get(&when_fallthrough.block).ok_or(
-        OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
-    )?;
+    let taken_offset = *block_offsets
+        .get(&when_taken.block)
+        .ok_or(Error::BranchFallthroughMismatch(instruction.id))?;
+    let fallthrough_offset = *block_offsets
+        .get(&when_fallthrough.block)
+        .ok_or(Error::BranchFallthroughMismatch(instruction.id))?;
     // The plan sizes widened AArch64 rows at eight bytes; the unconditional
     // `B` that carries the far displacement occupies the row's second word.
     let byte_count = if widened {
@@ -191,11 +190,9 @@ pub(super) fn resolve(
     };
     let branch_end = instruction_offset
         .checked_add(byte_count)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        .ok_or(Error::OffsetOverflow)?;
     if fallthrough_offset != branch_end {
-        return Err(
-            OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
-        );
+        return Err(Error::BranchFallthroughMismatch(instruction.id));
     }
     let displacement = match architecture {
         Architecture::X86_64 => super::plan::byte_displacement(taken_offset, branch_end)?,
@@ -226,7 +223,7 @@ pub(super) fn resolve(
                     )
                 }
             }
-            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+            .map_err(Error::X86_64)?;
             (
                 realized.bytes().to_vec(),
                 realized.footprint().register_reads.clone(),
@@ -246,7 +243,7 @@ pub(super) fn resolve(
                 form,
                 displacement,
             )
-            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+            .map_err(Error::Aarch64)?;
             (
                 realized.bytes().to_vec(),
                 realized.footprint().register_reads.clone(),
@@ -255,14 +252,12 @@ pub(super) fn resolve(
         }
     };
     if effects != machine.alternative.encoded {
-        return Err(
-            OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction.id),
-        );
+        return Err(Error::BranchEffectsMismatch(instruction.id));
     }
     if u64::try_from(bytes.len()).ok() != Some(byte_count)
         || !declared_size_matches(machine.alternative.size, byte_count)
     {
-        return Err(OptimizedResolvedSelectedFormLayoutError::BranchSizeMismatch(instruction.id));
+        return Err(Error::BranchSizeMismatch(instruction.id));
     }
     Ok((
         bytes,

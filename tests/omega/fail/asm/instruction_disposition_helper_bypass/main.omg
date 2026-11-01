@@ -7,7 +7,7 @@ boundary trait Finish {
     machine finish(token: Token, enabled: bool) reaches MachineControl
     requires model_specific_written(2059, 0);
 }
-Finisher satisfies Finish { Finish::finish = finish; }
+Finisher satisfies Finish { machine finish(token: Token, enabled: bool) reaches MachineControl requires model_specific_written(2059, 0) { finish_realization(token, enabled) } }
 proposition finished(token: Token) = model_specific_written(2059, 0);
 machine maybe_write(enabled: bool) reaches MachineControl
 requires model_specific_written(2059, 0)
@@ -21,7 +21,7 @@ ensures model_specific_written(2059, 0)
     }
     machine skipped() {}
 }
-machine finish(token: Token, enabled: bool)
+machine finish_realization(token: Token, enabled: bool)
 satisfies Finish::finish
 reaches MachineControl
 requires model_specific_written(2059, 0)

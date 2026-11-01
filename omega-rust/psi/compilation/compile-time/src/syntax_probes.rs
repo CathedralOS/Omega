@@ -150,7 +150,6 @@ pub(crate) fn extend_normalization_owners(
                         ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)
                         | ConformanceMember::TraitDefault { machine, .. } => machine,
-                        ConformanceMember::Reference { .. } => continue,
                     };
                     pending.extend(machine.nested_machines.handles());
                 }

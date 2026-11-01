@@ -8,8 +8,8 @@ public boundary trait CounterOperations {
 
 // The selected map owns code. Two explicit state values remain independent.
 CounterProvider satisfies CounterOperations {
-    CounterOperations::replace = replace_counter;
-    CounterOperations::read = read_counter;
+    machine replace(counter: &mut Counter, value: i32) { replace_counter(counter, value) }
+    machine read(counter: &Counter) -> i32 { read_counter(counter) }
 }
 machine replace_counter(counter: &mut Counter, value: i32) {
     let mut staged: i32 = 0;

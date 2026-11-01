@@ -1,1 +1,2 @@
-cannot prove runtime index subject equality
+machine `observed` state `entry` cannot prove runtime index subject equality
+an indexed value retains its captured index

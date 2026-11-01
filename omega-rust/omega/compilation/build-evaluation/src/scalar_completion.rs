@@ -4,7 +4,9 @@
 //! come from the retained Build companion; evaluation never reopens source.
 
 use backend_plan::TerminalTargetProviderProposal;
+use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
+use terminal_installation::admit_target_machine_selections;
 
 /// Complete canonical demand with the retained target provider companions.
 /// Attempted evaluation remains in `accounting`, including a refused condition.
@@ -59,15 +61,10 @@ pub fn complete(
                 layout_target: profile
                     .layout_target_facts()
                     .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                targets: terminal_installation::admit_target_machine_selections(
-                    artifact.view(),
-                    scope,
-                ),
+                targets: admit_target_machine_selections(artifact.view(), scope),
                 providers,
                 address_model: Ok(address_model),
-                carrier_layout: profile
-                    .native_realization()
-                    .map(runtime_abi::target_carrier_layout),
+                carrier_layout: profile.native_realization().map(target_carrier_layout),
             })
         },
     )

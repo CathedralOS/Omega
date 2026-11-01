@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 ObserverObserveImplementation satisfies Observe {
-    Observe::read = Observer::read;
+    machine read(bytes: &[u8]) -> u8 { Observer::read(bytes) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

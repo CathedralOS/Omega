@@ -715,44 +715,48 @@ impl ConstructionWalk<'_, '_> {
         let obligations = declared_domain_constraint_records(program, cast.result_type);
         let established = !obligations.is_empty()
             && obligations.iter().all(|obligation| {
-                domain_is_vacuous(program, obligation.symbol, &mut Vec::new())
-                    || self.decisions.iter().any(|(_, decision)| {
-                        // The child completed before this operand judgment. Consume
-                        // its exact checked membership, not the cast's target type or
-                        // a declaration on storage. This composes qualifications while
-                        // preserving the selected instance and evaluation occurrence.
-                        decision.machine == state_flow.machine_symbol
-                            && decision.state == state_flow.state_symbol
-                            && decision.statement_index as usize == statement_index
-                            && decision.expression == cast.value
-                            && !decision.structural_value.is_valid()
-                            && decision.domain_symbol == obligation.symbol
-                            && decision.semantic_domain == obligation.semantic_id
-                    })
-                    || value_proves_qualification_in_contexts(
-                        program,
-                        facts,
-                        state_flow,
-                        statement_index,
-                        cast.value,
-                        obligation.symbol,
-                        obligation.semantic_id,
-                        contexts,
-                        self.frames,
-                    )
-                    || (!domain_requires_provenance(program, obligation.symbol)
-                        && value_satisfies_domain_predicates_in_contexts(
-                            program,
-                            facts,
-                            state_flow,
-                            statement_index,
-                            cast.value,
-                            obligation.symbol,
-                            contexts,
-                            &mut Vec::new(),
-                            None,
-                            self.frames,
-                        ))
+                validation::field_domains::domain_is_vacuous(
+                    program,
+                    obligation.symbol,
+                    &mut Vec::new(),
+                ) || self.decisions.iter().any(|(_, decision)| {
+                    // The child completed before this operand judgment. Consume
+                    // its exact checked membership, not the cast's target type or
+                    // a declaration on storage. This composes qualifications while
+                    // preserving the selected instance and evaluation occurrence.
+                    decision.machine == state_flow.machine_symbol
+                        && decision.state == state_flow.state_symbol
+                        && decision.statement_index as usize == statement_index
+                        && decision.expression == cast.value
+                        && !decision.structural_value.is_valid()
+                        && decision.domain_symbol == obligation.symbol
+                        && decision.semantic_domain == obligation.semantic_id
+                }) || value_proves_qualification_in_contexts(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    cast.value,
+                    obligation.symbol,
+                    obligation.semantic_id,
+                    contexts,
+                    self.frames,
+                ) || (!validation::field_domains::domain_requires_provenance(
+                    program,
+                    obligation.symbol,
+                ) && member_domains::value_satisfies_domain_instance_predicates_in_contexts(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    cast.value,
+                    obligation.symbol,
+                    obligation.semantic_id,
+                    contexts,
+                    &mut Vec::new(),
+                    None,
+                    self.frames,
+                ))
             });
         if established {
             for obligation in obligations {

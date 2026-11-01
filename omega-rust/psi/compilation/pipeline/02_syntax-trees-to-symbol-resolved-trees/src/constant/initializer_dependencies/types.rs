@@ -215,6 +215,14 @@ impl<'program> Collector<'program, '_> {
         // initializer's authored value-call roster. The checked destination
         // owner retains and judges these clauses under their own declaration.
         if self.purpose == super::DependencyPurpose::DeclarationReadiness {
+            // A closed instance may fold away every type equation in its
+            // predicate. Its retained application still owns the template's
+            // declaration work and source operator custody. Follow that exact
+            // origin before comparing readiness receipts; specialization is
+            // neither a new declaration nor permission to drop dependencies.
+            if let Some(application) = &definition.generic_instance {
+                self.types.push(application);
+            }
             self.predicate_facts(definition.where_facts)?;
         }
         if let Some(quotient) = &definition.quotient {

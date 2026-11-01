@@ -871,7 +871,7 @@ fn membership_subject_matches_owner(
     // and rejects sibling applications, without changing the authored selection
     // ledger or inferring a subject type from the case being tested.
     if program
-        .closed_data_constructor_definition(subject_type, owner.symbol)
+        .data_constructor_definition(subject_type, owner.symbol)
         .is_some()
     {
         return true;
@@ -1264,8 +1264,8 @@ pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec
     equalities
 }
 
-/// What every case-membership test in the program tells the static type
-/// worlds of the paths where it holds. A rigid generic binder is refined where
+/// Closed-application case refutations for the static type worlds.
+/// Open type equations are supplied by the complete-predicate prefix owner. A rigid generic binder is refined where
 /// the selected case's default-domain branch states a type equation over it,
 /// and a case an instance refutes ends its paths. This is the same refinement
 /// a `T == u32` branch makes, taken from the data declaration instead of a
@@ -1336,86 +1336,14 @@ fn applied_case_type_facts(
     let subject_type = program
         .type_reference_table
         .peeled_type_reference(operand_type(program, machine, Some(state), subject)?);
-    let (definition, variant) = program.variant_owner(selected)?;
-    if program.closed_data_definition(subject_type).is_some() {
-        // A closed instance decided every type equation of its default
-        // domain: the case it refutes carries a false witness.
-        return crate::impossible_variant(program, variant).then(|| {
-            typed_trees::CaseMembershipTypeFacts {
-                membership: expression,
-                impossible: true,
-                equations: Vec::new(),
-            }
-        });
-    }
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(subject_type)
-    else {
-        return None;
-    };
-    if *base_symbol != definition.symbol {
-        return None;
-    }
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let parameters = program.data_type_parameters(definition);
-    let mut equations = Vec::new();
-    for fact in program.proof_facts.span_or_empty(variant.where_facts) {
-        let typed_trees::domain::ProofFact::Expression(root) = fact else {
-            continue;
-        };
-        let mut conjuncts = vec![*root];
-        while let Some(conjunct) = conjuncts.pop() {
-            if let Some(binary) = expression_table(program).binary_node(conjunct)
-                && binary.operator == BinaryOperator::And
-            {
-                conjuncts.extend([binary.left, binary.right]);
-            } else if let Some((left, right, false)) =
-                program.static_type_predicate_operands(conjunct)
-            {
-                equations.extend(applied_parameter_equation(
-                    program, parameters, arguments, left, right,
-                ));
-            }
-        }
-    }
-    (!equations.is_empty()).then_some(typed_trees::CaseMembershipTypeFacts {
+    let (_, variant) = program.variant_owner(selected)?;
+    // Closed applications retain canonical false witnesses for impossible
+    // cases. Open equations now come from the complete admitted predicate at
+    // the executed prefix; no projected case clause supplies them.
+    program.closed_data_definition(subject_type)?;
+    crate::impossible_variant(program, variant).then(|| typed_trees::CaseMembershipTypeFacts {
         membership: expression,
-        impossible: false,
-        equations,
+        impossible: true,
+        equations: Vec::new(),
     })
-}
-
-/// `P == X` over a data parameter `P` and a closed type `X` states `X` of the
-/// subject's argument for `P`. Anything else (two parameters, a nested type)
-/// is not decided here and refines nothing.
-fn applied_parameter_equation(
-    program: &dyn crate::CheckingInput,
-    parameters: &[typed_trees::data::TypeParameter],
-    arguments: &[TypeReferenceHandle],
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
-    let position = |side: TypeReferenceHandle| {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(side)
-        else {
-            return None;
-        };
-        parameters
-            .iter()
-            .position(|parameter| parameter.symbol == *symbol)
-    };
-    let (position, closed) = match (position(left), position(right)) {
-        (Some(position), None) => (position, right),
-        (None, Some(position)) => (position, left),
-        _ => return None,
-    };
-    typed_trees::domain::index_argument_is_closed(program.typed_program(), closed)
-        .then(|| arguments.get(position).map(|argument| (*argument, closed)))
-        .flatten()
 }

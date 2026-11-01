@@ -6,7 +6,8 @@
 
 use proof_admission::{
     Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level, Sort,
-    Term, TermArena, TermHandle, check_type, indexed_scheme, infer_type,
+    Term, TermArena, TermHandle, argument_error_pair_pattern, check_type, indexed_scheme,
+    infer_type,
 };
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
@@ -382,10 +383,7 @@ pub(crate) fn assert_type_mismatch(
     budget: &mut Budget,
 ) {
     let error = infer_type(arena, context, term, budget).unwrap_err();
-    assert!(matches!(
-        error,
-        proof_admission::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, argument_error_pair_pattern!()));
 }
 
 /// The same rejection asserted through `check_type` against `expected`.
@@ -397,10 +395,7 @@ pub(crate) fn assert_check_type_mismatch(
     budget: &mut Budget,
 ) {
     let error = check_type(arena, context, term, expected, budget).unwrap_err();
-    assert!(matches!(
-        error,
-        proof_admission::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, argument_error_pair_pattern!()));
 }
 
 // ── The length-indexed vector description ──────────────────────────────

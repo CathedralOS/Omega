@@ -4,7 +4,9 @@
 
 use abstract_operations::AccessReferenceBacking;
 use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::find_structural_type;
 use terminal_psi::{StructuralTypeDeclaration, TerminalAccessViewPlan};
+use terminal_semantics::validate_resident_owner_fields;
 
 pub fn validate_backing(
     types: &[StructuralTypeDeclaration],
@@ -33,13 +35,9 @@ pub fn validate_backing(
             {
                 return Err("resident placed backing changed its complete placement");
             }
-            let owner = terminal_psi::find_structural_type(types, resident.owner)
+            let owner = find_structural_type(types, resident.owner)
                 .ok_or("resident placed backing lost its owner declaration")?;
-            terminal_semantics::validate_resident_owner_fields(
-                owner,
-                resident.roles.base,
-                resident.roles.length,
-            )?;
+            validate_resident_owner_fields(owner, resident.roles.base, resident.roles.length)?;
             if resident.roles.granted == resident.roles.resident {
                 return Err("resident placed backing aliased its qualification roles");
             }
@@ -49,13 +47,9 @@ pub fn validate_backing(
             {
                 return Err("borrowed placed backing changed its complete placement");
             }
-            let owner = terminal_psi::find_structural_type(types, backing.owner)
+            let owner = find_structural_type(types, backing.owner)
                 .ok_or("borrowed placed backing lost its owner declaration")?;
-            terminal_semantics::validate_resident_owner_fields(
-                owner,
-                backing.base,
-                backing.length,
-            )?;
+            validate_resident_owner_fields(owner, backing.base, backing.length)?;
         }
     }
     Ok(())

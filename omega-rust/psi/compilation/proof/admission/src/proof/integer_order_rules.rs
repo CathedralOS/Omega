@@ -67,10 +67,8 @@ pub(crate) fn order_weakening(
     let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) = relation else {
         return Err(ProofError::RulePremiseMismatch("integer order weakening"));
     };
-    if !matches!(
-        left.scalar_type(),
-        semantic_vocabulary::ScalarType::Integer(_)
-    ) || left.scalar_type() != right.scalar_type()
+    if !matches!(left.scalar_type(), ScalarType::Integer(_))
+        || left.scalar_type() != right.scalar_type()
     {
         return Err(ProofError::RulePremiseMismatch("integer order weakening"));
     }

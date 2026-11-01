@@ -328,15 +328,6 @@ impl SyntaxCopy<'_> {
                             requirement_ordinal: *requirement_ordinal,
                             machine: self.copy_machine(other, machine),
                         },
-                        ConformanceMember::Reference {
-                            declaring_trait,
-                            requirement,
-                            target,
-                        } => ConformanceMember::Reference {
-                            declaring_trait: declaring_trait.clone(),
-                            requirement: requirement.clone(),
-                            target: self.copy_item_identifier_span(other, *target),
-                        },
                     })
                     .collect::<Vec<_>>();
                 let mut copied_start = arena::Handle::invalid();

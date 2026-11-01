@@ -43,7 +43,7 @@ data RequiredValue {
 }
 
 RequiredValueCounter satisfies RequiredCounter<RequiredValue> {
-    Resettable::set = RequiredValue::set;
+    machine set(subject: &mut RequiredValue, value: i32) { RequiredValue::set(subject, value) }
 }
 
 machine RequiredValue::set(required_value: &mut RequiredValue, value: i32) {
@@ -55,7 +55,7 @@ data ParentValue {
 }
 
 ParentValueCounter satisfies ParentCounter<ParentValue> {
-    Resettable::set = ParentValue::set;
+    machine set(subject: &mut ParentValue, value: i32) { ParentValue::set(subject, value) }
 }
 
 machine ParentValue::set(parent_value: &mut ParentValue, value: i32) {
@@ -67,10 +67,10 @@ data ResolvedValue {
 }
 
 ResolvedValueCounter satisfies ResolvedCounter<ResolvedValue> {
-    LeftReset::set = ResolvedValue::set;
-    RightReset::set = ResolvedValue::set;
-    LeftReset::reset = ResolvedValue::reset;
-    RightReset::reset = ResolvedValue::reset;
+    machine set(subject: &mut ResolvedValue, value: i32) satisfies LeftReset<ResolvedValue>::set { ResolvedValue::set(subject, value) }
+    machine set(subject: &mut ResolvedValue, value: i32) satisfies RightReset<ResolvedValue>::set { ResolvedValue::set(subject, value) }
+    machine reset(subject: &mut ResolvedValue) satisfies LeftReset<ResolvedValue>::reset { ResolvedValue::reset(subject) }
+    machine reset(subject: &mut ResolvedValue) satisfies RightReset<ResolvedValue>::reset { ResolvedValue::reset(subject) }
 }
 
 machine ResolvedValue::set(resolved_value: &mut ResolvedValue, value: i32) {

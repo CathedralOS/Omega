@@ -24,7 +24,7 @@ machine marks_share_x(left: &Mark, right: &Mark) -> bool {
     left.x == right.x
 }
 MarkByX satisfies Equatable<Mark> {
-    Equatable::equals = marks_share_x;
+    machine equals(left: &Mark, right: &Mark) -> bool { marks_share_x(left, right) }
 }
 data Main {
     a: Coin;

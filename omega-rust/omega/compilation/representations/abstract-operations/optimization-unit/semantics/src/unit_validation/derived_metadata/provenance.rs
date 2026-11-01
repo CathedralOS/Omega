@@ -1,14 +1,12 @@
 //! Independently reconstructed node provenance.
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractOperation;
+use abstract_operations::jump_or_conditional_pattern;
 use optimization_unit::PsiProvenance;
 
-pub(crate) fn expected_provenance(
-    operation: &abstract_operations::AbstractOperation,
-) -> Vec<PsiProvenance> {
+pub(crate) fn expected_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
     match operation {
-        abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => {
-            Vec::new()
-        }
+        jump_or_conditional_pattern!() | O::StructuralCase { .. } => Vec::new(),
         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
         | O::InvokeNoNormal { psi_edge, .. }
         | O::ExternalCompletion { psi_edge, .. }
@@ -40,13 +38,13 @@ pub(crate) fn expected_provenance(
 }
 
 pub(crate) fn provenance_matches_operation(
-    operation: &abstract_operations::AbstractOperation,
+    operation: &AbstractOperation,
     provenance: &[PsiProvenance],
 ) -> bool {
     let expected = expected_provenance(operation);
     if expected.is_empty() {
         match operation {
-            abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => true,
+            jump_or_conditional_pattern!() | O::StructuralCase { .. } => true,
             _ => provenance.is_empty(),
         }
     } else {

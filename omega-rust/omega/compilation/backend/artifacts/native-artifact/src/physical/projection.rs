@@ -15,6 +15,7 @@ use super::{
     optimized_boundary_occurrence, optimized_operator_occurrence,
     validated_optimized_native_physical_evidence_scope,
 };
+use semantic_vocabulary::InvocationSite;
 
 const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
     b"omega.native-artifact.validated-optimized-physical-scope.sha256.v1\0";
@@ -132,16 +133,10 @@ fn derive_optimized_scope(
                     boundary,
                     psi_operation,
                     ..
-                } => Some((
-                    *boundary,
-                    semantic_vocabulary::InvocationSite::Operation(*psi_operation),
-                )),
+                } => Some((*boundary, InvocationSite::Operation(*psi_operation))),
                 AbstractOperation::ExternalCompletion {
                     boundary, psi_edge, ..
-                } => Some((
-                    *boundary,
-                    semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
-                )),
+                } => Some((*boundary, InvocationSite::ExternalCompletion(*psi_edge))),
                 _ => None,
             };
             if let Some((boundary, site)) = invocation {
@@ -243,7 +238,7 @@ fn optimized_operator_occurrence_identity(
 fn optimized_boundary_occurrence_identity(
     authority: ValidatedProjectionCoordinates,
     machine: semantic_vocabulary::MachineId,
-    site: impl Into<semantic_vocabulary::InvocationSite>,
+    site: impl Into<InvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {

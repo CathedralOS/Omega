@@ -205,6 +205,24 @@ impl StructuralJudge<'_> {
                 )?,
             ),
             ExpressionNode::Call(call) => {
+                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                    return structural_terms::mathematical_application_term(
+                        program,
+                        expression,
+                        |capture| {
+                            self.bound_contract_term(
+                                capture,
+                                scope,
+                                parameters,
+                                callable,
+                                bindings,
+                                type_bindings,
+                                result,
+                                depth + 1,
+                            )
+                        },
+                    );
+                }
                 if let Some((_, argument)) = crate::integer_embedding_argument(program, expression)
                 {
                     let reference = crate::parameter_expression_result_type_reference(

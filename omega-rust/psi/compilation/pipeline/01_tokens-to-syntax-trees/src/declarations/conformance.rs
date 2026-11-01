@@ -1,6 +1,6 @@
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::declarations::machines::parse_machine;
-use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::contracts::parse_machine_parameter_contracts;
 use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
@@ -61,57 +61,60 @@ fn parse_conformance_members<'tokens, 'source>(
     let mut members = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
-            let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
-            let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
-            if machine.service_reach_is_installation_bound {
-                return Err(rest.error_here(
-                    "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
-                ));
+        if !input.at_keyword(KeywordKind::Machine) {
+            return Err(input.error_here(
+                "a named implementation declares each requirement as an inline `machine` member; \
+                 a reference row (`Trait::member = Existing::machine;`) is retired, so call the \
+                 existing machine from the member's body",
+            ));
+        }
+        let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
+        if machine.service_reach_is_installation_bound {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
+            ));
+        }
+        if machine.spelling.is_some() {
+            return Err(rest.error_here(
+                "a conformance member supplies an implementation and cannot declare an \
+                 operator token; the requirement owns the token binding",
+            ));
+        }
+        if machine.attached_data.is_some() {
+            return Err(input.error_here(
+                "a conformance-block machine names only its requirement slot; declare its data parameters explicitly",
+            ));
+        }
+        if machine.bodyless {
+            return Err(input.error_here(
+                "a conformance-block machine requires a checked body; call the existing machine from an inline member to share its realization",
+            ));
+        }
+        // The enclosing conformance already binds the member to its trait. The
+        // one clause a member may carry is the exact edge `satisfies
+        // Declaring<..>::name`, which selects the slot when inherited traits
+        // declare requirements of the same name.
+        let exact_edge = match syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            [] => true,
+            [edge] => {
+                edge.requirement.as_ref().is_some_and(|requirement| {
+                    requirement.as_str(syntax_trees) == machine.name.as_str(syntax_trees)
+                }) && edge.alias.is_none()
+                    && edge.via.is_none()
+                    && !edge.via_expression.is_valid()
             }
-            if machine.spelling.is_some() {
-                return Err(rest.error_here(
-                    "a conformance member supplies an implementation and cannot declare an \
-                     operator token; the requirement owns the token binding",
-                ));
-            }
-            if machine.attached_data.is_some() {
-                return Err(input.error_here(
-                    "a conformance-block machine names only its requirement slot; declare its data parameters explicitly",
-                ));
-            }
-            if machine.bodyless {
-                return Err(input.error_here(
-                    "a conformance-block machine requires a checked body; use an explicit reference row to share an existing realization",
-                ));
-            }
-            if !machine.satisfies.is_empty() {
-                return Err(input.error_here(
-                    "a conformance-block machine already belongs to its enclosing conformance; remove its nested `satisfies` clause",
-                ));
-            }
-            normalize_conformance_machine_entry(syntax_trees, &mut machine);
-            (ConformanceMember::Machine(machine), rest)
-        } else {
-            let (declaring_trait, rest) = input.take_identifier()?;
-            let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (requirement, rest) = rest.take_identifier()?;
-            let rest = rest.take_punctuation(PunctuationKind::Equal, "=")?;
-            let (target, rest) = parse_path_handle_span(rest, |member| {
-                syntax_trees.items.append_identifier_path_member(member)
-            })?;
-            let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            (
-                ConformanceMember::Reference {
-                    declaring_trait,
-                    requirement,
-                    target,
-                },
-                rest,
-            )
+            _ => false,
         };
-
-        let handle = syntax_trees.items.append_conformance_member(member);
+        if !exact_edge {
+            return Err(input.error_here(
+                "a conformance-block machine may carry only one exact edge, `satisfies Trait<..>::name`, naming its own requirement",
+            ));
+        }
+        normalize_conformance_machine_entry(syntax_trees, &mut machine);
+        let handle = syntax_trees
+            .items
+            .append_conformance_member(ConformanceMember::Machine(machine));
         members.push(handle);
         input = rest;
     }

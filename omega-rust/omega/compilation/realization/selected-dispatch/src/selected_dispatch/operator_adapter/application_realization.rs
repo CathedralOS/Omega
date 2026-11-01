@@ -5,6 +5,7 @@
 //! evidence: every returned identity is either a compiler-private checked
 //! coordinate or an existing strong commitment.
 
+use checked_trees::CheckedBoundaryOperatorApplicationDemand;
 use checked_trees::{CheckedBoundaryOperatorApplicationUseSite, CheckedTrees};
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
@@ -55,9 +56,7 @@ pub struct CheckedNongenericOperatorApplicationRealization {
 pub fn derive_checked_nongeneric_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    applications: impl IntoIterator<
-        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
-    >,
+    applications: impl IntoIterator<Item = &'application CheckedBoundaryOperatorApplicationDemand>,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows: Vec<CheckedNongenericOperatorApplicationRealization> = Vec::new();
     for row in checked_expressions::derive(checked, selected_provider_plans.plans(), applications)?

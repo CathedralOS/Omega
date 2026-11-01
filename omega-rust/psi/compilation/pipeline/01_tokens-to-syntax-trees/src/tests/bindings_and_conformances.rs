@@ -719,64 +719,103 @@ fn parses_closed_conformance_block_members() {
         PowerOrder satisfies Ranked<Card> {
             machine before(value: &Card, other: &Card) -> bool { }
 
-            Ranked::rank_value = Card::stable_rank_value;
+            machine rank_value(value: &Card) -> u32 { Card::stable_rank_value(value) }
         }
     "#;
 
     let parsed = super::parse_source(source, "closed conformance block should parse");
     let conformance = super::root_conformance(&parsed, "conformance root item");
-    let [inline, reference] = parsed.items.conformance_members(conformance.members) else {
+    let [before, rank_value] = parsed.items.conformance_members(conformance.members) else {
         panic!("two retained conformance members");
     };
-    assert!(matches!(
-        inline,
-        syntax_trees::item::ConformanceMember::Machine(machine)
-            if machine.name.as_str(&parsed) == "before"
-    ));
-    let syntax_trees::item::ConformanceMember::Reference {
-        declaring_trait,
-        requirement,
-        target,
-    } = reference
-    else {
-        panic!("second row is an explicit machine reference");
-    };
-    assert_eq!(declaring_trait.as_str(&parsed), "Ranked");
-    assert_eq!(requirement.as_str(&parsed), "rank_value");
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(*target)
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
-        ["Card", "stable_rank_value"]
-    );
+    for (member, expected) in [(before, "before"), (rank_value, "rank_value")] {
+        assert!(
+            matches!(
+                member,
+                syntax_trees::item::ConformanceMember::Machine(machine)
+                    if machine.name.as_str(&parsed) == expected
+            ),
+            "member `{expected}` is an inline machine"
+        );
+    }
 }
 
 #[test]
-fn closed_conformance_member_cannot_repeat_satisfaction() {
+fn reference_rows_are_retired() {
     let source = r#"
-        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
-        data Card { }
+        trait Ranked<Item> { machine rank_value(value: &Item) -> u32; }
+        data Card { power: u32; }
+        machine Card::stable_rank_value(value: &Card) -> u32 { }
         PowerOrder satisfies Ranked<Card> {
-            machine before(value: &Card, other: &Card) -> bool
-                satisfies Ranked::before
-            { }
+            Ranked::rank_value = Card::stable_rank_value;
         }
     "#;
 
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let diagnostic = parse_syntax_trees(&tokens).expect_err("nested satisfaction must reject");
+    let diagnostic = parse_syntax_trees(&tokens).expect_err("a reference row must reject");
     assert!(
         diagnostic
             .message
-            .contains("already belongs to its enclosing conformance"),
+            .contains("reference row (`Trait::member = Existing::machine;`) is retired"),
         "unexpected diagnostic: {}",
         diagnostic.message
     );
+}
+
+#[test]
+fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
+    let source = r#"
+        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
+        data Card { }
+        PowerOrder satisfies Ranked<Card> {
+            machine before(value: &Card, other: &Card) -> bool
+                satisfies Ranked<Card>::before
+            { }
+        }
+    "#;
+
+    let parsed = super::parse_source(source, "an exact edge on a member should parse");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
+    let [member] = parsed.items.conformance_members(conformance.members) else {
+        panic!("one retained conformance member");
+    };
+    let syntax_trees::item::ConformanceMember::Machine(machine) = member else {
+        panic!("the member is an inline machine");
+    };
+    let [edge] = parsed.items.satisfies_clauses(machine.satisfies) else {
+        panic!("the member retains its one exact edge");
+    };
+    assert_eq!(edge.trait_name.as_str(&parsed), "Ranked");
+}
+
+#[test]
+fn closed_conformance_member_edge_must_name_its_own_requirement() {
+    for edges in [
+        "satisfies Ranked<Card>::after",
+        "satisfies Ranked<Card>::before as Primary",
+    ] {
+        let source = format!(
+            r#"
+            trait Ranked<Item> {{ machine before(value: &Item, other: &Item) -> bool; }}
+            data Card {{ }}
+            PowerOrder satisfies Ranked<Card> {{
+                machine before(value: &Card, other: &Card) -> bool {edges} {{ }}
+            }}
+        "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let diagnostic = parse_syntax_trees(&tokens)
+            .expect_err("a mismatched or repeated member edge must reject");
+        assert!(
+            diagnostic.message.contains("may carry only one exact edge"),
+            "unexpected diagnostic for `{edges}`: {}",
+            diagnostic.message
+        );
+    }
 }
 
 #[test]

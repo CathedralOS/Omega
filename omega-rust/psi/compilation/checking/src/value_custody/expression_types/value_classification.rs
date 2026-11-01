@@ -184,6 +184,11 @@ pub(crate) fn report_cross_class_store(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    // An impossible admitted input/case combination delivers no result.
+    // Formation still checks the source arm; this store has no arriving value.
+    if program.static_type_context_is_unreachable(value) {
+        return false;
+    }
     if let Some(dispatch) = program.expression_table.match_node(value) {
         let mut rejected = false;
         for arm in program.expression_table.match_arms(dispatch.arms) {

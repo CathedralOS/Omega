@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals;
 use super::super::test_utilities::{
     assert_refused, direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
     verify_then_elaborate,
@@ -8,10 +9,12 @@ use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
 };
+use semantic_vocabulary::IntegerMathLiteral;
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
+use std::slice::from_ref;
 
 macro_rules! sub {
     ($a:expr => $b:expr) => {
@@ -82,13 +85,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     };
     root_bound.conclusion = Proposition::LessOrEqual(left, right);
     let reversed_premise = root_bound.conclusion.clone();
-    assert_refused(
-        &context,
-        &goal,
-        std::slice::from_ref(&reversed_premise),
-        &[],
-        &reversed,
-    );
+    assert_refused(&context, &goal, from_ref(&reversed_premise), &[], &reversed);
 }
 
 #[test]
@@ -182,7 +179,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     assert_refused(
         &context,
         &goal,
-        std::slice::from_ref(&wrong_assumption),
+        from_ref(&wrong_assumption),
         &[],
         &wrong_premise,
     );
@@ -238,7 +235,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
         verify_bounded_certificate(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
+            from_ref(&premise),
             &axioms,
             &proof,
             &mut Budget::default(),
@@ -328,9 +325,7 @@ fn subtraction_identity_transport_accepts_existing_leaf_math_citations() {
 
 #[test]
 fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
-    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(
-        IntegerMathTerm::Subtract,
-    );
+    open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Subtract);
 }
 
 /// The `IntegerAffineBound` direct-subtract fixture: a `Conjunction` of
@@ -403,9 +398,7 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
         Proposition::LessOrEqual(value(2), literal(u128::MAX)),
     ]);
     let goal = Proposition::IntegerMathLessOrEqual(
-        IntegerMathTerm::IntegerLiteral(
-            semantic_vocabulary::IntegerMathLiteral::new(true, u128::MAX).unwrap(),
-        ),
+        IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(true, u128::MAX).unwrap()),
         sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2)))),
     );
     let proof = direct_affine_proof(
@@ -489,13 +482,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
             unreachable!()
         };
         root_bound.conclusion = wrong_premise.clone();
-        assert_refused(
-            &context,
-            &goal,
-            std::slice::from_ref(&wrong_premise),
-            &[],
-            &invalid,
-        );
+        assert_refused(&context, &goal, from_ref(&wrong_premise), &[], &invalid);
     }
     // The witness root must be the minuend.
     let mut invalid = proof.clone();
@@ -682,7 +669,7 @@ fn exact_subtract_definition_bound_rejects_mismatched_certificates() {
                 &case.context,
                 goal,
                 &[left.clone(), right.clone()],
-                std::slice::from_ref(definition),
+                from_ref(definition),
                 &proof,
                 &mut Budget::default(),
             )

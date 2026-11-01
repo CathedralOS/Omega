@@ -73,6 +73,7 @@ mod byte_comparisons;
 mod call_arguments;
 mod cases;
 mod coordinate_reads;
+mod declaration_inputs;
 mod dispatch;
 mod dispatch_copies;
 mod dynamic_calls;

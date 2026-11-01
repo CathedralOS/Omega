@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 ProviderPureImplementation satisfies Pure {
-    Pure::evaluate = Provider::evaluate;
+    machine evaluate(value: i32) -> i32 { Provider::evaluate(value) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

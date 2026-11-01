@@ -12,10 +12,12 @@ mod callback_admission;
 mod callback_catalog;
 mod identity;
 mod recovery;
+mod terminal_telescope;
 pub use callback_catalog::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
 };
 pub use recovery::BoundaryCallingApplicationCandidate;
+pub use terminal_telescope::TerminalCallingTelescope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {

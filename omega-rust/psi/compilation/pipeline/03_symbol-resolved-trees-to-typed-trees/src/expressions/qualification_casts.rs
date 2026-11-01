@@ -86,10 +86,12 @@ pub(crate) fn normalize_qualification_casts(
             ));
         };
         if authored_selection.source_span().span.start >= authored_selection.source_span().span.end
-            || authored_selection.target()
-                != AuthoredDeclarationSelectionTarget::LateBound(
-                    AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
-                )
+            || !matches!(
+                authored_selection.target(),
+                AuthoredDeclarationSelectionTarget::LateBound(
+                    AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership
+                ) | AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
         {
             return Err(
                 Diagnostic::error(
@@ -142,6 +144,20 @@ pub(crate) fn normalize_qualification_casts(
     let mut selections = program.authored_declaration_selections().clone();
     for (_, authored_occurrence, domain, _) in &updates {
         if !domain.is_valid() {
+            continue;
+        }
+        // Several compiler copies can retain one authored lookup occurrence.
+        // Finalize that occurrence once, and require every copy (including a
+        // seeded continuation) to select exactly the retained declaration.
+        if let Some(resolved) = selections
+            .get(*authored_occurrence)
+            .and_then(|selection| selection.target().as_resolved().copied())
+        {
+            if resolved.selected_symbol() != *domain {
+                return Err(Diagnostic::error(
+                    "copied qualification cast changes its authored domain declaration",
+                ));
+            }
             continue;
         }
         selections

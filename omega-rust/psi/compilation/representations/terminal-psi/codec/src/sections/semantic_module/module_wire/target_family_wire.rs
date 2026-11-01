@@ -72,3 +72,14 @@ pub(super) fn decode_family(reader: &mut Reader<'_>) -> Result<TargetMachineFami
         })?,
     })
 }
+
+pub(super) struct Callable;
+impl super::super::wire_fields::Field<TargetMachineCallable> for Callable {
+    fn write(writer: &mut Writer, value: &TargetMachineCallable) -> Result<(), CodecError> {
+        encode_callable(writer, *value);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<TargetMachineCallable, CodecError> {
+        decode_callable(reader)
+    }
+}

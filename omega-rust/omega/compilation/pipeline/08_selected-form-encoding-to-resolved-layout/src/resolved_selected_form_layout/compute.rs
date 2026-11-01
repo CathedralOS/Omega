@@ -7,7 +7,7 @@ use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFo
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::StagedOptimizedResolvedSelectedFormLayout;
-use super::error::OptimizedResolvedSelectedFormLayoutError;
+use super::error::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::ordinary::{instructions, layout, select};
 use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
 
@@ -16,7 +16,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, Error> {
     // The encoding was produced by stage 07 in this compile; it is not
     // re-encoded here. The root checks below bind it to these inputs.
     let selected_plan = selected.selected_plan();
@@ -28,7 +28,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         || selected_plan.functions.len() != machine_plan.functions.len()
         || pre_layout.post_allocation_machine_optimization().is_some()
     {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+        return Err(Error::RootMismatch);
     }
 
     let policy = select(selected_plan)?;
@@ -39,22 +39,14 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         let mut function_pre_rows = BTreeMap::new();
         for block in &function.blocks {
             for instruction in instructions(block) {
-                let row = pre_rows.next().ok_or(
-                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-                )?;
+                let row = pre_rows
+                    .next()
+                    .ok_or(Error::MissingInstruction(instruction.id))?;
                 if row.instruction != instruction.id {
-                    return Err(
-                        OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
-                            instruction.id,
-                        ),
-                    );
+                    return Err(Error::MissingInstruction(instruction.id));
                 }
                 if function_pre_rows.insert(instruction.id, row).is_some() {
-                    return Err(
-                        OptimizedResolvedSelectedFormLayoutError::DuplicateInstruction(
-                            instruction.id,
-                        ),
-                    );
+                    return Err(Error::DuplicateInstruction(instruction.id));
                 }
             }
         }
@@ -73,7 +65,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         )?);
     }
     if pre_rows.next().is_some() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+        return Err(Error::RootMismatch);
     }
 
     let selected_root = selected.selected_identity();

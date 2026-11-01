@@ -560,7 +560,12 @@ impl Builder<'_, '_> {
                     discards = Some(vec![
                         checked_trees::CheckedNormalCleanupAction::RetireHome {
                             source: argument_plan.source.clone(),
-                            type_identity: self.program.normalized_type_identity(owner_type),
+                            type_identity: validation::stored_structural_type_identity(
+                                self.program,
+                                owner_type,
+                                &[],
+                                &[],
+                            ),
                         },
                     ]);
                 }

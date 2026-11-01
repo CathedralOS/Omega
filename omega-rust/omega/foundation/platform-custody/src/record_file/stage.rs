@@ -9,6 +9,7 @@ use cap_fs_ext::OpenOptionsFollowExt;
 use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::Permissions;
 use std::io::Write;
+use std::process;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAXIMUM_STAGE_ATTEMPTS: u64 = 256;
@@ -98,10 +99,7 @@ fn create_exclusive_capability_stage(
     let directory = io_at(directory.try_clone(), display_directory)?;
     for _ in 0..MAXIMUM_STAGE_ATTEMPTS {
         let stage_id = NEXT_STAGE_ID.fetch_add(1, Ordering::Relaxed);
-        let file_name = OsString::from(format!(
-            ".omega-record-stage-{}-{stage_id}",
-            std::process::id()
-        ));
+        let file_name = OsString::from(format!(".omega-record-stage-{}-{stage_id}", process::id()));
         let display_path = display_directory.join(&file_name);
         let mut options = CapabilityOpenOptions::new();
         options
