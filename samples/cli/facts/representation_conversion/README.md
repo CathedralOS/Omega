@@ -92,16 +92,33 @@ backing before the destination's last read. Retained Mac090 rejects that exact
 conflict in 7.064 seconds. The repaired query must retain the same refusal;
 joining an evidence edge must not erase a concrete output slot or its loans.
 
-The remaining places now have authored source and matching endpoint twins:
+The final six places are established with matching endpoint twins:
 [call result](call_result/main.omg), [match join](match_join/main.omg),
 [named constant](const_name/main.omg), [nested machine](other_state/main.omg),
 [another machine](other_machine/main.omg) and
-[selected target implementation](target_body/main.omg). Their execution is pending.
+[selected target implementation](target_body/main.omg). [Run 41344570814](https://github.com/CathedralOS/Omega/actions/runs/41344570814)
+qualifies exact source `1763580d349887a897aa594ce7b7bc14cb27f0ac` with optimized
+Linux image `cd08536ad00ece089d112e9ae0ebfd39e8f8a6b5a3f89d1207fd9290b0f60fea`:
+all six positives and their exact corpus mirrors exit zero in native and
+Terminal execution, and all six endpoint twins reject for the intended
+`TryFrom` bound. Preparation took 1117.499s, authentication 1.790s,
+checking 31.084s, corpus execution 24.313s and sample execution 49.020s. The
+canonical checking rows keep their actual default macos_arm64 profile and
+revision; native agreement is Linux x86-64. No compiler or library repair was
+needed for this batch. Its source bundle and
+`evidence/representation-conversion-places-20261101-1763580d3498` retain that
+exact measured source, separate from later documentation or integration commits.
 The call-result and match places exercise both valid and malformed outcomes;
 swapping their routes changes 43 to 0 and traps. Constants retain whole first-frame
 values; nested and relay calls carry the same explicit frame into conversion.
 Build selects named frame-delivery implementations for the target place, and
 separate 17/29 markers make the selected provider observable.
+
+All nine places and their exact endpoint twins are now established on Linux
+x86-64. The first three retain their earlier producer observations above;
+those unchanged programs were not repeated for this final batch. Both
+independent primitive-shadow and stored-output controls retain their original
+successful rejection evidence.
 
 Other hosts, universal agreement proofs,
 the `Representation` agreement bundle, reflection-specialized generic codecs,

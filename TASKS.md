@@ -853,8 +853,7 @@ helper that passes does not close an item.
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.
-  - Complete the [fallible conversion transport row](samples/cli/facts/representation_conversion/README.md),
-    ordinary Representation agreement contracts and reflection-specialized
+  - Supply ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
