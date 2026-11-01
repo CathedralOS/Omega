@@ -93,13 +93,17 @@ pub(super) fn retain(
             .source_boundary_declarations
             .iter()
             .filter(|(source, _)| *source == usage.satisfaction_requirement);
-        let (Some((_, boundary)), None) = (boundaries.next(), boundaries.next()) else {
-            return Err(
-                "callback requirement has no unique exact emitted inbound declaration".into(),
-            );
+        let boundary = match (boundaries.next(), boundaries.next()) {
+            (Some((_, boundary)), None) => Some(*boundary),
+            (None, None) if usage.callback_entry.is_none() => None,
+            _ => {
+                return Err(
+                    "callback requirement has no unique exact emitted inbound declaration".into(),
+                );
+            }
         };
         applications.push(TerminalCallbackApplication {
-            boundary: *boundary,
+            boundary,
             application_index: usage.application_index,
             registrar,
             static_machine_ordinal: usage.static_machine_ordinal,

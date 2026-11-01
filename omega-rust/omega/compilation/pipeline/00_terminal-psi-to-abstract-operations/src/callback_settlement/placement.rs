@@ -64,9 +64,12 @@ pub fn settle_native_callback_placements(
                     .into(),
             );
         }
+        let inbound_boundary = application
+            .boundary
+            .ok_or("admitted callback lost its exact inbound declaration")?;
         let inbound = calling_application(
             calling,
-            &module.calling_abi_identity(application.boundary)?,
+            &module.calling_abi_identity(inbound_boundary)?,
             None,
         )?;
         let registrar_abi = module.calling_abi_identity(boundary)?;
@@ -78,7 +81,7 @@ pub fn settle_native_callback_placements(
             )?;
         let registrar = calling_application(calling, &registrar_abi, Some(selected_calling))?;
         let inbound_telescope =
-            TerminalCallingTelescope::for_application(module, application.boundary, inbound)?;
+            TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
         let registrar_telescope =
             TerminalCallingTelescope::for_application(module, boundary, registrar)?;
         let entry_parameters = inbound_telescope

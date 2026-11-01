@@ -18,7 +18,8 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Callback applications retain their exact inbound declaration.
-        132
+        // Admitted callbacks retain an exact inbound declaration; unadmitted
+        // nominal uses can retain no entry for contextual foreign refusal.
+        133
     }
 }
