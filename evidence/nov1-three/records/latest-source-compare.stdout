@@ -1,0 +1,39 @@
++ fail/facts/open_const_implementation_changed_statement_output: new rejected
++ fail/facts/open_const_implementation_private_record_package_rejected: new rejected
++ fail/facts/open_const_implementation_private_result_guarantee: new rejected
++ fail/facts/open_const_implementation_return_write_output: new rejected
++ fail/facts/open_const_implementation_statement_const_result_rejected: new rejected
++ fail/facts/open_const_implementation_statement_saved_output_rejected: new rejected
++ fail/generics/open_const_selected_impure: expected fragments now met
++ fail/generics/open_const_selected_private_alias_sourcepoint_invalid: expected fragments now met
++ pass/facts/open_const_implementation_private_record_package_exit: new checked
++ pass/facts/open_const_implementation_statement_const_result_exit: new checked
++ pass/facts/open_const_implementation_statement_saved_output_exit: new checked
++ pass/facts/open_const_implementation_through_call_result_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_const_name_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_field_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_local_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_match_join_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_other_machine_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_other_state_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_parameter_exit: rejected -> checked
++ pass/facts/open_const_implementation_through_target_body_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_call_result_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_const_name_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_field_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_local_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_match_join_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_other_machine_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_other_state_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_parameter_exit: rejected -> checked
++ pass/facts/open_record_const_implementation_through_target_body_exit: rejected -> checked
++ pass/generics/open_const_completed_exit_positive: rejected -> checked
++ pass/generics/open_const_distinct_applications: rejected -> checked
++ pass/generics/open_const_selected_private_alias_sourcepoint: rejected -> checked
++ pass/generics/open_const_selected_private_dependency: rejected -> checked
++ pass/generics/open_const_selected_private_nested_dependency: rejected -> checked
++ pass/generics/open_const_selected_unused_impure_member: rejected -> checked
++ pass/generics/open_const_two_evidence_binders: rejected -> checked
++ pass/generics/open_const_unrelated_namespace: rejected -> checked
++ pass/modules/open_const_private_implementation_projection_exit: rejected -> checked
+corpus_gate: compared 81 fixtures against bfcffe6bcfce: 0 lost, 38 gained

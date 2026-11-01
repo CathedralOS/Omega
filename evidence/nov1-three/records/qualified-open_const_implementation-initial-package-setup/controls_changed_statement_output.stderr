@@ -1,0 +1,2 @@
+cannot compile admitted project: checked compilation failed for package `open_const_implementation_const_name` with 1 diagnostic(s)
+  error: cannot prove ensures contract for exit from selected at statement 3: result >= Minimum

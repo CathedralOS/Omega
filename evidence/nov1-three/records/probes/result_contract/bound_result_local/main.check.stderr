@@ -1,0 +1,2 @@
+cannot compile admitted project: checked compilation failed for package `bound_result_local` with 1 diagnostic(s)
+  error: cannot prove ensures contract for exit from selected at statement 1: result >= Minimum

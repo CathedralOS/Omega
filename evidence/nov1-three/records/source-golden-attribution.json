@@ -1,0 +1,1265 @@
+[
+  {
+    "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7014,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6497,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6461,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4988,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6174,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 357,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6276,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_field_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4897,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6326,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_local_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4874,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6722,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4893,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6676,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4789,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6617,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4777,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6594,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5008,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6512,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4996,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6555,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4758,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6438,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 335,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6641,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4499,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6425,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4796,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6250,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4672,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6422,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4838,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6380,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4859,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6610,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4810,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6643,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4839,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6770,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_completed_exit_positive",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_completed_exit_positive",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4841,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forward at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_completed_exit_positive",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6649,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_distinct_applications",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_distinct_applications",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 329,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_distinct_applications",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6610,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 424,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6844,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_dependency",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_selected_private_dependency",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 444,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_selected_private_dependency",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6757,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 437,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6884,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_unused_impure_member",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_selected_unused_impure_member",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 343,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_selected_unused_impure_member",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6497,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_two_evidence_binders",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_two_evidence_binders",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 336,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_two_evidence_binders",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6601,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_unrelated_namespace",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/generics/open_const_unrelated_namespace",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 370,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/generics/open_const_unrelated_namespace",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7020,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2097,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7730,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 359,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 3: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 758,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4418,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result == Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_return_write_output",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_return_write_output",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1559,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 351,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 343,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_impure",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "fail/generics/open_const_selected_impure",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 358,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "fail/generics/open_const_selected_impure",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 357,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant initializer: machine `construct$specialized$843219018123ab00$0` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 449,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2409,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+    "golden_verdict": "moved",
+    "actual_baseline_equals_current": true,
+    "record": false,
+    "baseline": {
+      "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 441,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 437,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_wrong_evidence_binder",
+    "golden_verdict": "moved",
+    "actual_baseline_equals_current": true,
+    "record": false,
+    "baseline": {
+      "fixture": "fail/generics/open_const_wrong_evidence_binder",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 341,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "fail/generics/open_const_wrong_evidence_binder",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 335,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "fail/traits/requirement_application_guarantee_identity",
+    "golden_verdict": "moved",
+    "actual_baseline_equals_current": true,
+    "record": false,
+    "baseline": {
+      "fixture": "fail/traits/requirement_application_guarantee_identity",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4013,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from wide at statement 0: result <= Limit",
+        "cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "fail/traits/requirement_application_guarantee_identity",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3885,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from wide at statement 0: result <= Limit",
+        "cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  }
+]

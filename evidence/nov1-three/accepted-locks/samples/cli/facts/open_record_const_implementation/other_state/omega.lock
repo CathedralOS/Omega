@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:linux_x86_64
+source 1118
+omega-source-closure 2
+target "omega.target-profile.v1:linux_x86_64"
+root
+role application
+request external-local "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "open_record_const_implementation_other_state"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state"
+resolution external-local "9b02a8c590dc7ec803cc62cf4a329b427f0011644386001ae974c4450e679c34"
+packages 1
+package
+source
+name "open_record_const_implementation_other_state"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state"
+resolution external-local "9b02a8c590dc7ec803cc62cf4a329b427f0011644386001ae974c4450e679c34"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:linux_x86_64 omega.target-profile.v1:linux_x86_64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 281
+compiler 45b847efb766603f3b97c2294b28ff06f8dbd9426eae9c7f0544fdb05addc3a0
+package a65d897104284b6387b72c6e465b09923e67b5a2386fe1503caa0bcff1b7e670
+purpose product
+target omega.target-profile.v1:linux_x86_64
+execution omega.target-profile.v1:linux_x86_64
+bindings 0
+end_compilation
+decisions 203
+omega-policy-decisions 2
+source 8f5b65f6c2746577bffb70d6825e2451d8f55b59361ab7019c947a367129fb2a
+baseline none
+comparison 6cd2d253077a238cb098f39cceb3d319e98cb19e09166caf3c94f9a6a3f476b1
+decisions 0
+end
+end_target
+end

@@ -1,0 +1,183 @@
+   Compiling version_check v0.9.5
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling cfg-if v1.0.4
+   Compiling typenum v1.20.1
+   Compiling cpufeatures v0.2.17
+   Compiling rustversion v1.0.23
+   Compiling phase-profile v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/phase-profile)
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling encoded-scalar-plan v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/instruction-set-architectures/encoded-scalar-plan)
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling x86-encoding v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/instruction-set-architectures/x86-encoding)
+   Compiling generic-array v0.14.7
+   Compiling crossbeam-utils v0.8.23
+   Compiling crossbeam-epoch v0.9.21
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+   Compiling either v1.19.0
+   Compiling bitflags v2.13.1
+   Compiling rustix v1.1.4
+   Compiling linux-raw-sys v0.12.1
+mbx[warning]: rustc cache bypassed: failed to read Cargo's build-script declarations: No such file or directory (os error 2)
+   Compiling io-lifetimes v2.0.4
+   Compiling io-lifetimes v3.0.1
+   Compiling io-extras v0.19.0
+   Compiling once_cell v1.21.4
+   Compiling cap-primitives v4.0.3
+   Compiling ambient-authority v0.0.2
+   Compiling ipnet v2.12.1
+   Compiling maybe-owned v0.3.4
+   Compiling libc v0.2.189
+   Compiling cap-std v4.0.3
+   Compiling cap-fs-ext v4.0.3
+   Compiling lazy_static v1.5.0
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling arc-swap v1.9.2
+   Compiling digest v0.10.7
+   Compiling iced-x86 v1.21.0
+   Compiling package-compilation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/compilation-inputs)
+   Compiling artifacts v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/foundation/artifacts)
+   Compiling shlex v2.0.1
+   Compiling sha2 v0.10.9
+   Compiling sha1 v0.10.7
+   Compiling find-msvc-tools v0.1.14
+   Compiling omega v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/cli)
+   Compiling sha1-checked v0.10.0
+   Compiling optimization v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/optimization-selections)
+   Compiling cc v1.5.1
+   Compiling optimization-core v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/foundation/optimization-core)
+   Compiling rayon v1.12.0
+   Compiling syn v3.0.4
+   Compiling libmimalloc-sys v0.1.49
+   Compiling compiler-storage-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/compiler-storage/derive)
+   Compiling serde_derive v1.0.229
+   Compiling syntax-trees-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees/derive)
+   Compiling compiler-storage v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/compiler-storage)
+   Compiling arena v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/arena)
+   Compiling numerics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/numerics)
+   Compiling extents v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/extents)
+   Compiling filesystem-authority v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/filesystem-authority)
+mbx[warning]: cc cache bypassed: compiler invocation names no output file
+   Compiling compiler v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/driver)
+   Compiling semantic-vocabulary v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling language-core v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/language-core)
+   Compiling source v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/source)
+   Compiling layout-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/layout-plans)
+   Compiling evaluation-accounting v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/evaluation-accounting)
+   Compiling build-time-values v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/build-time-values)
+   Compiling access-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/access-plans)
+   Compiling symbols v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/symbols)
+   Compiling diagnostics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/diagnostics)
+   Compiling tokens v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/tokens)
+   Compiling target v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/target)
+   Compiling post-handoff-writer-plan v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan)
+   Compiling syntax-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees)
+   Compiling build-output v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/build-output)
+   Compiling language-semantics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/language-semantics)
+   Compiling source-files-to-tokens v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/00_source-files-to-tokens)
+   Compiling runtime-abi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/runtime/runtime-abi)
+   Compiling register-model v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/register-model)
+   Compiling tokens-to-syntax-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+   Compiling terminal-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling flow-effects v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/flow-effects)
+   Compiling symbol-resolved-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+   Compiling nix v0.27.1
+   Compiling fs-set-times v0.20.3
+   Compiling rustix-linux-procfs v0.1.1
+   Compiling typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/typed-trees)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
+   Compiling command-group v5.0.1
+   Compiling proof-admission v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/proof/admission)
+   Compiling calling-conventions v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/calling-conventions)
+   Compiling function-identity v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/foundation/function-identity)
+   Compiling installation-evidence v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/runtime/installation-evidence)
+   Compiling terminal-fuel v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling bounded-process v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/foundation/bounded-process)
+   Compiling resolver-execution v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/resolver-execution)
+   Compiling terminal-semantics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/terminal-psi/semantics)
+   Compiling terminal-codec v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/terminal-psi/codec)
+   Compiling platform-custody v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/foundation/platform-custody)
+   Compiling terminal-installation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking/terminal-installation)
+   Compiling abstract-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/abstract-operations)
+   Compiling package-source v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/source-acquisition)
+   Compiling effects v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/plans/provider-evidence)
+   Compiling terminal-interpreter v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/interpreter/terminal-interpreter)
+   Compiling optimization-unit v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit)
+   Compiling task-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/runtime/task-plans)
+   Compiling boundary-applications v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/artifacts/boundary-applications)
+   Compiling backend-plan v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/plans/backend-plan)
+   Compiling component-description v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/artifacts/component-description)
+   Compiling trust-model v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/trust-model)
+   Compiling optimization-unit-semantics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics)
+   Compiling target-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/target-operations)
+   Compiling provider-selection v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/provider-selection)
+   Compiling legalized-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/target-operations/legalized-operations)
+   Compiling selected-instructions v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/selected-instructions)
+   Compiling normalized-foreign-call-plan v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/instruction-set-architectures/normalized-foreign-call-plan)
+   Compiling register-homes v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/register-homes)
+   Compiling isa-x86_64 v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64)
+   Compiling isa-aarch64 v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-aarch64)
+   Compiling physical-instructions v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/post-allocation-machine)
+   Compiling program-entry-plan v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/plans/program-entry-plan)
+   Compiling register-environment v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/register-environment)
+   Compiling machine-code v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/representations/machine-code)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations)
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations)
+   Compiling abstract-operations-to-target-operations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations)
+   Compiling target-operations-to-selected-instructions v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions)
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions)
+   Compiling selected-instructions-to-register-homes v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes)
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine)
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding)
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout)
+   Compiling machine-emission v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/machine-emission)
+   Compiling object-file v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/object/object-file)
+   Compiling image v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/images/image)
+   Compiling image-elf v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/images/image-elf)
+   Compiling image-macho v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/images/image-macho)
+   Compiling image-pe v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/images/image-pe)
+   Compiling image-emission v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/images/image-emission)
+   Compiling native-artifact v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/artifacts/native-artifact)
+   Compiling native-production v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/native-production)
+   Compiling native-provider-runtime v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/native-provider-runtime)
+   Compiling terminal-runtime v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/terminal-runtime)
+   Compiling mimalloc v0.1.52
+   Compiling facts v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/checked-trees/facts)
+   Compiling representation-selections v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking/representation-planning/selections)
+   Compiling layout v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/backend/layout)
+   Compiling checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/checked-trees)
+   Compiling validation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking)
+   Compiling lowered-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/lowered-psi)
+   Compiling lowered-psi-to-lowered-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi)
+   Compiling proof v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/proof)
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi)
+   Compiling checked-trees-to-lowered-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees)
+   Compiling checked-interpreter v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/interpreter/checked-interpreter)
+   Compiling representation-planning v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking/representation-planning)
+   Compiling typed-trees-to-typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees)
+   Compiling typed-trees-to-checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees)
+   Compiling psi-terminal-production v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/driver/terminal-production)
+   Compiling build-time-evaluation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/compile-time)
+   Compiling psi-compiler v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/driver)
+   Compiling build-declarations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/build-declarations)
+   Compiling provider-planning v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling selected-dispatch v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling compilation-products v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/products)
+   Compiling package-evidence v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/review-evidence)
+   Compiling build-evaluation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/build-evaluation)
+   Compiling package-manager v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/package-manager)
+   Compiling omega-build v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/build)
+    Finished `dev` profile [optimized] target(s) in 3m 12s
+mbx[cache]: 178 hits, 4 misses, 31 not looked up, 31 incremental, 2 bypassed; 0 B downloaded, 0 B uploaded, 401.1 KiB stored locally
+mbx[gc]: removed 4 target directories (6.5 GiB logical, 0 abandoned and 4 live); 0 B logical remain
+mbx[gc]: evicted 4959 objects and 1212 action results (5.9 GiB logical); 27.6 GiB logical remain
+mbx[savings]: 31.4 GiB shared among checkouts that each believe they are an only child.

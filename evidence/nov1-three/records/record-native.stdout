@@ -1,0 +1,4 @@
+corpus_gate: recorded 14 fixture outcomes to /home/jarod/development/Omega/.agents/worktree/nov1-three/tests/omega/corpus_native_linux_x86_64.txt; 0 unimplemented rows remain, 275 rows record a lost success
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: 315 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (275 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

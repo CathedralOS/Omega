@@ -1,0 +1,253 @@
+{
+  "context": {
+    "host": "Linux x86_64",
+    "target": "linux_x86_64",
+    "baseline": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+    "purpose": "read-only static named implementation result-contract baseline selection, not implementation acceptance"
+  },
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/conformances.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+        "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/generics.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline",
+        "omega-rust/psi/interpreter/checked-interpreter"
+      ],
+      "contract": "wiki/spec/language/constants.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority.",
+        "A constant position requests semantic evaluation. An initializer may call an\nordinary machine only when that concrete invocation is admitted for evaluation;\nthere is no separate `const machine` species. The evaluator's admission contract\nis described in [semantic evaluation](evaluation.md#invocation-admission).\nEffectful [build execution](../build/execution.md) is a separate operation."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/interpreter/checked-interpreter",
+        "omega-rust/psi/compilation/representations/typed-trees"
+      ],
+      "contract": "wiki/spec/language/evaluation.md",
+      "classification": "missing_implementation",
+      "reason": "The original const-name place reaches an admitted selected generic implementation but the checked-tree interpreter executes its map row template instead of the call's prepared capture entry, leaving Value unbound. Semantic evaluation must execute the same selected concrete invocation as runtime without changing admission or public guarantee identity.",
+      "passages": [
+        "For an eligible runtime-capable machine, evaluation produces exactly the value\nthat target execution would produce with the same arguments, selected\nconformances/providers, and target semantics. Evaluation changes when, not what.\nProof-only machines need no runtime representation but obey the same core value\nsemantics and cannot observe the compiler phase."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment"
+      ],
+      "contract": "wiki/spec/language/machines.md",
+      "classification": "missing_implementation",
+      "reason": "Statement-position selected member must preserve the same public minimum through an exclusive scalar output. Its equality guarantee entails the published lower bound under exact positional formal and const capture substitution; current candidate wrongly refuses that declaration before evaluation.",
+      "passages": [
+        "The public contract includes input/state/result relations, failure/crash and\ncancellation, service reach and authority, progress and operational ceilings,\natomicity/reentrancy, context-visible resources, and observable calling/\nrepresentation plans. A provider refines a requirement when every provider\ntrace, under the permitted observation projection, is allowed by the requirement\nand asks no more from its caller:",
+        "| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits"
+      ],
+      "contract": "wiki/spec/language/state_contracts.md",
+      "classification": "missing_implementation",
+      "reason": "The unchanged statement-position selected call now satisfies declaration refinement, but its completed mutable output guarantee destination >= Minimum fails to establish selected result >= Minimum when returning that exact current value. No intervening writes or caller guard are present. Preserve exact public declaration, captured static binder identity and post-return storage epoch; do not donate private equality or replay the realization body.",
+      "passages": [
+        "Normal returns owe applicable postconditions for both value and Unit results.\nAn implicit return occurs after the executable portion's final statement, not\nafter executing trailing declarations. A selected returning arm uses that arm's\nfacts. A terminal call owes both the callee's result and the caller's completion\ncontract; lexical ancestry adds no further return targets. Crash edges are not\nnormal returns. Synthetic `result` denotes the exact returned value; output-reference\nparameters retain their actual reference origins.\n\nExit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.\nOutcome-specific guarantees follow the matching nominal result case and remain\nseparate from unconditional guarantees, as specified in\n[proof availability](../proofs/contracts.md#identity-availability-and-erasure)."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "open_const_implementation",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/runtime-row.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega",
+        "--fact",
+        "samples/cli/facts/open_const_implementation",
+        "--output",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/qualified-open_const_implementation-prepared",
+        "--positives",
+        "13",
+        "--negatives",
+        "16"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "tools/qualification.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/constants.md",
+        "wiki/spec/language/evaluation.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/state_contracts.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/profile.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stdout",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/runtime-row.py",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/call_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/package_projection/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/saved_output/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/field/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/local/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/match_join/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_machine/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_state/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/parameter/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/target_body/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/call_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/const_name/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/field/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/local/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/match_join/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_machine/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/parameter/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/target_body/omega.lock"
+      ],
+      "producer": {
+        "revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega"
+        ]
+      },
+      "closure_reason": "Exact selected public contract and complete applied execution retain const binder and package closure across the existing row. Original source passed before runtime-only oracle strengthening. All positive and intended-invalid sources, full compiler/library/toolchain/tooling closure, immutable producer/build evidence and ordinary accepted locks are bound. Every native and Terminal exit plus intended refusal fragment is observed explicitly.",
+      "final": true,
+      "expected_exit": 0,
+      "timeout_seconds": 900
+    },
+    {
+      "id": "open_record_const_implementation",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/runtime-row.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega",
+        "--fact",
+        "samples/cli/facts/open_record_const_implementation",
+        "--output",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/qualified-open_record_const_implementation-prepared",
+        "--positives",
+        "10",
+        "--negatives",
+        "10"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "tools/qualification.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/constants.md",
+        "wiki/spec/language/evaluation.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/state_contracts.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/profile.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stdout",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/runtime-row.py",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/call_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/package_projection/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/saved_output/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/field/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/local/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/match_join/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_machine/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_state/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/parameter/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/target_body/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/call_result/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/const_name/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/field/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/local/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/match_join/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_machine/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/parameter/omega.lock",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/target_body/omega.lock"
+      ],
+      "producer": {
+        "revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega"
+        ]
+      },
+      "closure_reason": "Exact selected public contract and complete applied execution retain const binder and package closure across the existing row. Original source passed before runtime-only oracle strengthening. All positive and intended-invalid sources, full compiler/library/toolchain/tooling closure, immutable producer/build evidence and ordinary accepted locks are bound. Every native and Terminal exit plus intended refusal fragment is observed explicitly.",
+      "final": true,
+      "expected_exit": 0,
+      "timeout_seconds": 900
+    }
+  ]
+}

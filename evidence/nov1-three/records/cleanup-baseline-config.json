@@ -1,0 +1,252 @@
+{
+  "context": {
+    "host": "Linux x86_64",
+    "target": "linux_x86_64",
+    "baseline": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+    "purpose": "read-only baseline selection: inspect generic domain-selected cleanup source-to-both-engine outcome before implementation reservation"
+  },
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/domains.md",
+      "classification": "missing_implementation",
+      "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+      "passages": [
+        "`dropped by` selects one exact independent static cleanup machine for an owned\nqualified occurrence. It names the operation the compiler invokes at cleanup,\nnot a list of callers permitted to discard the value. It takes one machine\napplication, with generic arguments supplied from the declaration's binders:",
+        "One selected operation must satisfy all applicable domain, custody and loan\nobligations, including inherited ones. Zero selected operations permits ordinary\nstructural cleanup only where disposal is otherwise legal; it does not discharge\nan unresolved linear claim. Selection does not itself prove the hook's\npreconditions or give it read/write or issuance authority. The owning package's\nselection is the explicit authorization of that cleanup plan; a linear terminal\ndisposition still must account for every obligation under the ownership rules.",
+        "Moves and intact transport preserve the selection and its obligations. Alias\nexpansion, predicate weakening and explicit qualification erasure cannot remove\ncleanup debt or evade a selection conflict. Borrowing does not authorize disposal\nof the referent. Cleanup selection belongs to the owned qualified subject, not\nto an ambient collection of predicates the compiler happens to prove. Normalized\nmachine identity and substituted arguments are part of the domain's semantic\ninterface. No hidden runtime domain tag is introduced."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/ownership.md",
+      "classification": "missing_implementation",
+      "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+      "passages": [
+        "Every owned death edge derives an internal contextual cleanup row: Type-side\ndisposition eligibility, proposition prerequisites, operational effects/reach/\nwork, and derived guarantees remain separate. Prerequisites must be proved\nlocally or already authored in `requires`; neither public nor private body\nanalysis may invent a new caller demand. Generic rows remain symbolic until\nsubstitution supplies the exact structural plans and contracts. Containers need\nno nominal `Disposable` bound, and an instantiation lacking legal element\ndisposition rejects. Diagnostics identify the authored hook clause and edge,\nnot an internal synthesized predicate."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/machines.md",
+      "classification": "missing_implementation",
+      "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+      "passages": [
+        "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "generic_consume",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/main.omg"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/domain_selected_cleanup",
+        "wiki/spec/language/domains.md",
+        "wiki/spec/language/ownership.md",
+        "wiki/spec/language/machines.md",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Fixed-base entire reference compiler and bundled library sources plus Cargo/toolchain configuration, owning task and governing contracts, original same-fact row; ignored scratch authored sources and immutable verified generation/build log artifacts. Source refusal is a baseline defect observation, not native acceptance. Expected native and Terminal exits remain authored zero.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "generic_consume_invalid",
+      "kind": "negative",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/invalid/main.omg",
+        "--reject"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/domain_selected_cleanup",
+        "wiki/spec/language/domains.md",
+        "wiki/spec/language/ownership.md",
+        "wiki/spec/language/machines.md",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/invalid/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/generic_consume/invalid/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Same frozen construct with only own input code changed 7 to 6; validator requires consume code-7 prerequisite refusal, not an unrelated rejection. Fixed-base entire reference compiler and bundled library sources plus Cargo/toolchain configuration, owning task and governing contracts, original same-fact row; ignored scratch authored sources and immutable verified generation/build log artifacts. Source refusal is a baseline defect observation, not native acceptance. Expected native and Terminal exits remain authored zero.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "nested_generic_consume",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/main.omg"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/domain_selected_cleanup",
+        "wiki/spec/language/domains.md",
+        "wiki/spec/language/ownership.md",
+        "wiki/spec/language/machines.md",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Fixed-base entire reference compiler and bundled library sources plus Cargo/toolchain configuration, owning task and governing contracts, original same-fact row; ignored scratch authored sources and immutable verified generation/build log artifacts. Source refusal is a baseline defect observation, not native acceptance. Expected native and Terminal exits remain authored zero.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "nested_generic_consume_invalid",
+      "kind": "negative",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/invalid/main.omg",
+        "--reject"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/domain_selected_cleanup",
+        "wiki/spec/language/domains.md",
+        "wiki/spec/language/ownership.md",
+        "wiki/spec/language/machines.md",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/invalid/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/domain_cleanup/nested_generic_consume/invalid/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline-validator-v2.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Same frozen construct with only own input code changed 7 to 6; validator requires consume code-7 prerequisite refusal, not an unrelated rejection. Fixed-base entire reference compiler and bundled library sources plus Cargo/toolchain configuration, owning task and governing contracts, original same-fact row; ignored scratch authored sources and immutable verified generation/build log artifacts. Source refusal is a baseline defect observation, not native acceptance. Expected native and Terminal exits remain authored zero.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    }
+  ]
+}

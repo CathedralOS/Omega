@@ -1,0 +1,22 @@
+[
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name",
+  "state": "no-native-build",
+  "detail": "package review: constant initializer: static operand `Value` has no bound local or parameter in package `open_const_implementa",
+  "diagnostic": "package review: constant initializer: static operand `Value` has no bound local or parameter in package `open_const_implementation_const_name`, /home/jarod/.cache/CathedralOS/Omega/source/v1/external-local-sources/local-snapshots/source-v2-316bd84e08f5dc26d7370de29abce2da1c3fa16e4fc5dcea02b4a93af1218c86/source/main.omg:16:20",
+  "seconds": 0.36,
+  "phases": {
+   "review": 0.36
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.3,
+  "phases": {
+   "check": 0.3
+  }
+ }
+]

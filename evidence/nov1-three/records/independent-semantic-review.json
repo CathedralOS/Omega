@@ -1,0 +1,77 @@
+{
+  "schema": "omega-independent-semantic-review-v1",
+  "reviewer": "Codex native worker /root/worker_one",
+  "skill_read": "/home/jarod/development/Omega/.agents/skills/rust-systems-programmer/SKILL.md",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "candidate": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "decision": "accepted",
+  "scope": "Exact semantic source plus completed own and related fact-row acceptance. This is not final approval of future documentation/golden source or unfinished corpus comparisons.",
+  "blocking_findings": [],
+  "semantic_review": [
+    "Capture preservation joins authored evidence children and borrow facts through the existing exact applied public signature query, retaining statement/ordinal identity and independent write/loan ceilings. No carrier-shape or spelling equality replaces declaration identity.",
+    "Checked-tree static dispatch executes the prepared call target while original row/public dispatch identities remain retained and checked. The exact supplying application/capture/realization-template and public signature validation are unchanged; no evaluation admission or private guarantee authority is added.",
+    "Contract refinement binds readable integer contents by formal position. Requires implication and ensures implication remain separate; declared access and selected meanings remain independently checked. The shared readability query refuses write-only shells.",
+    "ExitArithmetic prepares authenticated public hypotheses and their exact fresh normal-return observations before binding goal leaves. Live exit contexts and historical captured-store contexts use one observation roster; no goal becomes a premise.",
+    "Current and copied values join a normal-return observation through the flow-owned value_origin_matches_call_return query. Existing opaque post-call epoch identities remain; no old entry value is equated to a write. An overlapping later write retires the current association while a previously captured scalar retains its meaning.",
+    "The exit value join additionally requires complete same-statement normal-return writes to preserve the demanded storage. This closes the measured stale current-reference acceptance through an effectful return; unknown writes refuse conservatively.",
+    "Readable primitive projection is limited to arithmetic leaf admission/binding. Existing declared type, selected operator/arithmetic policy, access, public contract and exact static-operand substitution remain authoritative. There is no selected/Minimum production recognizer."
+  ],
+  "evidence_review": {
+    "current_rows": {
+      "open_const_implementation": {
+        "sha256": "22be2e79ba1cc74d1f4be2d71551cffa0abed927cc3cb8fdb9cf1140a5058aa0",
+        "positives": 13,
+        "negatives": 16,
+        "accepted": true,
+        "producer_sha256": "4fb88a7dd2a49eb316a8b4f8333c3f6252ff8fcbbc3af5204672270a3449ba4e"
+      },
+      "open_record_const_implementation": {
+        "sha256": "27d88db2e6f8b9f8a4037afc0a459787075e18e65868d5aa04ec88db80c2a875",
+        "positives": 10,
+        "negatives": 10,
+        "accepted": true,
+        "producer_sha256": "4fb88a7dd2a49eb316a8b4f8333c3f6252ff8fcbbc3af5204672270a3449ba4e"
+      }
+    },
+    "verification": "Independently checked all49 raw commands/streams/source hashes,23 native+Terminal exit0 positives and26 nonzero rejects with every intended fragment; optimized CLI digest and complete GENERATION source-input Git identities match exact candidate. Both qualification receipts exit0 with no invalidations.",
+    "baseline": "Inspected original wrong guarantee refusal, constant template Value refusal, statement refinement and postcall refusal, and the properly formed stale output control wrongly accepted before the fence. All inspected receipts have no input invalidations. The stale baseline is source acceptance, not an executed runtime observation.",
+    "row_integrity": "Independently verified allnine original place source/build corpus mirrors, exact one-const-argument twins, and four hosted Build entries.",
+    "runtime_falsifiability": "Field neighbors are asserted; match_join exercises both choices with distinct tags17/29 and neighbor checks. Direct and saved statement productions execute construct<3> at runtime as well as through a constant, and consume both results through exact subtraction. An omitted write or wrong tag/canary would reach the authored Trap. No reviewer replay was run during active capture.",
+    "limits": [
+      "Native execution is Linux x86-64 only; other hosted entries are authored, not execution evidence.",
+      "Scoped Clippy is not green:206 diagnostics attributed to exact unchanged baseline spans; affected crate checking passes.",
+      "Full STATIC-MACHINE-MIGRATION/product/other-host acceptance remains open."
+    ]
+  },
+  "pending_before_final_publication_review": [
+    "Inspect84-fixture bounded source/runtime comparison outcomes and attribute any moves.",
+    "Inspect exact final documentation/TASKS/golden delta and bind final review to its submitted source SHA."
+  ],
+  "rust_source_sha256": {
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs": "67c9975c6d6a1c1f23dfdea4a565a453fceba33ca929241c0016b090e79ce555",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/result_fields.rs": "d61d293e00778a8bba0010563e7e2d433d0fec16a93aa89cd0c531b6032a4030",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs": "c422860a6cd54e03fff9b8286882e60a7e89430298b9732f38d3f5654ff28c85",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs": "ac4a7dfaece60e9983bd038a0f3f7268f2038781ec9dc0e0cde14e358ca07770",
+    "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs": "cf14cc3968d977cbf19f1f86ee8d9011730405a2bd4fc758492cc0cd1e6d2da0",
+    "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs": "3f3fac56e10e1e01edcc2d96e2cd85acadd0ee995b39d57aa6c2b34358c32784",
+    "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs": "ffc99736f6d1e78a004a74ac1a2f7b76234cb4d8cfea60f64bf432c82a1a1403"
+  },
+  "canonical_context_sha256": {
+    "openconst-implementation-packet.json": "20c3acacbb0b77f35a0cbe25bcaeb2451b2cfb328173ab84520bd7c2fc75e6f1",
+    "const-name-implementation-packet.json": "413de8709a2cbb14e90e66346e14763e1af9f7440ffa86d59cec1fa2e2c9dce0",
+    "statement-refinement-implementation-packet.json": "66533aa2fbe083b330ad17fc4f2f2a217b48ab8eb57e42abf4a95762bb9a5408",
+    "statement-postcall-implementation-packet.json": "4b24367bb6eccbb4e68649abc8792c0bee46dc44b4c9c282e270c2a1adebc4ee",
+    "return-write-implementation-packet.json": "c44fffabed594908a6b9152cd504c0d22bad694bd7416f63252ac3483ee9f6dc",
+    "current-independent-review-packet.json": "64918fc24a6a54ae3e0356c606abd754a730ca55520a1c83c011c44b39796535"
+  },
+  "receipt_sha256": {
+    "cf963b923fad4a91888ebfbba9b2384d": "4cf732d88c6e16bfb2480e05081cdc69dc365a29748c7d3a7a689bef314b567c",
+    "7a8f75d704984d21b73db37c4d2959c8": "a218d8e13cb822db8f81b2a28250b78d73ed850a4d96f3074e2dbdbeb879929b",
+    "c9ef4edf48604420ad5f8822c0b9a734": "bae4661b6a306a195009772afe23a22ef086e77c10419ff465fd012f92f323d5",
+    "981975719422460c828120627092ae10": "124e330258ca6b45a3efa38e40947e553da5de7c4ec13cc50a67494be309434c",
+    "ff1b1e32413c443facaea222e66e1b1f": "10235d37c7fb78dee19a71f8304181a7b5c358e37763356f3433112af26624b0",
+    "76d727dda04d4b0da9bc018862581e6f": "ee23ae33dc07652271408594dd79adbacd46c5913b348cbfff2c33ed235be328",
+    "dba45c44838b499c8724129fa9e6ac05": "e18dcd447bdb00503a2282385286e3b77bf114c7c54a7f2fdc6bf3d3cd8b7658"
+  },
+  "independent_replay_decision": "No new build or replay necessary for reviewed scope: actual frozen failures/current rows and exact source/producer bindings cover the changed meaning; no unresolved behavioral blocker remains."
+}

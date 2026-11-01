@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+linux_x86_64: checked 1 source packages.
+New package source: open_const_implementation_const_name [c37a1be595e7]: no prior revision to compare.
+Standalone candidate source: open_const_implementation_const_name [c37a1be595e7]: 13 changed entries.
+Source-code output (separate from editable capability review): /home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/build/package-manager/source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: /home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/build/package-manager/review-linux_x86_64.txt

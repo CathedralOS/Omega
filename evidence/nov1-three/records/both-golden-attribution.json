@@ -1,0 +1,428 @@
+[
+  {
+    "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7655,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7107,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": null,
+    "current": {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7327,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4742,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7127,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 345,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7295,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4502,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7172,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4771,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6958,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4660,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7072,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4911,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7111,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4885,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7123,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4800,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7093,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+    "golden_verdict": "improved",
+    "actual_baseline_equals_current": false,
+    "record": true,
+    "baseline": {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4821,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6993,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  },
+  {
+    "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+    "golden_verdict": "new",
+    "actual_baseline_equals_current": true,
+    "record": false,
+    "baseline": {
+      "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6126,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "bfcffe6bcfce"
+    },
+    "current": {
+      "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6342,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  }
+]

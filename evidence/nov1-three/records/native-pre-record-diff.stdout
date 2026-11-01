@@ -1,0 +1,37 @@
++ pass/facts/open_const_implementation_private_record_package_exit: new fixture (built)
++ pass/facts/open_const_implementation_statement_const_result_exit: new fixture (built)
++ pass/facts/open_const_implementation_statement_saved_output_exit: new fixture (built)
+~ pass/facts/open_record_const_implementation_through_call_result_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_const_name_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_field_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_local_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_match_join_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_other_machine_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_other_state_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_parameter_exit: status moved
+    - rejected
+    + built
+~ pass/facts/open_record_const_implementation_through_target_body_exit: status moved
+    - rejected
+    + built
+corpus_gate: 12 structural move(s), 0 perf move(s) — 14 fixtures ({'built': 14}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 14 (exit codes {'0': 14}), 0 with stdout differing from expected; verdicts {'new': 3, 'improved': 9}
+corpus_gate: of those — 9 improved, golden not re-recorded, 3 fixture added, golden not recorded
+corpus_gate: golden provenance: 11 rows stamped, 0 legacy (unstamped), oldest stamped row 1129 commits behind HEAD (@a92f16431042)
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: 324 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (284 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions
+corpus_gate: wrote 12 moved fixture(s) to /home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/native-pre-record-moves.json

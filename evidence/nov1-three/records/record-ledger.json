@@ -1,0 +1,38 @@
+[
+  {
+    "leg": "source",
+    "observed_source": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "producer_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "producer_inputs_unchanged": true,
+    "golden": "tests/omega/corpus_outcomes.txt",
+    "recorded": 40,
+    "outside_bytes_preserved": true,
+    "before_sha256": "9961933af467929dd7ad0df2b557bde37a6b8c6704c85e697fbdf9065068935a",
+    "after_sha256": "f8a9ec91294b683d88d378bf2a912372a541e9ce0af24450798d0f0d988ff9e4",
+    "result_commit": "24efd51f96451d5dc726e6b37d537fc7ca5aad4f"
+  },
+  {
+    "leg": "native",
+    "observed_source": "24efd51f96451d5dc726e6b37d537fc7ca5aad4f",
+    "producer_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "producer_inputs_unchanged": true,
+    "golden": "tests/omega/corpus_native_linux_x86_64.txt",
+    "recorded": 14,
+    "outside_bytes_preserved": true,
+    "before_sha256": "5ebf9f532aa79045853ae9b2efffad3734c41e171ee11a7c011815c89e7b0de4",
+    "after_sha256": "5c63fc342be98c684fc73801539c7c978ed92cfdebbe521cdbd85850f7fec4f1",
+    "result_commit": "87c526e435e0e49b28fb217b158ba7c0db111f64"
+  },
+  {
+    "leg": "both",
+    "observed_source": "87c526e435e0e49b28fb217b158ba7c0db111f64",
+    "producer_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "producer_inputs_unchanged": true,
+    "golden": "tests/omega/corpus_both_linux_x86_64.txt",
+    "recorded": 14,
+    "outside_bytes_preserved": true,
+    "before_sha256": "87914fb0843374636bf1983fd5a40ca6f392e7f7cc6a5ece92fb6412aa0236ac",
+    "after_sha256": "05a0fb2a99ff0d01b995b869629d32fc0b169b20849b93c4baef5f3dba5f0930",
+    "result_commit": "bf3768a509cfa049f50ddc971e257db45f8eeee4"
+  }
+]

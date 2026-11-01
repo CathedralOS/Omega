@@ -1,0 +1,7 @@
+linux_x86_64: checked 1 source packages.
+Source diff: open_const_implementation_parameter [610c130a9f38]: 0 changed entries.
+Capability comparison uses accepted lock policy independently of old-source availability.
+Source-code output (separate from editable capability review): /home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/parameter/build/package-manager/source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: /home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/parameter/build/package-manager/review-linux_x86_64.txt

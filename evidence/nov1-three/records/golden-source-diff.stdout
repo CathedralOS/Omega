@@ -1,0 +1,114 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 20169 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
++ pass/facts/open_const_implementation_private_record_package_exit: new fixture (checked)
++ pass/facts/open_const_implementation_statement_const_result_exit: new fixture (checked)
++ pass/facts/open_const_implementation_statement_saved_output_exit: new fixture (checked)
+~ pass/facts/open_const_implementation_through_call_result_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_const_name_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_field_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_local_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_match_join_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_other_machine_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_other_state_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_parameter_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_const_implementation_through_target_body_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_call_result_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_const_name_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_field_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_local_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_match_join_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_other_machine_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_other_state_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_parameter_exit: status moved
+    - rejected
+    + checked
+~ pass/facts/open_record_const_implementation_through_target_body_exit: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_completed_exit_positive: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_distinct_applications: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_selected_private_alias_sourcepoint: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_selected_private_dependency: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_selected_private_nested_dependency: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_selected_unused_impure_member: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_two_evidence_binders: status moved
+    - rejected
+    + checked
+~ pass/generics/open_const_unrelated_namespace: status moved
+    - rejected
+    + checked
+~ pass/modules/open_const_private_implementation_projection_exit: status moved
+    - rejected
+    + checked
++ fail/facts/open_const_implementation_changed_statement_output: new fixture (rejected)
++ fail/facts/open_const_implementation_private_record_package_rejected: new fixture (rejected)
++ fail/facts/open_const_implementation_private_result_guarantee: new fixture (rejected)
++ fail/facts/open_const_implementation_return_write_output: new fixture (rejected)
++ fail/facts/open_const_implementation_statement_const_result_rejected: new fixture (rejected)
++ fail/facts/open_const_implementation_statement_saved_output_rejected: new fixture (rejected)
+~ fail/generics/open_const_selected_impure: expected_satisfied moved
+    - False
+    + True
+~ fail/generics/open_const_selected_private_alias_sourcepoint_invalid: expected_satisfied moved
+    - False
+    + True
+~ fail/generics/open_const_selected_private_dependency_changed_helper: diagnostics moved
+    - exact arithmetic in machine `Selected::read` state `read` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `require
+    + exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clau
+~ fail/generics/open_const_wrong_evidence_binder: diagnostics moved
+    - cannot prove ensures contract for exit from selected at statement 0: result >= High | cannot prove ensures contract for exit from selected$specialized$b3053156a3750989$0 at statement 0: result >= 7
+    + cannot prove ensures contract for exit from selected at statement 0: result >= High
+~ fail/traits/requirement_application_guarantee_identity: diagnostics moved
+    - machine `wide` realizes `Bound::produce` but does not guarantee its `ensures result <= 50`; callers of the requirement assume it
+    + cannot prove ensures contract for exit from wide at statement 0: result <= Limit | cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50
+corpus_gate: 41 structural move(s), 0 perf move(s) — 81 fixtures ({'checked': 34, 'rejected': 47}), 1 rejected without their expected fragment, 0 fail fixtures did not reject; verdicts {'new': 9, 'improved': 29, 'moved': 3}
+corpus_gate: of those — 29 improved, golden not re-recorded, 9 fixture added, golden not recorded, 3 diagnostics or facts moved
+corpus_gate: golden provenance: 72 rows stamped, 0 legacy (unstamped), 1 revision distance(s) unavailable
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: fail/generics/open_const_wrong_literal_tuple rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: 1053 pass/run row(s) pinned without a success and 73 fail row(s) pinned as a success (891 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions
+corpus_gate: wrote 41 moved fixture(s) to build/swarm/nov1/golden-source-moves.json

@@ -1,0 +1,23 @@
+{
+  "actual_build_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "compiler_source_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "source_inputs": {
+    "omega-rust": "43ba19f33129b65cf7993d423e1c8780b9087c03",
+    "source/library": "fcebe49a300e70d5002096b2c63cca581094ac8d",
+    "Cargo.toml": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+    "Cargo.lock": "fd98fb0b45525fca93b5a2308431544bc3aad1ce",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929"
+  },
+  "command": [
+    "mbx",
+    "test",
+    "--no-run",
+    "--message-format=json",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner"
+  ],
+  "original_artifact": "/home/jarod/development/Omega/.agents/worktree/nov1-three/target/debug/build/compiler/80b35a5e83aab51a/out/corpus_runner-80b35a5e83aab51a",
+  "sha256": "4a211bc5303b3ce6f4f7fdeab575f50c70f96e68462fbd8442aaa383484c4bd3"
+}

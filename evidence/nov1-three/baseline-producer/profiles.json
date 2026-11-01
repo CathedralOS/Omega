@@ -1,0 +1,18 @@
+{
+  "omega": {
+    "binary": "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+    "sha256": "e3c6d5bc0b1c6865555e13b7374695ce62108052f6457a64f797d82714377271",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "corpus_runner": {
+    "binary": "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/corpus_runner",
+    "sha256": "3bae5d18f0065f472c4249ab232ba2664ea7546194d9868976a9c37d8feee150",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

@@ -1,0 +1,202 @@
+[
+ {
+  "sample": "samples/cli/facts/open_const_implementation",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.82,
+  "phases": {
+   "review": 6.15,
+   "run": 5.66
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/call_result",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.1,
+  "phases": {
+   "review": 5.63,
+   "run": 5.46
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/call_result/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.85,
+  "phases": {
+   "check": 0.85
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.31,
+  "phases": {
+   "review": 5.69,
+   "run": 5.62
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.3,
+  "phases": {
+   "check": 0.3
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/field",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.35,
+  "phases": {
+   "review": 5.82,
+   "run": 5.54
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/field/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.84,
+  "phases": {
+   "check": 0.84
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.87,
+  "phases": {
+   "check": 0.87
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/local",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.5,
+  "phases": {
+   "review": 5.71,
+   "run": 5.79
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/local/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.88,
+  "phases": {
+   "check": 0.88
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/match_join",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.47,
+  "phases": {
+   "review": 5.72,
+   "run": 5.75
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/match_join/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.84,
+  "phases": {
+   "check": 0.84
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/other_machine",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.35,
+  "phases": {
+   "review": 5.75,
+   "run": 5.6
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/other_machine/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.89,
+  "phases": {
+   "check": 0.89
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/other_state",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.25,
+  "phases": {
+   "review": 5.68,
+   "run": 5.58
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/other_state/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.85,
+  "phases": {
+   "check": 0.85
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/parameter",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.15,
+  "phases": {
+   "review": 5.6,
+   "run": 5.56
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/parameter/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.83,
+  "phases": {
+   "check": 0.83
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/target_body",
+  "state": "pass",
+  "detail": "",
+  "seconds": 11.04,
+  "phases": {
+   "review": 5.55,
+   "run": 5.49
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/target_body/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.83,
+  "phases": {
+   "check": 0.83
+  }
+ }
+]

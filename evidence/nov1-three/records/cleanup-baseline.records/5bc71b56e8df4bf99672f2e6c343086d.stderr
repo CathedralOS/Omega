@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `open_const_implementation_const_name` with 1 diagnostic(s)
+  error: exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `open_const_implementation_const_name`, /home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/postcall-probes/return_write/main.omg:25:33

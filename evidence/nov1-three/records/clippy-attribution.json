@@ -1,0 +1,33 @@
+{
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "rows": [
+    {
+      "lint": "clippy::while_let_loop",
+      "file": "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/program_values/record_views.rs",
+      "line": 642,
+      "end_line": 650,
+      "unchanged_primary_statement_at_fixed_base": true
+    },
+    {
+      "lint": "clippy::collapsible_if",
+      "file": "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs",
+      "line": 256,
+      "end_line": 273,
+      "unchanged_primary_statement_at_fixed_base": true
+    },
+    {
+      "lint": "clippy::collapsible_if",
+      "file": "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs",
+      "line": 329,
+      "end_line": 355,
+      "unchanged_primary_statement_at_fixed_base": true
+    },
+    {
+      "lint": "clippy::manual_unwrap_or",
+      "file": "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/filesystem/real/captured.rs",
+      "line": 394,
+      "end_line": 397,
+      "unchanged_primary_statement_at_fixed_base": true
+    }
+  ]
+}

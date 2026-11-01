@@ -1,0 +1,98 @@
+selected-result: build call Build::request_selected_git target=depend_git contract=Some((Handle { arena_index: 204, generation: 1 }, Handle { arena_index: 437, generation: 1 }))
+selected-result: Build::request_selected_git available contexts=0 facts=0
+selected-result: selected_incoming_u12_exact_add_immediate available contexts=4 facts=4
+selected-result: selected_incoming_saturating_divide_one_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_add_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_saturating_divide_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_zero_minuend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_add_upper_bound_materialization available contexts=4 facts=4
+selected-result: selected_same_block_copy_i64_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_exact_divide_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_minus_one_zero_materialization available contexts=4 facts=4
+selected-result: selected_redundant_extension_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_and_ones_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_u12_exact_subtract_immediate available contexts=4 facts=4
+selected-result: selected_address_offset_fold_v1 available contexts=4 facts=4
+selected-result: selected_constant_boolean_fold_v1 available contexts=4 facts=4
+selected-result: selected_constant_branch_fold_v1 available contexts=4 facts=4
+selected-result: selected_dead_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_redundant_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_equivalent_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_copied_call_operand_fold_v1 available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_stored_load_forwarding_v1 available contexts=4 facts=4
+selected-result: Build::request_selected_git available contexts=0 facts=0
+selected-result: selected_incoming_u12_load8_indexed_offset available contexts=4 facts=4
+selected-result: selected_incoming_literal_copy_materialization available contexts=4 facts=4
+selected-result: selected_incoming_u12_byte_view_address_offset available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_exact_divide_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_u12_compare_immediate available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_and_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_one_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_literal_extension_elimination available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_xor_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_saturating_add_zero_identity_copy available contexts=4 facts=4
+selected-result: build call Build::request_selected_git target=depend_git contract=Some((Handle { arena_index: 204, generation: 1 }, Handle { arena_index: 437, generation: 1 }))
+selected-result: build call selected target=read contract=Some((Handle { arena_index: 1476, generation: 1 }, Handle { arena_index: 1478, generation: 1 }))
+selected-result: build call selected$specialized$5c103e2eea1a0009$0 target=read contract=Some((Handle { arena_index: 2623, generation: 1 }, Handle { arena_index: 2624, generation: 1 }))
+selected-result: semantic call selected owner=CallSignature { owner_symbol: Handle { arena_index: 1476, generation: 1 }, state_symbol: Handle { arena_index: 1478, generation: 1 }, application: Handle { arena_index: 36, generation: 1 } } owns=true
+selected-result: semantic payload place=Place(Handle { arena_index: 604, generation: 1 }) ContractBooleanExpression { kind: Ensures, fact: Handle { arena_index: 172, generation: 1 }, expression: Handle { arena_index: 1778, generation: 1 }, instantiated: Handle { arena_index: 1, generation: 1 } }
+selected-result: semantic call selected$specialized$5c103e2eea1a0009$0 owner=CallSignature { owner_symbol: Handle { arena_index: 1476, generation: 1 }, state_symbol: Handle { arena_index: 2657, generation: 1 }, application: Handle { arena_index: 43, generation: 1 } } owns=true
+selected-result: semantic payload place=Place(Handle { arena_index: 946, generation: 1 }) ContractBooleanExpression { kind: Ensures, fact: Handle { arena_index: 196, generation: 1 }, expression: Handle { arena_index: 6543, generation: 1 }, instantiated: Handle { arena_index: 107, generation: 1 } }
+selected-result: selected available contexts=0 facts=0
+selected-result: Build::request_selected_git available contexts=0 facts=0
+selected-result: selected$specialized$5c103e2eea1a0009$0 available contexts=0 facts=0
+selected-result: selected_incoming_saturating_divide_one_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_saturating_divide_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_zero_minuend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_add_upper_bound_materialization available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_minus_one_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_u12_compare_immediate available contexts=4 facts=4
+selected-result: selected_incoming_literal_extension_elimination available contexts=4 facts=4
+selected-result: selected_same_block_copy_i64_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_u12_load8_indexed_offset available contexts=4 facts=4
+selected-result: selected_redundant_extension_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_literal_copy_materialization available contexts=4 facts=4
+selected-result: selected_address_offset_fold_v1 available contexts=4 facts=4
+selected-result: selected_incoming_u12_byte_view_address_offset available contexts=4 facts=4
+selected-result: selected_constant_boolean_fold_v1 available contexts=4 facts=4
+selected-result: selected_incoming_exact_divide_identity_copy available contexts=4 facts=4
+selected-result: selected_constant_branch_fold_v1 available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_one_zero_materialization available contexts=4 facts=4
+selected-result: selected_dead_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_and_zero_materialization available contexts=4 facts=4
+selected-result: selected_redundant_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_xor_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_equivalent_compare_removal_v1 available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_add_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_bitwise_and_ones_identity_copy available contexts=4 facts=4
+selected-result: selected_copied_call_operand_fold_v1 available contexts=4 facts=4
+selected-result: selected_incoming_wrapping_remainder_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_stored_load_forwarding_v1 available contexts=4 facts=4
+selected-result: selected_incoming_exact_divide_zero_dividend_zero_materialization available contexts=4 facts=4
+selected-result: selected_incoming_saturating_add_zero_identity_copy available contexts=4 facts=4
+selected-result: selected_incoming_saturating_subtract_zero_identity_copy available contexts=4 facts=4
+selected-result: selected available contexts=0 facts=0
+selected-result: selected_incoming_u12_exact_add_immediate available contexts=4 facts=4
+selected-result: selected_incoming_u12_exact_subtract_immediate available contexts=4 facts=4
+selected-result: selected$specialized$5c103e2eea1a0009$0 available contexts=0 facts=0
+selected-result: Build::request_selected_git available contexts=0 facts=0
+selected-result: selected available contexts=2 facts=4
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+selected-result: selected promise=result >= Minimum owner=read independent=true owns=true stable=true capture=false builtin=true
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+selected-result: selected available contexts=2 facts=4
+selected-result: selected available contexts=2 facts=4
+selected-result: selected available contexts=2 facts=4
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+selected-result: selected promise=result >= Minimum owner=read independent=true owns=true stable=true capture=false builtin=true
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+selected-result: selected available contexts=2 facts=4
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+selected-result: selected promise=result >= Minimum owner=read independent=true owns=true stable=true capture=false builtin=true
+selected-capture: no call target=Handle { arena_index: 1639, generation: 1 } statement=0 ordinal=0
+cannot compile admitted project: checked compilation failed for package `open_const_implementation_local` with 1 diagnostic(s)
+  error: cannot prove ensures contract for exit from selected at statement 0: result >= Minimum

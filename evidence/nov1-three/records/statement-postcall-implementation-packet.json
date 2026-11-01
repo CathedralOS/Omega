@@ -1,0 +1,893 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "5559144da2a8c413bbc69034802f2d1d331ea2d7",
+  "source_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "changed_paths": [
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs",
+    "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs",
+    "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs",
+    "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs",
+    "samples/cli/facts/open_const_implementation/README.md",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/invalid/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/invalid/main.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/invalid/sample.json",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/invalid/support/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/invalid/support/main.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/main.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/support/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/package_projection/support/main.omg",
+    "samples/cli/facts/open_const_implementation/const_name/statement_result/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/statement_result/invalid/build.omg",
+    "samples/cli/facts/open_const_implementation/const_name/statement_result/invalid/main.omg",
+    "samples/cli/facts/open_const_implementation/const_name/statement_result/invalid/sample.json",
+    "samples/cli/facts/open_const_implementation/const_name/statement_result/main.omg",
+    "samples/cli/facts/open_const_implementation/controls/private_result_guarantee/build.omg",
+    "samples/cli/facts/open_const_implementation/controls/private_result_guarantee/main.omg",
+    "samples/cli/facts/open_const_implementation/controls/private_result_guarantee/sample.json",
+    "samples/cli/facts/open_const_implementation/field/invalid/main.omg",
+    "samples/cli/facts/open_const_implementation/field/main.omg",
+    "samples/cli/facts/open_const_implementation/match_join/invalid/main.omg",
+    "samples/cli/facts/open_const_implementation/match_join/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_record_package_rejected/build.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_record_package_rejected/expected.txt",
+    "tests/omega/fail/facts/open_const_implementation_private_record_package_rejected/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_record_package_rejected/support/build.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_record_package_rejected/support/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_result_guarantee/build.omg",
+    "tests/omega/fail/facts/open_const_implementation_private_result_guarantee/expected.txt",
+    "tests/omega/fail/facts/open_const_implementation_private_result_guarantee/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_statement_const_result_rejected/build.omg",
+    "tests/omega/fail/facts/open_const_implementation_statement_const_result_rejected/expected.txt",
+    "tests/omega/fail/facts/open_const_implementation_statement_const_result_rejected/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_through_field_rejected/main.omg",
+    "tests/omega/fail/facts/open_const_implementation_through_match_join_rejected/main.omg",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/build.omg",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/main.omg",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/support/build.omg",
+    "tests/omega/pass/facts/open_const_implementation_private_record_package_exit/support/main.omg",
+    "tests/omega/pass/facts/open_const_implementation_statement_const_result_exit/build.omg",
+    "tests/omega/pass/facts/open_const_implementation_statement_const_result_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/open_const_implementation_statement_const_result_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/open_const_implementation_statement_const_result_exit/main.omg",
+    "tests/omega/pass/facts/open_const_implementation_through_field_exit/main.omg",
+    "tests/omega/pass/facts/open_const_implementation_through_match_join_exit/main.omg"
+  ],
+  "canonical_context": [
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/conformances.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "passages": [
+        "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+        "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "3153ca57dc88539afe8232b196af95e02e5fec19"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/generics.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "passages": [
+        "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "2921f98169563e0cd53f9ce00264055144fdba3f"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/constants.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline",
+        "omega-rust/psi/interpreter/checked-interpreter"
+      ],
+      "passages": [
+        "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority.",
+        "A constant position requests semantic evaluation. An initializer may call an\nordinary machine only when that concrete invocation is admitted for evaluation;\nthere is no separate `const machine` species. The evaluator's admission contract\nis described in [semantic evaluation](evaluation.md#invocation-admission).\nEffectful [build execution](../build/execution.md) is a separate operation."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4f326df794ed28c51148c13c40dd5e13bffa1c95"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/evaluation.md",
+      "implementation": [
+        "omega-rust/psi/interpreter/checked-interpreter",
+        "omega-rust/psi/compilation/representations/typed-trees"
+      ],
+      "passages": [
+        "For an eligible runtime-capable machine, evaluation produces exactly the value\nthat target execution would produce with the same arguments, selected\nconformances/providers, and target semantics. Evaluation changes when, not what.\nProof-only machines need no runtime representation but obey the same core value\nsemantics and cannot observe the compiler phase."
+      ],
+      "reason": "The original const-name place reaches an admitted selected generic implementation but the checked-tree interpreter executes its map row template instead of the call's prepared capture entry, leaving Value unbound. Semantic evaluation must execute the same selected concrete invocation as runtime without changing admission or public guarantee identity.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "e76bdd6b33699e380a3abe09c11975dc6b77ab15"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment"
+      ],
+      "passages": [
+        "The public contract includes input/state/result relations, failure/crash and\ncancellation, service reach and authority, progress and operational ceilings,\natomicity/reentrancy, context-visible resources, and observable calling/\nrepresentation plans. A provider refines a requirement when every provider\ntrace, under the permitted observation projection, is allowed by the requirement\nand asks no more from its caller:",
+        "| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+      ],
+      "reason": "Statement-position selected member must preserve the same public minimum through an exclusive scalar output. Its equality guarantee entails the published lower bound under exact positional formal and const capture substitution; current candidate wrongly refuses that declaration before evaluation.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits"
+      ],
+      "passages": [
+        "Normal returns owe applicable postconditions for both value and Unit results.\nAn implicit return occurs after the executable portion's final statement, not\nafter executing trailing declarations. A selected returning arm uses that arm's\nfacts. A terminal call owes both the callee's result and the caller's completion\ncontract; lexical ancestry adds no further return targets. Crash edges are not\nnormal returns. Synthetic `result` denotes the exact returned value; output-reference\nparameters retain their actual reference origins.\n\nExit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.\nOutcome-specific guarantees follow the matching nominal result case and remain\nseparate from unconditional guarantees, as specified in\n[proof availability](../proofs/contracts.md#identity-availability-and-erasure)."
+      ],
+      "reason": "The unchanged statement-position selected call now satisfies declaration refinement, but its completed mutable output guarantee destination >= Minimum fails to establish selected result >= Minimum when returning that exact current value. No intervening writes or caller guard are present. Preserve exact public declaration, captured static binder identity and post-return storage epoch; do not donate private equality or replay the realization body.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "58df5543c427ed92730f32e86573f4e5700911ee"
+    }
+  ],
+  "context_fingerprint": "1c2f1f26b2b21faa7a7ea5cbebb5c053eb779e3397541c1b36d80f6a1adfc949",
+  "reinject_context": [
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/conformances.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "passages": [
+        "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+        "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "3153ca57dc88539afe8232b196af95e02e5fec19"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/generics.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "passages": [
+        "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "2921f98169563e0cd53f9ce00264055144fdba3f"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/constants.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline",
+        "omega-rust/psi/interpreter/checked-interpreter"
+      ],
+      "passages": [
+        "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority.",
+        "A constant position requests semantic evaluation. An initializer may call an\nordinary machine only when that concrete invocation is admitted for evaluation;\nthere is no separate `const machine` species. The evaluator's admission contract\nis described in [semantic evaluation](evaluation.md#invocation-admission).\nEffectful [build execution](../build/execution.md) is a separate operation."
+      ],
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4f326df794ed28c51148c13c40dd5e13bffa1c95"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/evaluation.md",
+      "implementation": [
+        "omega-rust/psi/interpreter/checked-interpreter",
+        "omega-rust/psi/compilation/representations/typed-trees"
+      ],
+      "passages": [
+        "For an eligible runtime-capable machine, evaluation produces exactly the value\nthat target execution would produce with the same arguments, selected\nconformances/providers, and target semantics. Evaluation changes when, not what.\nProof-only machines need no runtime representation but obey the same core value\nsemantics and cannot observe the compiler phase."
+      ],
+      "reason": "The original const-name place reaches an admitted selected generic implementation but the checked-tree interpreter executes its map row template instead of the call's prepared capture entry, leaving Value unbound. Semantic evaluation must execute the same selected concrete invocation as runtime without changing admission or public guarantee identity.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "e76bdd6b33699e380a3abe09c11975dc6b77ab15"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment"
+      ],
+      "passages": [
+        "The public contract includes input/state/result relations, failure/crash and\ncancellation, service reach and authority, progress and operational ceilings,\natomicity/reentrancy, context-visible resources, and observable calling/\nrepresentation plans. A provider refines a requirement when every provider\ntrace, under the permitted observation projection, is allowed by the requirement\nand asks no more from its caller:",
+        "| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+      ],
+      "reason": "Statement-position selected member must preserve the same public minimum through an exclusive scalar output. Its equality guarantee entails the published lower bound under exact positional formal and const capture substitution; current candidate wrongly refuses that declaration before evaluation.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits"
+      ],
+      "passages": [
+        "Normal returns owe applicable postconditions for both value and Unit results.\nAn implicit return occurs after the executable portion's final statement, not\nafter executing trailing declarations. A selected returning arm uses that arm's\nfacts. A terminal call owes both the callee's result and the caller's completion\ncontract; lexical ancestry adds no further return targets. Crash edges are not\nnormal returns. Synthetic `result` denotes the exact returned value; output-reference\nparameters retain their actual reference origins.\n\nExit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.\nOutcome-specific guarantees follow the matching nominal result case and remain\nseparate from unconditional guarantees, as specified in\n[proof availability](../proofs/contracts.md#identity-availability-and-erasure)."
+      ],
+      "reason": "The unchanged statement-position selected call now satisfies declaration refinement, but its completed mutable output guarantee destination >= Minimum fails to establish selected result >= Minimum when returning that exact current value. No intervening writes or caller guard are present. Preserve exact public declaration, captured static binder identity and post-return storage epoch; do not donate private equality or replay the realization body.",
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "58df5543c427ed92730f32e86573f4e5700911ee"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-5559144da2a8/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-5559144da2a8/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-5559144da2a8/profile.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/prereq-cli-build.stdout",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/prereq-cli-build.stderr"
+      ],
+      "closure_reason": "Frozen same-fact statement production and all declared compiler, source/library, toolchain, spec, fact and tooling replay inputs record the next current-source refusal before post-call proof edits.",
+      "command": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-5559144da2a8/omega",
+        "--check",
+        "samples/cli/facts/open_const_implementation/const_name/statement_result/main.omg"
+      ],
+      "expected_exit": 0,
+      "final": false,
+      "id": "statement_postcall_baseline",
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "tools/qualification.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/constants.md",
+        "wiki/spec/language/evaluation.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/state_contracts.md"
+      ],
+      "kind": "native",
+      "producer": {
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-5559144da2a8/omega"
+        ],
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "revision": "5559144da2a8c413bbc69034802f2d1d331ea2d7"
+      },
+      "timeout_seconds": 90
+    }
+  ],
+  "assessments": [
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "canonical_context": [
+        {
+          "blob": "905c227eda446e3256c98032e14fa0facfd5b481",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/domains.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "`dropped by` selects one exact independent static cleanup machine for an owned\nqualified occurrence. It names the operation the compiler invokes at cleanup,\nnot a list of callers permitted to discard the value. It takes one machine\napplication, with generic arguments supplied from the declaration's binders:",
+            "One selected operation must satisfy all applicable domain, custody and loan\nobligations, including inherited ones. Zero selected operations permits ordinary\nstructural cleanup only where disposal is otherwise legal; it does not discharge\nan unresolved linear claim. Selection does not itself prove the hook's\npreconditions or give it read/write or issuance authority. The owning package's\nselection is the explicit authorization of that cleanup plan; a linear terminal\ndisposition still must account for every obligation under the ownership rules.",
+            "Moves and intact transport preserve the selection and its obligations. Alias\nexpansion, predicate weakening and explicit qualification erasure cannot remove\ncleanup debt or evade a selection conflict. Borrowing does not authorize disposal\nof the referent. Cleanup selection belongs to the owned qualified subject, not\nto an ambient collection of predicates the compiler happens to prove. Normalized\nmachine identity and substituted arguments are part of the domain's semantic\ninterface. No hidden runtime domain tag is introduced."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "67e1e7a352c433da0c6c28cbf93d6a57b941ba0c",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/ownership.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Every owned death edge derives an internal contextual cleanup row: Type-side\ndisposition eligibility, proposition prerequisites, operational effects/reach/\nwork, and derived guarantees remain separate. Prerequisites must be proved\nlocally or already authored in `requires`; neither public nor private body\nanalysis may invent a new caller demand. Generic rows remain symbolic until\nsubstitution supplies the exact structural plans and contracts. Containers need\nno nominal `Disposable` bound, and an instantiation lacking legal element\ndisposition rejects. Diagnostics identify the authored hook clause and edge,\nnot an internal synthesized predicate."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/machines.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "generic_consume",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "generic_consume_invalid",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "nested_generic_consume",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "nested_generic_consume_invalid",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 0.30221483996137977,
+      "incoming_paths": [],
+      "invalidated": 4,
+      "reused": 0,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/673c97295fb68569e2d9fae3dbc5f354ab0a6dc40a0c13376b8796b896be6f1c.assessment.json",
+        "sha256": "673c97295fb68569e2d9fae3dbc5f354ab0a6dc40a0c13376b8796b896be6f1c"
+      }
+    },
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "canonical_context": [
+        {
+          "blob": "905c227eda446e3256c98032e14fa0facfd5b481",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/domains.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "`dropped by` selects one exact independent static cleanup machine for an owned\nqualified occurrence. It names the operation the compiler invokes at cleanup,\nnot a list of callers permitted to discard the value. It takes one machine\napplication, with generic arguments supplied from the declaration's binders:",
+            "One selected operation must satisfy all applicable domain, custody and loan\nobligations, including inherited ones. Zero selected operations permits ordinary\nstructural cleanup only where disposal is otherwise legal; it does not discharge\nan unresolved linear claim. Selection does not itself prove the hook's\npreconditions or give it read/write or issuance authority. The owning package's\nselection is the explicit authorization of that cleanup plan; a linear terminal\ndisposition still must account for every obligation under the ownership rules.",
+            "Moves and intact transport preserve the selection and its obligations. Alias\nexpansion, predicate weakening and explicit qualification erasure cannot remove\ncleanup debt or evade a selection conflict. Borrowing does not authorize disposal\nof the referent. Cleanup selection belongs to the owned qualified subject, not\nto an ambient collection of predicates the compiler happens to prove. Normalized\nmachine identity and substituted arguments are part of the domain's semantic\ninterface. No hidden runtime domain tag is introduced."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "67e1e7a352c433da0c6c28cbf93d6a57b941ba0c",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/ownership.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Every owned death edge derives an internal contextual cleanup row: Type-side\ndisposition eligibility, proposition prerequisites, operational effects/reach/\nwork, and derived guarantees remain separate. Prerequisites must be proved\nlocally or already authored in `requires`; neither public nor private body\nanalysis may invent a new caller demand. Generic rows remain symbolic until\nsubstitution supplies the exact structural plans and contracts. Containers need\nno nominal `Disposable` bound, and an instantiation lacking legal element\ndisposition rejects. Diagnostics identify the authored hook clause and edge,\nnot an internal synthesized predicate."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/machines.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "generic_consume",
+          "evidence": "6ccdddf38a274989806e7a59c7d66121",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "check_definition_changed",
+            "prior_run_not_accepted",
+            "compiler_or_artifact_changed"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "generic_consume_invalid",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "nested_generic_consume",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "nested_generic_consume_invalid",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 0.5561903320485726,
+      "incoming_paths": [],
+      "invalidated": 4,
+      "reused": 0,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/2ab274848bba6701cc5b4762ce0e82d87d2ca0343f9b42d174121eceaaf638f3.assessment.json",
+        "sha256": "2ab274848bba6701cc5b4762ce0e82d87d2ca0343f9b42d174121eceaaf638f3"
+      }
+    },
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "canonical_context": [
+        {
+          "blob": "905c227eda446e3256c98032e14fa0facfd5b481",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/domains.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "`dropped by` selects one exact independent static cleanup machine for an owned\nqualified occurrence. It names the operation the compiler invokes at cleanup,\nnot a list of callers permitted to discard the value. It takes one machine\napplication, with generic arguments supplied from the declaration's binders:",
+            "One selected operation must satisfy all applicable domain, custody and loan\nobligations, including inherited ones. Zero selected operations permits ordinary\nstructural cleanup only where disposal is otherwise legal; it does not discharge\nan unresolved linear claim. Selection does not itself prove the hook's\npreconditions or give it read/write or issuance authority. The owning package's\nselection is the explicit authorization of that cleanup plan; a linear terminal\ndisposition still must account for every obligation under the ownership rules.",
+            "Moves and intact transport preserve the selection and its obligations. Alias\nexpansion, predicate weakening and explicit qualification erasure cannot remove\ncleanup debt or evade a selection conflict. Borrowing does not authorize disposal\nof the referent. Cleanup selection belongs to the owned qualified subject, not\nto an ambient collection of predicates the compiler happens to prove. Normalized\nmachine identity and substituted arguments are part of the domain's semantic\ninterface. No hidden runtime domain tag is introduced."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "67e1e7a352c433da0c6c28cbf93d6a57b941ba0c",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/ownership.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Every owned death edge derives an internal contextual cleanup row: Type-side\ndisposition eligibility, proposition prerequisites, operational effects/reach/\nwork, and derived guarantees remain separate. Prerequisites must be proved\nlocally or already authored in `requires`; neither public nor private body\nanalysis may invent a new caller demand. Generic rows remain symbolic until\nsubstitution supplies the exact structural plans and contracts. Containers need\nno nominal `Disposable` bound, and an instantiation lacking legal element\ndisposition rejects. Diagnostics identify the authored hook clause and edge,\nnot an internal synthesized predicate."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/machines.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts."
+          ],
+          "reason": "An independently selected ordinary generic cleanup application must retain its exact subject, code-7 prerequisite and exclusive output reference when an explicitly passed Keeper<T> is consumed by a generic declaration or nested declaration with enclosing T. Source probes preserve the existing fact sentence and runtime cleanup oracle; baseline execution will determine whether a repair is needed.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "reuse",
+          "check": "generic_consume",
+          "evidence": "0e4b8c8a7d2b49908385b9f4e61a9bb3",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        },
+        {
+          "action": "reuse",
+          "check": "generic_consume_invalid",
+          "evidence": "0b6b062ab7ef471a91a2812c0bf48c6b",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        },
+        {
+          "action": "reuse",
+          "check": "nested_generic_consume",
+          "evidence": "292ad6f9ea99422aade4fdedef546734",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        },
+        {
+          "action": "reuse",
+          "check": "nested_generic_consume_invalid",
+          "evidence": "8d1a6de9235d49e490872929d043d4cb",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        }
+      ],
+      "duration_seconds": 1.261005564010702,
+      "incoming_paths": [],
+      "invalidated": 0,
+      "reused": 4,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/b2c2cc4e46bd135dc1b1bdd75ff6c5fd4afd9532f19ac2dfb4bd2d22388bd95a.assessment.json",
+        "sha256": "b2c2cc4e46bd135dc1b1bdd75ff6c5fd4afd9532f19ac2dfb4bd2d22388bd95a"
+      }
+    },
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "956b19cd7b3769dc0e9ca91056fb4d6083711711",
+      "canonical_context": [
+        {
+          "blob": "3153ca57dc88539afe8232b196af95e02e5fec19",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/conformances.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+            "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "2921f98169563e0cd53f9ce00264055144fdba3f",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/generics.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4f326df794ed28c51148c13c40dd5e13bffa1c95",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/constants.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "canonical_local",
+          "evidence": "cf963b923fad4a91888ebfbba9b2384d",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "prior_run_not_accepted",
+            "source_changed:omega-rust"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "canonical_local_invalid",
+          "evidence": "e20a35dd0f3a40448952ad97b0c44cef",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "source_changed:omega-rust"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "package_scalar",
+          "evidence": "ff9c2bb41b444e91a51804dbbbb90f84",
+          "observed_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+          "reasons": [
+            "prior_run_not_accepted",
+            "source_changed:omega-rust"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "const_name_capture_baseline",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 0.8991824040422216,
+      "incoming_paths": [],
+      "invalidated": 4,
+      "reused": 0,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/5e07df72ab10d713de47f05c866a08207e2959afb724eff151ea433a7e612f93.assessment.json",
+        "sha256": "5e07df72ab10d713de47f05c866a08207e2959afb724eff151ea433a7e612f93"
+      }
+    },
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "2e44ed2e7da53467d99174ae05cc4ddaa8a50a93",
+      "canonical_context": [
+        {
+          "blob": "3153ca57dc88539afe8232b196af95e02e5fec19",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/conformances.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+            "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "2921f98169563e0cd53f9ce00264055144fdba3f",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/generics.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4f326df794ed28c51148c13c40dd5e13bffa1c95",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/constants.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline",
+            "omega-rust/psi/interpreter/checked-interpreter"
+          ],
+          "passages": [
+            "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority.",
+            "A constant position requests semantic evaluation. An initializer may call an\nordinary machine only when that concrete invocation is admitted for evaluation;\nthere is no separate `const machine` species. The evaluator's admission contract\nis described in [semantic evaluation](evaluation.md#invocation-admission).\nEffectful [build execution](../build/execution.md) is a separate operation."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "e76bdd6b33699e380a3abe09c11975dc6b77ab15",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/evaluation.md",
+          "implementation": [
+            "omega-rust/psi/interpreter/checked-interpreter",
+            "omega-rust/psi/compilation/representations/typed-trees"
+          ],
+          "passages": [
+            "For an eligible runtime-capable machine, evaluation produces exactly the value\nthat target execution would produce with the same arguments, selected\nconformances/providers, and target semantics. Evaluation changes when, not what.\nProof-only machines need no runtime representation but obey the same core value\nsemantics and cannot observe the compiler phase."
+          ],
+          "reason": "The original const-name place reaches an admitted selected generic implementation but the checked-tree interpreter executes its map row template instead of the call's prepared capture entry, leaving Value unbound. Semantic evaluation must execute the same selected concrete invocation as runtime without changing admission or public guarantee identity.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/machines.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment"
+          ],
+          "passages": [
+            "The public contract includes input/state/result relations, failure/crash and\ncancellation, service reach and authority, progress and operational ceilings,\natomicity/reentrancy, context-visible resources, and observable calling/\nrepresentation plans. A provider refines a requirement when every provider\ntrace, under the permitted observation projection, is allowed by the requirement\nand asks no more from its caller:",
+            "| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+          ],
+          "reason": "Statement-position selected member must preserve the same public minimum through an exclusive scalar output. Its equality guarantee entails the published lower bound under exact positional formal and const capture substitution; current candidate wrongly refuses that declaration before evaluation.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "statement_refinement_baseline",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 0.2850729438941926,
+      "incoming_paths": [],
+      "invalidated": 1,
+      "reused": 0,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/35041ccee73ce14331489828cab5a0750b738673b1cb4a13cddc23359aa8e5d8.assessment.json",
+        "sha256": "35041ccee73ce14331489828cab5a0750b738673b1cb4a13cddc23359aa8e5d8"
+      }
+    },
+    {
+      "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "candidate": "5559144da2a8c413bbc69034802f2d1d331ea2d7",
+      "canonical_context": [
+        {
+          "blob": "3153ca57dc88539afe8232b196af95e02e5fec19",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/conformances.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+            "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "2921f98169563e0cd53f9ce00264055144fdba3f",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/generics.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline"
+          ],
+          "passages": [
+            "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4f326df794ed28c51148c13c40dd5e13bffa1c95",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/constants.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking",
+            "omega-rust/psi/compilation/pipeline",
+            "omega-rust/psi/interpreter/checked-interpreter"
+          ],
+          "passages": [
+            "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority.",
+            "A constant position requests semantic evaluation. An initializer may call an\nordinary machine only when that concrete invocation is admitted for evaluation;\nthere is no separate `const machine` species. The evaluator's admission contract\nis described in [semantic evaluation](evaluation.md#invocation-admission).\nEffectful [build execution](../build/execution.md) is a separate operation."
+          ],
+          "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "e76bdd6b33699e380a3abe09c11975dc6b77ab15",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/evaluation.md",
+          "implementation": [
+            "omega-rust/psi/interpreter/checked-interpreter",
+            "omega-rust/psi/compilation/representations/typed-trees"
+          ],
+          "passages": [
+            "For an eligible runtime-capable machine, evaluation produces exactly the value\nthat target execution would produce with the same arguments, selected\nconformances/providers, and target semantics. Evaluation changes when, not what.\nProof-only machines need no runtime representation but obey the same core value\nsemantics and cannot observe the compiler phase."
+          ],
+          "reason": "The original const-name place reaches an admitted selected generic implementation but the checked-tree interpreter executes its map row template instead of the call's prepared capture entry, leaving Value unbound. Semantic evaluation must execute the same selected concrete invocation as runtime without changing admission or public guarantee identity.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/machines.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment"
+          ],
+          "passages": [
+            "The public contract includes input/state/result relations, failure/crash and\ncancellation, service reach and authority, progress and operational ceilings,\natomicity/reentrancy, context-visible resources, and observable calling/\nrepresentation plans. A provider refines a requirement when every provider\ntrace, under the permitted observation projection, is allowed by the requirement\nand asks no more from its caller:",
+            "| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+          ],
+          "reason": "Statement-position selected member must preserve the same public minimum through an exclusive scalar output. Its equality guarantee entails the published lower bound under exact positional formal and const capture substitution; current candidate wrongly refuses that declaration before evaluation.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        },
+        {
+          "blob": "58df5543c427ed92730f32e86573f4e5700911ee",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/state_contracts.md",
+          "implementation": [
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees",
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits"
+          ],
+          "passages": [
+            "Normal returns owe applicable postconditions for both value and Unit results.\nAn implicit return occurs after the executable portion's final statement, not\nafter executing trailing declarations. A selected returning arm uses that arm's\nfacts. A terminal call owes both the callee's result and the caller's completion\ncontract; lexical ancestry adds no further return targets. Crash edges are not\nnormal returns. Synthetic `result` denotes the exact returned value; output-reference\nparameters retain their actual reference origins.\n\nExit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.\nOutcome-specific guarantees follow the matching nominal result case and remain\nseparate from unconditional guarantees, as specified in\n[proof availability](../proofs/contracts.md#identity-availability-and-erasure)."
+          ],
+          "reason": "The unchanged statement-position selected call now satisfies declaration refinement, but its completed mutable output guarantee destination >= Minimum fails to establish selected result >= Minimum when returning that exact current value. No intervening writes or caller guard are present. Preserve exact public declaration, captured static binder identity and post-return storage epoch; do not donate private equality or replay the realization body.",
+          "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "statement_postcall_baseline",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 0.2921786940423772,
+      "incoming_paths": [],
+      "invalidated": 1,
+      "reused": 0,
+      "receipt": {
+        "path": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/cleanup-baseline.records/ecb1cd6cb330ae91ece0c7955758803d678f7032d52f66a4b2cb19ff28433051.assessment.json",
+        "sha256": "ecb1cd6cb330ae91ece0c7955758803d678f7032d52f66a4b2cb19ff28433051"
+      }
+    }
+  ],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

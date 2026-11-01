@@ -1,0 +1,56 @@
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+index c616f1a4e1a..3e6147768b0 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+@@ -266,8 +266,9 @@ fn proves_bound(
+             }
+         },
+     );
+-    validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal)
+-        == StrictArithmeticImplicationJudgment::Proven
++    let judgment = validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal);
++    if std::env::var_os("OMEGA_NOV1_POSTCALL_TRACE").is_some() { eprintln!("POSTCALL proves caller={:?} statement={statement} goal={goal:?} hypotheses={hypotheses:?} judgment={judgment:?}", caller.machine_symbol); }
++    judgment == StrictArithmeticImplicationJudgment::Proven
+ }
+ 
+ fn append_context_hypotheses(
+@@ -442,6 +443,7 @@ pub(super) fn at_invocation(
+             })
+         },
+     );
++    if std::env::var_os("OMEGA_NOV1_POSTCALL_TRACE").is_some() { eprintln!("POSTCALL bound caller={:?} target={:?} expression={expression:?} writes={post_return_writes:?} result={result:?}", caller.machine_symbol, invocation.callable.target_symbol()); }
+     result
+ }
+ 
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+index f0e6731d416..46544e1ea22 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+@@ -193,21 +193,12 @@ pub(in crate::checks) fn available<'program>(
+         {
+             continue;
+         }
+-        if !owns_guarantee(program, &supplied, source, expression)
+-            || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
+-            || !capture_preserved(
+-                program,
+-                &facts.operators,
+-                &facts.borrow,
+-                caller_machine,
+-                &supplied,
+-                expression,
+-                frames,
+-            )
+-            || !builtin_predicate(program, &facts.operators, &supplied, expression)
+-        {
+-            continue;
+-        }
++        let own = owns_guarantee(program, &supplied, source, expression);
++        let stable = stable_predicate_inputs(program, facts, caller, &supplied, expression);
++        let capture = capture_preserved(program, &facts.operators, &facts.borrow, caller_machine, &supplied, expression, frames);
++        let builtin = builtin_predicate(program, &facts.operators, &supplied, expression);
++        if std::env::var_os("OMEGA_NOV1_POSTCALL_TRACE").is_some() { eprintln!("POSTCALL available caller={:?} site={statement_index}:{call_ordinal} expr={expression:?} owns={own} stable={stable} capture={capture} builtin={builtin}", caller.machine_symbol); }
++        if !own || !stable || !capture || !builtin { continue; }
+         // Other consumers retain their existing availability law. Only an
+         // arithmetic import needs the produced return-version footprint.
+         let post_return_writes = super::invocation_fact(facts, caller, &supplied)

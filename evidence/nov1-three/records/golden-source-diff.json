@@ -1,0 +1,2625 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 20169
+  },
+  "subset": true,
+  "filter": "fail/borrow/write_only_observation,fail/borrow/write_only_state_readable_widening,fail/facts/open_const_implementation_changed_statement_output,fail/facts/open_const_implementation_private_record_package_rejected,fail/facts/open_const_implementation_private_result_guarantee,fail/facts/open_const_implementation_return_write_output,fail/facts/open_const_implementation_statement_const_result_rejected,fail/facts/open_const_implementation_statement_saved_output_rejected,fail/facts/open_const_implementation_through_call_result_rejected,fail/facts/open_const_implementation_through_const_name_rejected,fail/facts/open_const_implementation_through_field_rejected,fail/facts/open_const_implementation_through_local_rejected,fail/facts/open_const_implementation_through_match_join_rejected,fail/facts/open_const_implementation_through_other_machine_rejected,fail/facts/open_const_implementation_through_other_state_rejected,fail/facts/open_const_implementation_through_parameter_rejected,fail/facts/open_const_implementation_through_target_body_rejected,fail/facts/open_record_const_implementation_through_call_result_rejected,fail/facts/open_record_const_implementation_through_const_name_rejected,fail/facts/open_record_const_implementation_through_field_rejected,fail/facts/open_record_const_implementation_through_local_rejected,fail/facts/open_record_const_implementation_through_match_join_rejected,fail/facts/open_record_const_implementation_through_other_machine_rejected,fail/facts/open_record_const_implementation_through_other_state_rejected,fail/facts/open_record_const_implementation_through_parameter_rejected,fail/facts/open_record_const_implementation_through_target_body_rejected,fail/generics/open_const_completed_exit_divergent_branch,fail/generics/open_const_completed_exit_incomplete_call,fail/generics/open_const_completed_exit_wrong_guarantee,fail/generics/open_const_completed_exit_wrong_return,fail/generics/open_const_overflow,fail/generics/open_const_runtime_binder,fail/generics/open_const_selected_impure,fail/generics/open_const_selected_private_alias_sourcepoint_invalid,fail/generics/open_const_selected_private_dependency_changed_helper,fail/generics/open_const_unguarded_template,fail/generics/open_const_unused_const_overflow,fail/generics/open_const_unused_const_zero_divisor,fail/generics/open_const_wrong_carrier,fail/generics/open_const_wrong_evidence_binder,fail/generics/open_const_wrong_literal_tuple,fail/providers/primitive_reference_contract_refinement,fail/traits/captured_const_contract_distinct_binders,fail/traits/public_guarantee_wrong_field,fail/traits/public_guarantee_wrong_formal,fail/traits/public_private_post_write_guarantee,fail/traits/requirement_application_guarantee_identity,pass/facts/open_const_implementation_private_record_package_exit,pass/facts/open_const_implementation_statement_const_result_exit,pass/facts/open_const_implementation_statement_saved_output_exit,pass/facts/open_const_implementation_through_call_result_exit,pass/facts/open_const_implementation_through_const_name_exit,pass/facts/open_const_implementation_through_field_exit,pass/facts/open_const_implementation_through_local_exit,pass/facts/open_const_implementation_through_match_join_exit,pass/facts/open_const_implementation_through_other_machine_exit,pass/facts/open_const_implementation_through_other_state_exit,pass/facts/open_const_implementation_through_parameter_exit,pass/facts/open_const_implementation_through_target_body_exit,pass/facts/open_record_const_implementation_through_call_result_exit,pass/facts/open_record_const_implementation_through_const_name_exit,pass/facts/open_record_const_implementation_through_field_exit,pass/facts/open_record_const_implementation_through_local_exit,pass/facts/open_record_const_implementation_through_match_join_exit,pass/facts/open_record_const_implementation_through_other_machine_exit,pass/facts/open_record_const_implementation_through_other_state_exit,pass/facts/open_record_const_implementation_through_parameter_exit,pass/facts/open_record_const_implementation_through_target_body_exit,pass/generics/open_const_completed_exit_positive,pass/generics/open_const_distinct_applications,pass/generics/open_const_float_owned_dependency,pass/generics/open_const_named_closed_equivalence,pass/generics/open_const_selected_private_alias_sourcepoint,pass/generics/open_const_selected_private_dependency,pass/generics/open_const_selected_private_nested_dependency,pass/generics/open_const_selected_unused_impure_member,pass/generics/open_const_shadowed_binder_positive,pass/generics/open_const_two_evidence_binders,pass/generics/open_const_unrelated_namespace,pass/modules/open_const_private_implementation_projection_exit,pass/traits/public_guarantee_positional_formals_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 81,
+    "by_status": {
+      "checked": 34,
+      "rejected": 47
+    },
+    "wrong_reason": 1,
+    "wrong_reason_fixtures": [
+      "fail/generics/open_const_wrong_literal_tuple"
+    ],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "new": 9,
+      "improved": 29,
+      "moved": 3
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 72,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+      "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+      "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+      "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 16,
+      "platform": "linux",
+      "machine": "x86_64",
+      "load1_start": 0.66,
+      "load1_end": 2.08
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7014,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6497,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6461,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6174,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6276,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6326,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6722,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6676,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6617,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6594,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6512,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6555,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6438,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6641,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6425,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6250,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6422,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6380,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6610,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6643,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6770,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_completed_exit_positive",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6649,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_distinct_applications",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6610,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_float_owned_dependency",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 10911,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_named_closed_equivalence",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7325,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6844,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_dependency",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6757,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6884,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_unused_impure_member",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6497,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_shadowed_binder_positive",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6319,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_two_evidence_binders",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6601,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_unrelated_namespace",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7020,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7730,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6418,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrow/write_only_observation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1608,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation",
+        "machine `observe_record` state `entry` reads field `code` from write-only parameter `source`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrow/write_only_state_readable_widening",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1610,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `widen_mutable` state `entry` widens write-only parameter `pair` to `&mut`; forward it explicitly as `&write pair` instead",
+        "machine `widen_shared` state `entry` reads field `cell` from write-only parameter `pair`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
+        "mutable argument `pair` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access",
+        "argument `cell` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
+        "machine `widen_shared` state `entry` terminal call to `observe` completes with its `i64` result, but the state returns `Unit`; a terminal machine call's normal result is its caller's result, so the two must match",
+        "machine `widen_shared` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 359,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 3: result >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 758,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4418,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result == Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_return_write_output",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1559,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 351,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 343,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 922,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 300,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 915,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 915,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 917,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1004,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 934,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 943,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 973,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 962,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 332,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 928,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 921,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 991,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1029,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 967,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 927,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/open_record_const_implementation_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2187,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_completed_exit_divergent_branch",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4502,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forward at statement 0: result >= Minimum",
+        "cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 0: result >= 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_completed_exit_incomplete_call",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `forward$specialized$47e512ce9109ab73$0` state `entry` value call to `Selected::read` violates required fact `value >= Value`: the instantiated fact is structurally false (`0 >= 7`)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_completed_exit_wrong_guarantee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4892,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forward at statement 0: result > Minimum",
+        "cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 0: result > 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_completed_exit_wrong_return",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4960,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forward at statement 1: result >= Minimum",
+        "cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 1: result >= 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 521,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `construct` const argument `Minimum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_runtime_binder",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 496,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "const argument `Minimum` has no static value with its exact declared carrier"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_impure",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 357,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant initializer: machine `construct$specialized$843219018123ab00$0` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2409,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 437,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_unguarded_template",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 500,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `construct` const argument `Minimum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_unused_const_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 626,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_unused_const_zero_divisor",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 257,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_wrong_carrier",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 533,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "const argument `Minimum` has no static value with its exact declared carrier"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_wrong_evidence_binder",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 335,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/generics/open_const_wrong_literal_tuple",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5363,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forwarded at statement 0: result >= N",
+        "cannot prove ensures contract for exit from forwarded$specialized$eabf790a7a6ad24f$0 at statement 0: result >= 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/providers/primitive_reference_contract_refinement",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3866,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `NarrowReader::read` realizes `Reader::read` but requires `value <= 8`, which the requirement does not imply; callers of the requirement prove only its own `requires`",
+        "machine `UnpromisedReader::read` realizes `Reader::read` but does not guarantee its `ensures result == value`; callers of the requirement assume it"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/traits/captured_const_contract_distinct_binders",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3831,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/traits/public_guarantee_wrong_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4173,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `slot.bytes.len == replacement.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/traits/public_guarantee_wrong_formal",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4070,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `Wrong::set` satisfies `Setting::set` but proves no ensures matching the declared law `first == value` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/traits/public_private_post_write_guarantee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5076,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index",
+        "machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/traits/requirement_application_guarantee_identity",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3885,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from wide at statement 0: result <= Limit",
+        "cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 7014,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6497,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6461,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2846,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6174,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 424,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6276,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_field_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3260,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6326,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_local_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2808,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6722,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2925,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6676,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2880,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6617,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1994,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6594,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3056,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6512,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2958,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6555,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2778,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6438,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 714,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6641,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3542,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6425,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2850,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6250,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3157,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6422,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3212,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6380,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3009,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6610,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2944,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6643,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2700,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6770,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_completed_exit_positive",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_completed_exit_positive",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3050,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from forward at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_completed_exit_positive",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6649,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_distinct_applications",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_distinct_applications",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 657,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_distinct_applications",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6610,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 583,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6844,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_dependency",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_selected_private_dependency",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 894,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_selected_private_dependency",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6757,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 685,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6884,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_unused_impure_member",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_selected_unused_impure_member",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 641,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_selected_unused_impure_member",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6497,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_two_evidence_binders",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_two_evidence_binders",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 481,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_two_evidence_binders",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6601,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/generics/open_const_unrelated_namespace",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/generics/open_const_unrelated_namespace",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 507,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/generics/open_const_unrelated_namespace",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 7020,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2018,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 7730,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 359,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 3: result >= Minimum"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 758,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 4418,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result == Minimum"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_return_write_output",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_return_write_output",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1559,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 351,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 343,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+          "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_impure",
+      "verdict": "improved",
+      "reasons": [
+        "expected fragment now satisfied",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/generics/open_const_selected_impure",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 895,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/generics/open_const_selected_impure",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 357,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "constant initializer: machine `construct$specialized$843219018123ab00$0` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+      "verdict": "improved",
+      "reasons": [
+        "expected fragment now satisfied",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 874,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2409,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 564,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "exact arithmetic in machine `Selected::read` state `read` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 437,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/generics/open_const_wrong_evidence_binder",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/generics/open_const_wrong_evidence_binder",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 700,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= High",
+          "cannot prove ensures contract for exit from selected$specialized$b3053156a3750989$0 at statement 0: result >= 7"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/generics/open_const_wrong_evidence_binder",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 335,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/traits/requirement_application_guarantee_identity",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/traits/requirement_application_guarantee_identity",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1638,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `wide` realizes `Bound::produce` but does not guarantee its `ensures result <= 50`; callers of the requirement assume it"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/traits/requirement_application_guarantee_identity",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 3885,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from wide at statement 0: result <= Limit",
+          "cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+   Compiling compiler v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/driver)
+   Compiling typed-trees-to-checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees)
+   Compiling build-time-evaluation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/compile-time)
+   Compiling psi-compiler v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/driver)
+   Compiling build-declarations v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/build-declarations)
+   Compiling package-compilation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/compilation-inputs)
+   Compiling provider-planning v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling selected-dispatch v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling compilation-products v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/products)
+   Compiling build-evaluation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/compilation/build-evaluation)
+   Compiling package-evidence v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/review-evidence)
+   Compiling package-manager v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/packages/package-manager)
+   Compiling omega-build v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/build)
+   Compiling omega v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/omega/application/cli)
+    Finished `dev` profile [optimized] target(s) in 1m 13s
+mbx[cache]: 0 hits, 0 misses, 15 not looked up, 15 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 48.3 GiB logical of target/ was waiting for checkouts that are never coming back. it has stopped waiting.

@@ -1,0 +1,12 @@
+    Checking typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/typed-trees)
+    Checking facts v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/checked-trees/facts)
+    Checking representation-selections v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking/representation-planning/selections)
+    Checking checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/checked-trees)
+    Checking validation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking)
+    Checking proof v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/proof)
+    Checking checked-interpreter v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/interpreter/checked-interpreter)
+    Checking typed-trees-to-typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees)
+error: could not compile `checked-interpreter` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+mbx[cache]: 0 hits, 7 misses, 1 not looked up; 0 B downloaded, 0 B uploaded, 28.8 MiB stored locally
+mbx[savings]: found 48.3 GiB logical of target/ whose checkouts left long ago. the estate has been settled.

@@ -1,0 +1,19 @@
+{
+  "owner": "/root/worker_three",
+  "worktree": "/home/jarod/development/Omega/.agents/worktree/nov1-three",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "semantic_source": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "ticket": "9d9b2f4b10d64d669c5b1e2848db2c19",
+  "qualification_revision": 69,
+  "verified": "Exact submitted 536 accepted by independent final review. Final49:23 native0/Terminal0 positives,26 intended rejects, receipts0519eac and76cd8ed no invalidations. Source81/both34 actual-baseline comparisons zero losses;34 engine pairs0/agrees. Required compiler-check green, PR1205 mergeable. Pre-enqueue duplicate inspection found no changed own Rust files on main and no peer Rust-file overlap.",
+  "current_process": null,
+  "remaining": [
+    "Publish immutable evidence tag preserving raw receipts, authored scratch sources, original row, exact producer manifests, independent reviews, bounded comparisons and corpus source bundles.",
+    "Update PR1205 body with final evidence/review; ready+enqueue exact536, observe normal merge queue.",
+    "Verify MERGED source and published IDs, fetch main ancestry. Release only owned claim after verified publication; retain warm worktree.",
+    "STATIC parent acceptance stays open: other member/calling kinds, product parity, source retirement and other-host execution."
+  ],
+  "submitted_source": "536864f05a5a1fcf7860c5eb72788fd8d78ba78e",
+  "pr": 1205,
+  "updated_utc": "2026-11-01T12:13:49.728431+00:00"
+}

@@ -1,0 +1,152 @@
+{
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stderr": {
+    "sha256": "fc997947e3c2f413a005be42eaf19fb1dcd149c3c6b0f80b9fe0c5751064f790",
+    "archive": "records/final-postcall-cli-build.stderr",
+    "disposition": "Archived verbatim"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/final-postcall-cli-build.stdout": {
+    "sha256": "96d16182f8906eb9d1693d523ab76c4abbb1587796b12fc78d1801106a3c38c2",
+    "archive": "records/final-postcall-cli-build.stdout",
+    "disposition": "Archived verbatim"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/GENERATION": {
+    "sha256": "15b14cfa3c8b07f350bc9741f25d39d552080cf1e15fdd04906b8987852d4499",
+    "archive": "records/producers/gen-ea132c1fff8b/GENERATION",
+    "disposition": "Archived verbatim"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/omega": {
+    "sha256": "4fb88a7dd2a49eb316a8b4f8333c3f6252ff8fcbbc3af5204672270a3449ba4e",
+    "archive": null,
+    "disposition": "Compiler executable omitted; exact optimized digest/profile and build source retained"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/producers/gen-ea132c1fff8b/profile.json": {
+    "sha256": "0941ab810d4ca4f234dc593e2de6bedd02dd620f22b192575a6d027ced59f696",
+    "archive": "records/producers/gen-ea132c1fff8b/profile.json",
+    "disposition": "Archived verbatim"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/runtime-row.py": {
+    "sha256": "f5d6ef568ec13ccbdf016c994365eba053b67e90b614b2d9558924d4d8931f38",
+    "archive": "records/runtime-row.py",
+    "disposition": "Archived verbatim"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/call_result/omega.lock": {
+    "sha256": "ac68af6c23b0e620bddaf8d0237f1af7764f31e3574c9de5e5173a51fa9cc277",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/call_result/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/omega.lock": {
+    "sha256": "e8da0a98d8eff9e271a5db84ed95819b7c4df0c1bbfa213294677af39c7210b2",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/const_name/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/package_projection/omega.lock": {
+    "sha256": "e113725e1a8f682ddf874c3c3958619113a28de8d7139068a0ec2f7bd216057a",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/const_name/package_projection/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/omega.lock": {
+    "sha256": "08fc13ed143475aaddfd842fb806f4cfdb3d2fbf124ec4ffb63a092177309df5",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/const_name/statement_result/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/const_name/statement_result/saved_output/omega.lock": {
+    "sha256": "4b7cec4c9bfa7ce8823e9b5887f35a60d5cbd1112f94fac64818754fe09ce28e",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/const_name/statement_result/saved_output/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/field/omega.lock": {
+    "sha256": "54dba7cc29eef1f062efcfd98cb320dd2b45db8aa74cd7cf87a981a4498fae3e",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/field/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/local/omega.lock": {
+    "sha256": "ae7a1931ee5f56a038bd26e55e20dc851187d6d7a76cf5cb1bf576d23e593cbc",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/local/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/match_join/omega.lock": {
+    "sha256": "d22294a51f27513273e7ee84a52d718c9c1e1885c5b7fef425a4adeb13c5b6e6",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/match_join/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/omega.lock": {
+    "sha256": "c38485655696362887d8b3b5014a483e76de877628276679becf1b43db606fce",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_machine/omega.lock": {
+    "sha256": "9d7aaa0f30b478aeec3234acae8d08bdc97d438d4b9e5c3bb38224f067b995f4",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/other_machine/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/other_state/omega.lock": {
+    "sha256": "d21cba74a6b0b8c26d923dcb87edb33adac3ca18077de514aa596b9a8b2c1962",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/other_state/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/parameter/omega.lock": {
+    "sha256": "6fb7d9d271a0401cd5556bd44ee46bd5d05d2fe07193737906bb3627bf35f16a",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/parameter/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/target_body/omega.lock": {
+    "sha256": "6e8cc7aeee23ec88ac78df65b34daf8993108f6f6e789d1b4d8f721dbb3b3660",
+    "archive": "accepted-locks/samples/cli/facts/open_const_implementation/target_body/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/call_result/omega.lock": {
+    "sha256": "512a2d1c7a14efa71339334d3a68d85f439067b85f157761f67cbeceab255881",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/call_result/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/const_name/omega.lock": {
+    "sha256": "78b798a6e6580f8677edc0b5972fdb344e9c7ffe8d79a70b1cfc01ce9b20e8d2",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/const_name/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/field/omega.lock": {
+    "sha256": "54110d2c46300d841eb4ddd8469636df1c43196a0206ae1ad3e94f7eb1448f72",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/field/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/local/omega.lock": {
+    "sha256": "98602ba87895b30caa35f84a23685d7e137817ff117132f33fbd40f4f9861d28",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/local/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/match_join/omega.lock": {
+    "sha256": "5a4af1bfad0848cd6c18f324bef200e6905d8ab17c728d197969e68848b910ff",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/match_join/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/omega.lock": {
+    "sha256": "81743e3a92ae45af46e896df154c21acfdb3d770bc375c9202c86a4faf8046a4",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_machine/omega.lock": {
+    "sha256": "49bff0d71a3169a55d302b41f2cc40b2a54c0c2d1590b33148eaf91830b69bc1",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/other_machine/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/other_state/omega.lock": {
+    "sha256": "854f94ae0b7442e9837f13f3a6c2b4da4a183dbaafeae5a9237a74bd3d298208",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/other_state/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/parameter/omega.lock": {
+    "sha256": "ed37544c69abfa3070f99ca2b4003a3f5972f4d1877469bf1b861b09c10cb43a",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/parameter/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_record_const_implementation/target_body/omega.lock": {
+    "sha256": "649e7437291adf8b489800fa4727ffbabd04e133e5a9a4fcf1b03e38c32d4949",
+    "archive": "accepted-locks/samples/cli/facts/open_record_const_implementation/target_body/omega.lock",
+    "disposition": "Archived for inspection; not reusable approval or authority"
+  },
+  "/usr/bin/python3": {
+    "sha256": "620004d6696370fba7b768bc60ab5638a478cf18371dd66d44243fcaa229f881",
+    "archive": null,
+    "disposition": "System executable omitted; exact digest retained in receipt"
+  }
+}

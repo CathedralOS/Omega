@@ -1,0 +1,146 @@
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
+index 4e92b0f5809..ef694c7ae97 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
+@@ -478,7 +478,10 @@ fn capture_preserved(
+     guarantee: ExpressionHandle,
+     frames: &validation::CallFrameResolver<'_>,
+ ) -> bool {
++    let debug = std::env::var_os("OMEGA_DEBUG_SELECTED_RESULT").is_some()
++        && caller.name.as_str() == "selected";
+     let Some((_, state)) = borrow.first_state_borrow(caller.symbol, supplied.caller_state) else {
++        if debug { eprintln!("selected-capture: no state"); }
+         return false;
+     };
+     // A named path may retain its machine head while borrow facts name the
+@@ -493,6 +496,7 @@ fn capture_preserved(
+             && call.call_ordinal == supplied.ordinal
+             && entry(call.target_symbol) == target
+     }) else {
++        if debug { eprintln!("selected-capture: no call target={target:?} statement={} ordinal={}", supplied.statement, supplied.ordinal); }
+         return false;
+     };
+     // Every caller-visible write needs exclusive authority named by the
+@@ -506,9 +510,12 @@ fn capture_preserved(
+         call,
+         Some(frames),
+     ) else {
++        if debug { eprintln!("selected-capture: no write ceiling"); }
+         return false;
+     };
++    if debug { eprintln!("selected-capture: writes={writes:?}"); }
+     if let Some(reads) = logical_formal_reads(program, operators, supplied, guarantee) {
++        if debug { eprintln!("selected-capture: logical reads={reads:?}"); }
+         let parameters = supplied.callable.parameters(program);
+         let arguments = validation::call_site_argument_expressions(program, &supplied.site);
+         return reads.iter().all(|formal| {
+@@ -556,6 +563,7 @@ fn capture_preserved(
+     let mut occurrences = Vec::new();
+     append_expression_occurrences(program, guarantee, &mut occurrences);
+     occurrences.into_iter().all(|occurrence| {
++        if debug { eprintln!("selected-capture: occurrence={} result={:?} owner={:?} literal={:?} immutable={} formal={:?}", program.render_proof_expression(occurrence, typed_trees::proposition::ProofSubstitutions::None), validation::reserved_result_place(program, occurrence).map(|place| place.machine_symbol), supplied.callable.owner_symbol(), bound_literal(program, supplied, occurrence), static_operands::immutable(program, occurrence), formal_place(program, supplied, occurrence)); }
+         if validation::reserved_result_place(program, occurrence)
+             .is_some_and(|result| result.machine_symbol == supplied.callable.owner_symbol())
+             || bound_literal(program, supplied, occurrence).is_some()
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+index c616f1a4e1a..c802b9ab449 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+@@ -345,6 +345,12 @@ pub(super) fn at_invocation(
+     frames: &validation::CallFrameResolver<'_>,
+ ) -> Option<ScopedArithmeticExpression> {
+     let static_actuals = super::static_operands::bindings(program, facts, invocation, expression);
++    if std::env::var("OMEGA_DEBUG_SELECTED_RESULT")
++        .ok()
++        .is_some_and(|filter| program.symbols.name(caller.machine_symbol).contains(&filter))
++    {
++        eprintln!("selected-result: static bindings for {} {:?}", program.render_proof_expression(expression, typed_trees::proposition::ProofSubstitutions::None), static_actuals);
++    }
+     let static_actuals = static_actuals?;
+     let result = proposition_with_static_actuals(
+         program,
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+index f0e6731d416..8cc60920703 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+@@ -141,6 +141,12 @@ pub(in crate::checks) fn available<'program>(
+     let Some(caller_machine) = program.machine_by_symbol(caller.machine_symbol) else {
+         return Vec::new();
+     };
++    let trace = std::env::var("OMEGA_DEBUG_SELECTED_RESULT")
++        .ok()
++        .is_some_and(|filter| caller_machine.name.as_str().contains(&filter));
++    if trace {
++        eprintln!("selected-result: {} available contexts={} facts={}", caller_machine.name, contexts.len(), contexts.iter().map(|context| facts.semantic.contexts.get(*context).facts.len()).sum::<usize>());
++    }
+     let mut guarantees = Vec::new();
+     for fact in contexts.iter().flat_map(|context| {
+         facts
+@@ -177,8 +183,24 @@ pub(in crate::checks) fn available<'program>(
+             continue;
+         }
+         let Some(supplied) = invocation(program, caller, statement_index, call_ordinal) else {
++            if trace {
++                eprintln!("selected-result: no invocation for {}:{statement_index}:{call_ordinal}", caller_machine.name);
++            }
+             continue;
+         };
++        if trace {
++            eprintln!(
++                "selected-result: {} promise={} owner={} independent={} owns={} stable={} capture={} builtin={}",
++                caller_machine.name,
++                program.render_proof_expression(expression, typed_trees::proposition::ProofSubstitutions::None),
++                program.symbols.name(supplied.callable.owner_symbol()),
++                validation::independent_call_site(program, caller.machine_symbol, supplied.callable.owner_symbol(), &supplied.site),
++                owns_guarantee(program, &supplied, source, expression),
++                stable_predicate_inputs(program, facts, caller, &supplied, expression),
++                capture_preserved(program, &facts.operators, &facts.borrow, caller_machine, &supplied, expression, frames),
++                builtin_predicate(program, &facts.operators, &supplied, expression),
++            );
++        }
+         // A surviving normal-return observation is not an independent proof
+         // source when its selected declaration depends on this caller. Keep
+         // exact retained callback selections in this shared availability owner
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contracts/calls.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contracts/calls.rs
+index 0547bc20e33..cf02f1068fb 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contracts/calls.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contracts/calls.rs
+@@ -27,9 +27,11 @@ pub(crate) fn build_contract_call_facts(
+ 
+     for state in borrow.states.iter().map(|(_, state)| state) {
+         for call in borrow.calls.span_or_empty(state.calls) {
+-            let Some(contract_owner) =
+-                contract_target_from_state_symbol(program, call.target_symbol)
+-            else {
++            let contract_owner = contract_target_from_state_symbol(program, call.target_symbol);
++            if std::env::var("OMEGA_DEBUG_SELECTED_RESULT").ok().is_some_and(|filter| program.symbols.name(state.machine_symbol).contains(&filter)) {
++                eprintln!("selected-result: build call {} target={} contract={:?}", program.symbols.name(state.machine_symbol), program.symbols.name(call.target_symbol), contract_owner);
++            }
++            let Some(contract_owner) = contract_owner else {
+                 continue;
+             };
+             // A selector call's operands pair with its slot's roster, selector
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts/contracts.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts/contracts.rs
+index 38d495e87fe..35e291c07ff 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts/contracts.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts/contracts.rs
+@@ -743,12 +743,19 @@ fn append_call_semantic_contract_refs(
+         let contract = proof.contract_facts.get(source_ref.fact);
+         let owns =
+             crate::proof::contracts::call_signatures::owns_contract(program, proof, call, contract);
++        let trace = std::env::var("OMEGA_DEBUG_SELECTED_RESULT").ok().is_some_and(|filter| program.symbols.name(call.caller_machine_symbol).contains(&filter));
++        if trace {
++            eprintln!("selected-result: semantic call {} owner={:?} owns={owns}", program.symbols.name(call.caller_machine_symbol), contract.owner);
++        }
+         if !owns {
+             continue;
+         }
+         let place = instantiate_call_contract_place(program, proof, facts, call, contract);
+         let mut payload = semantic_contract_payload(program, contract);
+         instantiate_call_contract_payload(program, proof, facts, call, contract, &mut payload);
++        if trace {
++            eprintln!("selected-result: semantic payload place={place:?} {payload:?}");
++        }
+         if matches!(payload, FactPayload::ContractBooleanExpression { instantiated, .. } if !instantiated.is_valid())
+         {
+             // Missing call/parameter custody cannot publish a callee-local

@@ -1,0 +1,1 @@
+sample_native_gate: no-native-build: samples/cli/facts/open_const_implementation/const_name/statement_result: package review: machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures destination >= Value`; callers of the requirement assume it

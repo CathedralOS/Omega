@@ -1,0 +1,33 @@
+
+== pass: 10
+   samples/cli/facts/open_const_implementation          
+   samples/cli/facts/open_const_implementation/call_result 
+   samples/cli/facts/open_const_implementation/const_name 
+   samples/cli/facts/open_const_implementation/field    
+   samples/cli/facts/open_const_implementation/local    
+   samples/cli/facts/open_const_implementation/match_join 
+   samples/cli/facts/open_const_implementation/other_machine 
+   samples/cli/facts/open_const_implementation/other_state 
+   samples/cli/facts/open_const_implementation/parameter 
+   samples/cli/facts/open_const_implementation/target_body 
+
+== rejected: 10
+   samples/cli/facts/open_const_implementation/call_result/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/const_name/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/field/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/invalid  intended rejection matched
+   samples/cli/facts/open_const_implementation/local/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/match_join/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/other_machine/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/other_state/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/parameter/invalid intended rejection matched
+   samples/cli/facts/open_const_implementation/target_body/invalid intended rejection matched
+
+sample_native_gate: 10/10 samples meet their documented oracle on linux_x86_64 (0 unscored: no oracle or not host-runnable)
+sample_native_gate: 10/10 intended-invalid controls match their authored rejection
+sample_native_gate: 121s wall with 2 jobs, 121s across samples (check 8s, review 57s, run 56s); slowest:
+      11.8s  samples/cli/facts/open_const_implementation  (pass)
+      11.5s  samples/cli/facts/open_const_implementation/local  (pass)
+      11.5s  samples/cli/facts/open_const_implementation/match_join  (pass)
+      11.3s  samples/cli/facts/open_const_implementation/field  (pass)
+      11.3s  samples/cli/facts/open_const_implementation/other_machine  (pass)

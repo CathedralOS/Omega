@@ -1,0 +1,182 @@
+[
+  {
+    "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+      ]
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  }
+]

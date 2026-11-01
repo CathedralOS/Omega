@@ -1,0 +1,287 @@
+   Compiling compiler-storage-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/compiler-storage/derive)
+    Checking phase-profile v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/phase-profile)
+   Compiling syntax-trees-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees/derive)
+    Checking optimization v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/optimization-selections)
+    Checking compiler-storage v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/compiler-storage)
+    Checking arena v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/arena)
+    Checking numerics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/numerics)
+    Checking extents v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/extents)
+    Checking filesystem-authority v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/filesystem-authority)
+    Checking language-core v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/language-core)
+    Checking semantic-vocabulary v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/semantic-vocabulary)
+    Checking source v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/source)
+    Checking layout-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/layout-plans)
+    Checking evaluation-accounting v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/evaluation-accounting)
+    Checking symbols v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/symbols)
+    Checking diagnostics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/diagnostics)
+    Checking build-time-values v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/build-time-values)
+    Checking language-semantics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/language-semantics)
+    Checking access-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/access-plans)
+    Checking syntax-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees)
+warning: unused import: `FixedArrayLength`
+  --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/body_copies.rs:25:23
+   |
+25 |     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+   |                       ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `MatchSubjectCapture`
+ --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/item_copies.rs:7:43
+  |
+7 | use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMachineArgument};
+  |                                           ^^^^^^^^^^^^^^^^^^^
+
+    Checking flow-effects v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/flow-effects)
+    Checking terminal-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/terminal-psi)
+    Checking typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/typed-trees)
+warning: `syntax-trees` (lib) generated 2 warnings (run `cargo clippy --fix --lib -p syntax-trees -- --no-deps -D warnings` to apply 2 suggestions)
+error: unused import: `symbols::SymbolHandle`
+ --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/control_flow/statement/payloads.rs:7:5
+  |
+7 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/types.rs:630:5
+    |
+630 | /     /// `substitute_from` to preserve that row's origins as well.
+631 | |
+    | |_^
+632 |       pub fn set_fixed_array_length(&mut self, handle: TypeReferenceHandle, value: usize) {
+    |       ----------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = note: `-D clippy::empty-line-after-doc-comments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::empty_line_after_doc_comments)]`
+    = help: if the empty line is unintentional, remove it
+
+    Checking proof-admission v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/proof/admission)
+error: match expression looks like `matches!` macro
+   --> omega-rust/psi/compilation/representations/typed-trees/src/boundary_values.rs:359:5
+    |
+359 | /     match typed.type_reference_table.type_reference(referent) {
+360 | |         TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
+361 | |         _ => false,
+362 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#match_like_matches_macro
+    = note: `-D clippy::match-like-matches-macro` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::match_like_matches_macro)]`
+help: use `matches!` directly
+    |
+359 -     match typed.type_reference_table.type_reference(referent) {
+360 -         TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
+361 -         _ => false,
+362 -     }
+359 +     matches!(typed.type_reference_table.type_reference(referent), TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. })
+    |
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/representations/typed-trees/src/service_declarations/projection.rs:265:34
+    |
+265 |                 parameter_count: parameters.iter().count(),
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+    = note: `-D clippy::iter-count` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::iter_count)]`
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/calls/service.rs:141:22
+    |
+141 |     pub fn arguments<'program>(
+    |                      ^^^^^^^^
+142 |         self,
+143 |         program: &'program TypedTrees,
+    |                   ^^^^^^^^
+144 |     ) -> &'program [TypeReferenceHandle] {
+    |           ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+    = note: `-D clippy::needless-lifetimes` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_lifetimes)]`
+help: elide the lifetimes
+    |
+141 ~     pub fn arguments(
+142 |         self,
+143 ~         program: &TypedTrees,
+144 ~     ) -> &[TypeReferenceHandle] {
+    |
+
+error: the following explicit lifetimes could be elided: 'a
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs:203:43
+    |
+203 | pub fn closed_conformance_applications_of<'a>(
+    |                                           ^^
+204 |     specializations: &'a [MachineSpecialization],
+    |                       ^^
+...
+208 | ) -> Vec<&'a ClosedConformanceApplication> {
+    |           ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+203 ~ pub fn closed_conformance_applications_of(
+204 ~     specializations: &[MachineSpecialization],
+205 |     instance: symbols::SymbolHandle,
+206 |     application_report_fingerprint: u64,
+207 |     application_commitment: ClosedConformanceApplicationCommitment,
+208 ~ ) -> Vec<&ClosedConformanceApplication> {
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_index/relationships.rs:175:13
+    |
+175 | /             if symbol.is_valid() && symbol == head_symbol {
+176 | |                 if let Some((_, type_reference)) = first_symbol_row(&index.parameter_types, symbol)
+177 | |                 {
+178 | |                     return Some(*type_reference);
+179 | |                 }
+180 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+175 ~             if symbol.is_valid() && symbol == head_symbol
+176 ~                 && let Some((_, type_reference)) = first_symbol_row(&index.parameter_types, symbol)
+177 |                 {
+178 |                     return Some(*type_reference);
+179 ~                 }
+    |
+
+error: the following explicit lifetimes could be elided: 'a
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_tables.rs:442:46
+    |
+442 |     pub fn selected_conformance_applications<'a>(
+    |                                              ^^
+443 |         &'a self,
+    |          ^^
+...
+450 |     ) -> Vec<&'a super::ClosedConformanceApplication> {
+    |               ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+442 ~     pub fn selected_conformance_applications(
+443 ~         &self,
+444 |         owner: symbols::SymbolHandle,
+...
+449 |         commitment: super::ClosedConformanceApplicationCommitment,
+450 ~     ) -> Vec<&super::ClosedConformanceApplication> {
+    |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/product_operand/occurrences.rs:66:9
+   |
+66 | /         if let StaticArgumentCall::Expression(expression, call) = call {
+67 | |             if let Some(BuildSelectionRequest::Declaration(request)) = program
+68 | |                 .expression_table
+69 | |                 .build_selection_request(call.build_selection)
+...  |
+78 | |         }
+   | |_________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+66 ~         if let StaticArgumentCall::Expression(expression, call) = call
+67 ~             && let Some(BuildSelectionRequest::Declaration(request)) = program
+68 |                 .expression_table
+...
+76 |                 });
+77 ~             }
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/trait_definition/applications.rs:623:9
+    |
+623 | /         let Some((ordinal, (_, reference))) = self
+624 | |             .substitutions
+625 | |             .iter()
+626 | |             .enumerate()
+...   |
+630 | |             return None;
+631 | |         };
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+    = note: `-D clippy::question-mark` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`
+help: replace it with
+    |
+623 ~         let (ordinal, (_, reference)) = self
+624 +             .substitutions
+625 +             .iter()
+626 +             .enumerate()
+627 +             .rev()
+628 +             .find(|(_, (binder, _))| *binder == parameter)?;
+    |
+
+error: unneeded `return` statement
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/wire.rs:206:13
+    |
+206 | /             return program
+207 | |                 .data_members(data)
+208 | |                 .iter()
+209 | |                 .find_map(|member| match member {
+210 | |                     Field(field) if field.name.as_str() == field_name => Some(field.type_reference),
+211 | |                     _ => None,
+212 | |                 });
+    | |__________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_return
+    = note: `-D clippy::needless-return` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_return)]`
+help: remove `return`
+    |
+206 ~             program
+207 +                 .data_members(data)
+208 +                 .iter()
+209 +                 .find_map(|member| match member {
+210 +                     Field(field) if field.name.as_str() == field_name => Some(field.type_reference),
+211 +                     _ => None,
+212 ~                 })
+    |
+
+error: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+   --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity.rs:923:9
+    |
+923 | /         match derived_declarations::nominal_name(
+924 | |             self,
+925 | |             symbol,
+926 | |             &TypeIdentityContext {
+...   |
+935 | |             None => {}
+936 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#single_match
+    = note: `-D clippy::single-match` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::single_match)]`
+help: try
+    |
+923 ~         if let Some(identity) = derived_declarations::nominal_name(
+924 +             self,
+925 +             symbol,
+926 +             &TypeIdentityContext {
+927 +                 qualification: TypeIdentityQualification::PackageQualified,
+928 +                 ..Default::default()
+929 +             },
+930 +             true,
+931 +         )
+932 +         .map_err(str::to_owned)? { return Ok(identity) }
+    |
+
+error: could not compile `typed-trees` (lib) due to 12 previous errors
+mbx[cache]: 14 hits, 8 misses, 2 not looked up; 0 B downloaded, 0 B uploaded, 10.3 MiB stored locally
+mbx[savings]: 16h 45m refunded over 810 builds. no receipt necessary.

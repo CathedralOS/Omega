@@ -1,0 +1,204 @@
+{
+  "context": {
+    "host": "Linux x86_64",
+    "target": "linux_x86_64",
+    "baseline": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+    "purpose": "read-only static named implementation result-contract baseline selection, not implementation acceptance"
+  },
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/conformances.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Generic conformances own their telescopes independently of data declarations.\nSelect one through a nested application with every type, const,\nand static-machine argument explicit; expected shape or visibility cannot infer\nthem. Lifetime elision is application-only, under the rule below. Proof-only\nand runtime-capable implementations use the same conformance model. Their\nrequirements determine execution and erasure; absence of a data subject is\nuniversal and does not exclude an implementation from dynamic selection.",
+        "An inline member is an ordinary machine with its own identity and supplies\none exact requirement overload. When inherited names or overloads collide,\nits signature and ordinary exact `satisfies Trait<...>::member` edge identify\nthe requirement; ambiguity rejects rather than selecting by visibility.\nMember implementations refine the requirement's complete\n[machine contract](machines.md#substitution), not merely its value signature.\nA forwarding body must meet those same proof, ownership and operational\nobligations. Forwarding does not equate the member with its callee, donate the\ncallee's establishment authority, or erase trust dependencies. Optimizations\nmay eliminate a call or share physical code only while preserving these\nsemantic identities and contracts; correctness never depends on that optimization."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/generics.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Type parameters use ordinary angle-bracket applications. `const N: u64` binds\na static value of the declared carrier, usable in layouts, ranges, and contracts.\n`N: u64` binds a value which may be known statically or supplied at runtime.\nEvery application validates the complete argument tuple, including kinds,\nranges, and constraints of unused parameters. Conflicting, excessive, or\nincomplete selections reject."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking",
+        "omega-rust/psi/compilation/pipeline"
+      ],
+      "contract": "wiki/spec/language/constants.md",
+      "classification": "missing_implementation",
+      "reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause.",
+      "passages": [
+        "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible. A constant has no stable address and grants no authority."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "canonical_local",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/local/main.omg"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/constants.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause. Complete fixed-base reference compiler/library/Cargo/toolchain and canonical fact/source/spec inputs; immutable generation/build evidence and exact ignored package inputs/validator are captured. Failed source checking supplies no runtime acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "canonical_local_invalid",
+      "kind": "negative",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/samples/cli/facts/open_const_implementation/local/invalid/main.omg",
+        "--reject"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/constants.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause. Complete fixed-base reference compiler/library/Cargo/toolchain and canonical fact/source/spec inputs; immutable generation/build evidence and exact ignored package inputs/validator are captured. Failed source checking supplies no runtime acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "package_scalar",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py",
+        "--cli",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "--source",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/open_const_package_scalar/main.omg"
+      ],
+      "inputs": [
+        "AGENTS.md",
+        "TASKS.md",
+        "samples/cli/facts/open_const_implementation",
+        "samples/cli/facts/open_record_const_implementation",
+        "tests/omega/pass/modules/open_const_private_implementation_projection_exit",
+        "tools/qualification.py",
+        "tools/compiler_profile.py",
+        "tools/compiler_profile_images.py",
+        "wiki/spec/language/conformances.md",
+        "wiki/spec/language/generics.md",
+        "wiki/spec/language/constants.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/profiles.json",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.stderr",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/openconst-baseline-validator.py",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/open_const_package_scalar/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/open_const_package_scalar/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/open_const_package_scalar/support/build.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/probes/open_const_package_scalar/support/main.omg"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "The explicitly selected Reading<Minimum> member publishes result >= Minimum; a wrapper invoking Implementation::read must retain that exact substituted public result guarantee at normal completion. Current optimized baseline refuses the unchanged canonical open_const_implementation/local and its packaged private-scalar dependency counterpart at selected ensures before either engine executes. A private record constant production is a same-fact additional closure probe, not a claimed distinct root cause. Complete fixed-base reference compiler/library/Cargo/toolchain and canonical fact/source/spec inputs; immutable generation/build evidence and exact ignored package inputs/validator are captured. Failed source checking supplies no runtime acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    }
+  ]
+}

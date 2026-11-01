@@ -1,0 +1,649 @@
+[
+  {
+    "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_field_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_local_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_completed_exit_positive",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from forward at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_distinct_applications",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_dependency",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_selected_unused_impure_member",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_two_evidence_binders",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/generics/open_const_unrelated_namespace",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": null,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "checked",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_changed_statement_output",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 3: result >= Minimum"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_private_record_package_rejected",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_private_result_guarantee",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result == Minimum"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_return_write_output",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_statement_const_result_rejected",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/facts/open_const_implementation_statement_saved_output_rejected",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments",
+        "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_impure",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": false,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "constant initializer: machine `construct$specialized$843219018123ab00$0` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_private_alias_sourcepoint_invalid",
+    "verdict": "improved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": false,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= Minimum"
+      ]
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ]
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_selected_private_dependency_changed_helper",
+    "verdict": "moved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "exact arithmetic in machine `Selected::read` state `read` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ]
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "exact arithmetic in machine `Selected::read` state `read` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ]
+    }
+  },
+  {
+    "fixture": "fail/generics/open_const_wrong_evidence_binder",
+    "verdict": "moved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High",
+        "cannot prove ensures contract for exit from selected$specialized$b3053156a3750989$0 at statement 0: result >= 7"
+      ]
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from selected at statement 0: result >= High"
+      ]
+    }
+  },
+  {
+    "fixture": "fail/traits/requirement_application_guarantee_identity",
+    "verdict": "moved",
+    "before": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "machine `wide` realizes `Bound::produce` but does not guarantee its `ensures result <= 50`; callers of the requirement assume it"
+      ]
+    },
+    "after": {
+      "status": "rejected",
+      "expected_satisfied": true,
+      "diagnostics": [
+        "cannot prove ensures contract for exit from wide at statement 0: result <= Limit",
+        "cannot prove ensures contract for exit from Narrow::produce at statement 0: result <= 50"
+      ]
+    }
+  }
+]

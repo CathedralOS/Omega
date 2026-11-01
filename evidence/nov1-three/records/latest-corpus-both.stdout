@@ -1,0 +1,112 @@
++ pass/facts/open_const_implementation_private_record_package_exit: new built
++ pass/facts/open_const_implementation_statement_const_result_exit: new built
++ pass/facts/open_const_implementation_statement_saved_output_exit: new built
++ pass/facts/open_const_implementation_through_call_result_exit: rejected -> built
++ pass/facts/open_const_implementation_through_call_result_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_call_result_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_call_result_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_const_name_exit: rejected -> built
++ pass/facts/open_const_implementation_through_const_name_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_const_name_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_const_name_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_field_exit: rejected -> built
++ pass/facts/open_const_implementation_through_field_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_field_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_field_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_local_exit: rejected -> built
++ pass/facts/open_const_implementation_through_local_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_local_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_local_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_match_join_exit: rejected -> built
++ pass/facts/open_const_implementation_through_match_join_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_match_join_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_match_join_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_other_machine_exit: rejected -> built
++ pass/facts/open_const_implementation_through_other_machine_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_other_machine_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_other_machine_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_other_state_exit: rejected -> built
++ pass/facts/open_const_implementation_through_other_state_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_other_state_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_other_state_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_parameter_exit: rejected -> built
++ pass/facts/open_const_implementation_through_parameter_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_parameter_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_parameter_exit: interpreter-exit - -> 0
++ pass/facts/open_const_implementation_through_target_body_exit: rejected -> built
++ pass/facts/open_const_implementation_through_target_body_exit: exit - -> 0
++ pass/facts/open_const_implementation_through_target_body_exit: interpreter unchecked -> agrees
++ pass/facts/open_const_implementation_through_target_body_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_call_result_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_call_result_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_call_result_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_call_result_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_const_name_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_const_name_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_const_name_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_const_name_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_field_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_field_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_field_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_field_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_local_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_local_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_local_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_local_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_match_join_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_match_join_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_match_join_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_match_join_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_other_machine_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_other_machine_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_other_machine_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_other_machine_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_other_state_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_other_state_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_other_state_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_other_state_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_parameter_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_parameter_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_parameter_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_parameter_exit: interpreter-exit - -> 0
++ pass/facts/open_record_const_implementation_through_target_body_exit: rejected -> built
++ pass/facts/open_record_const_implementation_through_target_body_exit: exit - -> 0
++ pass/facts/open_record_const_implementation_through_target_body_exit: interpreter unchecked -> agrees
++ pass/facts/open_record_const_implementation_through_target_body_exit: interpreter-exit - -> 0
++ pass/generics/open_const_completed_exit_positive: rejected -> built
++ pass/generics/open_const_completed_exit_positive: exit - -> 0
++ pass/generics/open_const_completed_exit_positive: interpreter unchecked -> agrees
++ pass/generics/open_const_completed_exit_positive: interpreter-exit - -> 0
++ pass/generics/open_const_distinct_applications: rejected -> built
++ pass/generics/open_const_distinct_applications: exit - -> 0
++ pass/generics/open_const_distinct_applications: interpreter unchecked -> agrees
++ pass/generics/open_const_distinct_applications: interpreter-exit - -> 0
++ pass/generics/open_const_selected_private_alias_sourcepoint: rejected -> built
++ pass/generics/open_const_selected_private_alias_sourcepoint: exit - -> 0
++ pass/generics/open_const_selected_private_alias_sourcepoint: interpreter unchecked -> agrees
++ pass/generics/open_const_selected_private_alias_sourcepoint: interpreter-exit - -> 0
++ pass/generics/open_const_selected_private_dependency: rejected -> built
++ pass/generics/open_const_selected_private_dependency: exit - -> 0
++ pass/generics/open_const_selected_private_dependency: interpreter unchecked -> agrees
++ pass/generics/open_const_selected_private_dependency: interpreter-exit - -> 0
++ pass/generics/open_const_selected_private_nested_dependency: rejected -> built
++ pass/generics/open_const_selected_private_nested_dependency: exit - -> 0
++ pass/generics/open_const_selected_private_nested_dependency: interpreter unchecked -> agrees
++ pass/generics/open_const_selected_private_nested_dependency: interpreter-exit - -> 0
++ pass/generics/open_const_selected_unused_impure_member: rejected -> built
++ pass/generics/open_const_selected_unused_impure_member: exit - -> 0
++ pass/generics/open_const_selected_unused_impure_member: interpreter unchecked -> agrees
++ pass/generics/open_const_selected_unused_impure_member: interpreter-exit - -> 0
++ pass/generics/open_const_two_evidence_binders: rejected -> built
++ pass/generics/open_const_two_evidence_binders: exit - -> 0
++ pass/generics/open_const_two_evidence_binders: interpreter unchecked -> agrees
++ pass/generics/open_const_two_evidence_binders: interpreter-exit - -> 0
++ pass/generics/open_const_unrelated_namespace: rejected -> built
++ pass/generics/open_const_unrelated_namespace: exit - -> 0
++ pass/generics/open_const_unrelated_namespace: interpreter unchecked -> agrees
++ pass/generics/open_const_unrelated_namespace: interpreter-exit - -> 0
++ pass/modules/open_const_private_implementation_projection_exit: rejected -> built
++ pass/modules/open_const_private_implementation_projection_exit: exit - -> 0
++ pass/modules/open_const_private_implementation_projection_exit: interpreter unchecked -> agrees
++ pass/modules/open_const_private_implementation_projection_exit: interpreter-exit - -> 0
+corpus_gate: compared 34 fixtures against bfcffe6bcfce: 0 lost, 111 gained

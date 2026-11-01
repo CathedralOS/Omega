@@ -1,0 +1,101 @@
+{
+  "schema": "omega-independent-final-review-v1",
+  "reviewer": "Codex native worker /root/worker_one",
+  "reviewed_utc": "2026-11-01T12:09:47.555868+00:00",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "candidate": "536864f05a5a1fcf7860c5eb72788fd8d78ba78e",
+  "decision": "accepted",
+  "blocking_findings": [],
+  "scope": "Exact submitted source, inheriting the substantive semantic review of unchanged ea132 compiler/fixture source and completing the final README, golden, bounded corpus and exact-candidate qualification boundary. Worker_three retains fixes and normal publication ownership.",
+  "substantive_review": {
+    "candidate": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "path": "build/swarm/nov1/independent-semantic-review.json",
+    "sha256": "0cf2ab02eb500c509d323cdf20533c93896372bdf5c05f8f59028aff6cbe64c5",
+    "unchanged_rust_source_hashes_verified": true
+  },
+  "affected_delta": [
+    "samples/cli/facts/open_const_implementation/README.md",
+    "tests/omega/corpus_both_linux_x86_64.txt",
+    "tests/omega/corpus_native_linux_x86_64.txt",
+    "tests/omega/corpus_outcomes.txt"
+  ],
+  "qualification": {
+    "state": 69,
+    "checks_final": true,
+    "source_revision": "536864f05a5a1fcf7860c5eb72788fd8d78ba78e",
+    "producer_revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+    "producer_sha256": "4fb88a7dd2a49eb316a8b4f8333c3f6252ff8fcbbc3af5204672270a3449ba4e",
+    "opt_level": "1",
+    "rows": {
+      "open_const_implementation": {
+        "receipt": "0519eac619c642e8b7a152251574a554",
+        "receipt_sha256": "d610aad2def8376502ea1ac6ba7819285a03aa42238eae1f86557dd4efe74605",
+        "raw_observations": "build/swarm/nov1/qualified-open_const_implementation-submitted/observations.json",
+        "raw_observations_sha256": "378f75a2aae3326c1f221fa5efa55dbc0b65c774eabe71e55147ae891ebd49c6",
+        "positive_native_and_terminal_exit_0": 13,
+        "intended_rejects": 16,
+        "invalidations": []
+      },
+      "open_record_const_implementation": {
+        "receipt": "76cd8ed27051431786a9d8b54c282ca9",
+        "receipt_sha256": "d759b0b165f9692278b95a90ed260fd8f5ff27a295ed280ce06fcd3b79a67407",
+        "raw_observations": "build/swarm/nov1/qualified-open_record_const_implementation-submitted/observations.json",
+        "raw_observations_sha256": "31a7b0f44c92008d9d4f6396495629831b172ff20123c867b72856c4743bee98",
+        "positive_native_and_terminal_exit_0": 10,
+        "intended_rejects": 10,
+        "invalidations": []
+      }
+    },
+    "verification": "Independently inspected all49 raw commands/streams and current source hashes. All23 positives use run --both and record native0/Terminal0; all26 negatives are nonzero and match every intended diagnostic fragment. Both receipts bind exact final source identities, complete producer inputs, optimized executable digests, all30 retained artifacts and stdout/stderr hashes; no invalidations. All current compiler/library/toolchain inputs match the actual ea132 producer and its verified generation."
+  },
+  "bounded_comparisons": {
+    "source_fixtures": 81,
+    "native_terminal_fixtures": 34,
+    "source_losses": [],
+    "runtime_losses": [],
+    "all_34_observed_pairs_exit_0_and_agree": true,
+    "inventory_note": "The84-file discovery roster includes three nested support/main.omg roots that are inputs of parent fixtures. Actual independent fixture records are81source and34both; neither count represents an unexecuted full corpus."
+  },
+  "golden_review": {
+    "source": {
+      "changed_rows": 40,
+      "new_rows": 9,
+      "lost_keys": 0,
+      "outside_bytes_preserved": true
+    },
+    "native": {
+      "changed_rows": 14,
+      "new_rows": 3,
+      "lost_keys": 0,
+      "outside_bytes_preserved": true
+    },
+    "both": {
+      "changed_rows": 14,
+      "new_rows": 3,
+      "lost_keys": 0,
+      "outside_bytes_preserved": true
+    },
+    "classification": "Only actual improvements/new same-fact productions and two changed field/join source/runtime oracles are recorded. Removed continuations are obsolete measured wrong refusals on now-valid pass consumers; two existing invalid consumers now record the intended diagnostic. No accepted invalid control is rewritten as success and no historical fixture key is deleted. Original failures remain in fixed-base records, bundles and raw evidence; no execution revision is relabelled.",
+    "baseline_attribution": "Three source diagnostic differences and one missing historical runtime pin are demonstrated equal in baseline/current and left byte-identical. The unchanged wrong_literal_tuple expected statement-index mismatch supplies no own-row reject evidence.",
+    "recorded_revision_identity": "Each leg retains its actual measured source revision: ea132 source,24efd51 native and87c526 both, all using the unchanged ea132 producer. Final536 adds README only after the golden commits."
+  },
+  "documentation_review": "README links resolve and the normal-return contract anchor exists. It names exact public guarantee establishment, applied/static identities, package closure, current-versus-saved poststate lifetimes, write invalidation and same-statement return-write soundness; both branch paths, field canaries and runtime statement writes are falsifiable. It links nine-place positives/twins plus package, direct/saved statement and private/current/return-write controls. TASKS is unchanged because no broad remaining parent clause is fully discharged.",
+  "evidence_sha256": {
+    "submitted-independent-review-context.stdout": "d04e53b4938c26466f05772e53565514b68913d9135c867c1e801a88d7c7bde5",
+    "latest-source-compare.json": "897a3fc2914fd88219e194d7233d43a18cf7d79caebce7890f75949cc578824b",
+    "latest-corpus-both.json": "2ce32975f2eb0de5887ce4f841ff182fcfc573636598019c366f25f8a7a77cca",
+    "golden-both-diff.json": "fec628516f2e08504ed81f452f9bc485a9573e6cd90ef289e4feaae5065ecb58",
+    "source-golden-attribution.json": "e4b2dc02155b6985d99442e705cbd9629992fcd82922de54170c40d844e0cddb",
+    "both-golden-attribution.json": "b026ce45576306ce891381fab2ff4c4dca193d8f9b9e9798bd09e9bba7e9a321",
+    "record-ledger.json": "dbbfe24969cc5dea56ebdbe1ad0a07eb63362e750ee49a65a3a96a435ea0607b",
+    "current-corpus-provenance.json": "f3823befc7a84e5e0a35472e20568acf97a8a2593523628b9a466e15afb3f3ba",
+    "latest-clippy-attribution.json": "5377e3da98bb69af98c8a0f45adf1b5536d7d3e596e0b8bb1cfec95b3a0e53c6"
+  },
+  "limits": [
+    "Actual native observations are Linux x86-64; four hosted Build entries do not establish other-host execution.",
+    "Scoped Clippy remains non-green with206 diagnostics attributed to exact unchanged baseline spans. Affected crate checking passes; there is no claim of clean Clippy.",
+    "Full STATIC-MACHINE-MIGRATION, product and wider parent acceptance remain open.",
+    "Review approval is bound to exact536 submitted source. Normal landing and remote main verification remain the implementation owner's work."
+  ],
+  "independent_replay_decision": "No build or replay was needed or run during this read-only review. The exact accepted semantic source is unchanged, current49 actual observations cover the selected behavior, and bounded actual-baseline comparisons plus exact golden attribution cover the affected consumers."
+}

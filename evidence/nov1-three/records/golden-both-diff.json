@@ -1,0 +1,1087 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "ea132c1fff8bccd603ac18adb83691ee4d2e8f23",
+  "dirty": false,
+  "leg": "both",
+  "target": "linux_x86_64",
+  "golden": "tests/omega/corpus_both_linux_x86_64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 7938
+  },
+  "subset": true,
+  "filter": "fail/borrow/write_only_observation,fail/borrow/write_only_state_readable_widening,fail/facts/open_const_implementation_changed_statement_output,fail/facts/open_const_implementation_private_record_package_rejected,fail/facts/open_const_implementation_private_result_guarantee,fail/facts/open_const_implementation_return_write_output,fail/facts/open_const_implementation_statement_const_result_rejected,fail/facts/open_const_implementation_statement_saved_output_rejected,fail/facts/open_const_implementation_through_call_result_rejected,fail/facts/open_const_implementation_through_const_name_rejected,fail/facts/open_const_implementation_through_field_rejected,fail/facts/open_const_implementation_through_local_rejected,fail/facts/open_const_implementation_through_match_join_rejected,fail/facts/open_const_implementation_through_other_machine_rejected,fail/facts/open_const_implementation_through_other_state_rejected,fail/facts/open_const_implementation_through_parameter_rejected,fail/facts/open_const_implementation_through_target_body_rejected,fail/facts/open_record_const_implementation_through_call_result_rejected,fail/facts/open_record_const_implementation_through_const_name_rejected,fail/facts/open_record_const_implementation_through_field_rejected,fail/facts/open_record_const_implementation_through_local_rejected,fail/facts/open_record_const_implementation_through_match_join_rejected,fail/facts/open_record_const_implementation_through_other_machine_rejected,fail/facts/open_record_const_implementation_through_other_state_rejected,fail/facts/open_record_const_implementation_through_parameter_rejected,fail/facts/open_record_const_implementation_through_target_body_rejected,fail/generics/open_const_completed_exit_divergent_branch,fail/generics/open_const_completed_exit_incomplete_call,fail/generics/open_const_completed_exit_wrong_guarantee,fail/generics/open_const_completed_exit_wrong_return,fail/generics/open_const_overflow,fail/generics/open_const_runtime_binder,fail/generics/open_const_selected_impure,fail/generics/open_const_selected_private_alias_sourcepoint_invalid,fail/generics/open_const_selected_private_dependency_changed_helper,fail/generics/open_const_unguarded_template,fail/generics/open_const_unused_const_overflow,fail/generics/open_const_unused_const_zero_divisor,fail/generics/open_const_wrong_carrier,fail/generics/open_const_wrong_evidence_binder,fail/generics/open_const_wrong_literal_tuple,fail/providers/primitive_reference_contract_refinement,fail/traits/captured_const_contract_distinct_binders,fail/traits/public_guarantee_wrong_field,fail/traits/public_guarantee_wrong_formal,fail/traits/public_private_post_write_guarantee,fail/traits/requirement_application_guarantee_identity,pass/facts/open_const_implementation_private_record_package_exit,pass/facts/open_const_implementation_statement_const_result_exit,pass/facts/open_const_implementation_statement_saved_output_exit,pass/facts/open_const_implementation_through_call_result_exit,pass/facts/open_const_implementation_through_const_name_exit,pass/facts/open_const_implementation_through_field_exit,pass/facts/open_const_implementation_through_local_exit,pass/facts/open_const_implementation_through_match_join_exit,pass/facts/open_const_implementation_through_other_machine_exit,pass/facts/open_const_implementation_through_other_state_exit,pass/facts/open_const_implementation_through_parameter_exit,pass/facts/open_const_implementation_through_target_body_exit,pass/facts/open_record_const_implementation_through_call_result_exit,pass/facts/open_record_const_implementation_through_const_name_exit,pass/facts/open_record_const_implementation_through_field_exit,pass/facts/open_record_const_implementation_through_local_exit,pass/facts/open_record_const_implementation_through_match_join_exit,pass/facts/open_record_const_implementation_through_other_machine_exit,pass/facts/open_record_const_implementation_through_other_state_exit,pass/facts/open_record_const_implementation_through_parameter_exit,pass/facts/open_record_const_implementation_through_target_body_exit,pass/generics/open_const_completed_exit_positive,pass/generics/open_const_distinct_applications,pass/generics/open_const_float_owned_dependency,pass/generics/open_const_named_closed_equivalence,pass/generics/open_const_selected_private_alias_sourcepoint,pass/generics/open_const_selected_private_dependency,pass/generics/open_const_selected_private_nested_dependency,pass/generics/open_const_selected_unused_impure_member,pass/generics/open_const_shadowed_binder_positive,pass/generics/open_const_two_evidence_binders,pass/generics/open_const_unrelated_namespace,pass/modules/open_const_private_implementation_projection_exit,pass/traits/public_guarantee_positional_formals_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 34,
+    "by_status": {
+      "built": 34
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "new": 4,
+      "improved": 9
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 30,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 1128
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 5,
+      "jobs": "1",
+      "load1_end": 1.64,
+      "load1_start": 0.54,
+      "machine": "x86_64",
+      "platform": "linux",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 16,
+      "platform": "linux",
+      "machine": "x86_64",
+      "load1_start": 2.08,
+      "load1_end": 1.99
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7655,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7107,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7327,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7012,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6689,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6764,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6772,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6798,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7182,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7066,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6988,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7053,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7127,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7295,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7172,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6958,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7072,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7111,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7123,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7093,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6993,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_completed_exit_positive",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6884,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_distinct_applications",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6750,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_float_owned_dependency",
+      "tier": "pass",
+      "status": "built",
+      "millis": 11327,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_named_closed_equivalence",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6506,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_alias_sourcepoint",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6964,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_dependency",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6954,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_private_nested_dependency",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7286,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_selected_unused_impure_member",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7203,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_shadowed_binder_positive",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6766,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_two_evidence_binders",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6920,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/generics/open_const_unrelated_namespace",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6994,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/modules/open_const_private_implementation_projection_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7802,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6342,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_private_record_package_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7655,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_statement_const_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7107,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/open_const_implementation_statement_saved_output_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7327,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2291,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7127,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 76,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7295,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1626,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7172,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1858,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 6958,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2159,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7072,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2150,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7111,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1636,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7123,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1607,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 7093,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> built",
+        "exit None -> 0",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2042,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/open_record_const_implementation_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 6993,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/traits/public_guarantee_positional_formals_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 6342,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

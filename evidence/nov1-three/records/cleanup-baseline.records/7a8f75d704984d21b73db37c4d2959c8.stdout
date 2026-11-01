@@ -1,0 +1,12 @@
+
+== no-native-build: 1
+   samples/cli/facts/open_const_implementation/const_name package review: constant initializer: static operand `Value` has no bound local or parameter in package 
+
+== rejected: 1
+   samples/cli/facts/open_const_implementation/const_name/invalid intended rejection matched
+
+sample_native_gate: 0/1 samples meet their documented oracle on linux_x86_64 (0 unscored: no oracle or not host-runnable)
+sample_native_gate: 1/1 intended-invalid controls match their authored rejection
+sample_native_gate: 1s wall with 1 jobs, 1s across samples (check 0s, review 0s); slowest:
+       0.4s  samples/cli/facts/open_const_implementation/const_name  (no-native-build)
+       0.3s  samples/cli/facts/open_const_implementation/const_name/invalid  (rejected)

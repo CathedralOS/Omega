@@ -1,0 +1,66 @@
+warning: unused import: `FixedArrayLength`
+  --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/body_copies.rs:25:23
+   |
+25 |     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+   |                       ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `MatchSubjectCapture`
+ --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/item_copies.rs:7:43
+  |
+7 | use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMachineArgument};
+  |                                           ^^^^^^^^^^^^^^^^^^^
+
+warning: `syntax-trees` (lib) generated 2 warnings (run `cargo fix --lib -p syntax-trees` to apply 2 suggestions)
+warning: unused import: `symbols::SymbolHandle`
+ --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/control_flow/statement/payloads.rs:7:5
+  |
+7 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `typed-trees` (lib) generated 1 warning (run `cargo fix --lib -p typed-trees` to apply 1 suggestion)
+warning: unused import: `numerics::bignum::BigInt`
+  --> omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/constant_predicate_obligations.rs:15:5
+   |
+15 | use numerics::bignum::BigInt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `checked-trees` (lib) generated 1 warning (run `cargo fix --lib -p checked-trees` to apply 1 suggestion)
+warning: unused variable: `access`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_origins/storage_projection.rs:63:22
+   |
+63 |             referee, access, ..
+   |                      ^^^^^^ help: try ignoring the field: `access: _`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `validation` (lib) generated 1 warning (run `cargo fix --lib -p validation` to apply 1 suggestion)
+warning: unused imports: `check_signature`, `check_type`, `convertible`, `indexed_scheme`, `infer_type`, and `judgment_assumption_closure`
+  --> omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/source_families/terms.rs:11:75
+   |
+11 |     Declaration, IndexedFamily, Level, Sort, Term, TermArena, TermHandle, check_signature,
+   |                                                                           ^^^^^^^^^^^^^^^
+12 |     check_type, convertible, indexed_scheme, infer_type, judgment_assumption_closure, shift,
+   |     ^^^^^^^^^^  ^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `proof` (lib) generated 1 warning (run `cargo fix --lib -p proof` to apply 1 suggestion)
+warning: unused import: `symbols::SymbolHandle`
+ --> omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization/body_cloning/constant_roots.rs:9:5
+  |
+9 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `typed-trees-to-typed-trees` (lib) generated 1 warning (run `cargo fix --lib -p typed-trees-to-typed-trees` to apply 1 suggestion)
+    Checking typed-trees-to-checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees)
+    Finished `dev` profile [optimized] target(s) in 14.19s
+mbx[cache]: 0 hits, 0 misses, 1 not looked up, 1 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: the sweep found 153.8 GiB logical nobody would miss. nobody has.

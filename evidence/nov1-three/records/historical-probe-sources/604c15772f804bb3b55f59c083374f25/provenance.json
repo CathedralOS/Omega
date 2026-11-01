@@ -1,0 +1,7 @@
+{
+  "receipt": "604c15772f804bb3b55f59c083374f25",
+  "original_artifact": "/home/jarod/development/Omega/.agents/worktree/nov1-three/build/swarm/nov1/postcall-probes/return_write/main.omg",
+  "original_sha256": "4edb06c3bc605e43d9edbdbe0e80ebf0e3174831876bb5d630a12c10929586e1",
+  "restored_sha256": "4edb06c3bc605e43d9edbdbe0e80ebf0e3174831876bb5d630a12c10929586e1",
+  "method": "Deterministic reversal of recorded empty-main and explicit-discard probe transformations; bytes verified against the original captured artifact digest. Receipt and outcome remain unchanged."
+}

@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `open_record_const_implementation_const_name_invalid` with 2 diagnostic(s)
+  error: generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+  error: generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments

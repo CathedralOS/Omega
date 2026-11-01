@@ -1,0 +1,22 @@
+[
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name/statement_result",
+  "state": "no-native-build",
+  "detail": "package review: machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures destination >= Value`; c",
+  "diagnostic": "package review: machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures destination >= Value`; callers of the requirement assume it",
+  "seconds": 0.32,
+  "phases": {
+   "review": 0.32
+  }
+ },
+ {
+  "sample": "samples/cli/facts/open_const_implementation/const_name/statement_result/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 0.3,
+  "phases": {
+   "check": 0.3
+  }
+ }
+]

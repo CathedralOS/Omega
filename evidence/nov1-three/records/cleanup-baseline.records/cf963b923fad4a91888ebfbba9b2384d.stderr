@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `open_const_implementation_local` with 1 diagnostic(s)
+  error: cannot prove ensures contract for exit from selected at statement 0: result >= Minimum
+CLI exit 200

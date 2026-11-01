@@ -1,0 +1,37 @@
+// Expected exit: 0
+// Selected<Base + 4> at Base = 3 supplies at least seven before exact value - 7.
+trait Reading<const Minimum: u64> {
+    machine read() -> u64 ensures result >= Minimum;
+}
+Selected<const Value: u64> satisfies Reading<Value> {
+    machine read() -> u64 ensures result == Value { Value }
+}
+machine selected<const Minimum: u64, Implementation satisfies Reading<Minimum>>() -> u64
+ensures result >= Minimum
+{ Implementation::read() }
+machine construct<const Base: u64>() -> u64
+requires Base <= 100
+ensures result >= Base + 4
+{ selected<Base + 4, Selected<Base + 4>>() }
+data Selection { before: u64; value: u64; tag: u64; after: u64; }
+machine choose(left: bool) -> Selection
+ensures result.value >= 7
+{
+    match left {
+        true -> Selection { before: 13, value: construct<3>(), tag: 17, after: 31 },
+        false -> Selection { before: 13, value: construct<3>(), tag: 29, after: 31 }
+    }
+}
+machine main() crashes Trap {
+    let matching: Selection = choose(true);
+    let fallback: Selection = choose(false);
+    let matching_difference: u64 = matching.value - 7;
+    let fallback_difference: u64 = fallback.value - 7;
+    transition matching_difference == 0 && fallback_difference == 0
+        && matching.tag == 17 && fallback.tag == 29
+        && matching.before == 13 && matching.after == 31
+        && fallback.before == 13 && fallback.after == 31
+    { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

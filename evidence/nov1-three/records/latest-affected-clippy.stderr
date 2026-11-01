@@ -1,0 +1,12 @@
+   Compiling syntax-trees-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees/derive)
+    Checking filesystem-authority v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/filesystem-authority)
+    Checking evaluation-accounting v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/foundation/evaluation-accounting)
+    Checking validation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/checking)
+    Checking syntax-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/representations/syntax-trees)
+    Checking proof v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/proof)
+    Checking checked-interpreter v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/interpreter/checked-interpreter)
+    Checking typed-trees-to-typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-three/omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees)
+error: could not compile `checked-interpreter` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+mbx[cache]: 4 hits, 1 misses, 3 not looked up, 4 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 48.3 GiB logical of target/ belonged to checkouts that no longer exist. neither does it.
