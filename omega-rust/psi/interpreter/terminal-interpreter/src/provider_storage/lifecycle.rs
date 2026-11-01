@@ -144,7 +144,7 @@ impl TerminalExecution<'_> {
         ];
         let destination = StructuralRuntimePlace {
             opaque_identity: value.opaque_identity,
-            path: vec![StructuralPathSegment::Field(field.identity)],
+            path: destination_path.clone(),
         };
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
@@ -382,6 +382,7 @@ impl TerminalExecution<'_> {
             failures,
             reason_field,
             value.opaque_identity,
+            rejected.id,
         )?;
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
