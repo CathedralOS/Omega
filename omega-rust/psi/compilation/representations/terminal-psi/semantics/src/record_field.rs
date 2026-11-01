@@ -102,8 +102,8 @@ pub struct CasePayloadCarrier<'types> {
 }
 
 /// Resolve `record fields… + Case` to the selected case's payload namespace.
-/// Only the last segment may be a `Case`; a payload read below a nested
-/// payload member is a leaf copy's job, not a scalar observation carrier.
+/// The last `Case` selects the scalar payload namespace. Earlier Case/Field
+/// pairs retain the namespace of each enclosing structural payload.
 pub fn case_payload_carrier<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -303,6 +303,10 @@ fn walk_record_fields<'types>(
                     .fields
                     .as_slice(),
             );
+            // A structural payload occupies a case-qualified subtree. Dropping
+            // this selector aliases common members and other case payloads,
+            // even when their stable field names happen to match.
+            runtime_path.push(StructuralPathSegment::Case(*case));
             continue;
         }
         if payload_fields.is_some() && !matches!(segment, CanonicalStructuralPathSegment::Field(_))
