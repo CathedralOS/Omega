@@ -74,7 +74,7 @@ carries one).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`), the item the landed `signed_16bit_shift_left_bound` and `unsigned_64bit_shift_left_bound` siblings name.
+- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`), the item the landed `unsigned_64bit_shift_left_bound` sibling names.
 - **Requirement established:** Target-neutral compile-time 8-bit unsigned logical left shift bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, logical left shift (`<<`) on a bounded 8-bit unsigned `u8` value (`val >= 25u8 && val <= 25u8`) by `2u32` bits establishes the exact post-shift bound (`shifted >= 100u8 && shifted <= 100u8`), discharging exact 8-bit subtraction `shifted - 100u8 == 0u8` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
