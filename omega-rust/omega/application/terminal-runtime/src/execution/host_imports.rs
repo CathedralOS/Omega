@@ -441,7 +441,14 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
-                let filesystem = context.filesystem.admit(program, declaration, binding)?;
+                let filesystem = context.filesystem.admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions
+                        .map(|provisions| provisions.borrowed_storage_layouts())
+                        .unwrap_or(&[]),
+                )?;
                 if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
                     let adapter = native_provider::NativeImport::admit(
                         program,
