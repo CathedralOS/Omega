@@ -11686,7 +11686,7 @@ pass/host/runtime_descriptor_immutable_primitive_loans_exit rejected 4381ms chec
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 3340ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_mutable_view_input_exit checked 16886ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_nested_array_window_exit checked 54664ms check-target:macos_arm64 @33592c4ca518
-pass/host/runtime_descriptor_nested_case_array_exit checked 15417ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_nested_case_array_exit checked 49952ms check-target:macos_arm64 @33e73c692cd7
 pass/host/runtime_descriptor_nested_record_loan_input_exit checked 4388ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_output_streams_exit checked 53751ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 3191ms check-target:macos_arm64 @ccdb99ca2214
