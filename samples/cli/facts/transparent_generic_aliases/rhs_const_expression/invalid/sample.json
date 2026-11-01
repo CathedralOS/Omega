@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "exact arithmetic in closed const argument may overflow `u64`"
+    "const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count"
   ]
 }

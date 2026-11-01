@@ -22,3 +22,10 @@ carrier/formation checks. Explicit supplying declaration owners and
 unresolved declaration-global RHS names/calls remain refused until their
 owner-preserving transport is implemented; they are immediate remaining
 scope, not language exclusions. The parent alias requirement stays open.
+
+The first changed-source probe `41340500359` at `302d56414ad7` passed source
+checking for the positive and rejected the twin through ordinary const-expression
+Exact arithmetic. Its anticipated expected fragment named the later closed-argument
+checker, so that run remains false and did not execute native or Terminal stages.
+Only the expected diagnostic fragment was corrected to the actual earlier
+const-expression evaluator; both programs and all Rust inputs stay unchanged.
