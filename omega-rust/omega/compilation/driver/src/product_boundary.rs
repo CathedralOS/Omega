@@ -562,10 +562,29 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
         "callback bindings evaluate a materialized plan:",
         &["evaluate_materialized_calling_policy_plan("],
     );
-    // Calling-policy code is produced through one Terminal production request;
-    // the planner only names the plan it needs.
+    // Calling policies borrow the Product publication; there is no policy-only
+    // producer or decoder and no copied artifact at this boundary.
     let code = include_str!("terminal/calling_policy_code.rs");
-    assert_eq!(code.matches("TerminalProductionRequest::new(").count(), 1);
+    assert_absent(
+        &[code],
+        "policy entry preparation compiles or reloads code:",
+        &[
+            "TerminalProductionRequest",
+            ".produce(",
+            "CanonicalTerminalArtifact::from_bytes",
+        ],
+    );
+    assert!(code.contains("code.publish("));
+    assert!(code.contains("Arc::clone(program.artifact())"));
+    let product = include_str!("terminal/product_code.rs");
+    assert_eq!(
+        product
+            .matches("psi_compiler::TerminalProductionRequest {")
+            .count(),
+        1
+    );
+    assert!(product.contains("self.publication.retain("));
+    assert!(product.contains("machines.extend(self.calling_policy_roots()?);"));
     let execution =
         include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
     assert_absent(
@@ -807,7 +826,7 @@ fn terminal_composition_admission_follows_canonical_publication() {
         product,
         "terminal product",
         &[
-            ".into_shared_portable()",
+            "let produced = produce_shared_terminal(",
             ".attach_application(",
             "policy.admit(",
         ],
