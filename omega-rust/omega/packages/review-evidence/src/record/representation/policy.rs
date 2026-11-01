@@ -85,6 +85,7 @@ impl PackagePolicyRepresentationDemand {
     // coincide. Grouping and ordering must preserve the same semantic key.
     fn compare_calling_application(&self, other: &Self) -> std::cmp::Ordering {
         (
+            &self.calling.abi,
             &self.calling.boundary_trait,
             &self.calling.boundary_arguments,
             self.calling.boundary_lifetime_parameter_count,
@@ -93,6 +94,7 @@ impl PackagePolicyRepresentationDemand {
             &self.calling.requirement,
         )
             .cmp(&(
+                &other.calling.abi,
                 &other.calling.boundary_trait,
                 &other.calling.boundary_arguments,
                 other.calling.boundary_lifetime_parameter_count,

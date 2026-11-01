@@ -13,6 +13,7 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyCallingPlan {
+    pub(crate) abi: semantic_vocabulary::CallingAbiIdentity,
     pub(crate) boundary_trait: PackageReviewNominalIdentity,
     pub(crate) boundary_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) boundary_lifetime_parameter_count: u32,
@@ -65,6 +66,7 @@ pub(crate) enum PackagePolicyNativeParameterOrigin {
 }
 
 impl PackagePolicyCallingPlan {
+    field_projection_accessors!(borrowed abi: &semantic_vocabulary::CallingAbiIdentity);
     field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed boundary_trait: &PackageReviewNominalIdentity);
     field_projection_accessors!(sliced boundary_arguments: &[PackageReviewTypeIdentity]);

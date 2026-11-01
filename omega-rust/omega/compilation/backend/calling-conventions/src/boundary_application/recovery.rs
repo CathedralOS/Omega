@@ -4,6 +4,7 @@ use super::*;
 use crate::{BoundaryEntryPlan, BoundaryValueGraph, CallSignature, ValueClass, ValueShape};
 
 pub struct BoundaryCallingApplicationCandidate {
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
     pub requirement_identity: String,
     pub target: NativeTarget,
     pub report_fingerprint: u64,
@@ -18,6 +19,7 @@ pub struct BoundaryCallingApplicationCandidate {
 impl BoundaryCallingApplicationCandidate {
     pub fn validate(self) -> Result<BoundaryCallingApplication, String> {
         let Self {
+            abi,
             requirement_identity,
             target,
             report_fingerprint,
@@ -115,6 +117,7 @@ impl BoundaryCallingApplicationCandidate {
             return Err("recovered boundary calling plan is not canonical".to_owned());
         }
         let application = BoundaryCallingApplication {
+            abi,
             requirement_identity,
             target,
             report_fingerprint,

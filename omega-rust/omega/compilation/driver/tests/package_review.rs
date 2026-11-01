@@ -26,6 +26,124 @@ fn execute_build(
 }
 
 #[test]
+fn review_retains_exact_same_geometry_phantom_local_applications() {
+    use package_evidence::encoding::PackagePolicyRecoveryLimits;
+    use package_evidence::record::PackagePolicyBaseline;
+
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/providers/phantom_local_calling_applications/main.omg");
+    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &fixture,
+        Some("macos_arm64"),
+    )
+    .expect("phantom application fixture inputs");
+    let inputs = prepared
+        .package_inputs
+        .expect("package-aware phantom fixture");
+    let package = inputs.root();
+    let mut session = CompilationSession::default();
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
+        },
+    );
+    let checked = session
+        .check_package_build(build)
+        .expect("checked phantom applications");
+    let native = checked
+        .providers()
+        .calling_applications(&[])
+        .expect("complete native catalog");
+    for realization in &checked.providers().boundary_calling_plan_realizations {
+        assert!(
+            native.contains(&realization.native_application().unwrap()),
+            "deduplication must retain every distinct complete policy application"
+        );
+    }
+    let mut repeated = checked.providers().clone();
+    repeated.boundary_calling_plan_realizations.extend(
+        checked
+            .providers()
+            .boundary_calling_plan_realizations
+            .iter()
+            .cloned(),
+    );
+    assert_eq!(
+        native,
+        repeated.calling_applications(&[]).unwrap(),
+        "repeating complete applications cannot create ambiguous catalog entries"
+    );
+    let captured = package_evidence::project_checked_package_policy(
+        &checked,
+        target::TargetProfile::MacosArm64,
+        package,
+    )
+    .expect("capture every exact local application");
+    let policy = &captured;
+    let provider = policy
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.provider_type() == "ProbeMap")
+        .expect("selected ProbeMap review");
+    let method = provider
+        .methods()
+        .iter()
+        .find(|method| method.name() == "inspect")
+        .expect("inspect review");
+    let applications = method.calling();
+    assert_eq!(
+        applications.len(),
+        2,
+        "review must not drop or collapse either local application"
+    );
+    for application in applications {
+        assert_eq!(
+            application.abi().operands.len(),
+            1,
+            "callback actuals are not declaration ABI operands"
+        );
+        assert_eq!(application.abi().operands[0].ordinal, 0);
+    }
+    let first = &applications[0];
+    let second = &applications[1];
+    assert_eq!(
+        first.abi().requirement_identity,
+        second.abi().requirement_identity
+    );
+    assert_eq!(
+        first.abi().declaring_application,
+        second.abi().declaring_application
+    );
+    assert_eq!(first.shape_graph(), second.shape_graph());
+    assert_eq!(first.physical(), second.physical());
+    assert_ne!(first.abi(), second.abi());
+    assert_ne!(first.abi().id(), second.abi().id());
+    assert_ne!(
+        first.canonical_bytes().unwrap(),
+        second.canonical_bytes().unwrap()
+    );
+    let bytes = policy.canonical_bytes().unwrap();
+    let recovered =
+        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
+            .unwrap();
+    assert_eq!(bytes, recovered.canonical_bytes().unwrap());
+    let recovered_method = recovered
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.provider_type() == "ProbeMap")
+        .unwrap()
+        .methods()
+        .iter()
+        .find(|method| method.name() == "inspect")
+        .unwrap();
+    assert_eq!(applications, recovered_method.calling());
+}
+
+#[test]
 fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let target = "macos_arm64";
     let fixture = fixture_package_inputs::repo_root()

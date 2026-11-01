@@ -9,6 +9,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     requirement: &str,
     identities: &terminal_psi::TerminalIdentityTable,
     target: target::NativeTarget,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selected_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
         *selected_plan.identity_digest().as_bytes(),
@@ -42,8 +43,10 @@ pub(super) fn rejoin_normalized_foreign_call(
             external_rows.len()
         ))]);
     };
+    let application =
+        super::exact_plan::external_calling_application(external, selected_plan, abi)?;
     if let (Some(boundary_entry_plan), selected, retained) = (
-        external.boundary_entry_plan(),
+        Some(application.plan.plan()),
         &selected_row.binding,
         &external.binding,
     ) {
@@ -94,7 +97,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     ) = (
         &selected_row.binding,
         &external.binding,
-        external.boundary_entry_plan(),
+        Some(application.plan.plan()),
     )
     else {
         return Err(vec![Diagnostic::error(format!(
