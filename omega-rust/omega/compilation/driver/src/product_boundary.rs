@@ -1792,7 +1792,16 @@ fn target_defaults_consume_one_psi_authored_origin_inventory() {
         "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
     );
     assert!(
-        inventory.contains("typed_trees::provider_declarations::provider_target_declarations(")
+        inventory.contains("use typed_trees::provider_declarations::provider_target_declarations;")
+    );
+    let compact_inventory = inventory.split_whitespace().collect::<String>();
+    assert!(
+        compact_inventory
+            .contains(".get_or_init(||provider_target_declarations(&self.checked.typed,Product))")
+    );
+    assert_eq!(
+        inventory.matches("provider_target_declarations(").count(),
+        1
     );
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("Arc::ptr_eq(settlement.provider_inventory.program(), &program)"));
