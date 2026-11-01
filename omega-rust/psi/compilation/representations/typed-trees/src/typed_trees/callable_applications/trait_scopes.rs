@@ -27,6 +27,7 @@ impl TypedTrees {
             call.requirement_application,
             call.authored_machine_application,
         )
+        .or_else(|| self.named_conformance_call_signature(call))
     }
 
     /// Statement calls select the same complete public logical view as an

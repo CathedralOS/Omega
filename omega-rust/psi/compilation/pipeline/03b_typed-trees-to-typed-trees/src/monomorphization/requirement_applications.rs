@@ -195,6 +195,11 @@ pub(crate) fn instantiate_requirement_applications(
                 .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
+    // Public signature substitution copies qualified map applications too.
+    // Retain each copy's exact selected row before closing its public result;
+    // the shared public requirement alone cannot distinguish equal-endpoint
+    // maps, and a private target is not selection authority.
+    crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())

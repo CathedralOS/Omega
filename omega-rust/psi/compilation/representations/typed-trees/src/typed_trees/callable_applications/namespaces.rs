@@ -4,7 +4,9 @@
 //! its fit and authority.
 
 use super::CallableApplication;
-use crate::TypedTrees;
+use crate::{
+    TypedTrees, expression::TableCallExpression, signature, trait_definition::AppliedTraitScope,
+};
 use symbols::{SymbolHandle, SymbolKind};
 
 impl CallableApplication {
@@ -56,7 +58,7 @@ impl CallableApplication {
                             row.declaring_trait == requirement.application.declaration.symbol
                                 && row.requirement == requirement.signature.symbol
                         })
-                        .map(|row| row.realization_state),
+                        .map(|row| row.requirement),
                 );
             } else {
                 let selected_owner = program.symbols.get(selected.symbol).parent;
@@ -83,5 +85,51 @@ impl CallableApplication {
             symbols.push((child, *target));
         }
         Ok(symbols)
+    }
+}
+
+impl TypedTrees {
+    /// An explicit named map supplies the public requirement's complete
+    /// application. Keep its selected row separate from a private realizer;
+    /// this query transports result vocabulary, not invocation admission.
+    pub fn named_conformance_call_signature(
+        &self,
+        call: &TableCallExpression,
+    ) -> Option<&signature::StateSignature> {
+        if call.static_requirement_dispatch.is_some() || call.requirement_application.is_valid() {
+            return None;
+        }
+        let receiver = self.expression_table.name_path_node(call.receiver)?;
+        let selected = self.conformance_by_symbol(receiver.symbol)?;
+        // Applied generic maps retain their independently supplied tuple in
+        // the ordinary dispatch path above; a bare declaration cannot supply it.
+        if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
+            return None;
+        }
+        let closed = self.closed_requirement_application(call.target_symbol);
+        let template = closed
+            .as_ref()
+            .map_or(call.target_symbol, |selected| selected.template);
+        let mut rows = selected
+            .rows
+            .iter()
+            .filter(|row| row.requirement == template);
+        let row = rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        let scope = AppliedTraitScope::from_conformance(self, selected)?
+            .declaring_scope(self, row.declaring_trait)?;
+        if closed.is_some()
+            && !self.requirement_application_matches_scope(call.target_symbol, &scope)
+        {
+            return None;
+        }
+        self.applied_callable_signature(&scope, template)
+            .or_else(|| {
+                (scope.substitutions.is_empty() && scope.declaration.lifetime_parameters.is_empty())
+                    .then(|| self.trait_machine_signature_by_symbol(scope.declaration, template))
+                    .flatten()
+            })
     }
 }

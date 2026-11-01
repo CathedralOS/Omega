@@ -268,7 +268,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 name.push_str(member.as_str(syntax_trees));
             }
             let constructor_name = Identifier::new(name, source_span);
-            return parse_struct_literal_handle(syntax_trees, constructor_name, input);
+            return parse_struct_literal_handle(syntax_trees, constructor_name, input, context);
         }
 
         let expression = exprs(syntax_trees).insert(ExpressionNode::Name(path));
@@ -467,6 +467,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     constructor_name: Identifier,
     mut input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let start = input;
     let type_name_span = constructor_name.source_span();
@@ -476,7 +477,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (name, rest) = input.take_identifier()?;
         input = rest.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (value, rest) = parse_expression_handle(syntax_trees, input)?;
+        let (value, rest) = parse_expression_handle_in(syntax_trees, input, context.value())?;
         input = rest;
         fields.push(TableStructLiteralField { name, value });
 
