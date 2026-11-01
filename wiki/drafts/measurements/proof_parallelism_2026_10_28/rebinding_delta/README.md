@@ -44,7 +44,7 @@ Both strategies produced exactly the same hot-path counts:
 | Avoided Arc allocations | **1,401,624 (95.81%)** |
 
 The original allocation count is the measured bypass from
-[cache diagnostics](../cache_diagnostics/raw/cache-count-off/result.json), not
+[cache diagnostics](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/raw/cache-count-off/result.json), not
 the rejected cache's larger allocation count. The trace is correlated by thread
 inside 418 source-transfer windows. Whole-compile counts are 7,742 requests,
 3,147,825 computed rows and 61,788 allocated rows. These are repeated roster rows
@@ -87,8 +87,8 @@ paired spread is large and the direction is not repeatable. These data are
 encouraging for the allocation mechanism and inconclusive for the intended
 compile-time benefit; they do not establish either a universal speedup or a
 regression. Full-precision paired values, peak working set and peak process
-commit are in [delta-summary.json](delta-summary.json) and
-[delta-sorted-summary.json](delta-sorted-summary.json). No peak-memory reduction
+commit are in [delta-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/delta-summary.json) and
+[delta-sorted-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/delta-sorted-summary.json). No peak-memory reduction
 is claimed.
 
 Removing 95.8% of these allocation calls does not remove 95.8% of replay work.
@@ -116,33 +116,33 @@ production compiler files and temporary tracing hooks were restored.
 
 The working base is `c63ab0da5fc`, a measurement-only descendant of semantic
 base `456c5e984452a45d977295e254b3ca9ae3cc7750`. The unchanged 203 authored source
-files are checked by the existing [input manifest](../input-manifest.json).
+files are checked by the existing [input manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json).
 Each compile case has a new build directory and private `LOCALAPPDATA` cache,
 explicit library root, general phase profiler off, an optimized exact frozen
 compiler and its ordinarily accepted lock. Update logs record zero changed
 source entries. The two public `--both` correctness runs use the shared cache
 and are excluded from the cold-cache timing comparisons.
 
-[identities.json](identities.json) binds the baseline and both candidates.
+[identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/identities.json) binds the baseline and both candidates.
 Binaries and locks remain under ignored `build/proof-profile/producers/` as
 `payload`, `rebinding-delta` and `rebinding-delta-sorted`. Each candidate's
 selected tests and optimized CLI build ran inside one build-slot hold.
 
-Choose exactly one patch: [candidate.patch](candidate.patch) or
-[sorted-candidate.patch](sorted-candidate.patch) for a production-only replay,
+Choose exactly one patch: [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/candidate.patch) or
+[sorted-candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/sorted-candidate.patch) for a production-only replay,
 or the corresponding `instrumented-*` / `sorted-instrumented-*` patch for outer
 timing and optional row tracing. All four apply to scratch indices at the fixed
-base; [patch-checks.json](patch-checks.json). `OMEGA_REBIND_DELTA_COUNTS` enables
+base; [patch-checks.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/patch-checks.json). `OMEGA_REBIND_DELTA_COUNTS` enables
 trace by presence (even value `0`); leave it absent for timings. The trace emits
 one before/after row count for each actual rebind. It does not change cache keys
 or skip proof checks. [research.md](research.md) records the primary API source,
 safety argument, falsification criterion and reason for the refinement.
 
 The durable harness files reuse the previous compile/native/memory runner.
-`rebinding_delta_run.py` contains the first count/four-pair/runtime schedule;
-`rebinding_delta_sorted_run.py` contains the ordered variant's initial schedule;
-`rebinding_delta_extra_run.py` contains its two extra reversed pairs. Existing
-result labels are refused. The raw records and streams are in [raw](raw/);
+[`rebinding_delta_run.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/rebinding_delta_run.py) contains the first count/four-pair/runtime schedule;
+[`rebinding_delta_sorted_run.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/rebinding_delta_sorted_run.py) contains the ordered variant's initial schedule;
+[`rebinding_delta_extra_run.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/rebinding_delta_extra_run.py) contains its two extra reversed pairs. Existing
+result labels are refused. The raw records and streams are in [raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/rebinding_delta/raw);
 large streams and build logs use lossless gzip. Verify the retained record with:
 
 ```powershell

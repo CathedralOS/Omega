@@ -87,9 +87,9 @@ not observed within the original budget. This limit remains explicit.
 
 ## Retained evidence and replay
 
-[The SHA-256 manifest](evidence-manifest.json) inventories every raw verdict,
+[The SHA-256 manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/golden_record_2026_10_29/evidence-manifest.json) inventories every raw verdict,
 log, producer/profile record, comparison, review disposition and scoped test
-record in [the compressed archive](raw-evidence.tar.gz). Archive round-trip hashes
+record in [the compressed archive](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/golden_record_2026_10_29/raw-evidence.tar.gz). Archive round-trip hashes
 were verified. Extract it at a repository root to inspect its original `build/`
 paths. `record.json`, `diff-review.json`, `attribution.json`,
 `attribution-review.json`, `difference-dispositions.json` and
@@ -182,7 +182,7 @@ integration base, then use `qualify.py` and the captured commands to replay.
 
 While those checks ran, main advanced to
 `e8e2fe90b14b2a7bad0e714ba635161d80c9f585` and introduced two additional golden
-rows. `incoming-observations.json` retains those exact records and source stamps.
+rows. [`incoming-observations.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/golden_record_2026_10_29/incoming-observations.json) retains those exact records and source stamps.
 Git still reported a real content conflict, so the final commit was rebased onto
 that main revision and the recorded table was restored with both incoming rows.
 

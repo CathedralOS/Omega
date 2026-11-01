@@ -61,8 +61,8 @@ Touched-file formatting passed. Package-wide formatting reported inherited
 differences and was not repaired. Clippy and expanded runtime qualification were
 skipped after the mechanism failed screening.
 
-The source edits were reverted. [rejected.patch](rejected.patch) preserves the
-exact experiment; [evidence.json.gz](evidence.json.gz) retains observations and
+The source edits were reverted. [rejected.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_pressure_2026_10_28/rejected.patch) preserves the
+exact experiment; [evidence.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_pressure_2026_10_28/evidence.json.gz) retains observations and
 producer receipts. Raw logs remain in ignored `build/spill-pressure-experiment`.
 The next question is whether choosing unplaced components as victims can form
 a useful batch, rather than usually removing an assigned blocker.

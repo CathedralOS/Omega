@@ -88,11 +88,11 @@ reduction of redundant storage work with preserved behavior, not a claim that it
 is the dominant remaining cost. Narrower call-result selection remains a separate
 unresolved opportunity; the rejected bypass is not restored.
 
-Evidence: [summary](summary.json), [candidate observations](candidate-observations.json),
-[full-carrier oracle observations](instrumented-observations.json),
-[crate tests](tests.log), [environment](environment.json),
-[candidate receipt](candidate-producer.json), [diagnostic receipt](instrumented-producer.json),
-[implementation patch](candidate.patch), [temporary oracle patch](instrumentation.patch).
+Evidence: [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/summary.json), [candidate observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/candidate-observations.json),
+[full-carrier oracle observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/instrumented-observations.json),
+[crate tests](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/tests.log), [environment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/environment.json),
+[candidate receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/candidate-producer.json), [diagnostic receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/instrumented-producer.json),
+[implementation patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/candidate.patch), [temporary oracle patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/normalization/instrumentation.patch).
 The diagnostic generator also includes the baseline normalizer source directly
 from the recorded commit. No instrumentation remains in production source.
 

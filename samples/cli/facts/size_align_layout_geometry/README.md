@@ -28,7 +28,7 @@ Every positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, Linux ARM6
 python3 tools/sample_native_gate.py --cli <optimized-omega> --facts --filter cli/facts/size_align_layout_geometry --jobs 2
 ```
 
-Evidence is retained in [the qualification record](../../../../wiki/drafts/measurements/layout_query_arrivals_2026_10_29/evidence.json). The fixed `9d0ba50bdc86` baseline wrongly refused the nested-machine arithmetic, the ordinary-call/private-arrival composition and a complete runtime arithmetic fixture. Checking now retains the existing admitted observation recipes on completed scalar values, composes both operands within each arrival, joins every complete path, and shares bounded return inference through ordinary and terminal descendants. No caller equality guard replaces that transport.
+Evidence is retained in [the qualification record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/layout_query_arrivals_2026_10_29/evidence.json). The fixed `9d0ba50bdc86` baseline wrongly refused the nested-machine arithmetic, the ordinary-call/private-arrival composition and a complete runtime arithmetic fixture. Checking now retains the existing admitted observation recipes on completed scalar values, composes both operands within each arrival, joins every complete path, and shares bounded return inference through ordinary and terminal descendants. No caller equality guard replaces that transport.
 
 The row accounts for these obligations:
 

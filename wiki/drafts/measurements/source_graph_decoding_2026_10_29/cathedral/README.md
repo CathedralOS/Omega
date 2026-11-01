@@ -45,7 +45,7 @@ Four shared files differ between these variants: `platform/native/{build,main}.o
 and `tests/native_component/{frame,layout}/build.omg`. Neither variant is mixed
 between a comparison's roles.
 
-`frozen-inputs.zip` preserves both variants once, with complete manifests. The
+[`frozen-inputs.zip`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/frozen-inputs.zip) preserves both variants once, with complete manifests. The
 source checkout at `C:/Development/Cathedral` was read only. All setup state,
 temporary builds and caches belong to this Omega worktree.
 
@@ -128,13 +128,13 @@ Only completed scopes are recorded; an active scope or the work between scopes
 can consume the unreported remainder. The trace does not establish nontermination
 or an exact currently active function. Nested inclusive rows must not be summed.
 
-[`progress-summary.json`](progress-summary.json) gives the checkpoint summary;
+[`progress-summary.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/progress-summary.json) gives the checkpoint summary;
 the archive retains all raw phase output. The next investigation should narrow
 this contract-entailment path before attempting another warm comparison.
 
 ## Evidence and remaining requirement
 
-`setup-observations.zip` retains commands, source identities, compiler build logs,
+[`setup-observations.zip`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/setup-observations.zip) retains commands, source identities, compiler build logs,
 preparation outcomes, partial streams, diagnostic patches and replay scripts.
 Optimized executables and owned caches remain under ignored
 `build/performance/cathedral-ui-generation-domains/` and

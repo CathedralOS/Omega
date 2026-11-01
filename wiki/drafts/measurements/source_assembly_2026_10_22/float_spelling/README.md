@@ -12,8 +12,8 @@ The source buffer was already shared. The primary eliminated work is reference
 count traffic, not 151 heap allocations. The ARM64 `take_float_text` disassembly
 contains one atomic `ldadd` in the baseline and none in the candidate. Source
 registration still owns a page and may perform atomic work once per forest.
-[Baseline instructions](float-spelling-baseline-assembly.txt),
-[candidate instructions](float-spelling-candidate-assembly.txt).
+[Baseline instructions](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/float-spelling-baseline-assembly.txt),
+[candidate instructions](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/float-spelling-candidate-assembly.txt).
 
 `FloatSpelling` keeps authored handles separate from generated boxed spelling.
 A generated negative or compile-time-materialized value may differ from its
@@ -42,7 +42,7 @@ inputs retain their original parser refusals. These are allocator requests and
 retained ownership counts, not RSS or physical memory traffic. Summing per-file
 peaks does not establish a workload peak. Expression-node sizes reported by the
 timing harness are {'baseline': [112], 'candidate': [112]}; this change does not claim a smaller arena node.
-[Counts](parser-comparison.json), [input identities](parser-input-hashes.json).
+[Counts](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/parser-comparison.json), [input identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/parser-input-hashes.json).
 
 All **463** observations match: root snapshots, complete normalized arena debug
 including detached rows, spans, and error diagnostics. The adapter resolves each
@@ -67,8 +67,8 @@ All 463 complete observations still match, with
 probe binaries remain valid because their complete parser dependency closure is
 unchanged; their original revisions are recorded separately from the new input
 revision. This is an allocation/output replay, not a new timing measurement.
-[Updated comparison](integrated-parser-comparison.json),
-[updated input hashes](integrated-parser-input-hashes.json).
+[Updated comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/integrated-parser-comparison.json),
+[updated input hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/integrated-parser-input-hashes.json).
 
 ## Original repetition measurements
 
@@ -90,7 +90,7 @@ ranges from 37.20 to 45.71 on ten logical CPUs.
 Timing is **inconclusive for a speedup**. The structural removal is supported by
 ownership counts and instructions, but this small change does not establish a
 whole-parser, whole-compile or RSS improvement under the observed variation.
-[All timing observations](timing.json).
+[All timing observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/timing.json).
 
 ## Correctness and integration
 
@@ -118,7 +118,7 @@ implementation. The five changed input files are accounted for in the separate
 updated-source comparison above; the timing observations retain their original
 input identities. The resolved Cargo dependency closure for source,
 syntax trees and parser has no incoming path or workspace-configuration changes;
-[the closure comparison](parser-evidence-applicability.json) records why the
+[the closure comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/parser-evidence-applicability.json) records why the
 parser binaries and focused tests remain applicable. Fresh integrated runtime producer
 `30d156428513c08ca4231445e0bd2ff2c2a422de` replays the selected checks against the published
 ancestor baseline, with no changed outcomes. The conservative qualification
@@ -126,10 +126,10 @@ closure includes compiler, libraries, tools, test oracles and exact immutable
 executables; its receipts preserve the original producer identity. Final report
 edits do not relabel the runtime observation as a newer compiler execution.
 
-[Research](research.md), [runtime summary](runtime-summary.json),
-[check observations](candidate-record-check.json),
-[engine observations](candidate-record-both.json), and
-[producer hashes](producer.json) are retained here. Full raw parser captures,
+[Research](research.md), [runtime summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/runtime-summary.json),
+[check observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/candidate-record-check.json),
+[engine observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/candidate-record-both.json), and
+[producer hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/float_spelling/producer.json) are retained here. Full raw parser captures,
 baseline/candidate binaries, disassembly, harness sources, commands, qualifications
 and landing receipts are archived at
 `build/measurement-archives/float-spelling-2026-10-22/`. Restore the scratch layout

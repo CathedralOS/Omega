@@ -40,7 +40,7 @@ Stack-call median peak job commitment is essentially unchanged: 1.259 versus
 1.258 GiB. All 36 warmup/measured/profile compiles succeeded and their native
 programs exited 0. Within each workload, all twelve executable hashes match.
 Raw observations and unrounded summaries are in
-[runs.json](evidence/isolated/runs.json) and [summary.json](evidence/summary.json).
+[runs.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/isolated/runs.json) and [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/summary.json).
 
 Separate profiles check the same 414 machines and 1,154 statement nodes.
 Statement-node validation falls from 6334.655 to 1480.698 ms inclusive.
@@ -57,12 +57,12 @@ Windows x86-64, optimized dev compiler (`opt-level=1`), pinned Rust
 - A, fixed-base compiler: `64983946d8bccabbfa18efcc9a25e8339ff8a5aa6cc297d044b1454bcda4308d`.
 - B, candidate runtime source: `767a0684e0f99c63e16c87f086dca27b6f4e3135f535dff56a8fc93df590c667`.
 
-The final [metadata](evidence/isolated/metadata.json) binds source/Build hashes,
+The final [metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/isolated/metadata.json) binds source/Build hashes,
 producer digests and verified optimization profiles. Its compiler patch includes
 the tests; the additional finite-limit test was added after the CLI build and
 compiled in the test binary, without changing any CLI runtime source.
 
-[compare.py](compare.py) uses the existing benchmark runner. Each observation
+[compare.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py) uses the existing benchmark runner. Each observation
 gets identical source in a fresh project and a fresh process-local Windows
 source-cache base. Ordinary package review runs before timing. Per workload:
 one A/B warmup, eight measured runs in ABBAABBA order, then separate A/B profiles.
@@ -85,7 +85,7 @@ limits in both relation orders. Direct proofs still work after closure
 exhaustion. This is bounded differential evidence, not a proof of identical
 search precision for every possible finite-budget graph ordering.
 
-[validate.py](validate.py) compares the unchanged nine stack-call positives
+[validate.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/validate.py) compares the unchanged nine stack-call positives
 through native and Terminal execution, their nine fact-sensitive rejection
 twins, and twelve existing arithmetic checking controls on both producers.
 The controls exercise wrapping/saturating interpretation, casts, short-circuit
@@ -93,7 +93,7 @@ paths, mutation and private calls. All **60 observations passed**: 18 paired
 native/Terminal executions, 18 fact-twin refusals, and 24 arithmetic checks.
 Baseline and candidate exits and error lines agree for every case. The six
 additional negative controls also match their authored `expected.txt` fragments
-on both producers. The [oracle audit](evidence/validation/oracle-audit.json)
+on both producers. The [oracle audit](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/validation/oracle-audit.json)
 verifies source, Build and retained producer hashes after execution.
 No sample, oracle, or golden is edited.
 
@@ -113,7 +113,7 @@ whole workspace, other-host execution or release qualification was run.
 - Fresh projects alone did not isolate accumulated source graphs. The first
   closure profiles loaded 324,261,921 versus 63,583,753 checked-source bytes.
   Both checked 414 machines and 1,154 statements, but elapsed/memory differences
-  are confounded. The [shared-cache run](evidence/shared-cache/runs.json) is
+  are confounded. The [shared-cache run](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/shared-cache/runs.json) is
   retained as diagnostic/output evidence, not the final speed claim.
 - An unrelated test consumed about 199 GB committed memory and exited before
   the authorized stop reached it. Fresh measurements began after memory
@@ -135,12 +135,12 @@ whole workspace, other-host execution or release qualification was run.
   review setup, not compiler runtime source or the retained timing observations.
   Validation resumed only unfinished cases after verifying prior source and
   producer hashes. The interrupted aggregate log stays failed; the
-  [resume log](evidence/validation-resume.log), complete results and oracle audit
+  [resume log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence/validation-resume.log), complete results and oracle audit
   establish final success without relabeling that failure.
 
 [Research and hypothesis history](research.md) links the primary source and
 prior experiment. Raw transcripts, patches, successful and failed gate logs,
-and machine-readable observations are under [evidence](evidence/).
+and machine-readable observations are under [evidence](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/evidence).
 
 ## Replay
 
