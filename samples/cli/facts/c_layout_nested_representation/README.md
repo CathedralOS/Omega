@@ -46,9 +46,25 @@ They exercise two different retained element carriers without a transport matrix
 
 ## Execution frontier
 
-The original single local witness is being run on the baseline producer to
-record the actual failure. No successful execution is claimed yet. This PR
-qualifies the three transport places, their six exact corpus mirrors and the
-three composition pairs. Call result, match join, const name, nested machine,
+Baseline `d312f53e3a50` rejects the unchanged local witness in
+[pilot41306652495](https://github.com/CathedralOS/Omega/actions/runs/41306652495):
+the C policy returns `entry_count 65 is outside 0..=64`.
+
+Optimized Linux producer `b78ea1d59bc70d0a2d02d6ec34d8f1db58e0b8ac`, image
+`dcd70a3060d6c39ebd933d2ef17e70e96f850d17bf086c3f0058fb23d747ce63`,
+passes local/field/parameter with native and Terminal exit 0, their default-child
+twins, scalar-array and byte-array composition pairs, and the existing scalar
+policy pair. [Pilot41307751703](https://github.com/CathedralOS/Omega/actions/runs/41307751703)
+also observes all six exact checking mirrors (default macos_arm64 target) and
+all three Linux native/Terminal mirrors. This does not claim Mac native execution.
+Preparation took 1048.220s, checking 28.099s, native mirrors 25.045s and samples 76.966s.
+
+That workflow remains failed: selected-array construction exposed a copy-property
+walk that recognized `LayoutStorage` only at its public entrance, missing array
+elements. The repair moves that semantic lens into the recursive property walk.
+A further sole-change control removes the child's `[copy]` declaration; physical
+representation must never create semantic copyability. The selected-array triple
+is pending qualification; earlier independent passing observations retain their
+actual producer identity. Call result, match join, const name, nested machine,
 other machine and selected target remain open. The full parent also retains
 other-host execution, complete SDK ABI records, conversions and Product parity.
