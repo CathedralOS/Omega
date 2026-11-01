@@ -8,6 +8,11 @@ capturing the parent's runtime argument or inheriting its entry facts.
 
 The [generic-context witness](generic_context/main.omg) exercises three-level
 nesting with enclosing and independently declared static type parameters.
+Its [reject twin](generic_context/invalid/main.omg) returns the intermediate
+machine's `U` instead of the outer machine's `T`. Both remain distinct rigid
+binders in the deepest helper, even before a caller supplies concrete types.
+The [uncalled generic control](../../../../tests/omega/fail/generics/named_value_parameter_mismatch/main.omg)
+checks that no concrete invocation is needed to reject an invalid template.
 Baseline `02e7d90a49aee` refuses this shape in resolution with `nested machines
 retaining an enclosing static telescope are not yet supported`. After removing
 that refusal, the unchanged witness exposed the missing specialization context.
