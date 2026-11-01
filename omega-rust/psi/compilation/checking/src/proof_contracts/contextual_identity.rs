@@ -46,7 +46,11 @@ pub fn contextual_identity_subject_type(
             ..
         } => {
             let declaration = program.unique_data_definition_by_symbol(*base_symbol)?;
-            if program.type_reference_handles(*arguments).len() != declaration.type_parameters.len()
+            if program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .len()
+                != declaration.type_parameters.len()
                 || lifetime_arguments.len() != declaration.lifetime_parameters.len()
             {
                 return None;
