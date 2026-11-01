@@ -140,3 +140,24 @@ pub(super) fn exact_machine_routes(
     }
     Ok(routes)
 }
+
+/// Bind a checked return decision to the exact body invoking its issuer.
+pub(super) fn return_route(
+    checked: &CheckedTrees,
+    returning: symbols::SymbolHandle,
+    route: &DomainEstablishmentRoute,
+) -> Result<DomainEstablishmentRoute, LoweringError> {
+    let DomainEstablishmentRoute::ExactMachine { machine: issuer } = route else {
+        return Ok(*route);
+    };
+    if !checked
+        .typed
+        .machine_invokes_declaration(returning, *issuer)
+        .map_err(LoweringError::Unsupported)?
+    {
+        return Err(LoweringError::Unsupported(
+            "checked scalar return has no declaration correspondence to its issuer",
+        ));
+    }
+    Ok(DomainEstablishmentRoute::ExactMachine { machine: returning })
+}

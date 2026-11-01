@@ -34,30 +34,41 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             if issuer.identity() != declaration.semantic_declaration {
                 continue;
             }
-            let Some(other) = domain
-                .establishment_routes
-                .iter()
-                .map(|route| route.declaration().clone())
-                .find(|other| other.identity() != issuer.identity())
+            let Some((other, _)) =
+                domain
+                    .establishment_routes
+                    .iter()
+                    .enumerate()
+                    .find(|(_, route)| {
+                        route.declaration().identity() != issuer.identity()
+                            && declaration
+                                .specialization
+                                .as_ref()
+                                .is_none_or(|specialization| {
+                                    route.declaration().identity()
+                                        != specialization.template_semantic_declaration
+                                })
+                    })
             else {
                 continue;
             };
             let mut forged = module.clone();
-            let forged_domain = forged
+            let forged_return = forged
                 .scalar_qualifications
-                .domains
+                .returns
                 .iter_mut()
-                .find(|row| row.id == returned.domain)
-                .ok_or("issuer control lost its domain")?;
-            let ScalarDomainEstablishmentRoute::ExactMachine { declaration, .. } =
-                &mut forged_domain.establishment_routes[*route as usize]
-            else {
-                return Err("issuer control changed route kind".into());
-            };
+                .find(|row| {
+                    row.machine == returned.machine
+                        && row.edge == returned.edge
+                        && row.domain == returned.domain
+                })
+                .ok_or("issuer control lost its return")?;
             // Keep the exact callable and returned SSA occurrence. Another
             // checked declaration (including the family head) cannot impersonate
             // this returning body just because its physical signature agrees.
-            *declaration = other;
+            forged_return.origins = vec![ScalarReturnOrigin::Established {
+                route: u32::try_from(other).map_err(|_| "issuer control route exceeds u32")?,
+            }];
             let bytes =
                 terminal_codec::encode_module(&forged).map_err(|error| error.to_string())?;
             let error = terminal_codec::decode_module(&bytes)

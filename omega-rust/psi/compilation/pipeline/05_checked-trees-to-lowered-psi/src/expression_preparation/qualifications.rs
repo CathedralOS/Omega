@@ -438,7 +438,14 @@ fn retain_domain(
     let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
-    let establishment_routes = scalar_domain_establishment_routes(identities, checked, symbol)?;
+    let establishment_routes = match catalog.domains.iter().find(|domain| {
+        domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
+    }) {
+        // The checked declaration and its return decisions are immutable.
+        // Repeated occurrences reuse this catalog, not another source census.
+        Some(domain) => domain.establishment_routes.clone(),
+        None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
+    };
     let definition = checked
         .typed
         .domain_definition_for_instance(symbol, semantic_id)
@@ -613,6 +620,7 @@ fn scalar_domain_establishment_routes(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     symbol: SymbolHandle,
+    semantic_domain: SemanticDomainId,
 ) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
     let domain = checked
         .domain_definition(symbol)
@@ -621,12 +629,22 @@ fn scalar_domain_establishment_routes(
         ))?;
     let mut routes = Vec::new();
     for route in &domain.establishment_routes {
-        match route {
-            DomainEstablishmentRoute::ExactMachine { machine } => routes.extend(
-                issuers::exact_machine_routes(identities, checked, *machine)?,
-            ),
-            _ => routes.push(establishment_route(identities, checked, route)?),
-        }
+        routes.push(establishment_route(identities, checked, route)?);
+    }
+    // Retain the issuer applications already demanded by checked returns,
+    // rather than enumerating all possible machine bodies for each occurrence.
+    for decision in checked
+        .facts
+        .qualifications
+        .scalar_returns
+        .iter()
+        .filter(|decision| decision.semantic_domain == semantic_domain)
+    {
+        let checked_trees::CheckedScalarReturnOrigin::Established(route) = &decision.origin else {
+            continue;
+        };
+        let route = issuers::return_route(checked, decision.machine, route)?;
+        routes.push(establishment_route(identities, checked, &route)?);
     }
     routes.sort();
     routes.dedup();

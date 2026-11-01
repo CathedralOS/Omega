@@ -419,7 +419,21 @@ fn selected_checked_candidates<'plan, 'terminal>(
             requirements.sort();
             if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
                 return Err(format!(
-                    "selected provider requirement `{requirement}` has duplicate canonical realizations"
+                    "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
+                    matching
+                        .iter()
+                        .map(|candidate| (
+                            candidate.candidate,
+                            module.identities.text(candidate.candidate_identity),
+                            module
+                                .machine(candidate.candidate)
+                                .and_then(|machine| machine.declaration.as_ref())
+                                .and_then(|declaration| module
+                                    .identities
+                                    .text(declaration.semantic_declaration)),
+                            module.identities.text(candidate.receiving_application),
+                        ))
+                        .collect::<Vec<_>>()
                 ));
             }
             selections.push(SelectedCheckedCandidate {
