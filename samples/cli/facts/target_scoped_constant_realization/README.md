@@ -1,106 +1,122 @@
 # Target-scoped constant realization
 
-Owning requirement: TARGET-SEMANTIC-APPLICATIONS. An existing pure terminating
-boundary-trait provider supplies the literal extent of a record; the selected
-target closes that extent before the record layout is observed. Linux x86-64
-and Linux ARM64 select 4; Windows x86-64 and macOS ARM64 select 8. Each explicit
-single-target compilation must use its own selected realization. No target
-projection API is introduced.
+Owning tasks: BUILD-OWNED-TARGET-SELECTION (retiring this row's remaining Source
+target families/default selection) and PROVIDER-SELECTION-AFTER-TERMINAL /
+TARGET-SEMANTIC-APPLICATIONS (its wider accepted application requirements).
 
-Frozen baseline: 53cd2938437a29356a48d6eaf29f14de07a4bb99. The unchanged main.omg
-hash is 78888b33cf489be33ae364dabc99945e647902c148df98d5d7a89a673333c9be.
-A freshly built compiler (optimization level 3, SHA256
-8bd21075a7ba6df382404d72fe8da6ca4ac9a02a5f34f915f4f19d6bf9d37e07)
-rejected --check --target linux_x86_64 in 13.933 seconds:
-`build-time call from limit has no exact target-machine identity`.
-The primary source and its 0 exit oracle are retained across repair.
+Fact: a pure terminating boundary-trait provider selected per target closes the
+fixed-array extent of `Main { values: [u8; limit()] }` before layout observation
+(`size_of<Main>() == 4u64` on Linux and `8u64` on Windows/macOS), discharging exact
+subtraction `observed - 4u64` and runtime target-size agreement across all nine
+places. Every place copies this sentence; its reject twin changes only the
+selected provider's extent to `2`, which cannot justify that subtraction.
 
-Host acceptance command: `omega run --both main.omg` (no explicit target).
-An explicit `--target` produces target artifacts and does not execute them.
-The compiler now defers the exact named boundary-trait requirement, validates the
-whole selected conformance, closes the extent before querying its layout, and
-retains the selected realization after folding. A canonical Terminal artifact
-carries the exact requirement, selected declaration/body, normalized plan
-commitment and target scope. Receiving Terminal and native admission reconstruct
-those commitments from complete canonical plan inputs. This historical closure
-grants no runtime provider installation or authority.
+The root and nine places are [local](local/main.omg), [field](field/main.omg),
+[parameter](parameter/main.omg), [call result](call_result/main.omg),
+[match join](match_join/main.omg), [const name](const_name/main.omg),
+[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
+and [another target body](target_body/main.omg). Each `<place>/invalid/main.omg`
+is paired with the corresponding positive and corpus pin under
+`tests/omega/{pass,fail}/facts/target_scoped_constant_realization_through_*`.
+The primary [root](main.omg), [multi-method](multi_method/main.omg) and
+[zero-extent](zero_extent/main.omg) controls remain part of the owned cohort.
 
-The unchanged primary source executes with native exit 0 and Terminal exit 0 on
-Linux x86-64. Independent explicit Linux and Windows compilations retain integer
-constants 4 and 8 respectively after canonical encode/decode. Windows artifacts
-are interpreted and admitted for native realization on this Linux host; Windows
-native execution is not asserted. Current build/configuration rules still require
-provider-derived constants to agree within one multi-target compilation.
+Build selects the original `Small` provider (`4`) for both Linux profiles and
+`Large` (`8`) for Windows and macOS. `Same` remains the separate equal-valued
+provider. `Answer::get` keeps its unrestricted `u64`, pure, terminating contract;
+no minimum extent is imposed on valid helpers. Each explicit single-target
+compilation closes through its own provider. A multi-target compilation still
+requires the same provider for a provider-derived constant: different target
+rows do not make different values legal in one checked program.
 
-The source controls remove only the Linux selection, remove an otherwise unused
-member of the selected whole conformance, or give the selected provider a false
-postcondition. The Build inputs match each paired positive exactly; the fail
-corpus uses the first authored target, Linux x86-64. They reject for ambiguous
-unselected providers, incomplete conformance and unproved ensures respectively.
-A multi-method provider challenges method-row selection and keeps an unused
-crashing first sibling outside evaluation admission. Selecting the pure second
-method challenges accidental first-row lookup. A zero-extent provider distinguishes
-a completed zero layout from a still-unresolved layout. Their native and Terminal
-exits are 0.
+Ordinary named implementations replace the four identical Source `target_size`
+bodies. Their public `LayoutObservation` contract is exactly
+`result == size_of<Main>()`, preserving every admitted extent. Build selects that
+one implementation for all four profiles. The independent `ExpectedExtent`
+requirement retains the original runtime expected values: `4 || 8` for the row,
+`0 || 8` for the zero-extent control. It does not constrain `Answer` or justify the
+caller's subtraction. An ordinary `expected()` forwarding machine preserves the
+existing consuming call shape.
 
-A source-backed public API replay compiles through the ordinary package route,
-roundtrips canonical Terminal bytes, then checks receiving and native admission:
+The [extent-two helper control](helper_two_extent/main.omg) uses the same exact
+layout helper/contract and the twin's selected provider returning `2`. It exits
+zero after observing `2`, without the row's unrelated subtraction demand. It is
+a preservation control, not an additional nine-place row. The original
+`target_body/invalid` must instead reject specifically on `2 - 4`, after the
+helper's exact guarantee has been checked.
+The [wrong-query opposite](helper_two_extent/invalid/main.omg) keeps that same
+`size_of` body at extent two but promises `align_of<Main>()`; it must refuse the
+exact difference `1` against required zero, preserving the query kind.
 
-| Control | Required result |
-| --- | --- |
-| Original exact plan inputs and target | Admit; Terminal completes |
-| Equal-valued `Same` provider in place of `Small` | Reject exact realization mismatch |
-| Absent provider/closure | Reject missing historical closure |
-| Copied digest in place of canonical plan input | Reject reconstructed commitment mismatch |
-| Repeated plan inputs | Reject incomplete or repeated closure |
-| Linux artifact reused under Linux ARM64 (also 4) or Windows | Reject target closure mismatch |
-| Provider-free folded extent | Execute without historical provider closure |
+The match place exercises both arms. Each arm writes its own `17` or `23` route
+marker through caller-owned storage, and `mark_size` preserves the original
+observed value. The first route is captured before the second write. Both
+subtractions and runtime expected-value checks remain, so flipped dispatch or an
+always-selected arm cannot satisfy the authored result. The original weak
+single-arm oracle is retained only as historical evidence.
 
-No arbitrary dependency struct or copied digest can mint the sealed admission
-token. The source-backed controls use genuine provider plans/candidates; they do
-not fabricate checked evidence or weaken authority, custody or termination.
+Applicable obligations:
 
-Governing authority: [evaluation](../../../../wiki/spec/language/evaluation.md)
-requires same selected-provider/target value semantics and retention of selected
-realization dependencies even for literal-only code;
-[provider selection](../../../../wiki/spec/build/provider_selection.md) admits
-ordinary pure literal-returning providers;
-[Terminal product](../../../../wiki/spec/terminal-psi/product.md) distinguishes
-historical folding compatibility from runtime choice; and
-[boundary calls](../../../../wiki/spec/terminal-psi/boundary_calls.md) keeps absent
-trait telescopes distinct from canonical empty operator applications.
+- **Establishment and composition:** ordinary checked pure terminating providers
+  establish the extent. The array and layout query retain its exact application
+  dependency. Calls, fields, joins, constants and nested machines transport that
+  observation; each consumer proves its original exact subtraction directly.
+- **Identity and lifetime:** the completed whole return is joined to its exact
+  operand, state, statement and unique outgoing occurrence. Its occurrence recipe
+  is consumed without rereading source after return effects. Projected constructor
+  children keep their replay-stability check. No stale mutable read is accepted.
+- **Formation and soundness:** public requirement contracts, selected builtin
+  comparison meaning, exact integer carriers, endpoint formation and admitted
+  target-dependent recipes remain required. An equality cannot form its own
+  layout operand. Closed ordinary guarantees are checked immediately rather than
+  published as deferred target debt. The unused crashing first method in
+  `multi_method` remains outside evaluation of the pure second method, while
+  the selected conformance must still be complete.
+- **Terminal Psi and native realization:** all positive programs bind
+  `ProgramEntry` for the four hosted targets and declare exit zero. Acceptance
+  requires actual native/Terminal agreement on the host. The zero-extent control
+  distinguishes a completed zero layout from unresolved layout; foreign artifact
+  production is distinct from execution.
+- **Historical provider closure:** Terminal carries the exact requirement,
+  selected declaration/body, normalized canonical plan commitment and target
+  scope. Receiving/native admission reconstruct those commitments. This folding
+  history does not install runtime authority.
 
-The witness consumes the target-scoped boundary-trait constant (`const N: u64 =
-limit()`) across the array extent (`[u8; N]`), record layout (`size_of<Main>()`),
-and target-selected runtime body (`expected() -> u64`) through all nine transport
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
-`other_state`, `other_machine`, and `target_body`), paired with nine
-fact-sensitive reject twins (`<place>/invalid/main.omg`) and pinned under
-`tests/omega/{pass,fail}/facts/target_scoped_constant_realization_through_*`:
+The previous implementation's baseline at
+`53cd2938437a29356a48d6eaf29f14de07a4bb99` refused the original Linux program with
+`build-time call from limit has no exact target-machine identity`. Its original
+source hash, compiler identity and successful source-backed canonical admission
+controls remain historical evidence. Those controls challenge equal-valued
+provider replacement, absent historical closure, copied digests, repeated plan
+inputs, target mismatch and provider-free folding; their historical observations
+are not relabelled as fresh executions of this migration.
 
-- **Establishment & Composition:** Each place proves `observed == expected()` and
-  performs exact subtraction `observed - expected()` without a post-hoc caller
-  equality guard. In `discover_normal_return_interval` (`arrivals.rs`), calls to a
-  `target_family_interface` machine union `(interval, recipe)` across all retained
-  `target_family_members`, preserving both target-scoped literal return bounds
-  (`[4, 8]` across Linux/Windows/macOS candidates) and target-dependent
-  `IntegerRangeRecipe` observations (`target_size() -> u64 { size_of<Main>() }`).
-  In `place::analyze` (`place.rs`), `const` names whose initializer depends on
-  target layout (`const OBSERVED_SIZE: u64 = size_of<Main>()`) retain an
-  `IntegerRangeRecipe::observation` so `const_name` equality and interval narrowing
-  preserve the layout observation.
-- **Fact-sensitive reject twins:** Each `<place>/invalid/main.omg` Perturbs the
-  boundary-trait provider realization (`Big::read` returning `9` instead of `8`, or
-  omitting `TargetProviders::select_provider` across all four target defaults in
-  `invalid/main.omg`) and rejects during checking with unproved exact subtraction
-  (`exact subtraction may underflow`) or unresolved target provider selection.
-- **Terminal Psi & Native Realization (`omega run --both`):** All 12 positive
-  witnesses (`main.omg`, `multi_method/main.omg`, `zero_extent/main.omg`, and all 9
-  places) bind `ProgramEntry` for all four hosted targets (`windows_x86_64`,
-  `linux_x86_64`, `macos_arm64`, `linux_arm64`) and execute with exit `0` in both
-  Terminal Psi and native execution.
+This migration's frozen fixed base is
+`f66e17c47e5aa4cde70c084abdbb984865147ef5`, using the byte-identical optimized
+`60ee163d4f0f5f8b9349ecf253660a917917a7c7` producer and its own SDK snapshot.
+All ten original positive pins checked and ran with native/Terminal exits zero.
+All ten original negative pins refused, but nine retained old diagnostic
+fragments failed: the same selected extent-two subtraction now reports exact
+constant bounds `[-2, -2]` outside `u64`. Those raw old matcher failures remain
+recorded separately from proper negative acceptance.
 
-The broader task's package generic application closure, supplemental
-intrinsic-plan reconstruction, and provider-free target-observation dependencies
-stay open. This row completes the 9-place fact row for target-scoped constant
-realization under TARGET-SEMANTIC-APPLICATIONS.
+The migrated canonical layout helper exposed a valid-source refusal at that
+fixed base: `result == size_of<Main>()` could not be proved, including the legal
+extent-two helper-only control. An existing protected diagnostic producer
+attributed this to the return replay-stability gate. The repair reuses the
+bounded completed-return/closed-endpoint owner already exercised by the
+`target_layout_derived_constant` work, retaining its genuine target-dependency
+fence. Older retained producer exploration is distinct from exact-candidate
+qualification; fresh migration acceptance is pending.
+
+Execution receipts, frozen original/migrated inputs and producer identities live
+in the existing ignored qualification directory
+`build/target-scoped-constant-migration-20261101`. The broader task's generic
+application closure, supplemental intrinsic-plan reconstruction, provider-free
+observation dependencies and other remaining acceptance stay open.
+
+Governing contracts: [Build configuration](../../../../wiki/spec/build/configuration.md),
+[evaluation](../../../../wiki/spec/language/evaluation.md),
+[constants](../../../../wiki/spec/language/constants.md),
+[Terminal product](../../../../wiki/spec/terminal-psi/product.md), and
+[boundary calls](../../../../wiki/spec/terminal-psi/boundary_calls.md).
