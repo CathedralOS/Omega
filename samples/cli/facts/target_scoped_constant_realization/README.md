@@ -44,6 +44,9 @@ zero after observing `2`, without the row's unrelated subtraction demand. It is
 a preservation control, not an additional nine-place row. The original
 `target_body/invalid` must instead reject specifically on `2 - 4`, after the
 helper's exact guarantee has been checked.
+The [wrong-query opposite](helper_two_extent/invalid/main.omg) keeps that same
+`size_of` body at extent two but promises `align_of<Main>()`; it must refuse the
+exact difference `1` against required zero, preserving the query kind.
 
 The match place exercises both arms. Each arm writes its own `17` or `23` route
 marker through caller-owned storage, and `mark_size` preserves the original
