@@ -46,6 +46,8 @@ fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expec
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 882ms expected @ddc8d6fcecbc
+	machine `tail` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
 	cannot prove requires contract for specification call `only_nonzero` in data `Gated` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
@@ -3210,6 +3212,7 @@ pass/dependent/collection_predicate_proved_element_store checked 46075ms @ccdb99
 pass/dependent/collection_predicate_terminal_rows_exit checked 39554ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/collection_predicate_zero_initialized checked 4776ms @ccdb99ca2214
 pass/dependent/data_requires_clauses_exit checked 3465ms check-target:macos_arm64 @ccdb99ca2214
+pass/dependent/data_requires_cyclic_handoff_walk_exit checked 5099ms check-target:macos_arm64 @ddc8d6fcecbc
 pass/dependent/data_where_antisymmetric_fields_compile checked 2971ms @ccdb99ca2214
 pass/dependent/data_where_arithmetic_bound_compile checked 2087ms @ccdb99ca2214
 pass/dependent/data_where_arithmetic_disequality_compile checked 2628ms @ccdb99ca2214
