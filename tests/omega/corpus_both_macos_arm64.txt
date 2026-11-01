@@ -896,6 +896,15 @@ pass/facts/range_fact_delivery_through_other_state_exit built 1744ms exit:0 inte
 pass/facts/range_fact_delivery_through_parameter_exit built 1699ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/range_fact_delivery_through_target_body_exit built 1907ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/reference_recast_backing_footprint_through_local_exit built 962ms exit:0 interpreter-exit:0 interpreter:agrees @cdaaea7fffc3
+pass/facts/register_stack_arg_calling_plan_through_call_result_exit built 11461ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_const_name_exit built 12058ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_field_exit built 7882ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_local_exit built 9593ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_match_join_exit built 11428ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_other_machine_exit built 9524ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_other_state_exit built 10258ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_parameter_exit built 8225ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
+pass/facts/register_stack_arg_calling_plan_through_target_body_exit built 7021ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
 pass/facts/runtime_index_application_computed_result_through_call_result_exit built 1173ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_computed_result_through_const_name_exit built 1014ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_computed_result_through_field_exit built 1031ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
