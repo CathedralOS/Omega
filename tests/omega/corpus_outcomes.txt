@@ -2078,6 +2078,7 @@ pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/terminal_calling_policy_execution checked 70583ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @b440743b0d1c
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
