@@ -126,17 +126,35 @@ fn applied_frontier(
                 argument_owner: callable,
             };
             let regions = super::callable_regions::resolve(program, &contract).ok()?;
+            // An original field operand belongs to its receiving data telescope.
+            // Re-entering it as a foreign callable operand would discard that
+            // application's mapped regions and recapture the declaration names.
+            // Select the exact active occurrence, including recursive uses of
+            // the same data declaration; unrelated scopes supply no authority.
+            let operand_owner = program.lifetime_declaration_owner(
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(reference),
+            );
+            let receiving = scopes.iter().enumerate().rev().find(|(_, scope)| {
+                operand_owner.is_valid()
+                    && program.lifetime_declaration_owner(scope.declaration) == operand_owner
+            });
+            let (declaration, lifetimes) = receiving
+                .map_or((callable, regions.names.as_slice()), |(ordinal, scope)| {
+                    (scope.declaration, regions.applications[ordinal].as_slice())
+                });
             let frontier = scoped_carried_lifetimes(
                 program,
                 reference,
                 &substitutions,
                 &starts,
                 &[],
-                &regions.names,
+                lifetimes,
                 &regions.arguments,
                 &regions.applications,
                 &regions.bindings,
-                callable,
+                declaration,
                 true,
                 LifetimeFrontier::Value,
             )?;
