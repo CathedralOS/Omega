@@ -1,0 +1,313 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "b32b6171a411d03717503717e27b365fcd86d7c3",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19067
+  },
+  "subset": true,
+  "filter": "recast_parent_restoration",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 21,
+    "by_status": {
+      "checked": 10,
+      "rejected": 11
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/recast_parent_restoration_preserved_end_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5325,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7773,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8368,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6590,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6578,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6548,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7772,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5314,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4487,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7852,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_changed_end_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 884,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1431,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1418,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1366,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1603,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1570,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1563,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1643,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1402,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1396,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_unrestored_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 789,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    }
+  ],
+  "fixtures": []
+}

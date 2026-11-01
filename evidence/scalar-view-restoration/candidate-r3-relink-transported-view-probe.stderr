@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `mixed_window_snapshot` with 1 diagnostic(s)
+  error: machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+    in package `mixed_window_snapshot`, /Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/transported_view_probe/main.omg:8:5

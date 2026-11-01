@@ -1,0 +1,92 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "expected": true
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "expected": true
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "expected": true
+  }
+]

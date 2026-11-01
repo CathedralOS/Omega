@@ -1,0 +1,189 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "b32b6171a411d03717503717e27b365fcd86d7c3",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5210
+  },
+  "subset": true,
+  "filter": "recast_parent_restoration",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 10,
+    "by_status": {
+      "built": 10
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/recast_parent_restoration_preserved_end_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6413,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6413,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6443,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6885,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4993,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5763,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5708,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4930,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4955,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5812,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "b32b6171a411"
+    }
+  ],
+  "fixtures": []
+}

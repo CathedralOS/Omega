@@ -1,0 +1,28 @@
+[
+  {
+    "producer": "baseline-r1",
+    "source_sha256": "e2eca14db65062faa00f84e1ea746f6f04bf7698052904894254b094f3fae9ae",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/baseline-r1-omega",
+      "--check",
+      "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/transported_view_probe/main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.8094295,
+    "stdout": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/baseline-r1-transported-view-probe.stdout",
+    "stderr": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/baseline-r1-transported-view-probe.stderr"
+  },
+  {
+    "producer": "candidate-r3-relink",
+    "source_sha256": "e2eca14db65062faa00f84e1ea746f6f04bf7698052904894254b094f3fae9ae",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-omega",
+      "--check",
+      "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/transported_view_probe/main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.5174493329999998,
+    "stdout": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-transported-view-probe.stdout",
+    "stderr": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-transported-view-probe.stderr"
+  }
+]

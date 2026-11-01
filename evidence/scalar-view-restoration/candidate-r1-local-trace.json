@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r1-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/main.omg"
+  ],
+  "exit": 1,
+  "seconds": 0.773283833
+}

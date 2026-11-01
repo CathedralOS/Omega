@@ -1,0 +1,27 @@
+{
+  "source": "326591276188e2fcc3ca124ad47be809d7dba4ec",
+  "patch_sha256": "c4b1bcc36858f3c0c1ef62b32a494d8a1a93dd8a745d4b6c87f9d34cb7a2bc3c",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 6.744434542,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-omega",
+    "sha256": "a10f855a139286aa0e672d567d5d48eeb3160631cb689f431c3545c3a24e27cb",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

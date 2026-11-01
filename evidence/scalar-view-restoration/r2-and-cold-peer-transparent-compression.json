@@ -1,0 +1,16 @@
+[
+  {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r2-omega",
+    "sha256": "b8a4f890a8e61e1d76ac4dd8fd0ce6687a5545a6ae5f9b015c2e08826e996313",
+    "allocated_before": 232980480,
+    "allocated_after": 68726784,
+    "exit": 0
+  },
+  {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/scalar-range-peer-20261030/baseline-r1-omega",
+    "sha256": "c961febc75f4460a5e544c3d0a7a8421767bda1f2eafbf2a19f60a2b8097fa9e",
+    "allocated_before": 206008320,
+    "allocated_after": 66695168,
+    "exit": 0
+  }
+]

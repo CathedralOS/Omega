@@ -1,0 +1,9 @@
+[
+  {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/scalar-next-20261031/integration-r1/repaired-r13-runner-r3-corpus-runner",
+    "sha256": "84727a48fcc3be792d8d180ca340e0cfae71d91e42d9279a01fae484de9125f4",
+    "allocated_before": 230416384,
+    "allocated_after": 68071424,
+    "exit": 0
+  }
+]

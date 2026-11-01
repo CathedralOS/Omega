@@ -1,0 +1,510 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/stored_predicates.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/stored_predicates.rs
+index 3bebb88c6a3..ed15489f363 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/stored_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/stored_predicates.rs
+@@ -22,19 +22,11 @@ pub(crate) fn stored_data_predicate_holds(
+     machine: &Machine,
+     state: &State,
+     statement_index: usize,
+-    receiver: ExpressionHandle,
++    place: &crate::CanonicalPlace,
+     definition: &DataDefinition,
+     active_case: Option<symbols::SymbolHandle>,
+     predicate: ExpressionHandle,
+ ) -> bool {
+-    let Some(place) = crate::canonical_place_from_expression_in_state(
+-        program,
+-        state.symbol,
+-        statement_index,
+-        receiver,
+-    ) else {
+-        return false;
+-    };
+     let Some(next_statement) = statement_index.checked_add(1) else {
+         return false;
+     };
+@@ -44,7 +36,7 @@ pub(crate) fn stored_data_predicate_holds(
+             statement_index: next_statement,
+             in_transition_target: false,
+         },
+-        place,
++        place: place.clone(),
+         definition,
+         active_case,
+         predicate,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
+index e49fa9fe8b6..eb68b780855 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
+@@ -344,6 +344,10 @@ pub(super) struct CapturedStoreDestination {
+     coordinate: Option<CapturedStorageCoordinate>,
+     frame: facts::NormalizedWriteFrame,
+     stored_type: TypeReferenceHandle,
++    representation: Option<(
++        typed_trees::types::PrimitiveType,
++        typed_trees::types::PrimitiveType,
++    )>,
+ }
+ 
+ fn expression_exposure_path(
+@@ -1340,9 +1344,13 @@ impl StructuralJudge<'_> {
+             state,
+             statement.as_assignment()?,
+         )?;
+-        let coordinate = frame
++        let captured = frame
+             .complete_paths()
+             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
++        let (coordinate, representation) = match captured {
++            Some((coordinate, representation)) => (Some(coordinate), representation),
++            None => (None, None),
++        };
+         if coordinate.is_none() && !self.requires_value_preservation() {
+             return None;
+         }
+@@ -1350,6 +1358,7 @@ impl StructuralJudge<'_> {
+             coordinate,
+             frame,
+             stored_type,
++            representation,
+         })
+     }
+ 
+@@ -1362,13 +1371,20 @@ impl StructuralJudge<'_> {
+         state: &State,
+         statement: &typed_trees::statement::StatementNode,
+         written: &[String],
+-    ) -> Option<CapturedStorageCoordinate> {
++    ) -> Option<(
++        CapturedStorageCoordinate,
++        Option<(
++            typed_trees::types::PrimitiveType,
++            typed_trees::types::PrimitiveType,
++        )>,
++    )> {
+         let assignment = statement.as_assignment()?;
+-        self.ordinary_storage_path(Some((machine, state)), assignment.target)
++        crate::place_has_builtin_coordinates(self.program, machine, Some(state), assignment.target)
+             .then_some(())?;
+         let program = self.program;
+         let frames = self.frame_resolver()?;
+         let origins = frames.assignment_storage_origins(machine, statement)?;
++        let mut representation = None;
+         let place = match origins.destinations.as_slice() {
+             [origin]
+                 if origin.root.is_valid()
+@@ -1381,6 +1397,11 @@ impl StructuralJudge<'_> {
+                     segments: origin.segments.clone(),
+                 }
+             }
++            [origin] => {
++                let scalar = origin.scalar_storage_coordinate(program, state)?;
++                representation = Some((scalar.view_primitive, scalar.source_primitive));
++                scalar.place
++            }
+             [] => {
+                 // Replacing a plain owned binding names the binding itself;
+                 // the frame owner intentionally publishes no referent origins.
+@@ -1415,7 +1436,7 @@ impl StructuralJudge<'_> {
+         }
+         // Frame paths deliberately coarsen collections for invalidation only.
+         // Exact storage retains the already completed selector value identities.
+-        self.capture_storage_place(place)
++        Some((self.capture_storage_place(place)?, representation))
+     }
+ 
+     pub(super) fn observe_captured_store(
+@@ -1468,6 +1489,14 @@ impl StructuralJudge<'_> {
+             self.retain_storage_value(coordinate, current, false);
+         }
+         if let Some(coordinate) = destination.coordinate {
++            let value = match destination.representation {
++                Some((source, target)) => {
++                    super::super::structural_terms::normalize_scalar_representation(
++                        source, target, value,
++                    )
++                }
++                None => value,
++            };
+             if super::super::struct_trace() {
+                 eprintln!(
+                     "STRUCT install-store owner={} type={:?} value={value:?}",
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs
+index 7ebe7d65a24..74a246243ce 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs
+@@ -1004,8 +1004,8 @@ fn walk_state(
+                     program,
+                     machine,
+                     state,
+-                    assignment.target,
+-                    assignment.value,
++                    statement,
++                    call_frames,
+                     &mut tracked,
+                     entry_valuations,
+                     &inherited_windows,
+@@ -1013,6 +1013,7 @@ fn walk_state(
+                     &mut poisoned_paths,
+                     born_zero,
+                     statement_ordinal,
++                    diagnostics,
+                 );
+                 // Assignment checking establishes the destination's declared
+                 // type, not an unfinished containing predicate or every
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs
+index 80b9c8ad1e3..ddfd6f7c05c 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs
+@@ -10,9 +10,8 @@
+ use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
+ use crate::proof_contracts::default_domains::place_queries::{
+     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
+-    expression_root_symbol, fact_span_mentions_field, field_is_where_mentioned, is_data_rooted,
+-    is_subplace, membership_field, place_spelling_covers, place_spellings_may_overlap,
+-    write_place_spelling,
++    fact_span_mentions_field, field_is_where_mentioned, is_data_rooted, is_subplace,
++    membership_field, place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
+ };
+ use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
+ use crate::proof_contracts::default_domains::symbolic_values::{
+@@ -76,8 +75,8 @@ pub(crate) fn handle_assignment<'program>(
+     program: &'program dyn crate::CheckingInput,
+     machine: &Machine,
+     state: &State,
+-    target: ExpressionHandle,
+-    value: ExpressionHandle,
++    statement: &typed_trees::statement::StatementNode,
++    call_frames: Option<&crate::CallFrameResolver<'_>>,
+     tracked: &mut Vec<TrackedPlace<'program>>,
+     entry_valuations: &[PlaceValuation],
+     inherited_windows: &[InvariantWindow],
+@@ -85,7 +84,13 @@ pub(crate) fn handle_assignment<'program>(
+     poisoned_paths: &mut Vec<String>,
+     born_zero: bool,
+     statement_index: usize,
++    diagnostics: &mut Vec<Diagnostic>,
+ ) {
++    let Some(assignment) = statement.as_assignment() else {
++        return;
++    };
++    let target = assignment.target;
++    let value = assignment.value;
+     // The binding naming the record this state's places are rooted at; see
+     // `place_queries::is_data_rooted`.
+     let data_binding = program
+@@ -220,26 +225,166 @@ pub(crate) fn handle_assignment<'program>(
+         return;
+     }
+ 
+-    // A FIELD store: `<self-place>.field = value` where the receiver's type
+-    // carries where facts.
+-    let Some(member) = program.expression_table.member_node(target) else {
++    // Direct names, stored aliases and representation views all publish their
++    // performed destinations through the frame owner. No source-shape path may
++    // independently decide which parent's predicate a store must restore.
++    let Some(frames) = call_frames else {
+         return;
+-    };
+-    let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {
++    }; // Symbol diagnostics already prevent admission.
++    let Some(origins) = frames.assignment_storage_origins(machine, statement) else {
++        diagnostics.push(Diagnostic::error(
++            "cannot establish assignment invariants: storage origins are unavailable",
++        ));
+         return;
+     };
+-    // A whole-region reseed drops every tracked place strictly nested under
+-    // the target; a wildcard receiver's write may hit any covered concrete
+-    // place, so covered siblings lose this field's valuation too.
+-    let target_spelling = write_place_spelling(program, target);
+-    if let Some(target_spelling) = target_spelling.as_deref()
+-        && !target_spelling.contains("[*]")
++    let definite = origins.destinations.len() == 1;
++    for origin in origins.destinations {
++        let (destination, preserves_scalar_value) = if let Some(scalar) =
++            origin.scalar_storage_coordinate(program, state)
++        {
++            (scalar.place, definite && scalar.preserves_scalar_value)
++        } else if origin.recasts.is_empty()
++            && origin.representation.is_none()
++            && origin.root.is_valid()
++        {
++            (
++                crate::CanonicalPlace {
++                    root: facts::PlaceRoot::Symbol(origin.root),
++                    segments: origin.segments,
++                },
++                definite,
++            )
++        } else {
++            diagnostics.push(Diagnostic::error("cannot establish assignment invariants: source storage interpretation is unavailable"));
++            continue;
++        };
++        let Some(store) = field_store(
++            program,
++            state,
++            statement_index,
++            destination,
++            preserves_scalar_value,
++        ) else {
++            continue;
++        };
++        handle_field_store(
++            program,
++            machine,
++            state,
++            store,
++            value,
++            tracked,
++            entry_valuations,
++            inherited_windows,
++            poisoned_all,
++            poisoned_paths,
++            born_zero,
++            statement_index,
++            data_binding,
++        );
++    }
++}
++
++struct FieldStore<'program> {
++    destination: crate::CanonicalPlace,
++    receiver: crate::CanonicalPlace,
++    definition: &'program typed_trees::data::DataDefinition,
++    field: &'program typed_trees::data::DataField,
++    preserves_scalar_value: bool,
++}
++
++fn field_store<'program>(
++    program: &'program dyn crate::CheckingInput,
++    state: &State,
++    statement_index: usize,
++    destination: crate::CanonicalPlace,
++    preserves_scalar_value: bool,
++) -> Option<FieldStore<'program>> {
++    let mut receiver = destination.clone();
++    let facts::PlaceSegment::Field { symbol } = receiver.segments.pop()? else {
++        return None;
++    };
++    let field_name = program.symbols.name(symbol);
++    let parent = program.symbols.get(symbol).parent;
++    let case_name = (program.symbols.get(parent).kind == symbols::SymbolKind::Variant)
++        .then(|| program.symbols.name(parent));
++    if matches!(
++        receiver.segments.last(),
++        Some(facts::PlaceSegment::Case { .. })
++    ) {
++        receiver.segments.pop();
++    }
++    let receiver_type = crate::value_custody::places::canonical_place_type_reference(
++        program,
++        state.symbol,
++        statement_index,
++        &receiver,
++    )?;
++    let definition =
++        crate::value_custody::places::data_definition_for_type(program, receiver_type)?;
++    let field = crate::value_custody::places::exact_data_member_field(
++        program, definition, symbol, field_name, case_name,
++    )?;
++    Some(FieldStore {
++        destination,
++        receiver,
++        definition,
++        field,
++        preserves_scalar_value,
++    })
++}
++
++/// Labels adapt already resolved storage to the legacy valuation table. A
++/// runtime selector stays a wildcard; it never becomes a persistent identity.
++fn invariant_place_spelling(
++    program: &dyn crate::CheckingInput,
++    place: &crate::CanonicalPlace,
++) -> Option<String> {
++    use std::fmt::Write;
++    let root = place.root.as_symbol()?;
++    let mut spelling = program.symbols.name(root).to_owned();
++    for segment in &place.segments {
++        match segment {
++            facts::PlaceSegment::Field { symbol } => {
++                spelling.push('.');
++                spelling.push_str(program.symbols.name(*symbol));
++            }
++            facts::PlaceSegment::Case { .. } => {}
++            facts::PlaceSegment::FixedIndex { index } => {
++                write!(&mut spelling, "[{index}]").ok()?;
++            }
++            facts::PlaceSegment::Index { .. } => spelling.push_str("[*]"),
++            _ => return None,
++        }
++    }
++    Some(spelling)
++}
++
++#[allow(clippy::too_many_arguments)]
++fn handle_field_store<'program>(
++    program: &'program dyn crate::CheckingInput,
++    machine: &Machine,
++    state: &State,
++    store: FieldStore<'program>,
++    value: ExpressionHandle,
++    tracked: &mut Vec<TrackedPlace<'program>>,
++    entry_valuations: &[PlaceValuation],
++    inherited_windows: &[InvariantWindow],
++    poisoned_all: bool,
++    poisoned_paths: &[String],
++    born_zero: bool,
++    statement_index: usize,
++    data_binding: Option<&str>,
++) {
++    // Replacing this field retires tracked descendants of its actual backing,
++    // independently of the alias that named the performed store.
++    if let Some(spelling) = invariant_place_spelling(program, &store.destination)
++        && !spelling.contains("[*]")
+     {
+-        tracked.retain(|place| !is_subplace(&place.spelling, target_spelling));
++        tracked.retain(|place| !is_subplace(&place.spelling, &spelling));
+     }
+-    let Some(definition) =
+-        data_definition_for_expression(program, machine, Some(state), member.receiver)
+-    else {
++    let definition = store.definition;
++    let Some(receiver_spelling) = invariant_place_spelling(program, &store.receiver) else {
+         return;
+     };
+     if definition.where_facts.is_empty()
+@@ -248,8 +393,11 @@ pub(crate) fn handle_assignment<'program>(
+     {
+         return;
+     }
+-    let field_name = member.member.as_str().to_string();
+-    let written = literal_value(program, value);
++    let field_name = store.field.name.to_string();
++    let written = store
++        .preserves_scalar_value
++        .then(|| literal_value(program, value))
++        .flatten();
+ 
+     // A wildcard receiver (`self.maps[*]`) may hit any covered concrete
+     // element: every tracked sibling under it loses this field's known
+@@ -282,7 +430,11 @@ pub(crate) fn handle_assignment<'program>(
+     let position = tracked_receiver(
+         program,
+         state,
+-        expression_root_symbol(program, member.receiver),
++        store
++            .receiver
++            .root
++            .as_symbol()
++            .unwrap_or_else(symbols::SymbolHandle::invalid),
+         tracked,
+         receiver_spelling,
+         definition,
+@@ -307,15 +459,26 @@ pub(crate) fn handle_assignment<'program>(
+     place.fields.retain(|(name, _)| *name != field_name);
+     place.fields.push((field_name.clone(), written));
+     place.symbols.retain(|(name, _)| *name != field_name);
+-    if let Some(symbol) = expression_symbolic_value(program, value) {
++    if let Some(symbol) = store
++        .preserves_scalar_value
++        .then(|| expression_symbolic_value(program, value))
++        .flatten()
++    {
+         place.symbols.push((field_name.clone(), symbol));
+     }
+     place.measures.retain(|(name, _, _)| *name != field_name);
+-    if let Some((length, capacity)) = expression_sequence_measures(program, value) {
++    if let Some((length, capacity)) = store
++        .preserves_scalar_value
++        .then(|| expression_sequence_measures(program, value))
++        .flatten()
++    {
+         place.measures.push((field_name.clone(), length, capacity));
+     }
+     if !place.alternatives.is_empty() {
+-        let written = literal_value(program, value);
++        let written = store
++            .preserves_scalar_value
++            .then(|| literal_value(program, value))
++            .flatten();
+         let definition = place.definition;
+         let case = place.active_case;
+         let holds = place.alternatives.iter().all(|fields| {
+@@ -337,25 +500,18 @@ pub(crate) fn handle_assignment<'program>(
+             }
+             place.established = true;
+             place.window_open = false;
+-        } else {
+-            place.window_open = place.established || place.window_open;
++            return;
+         }
+-        return;
++        // A symbolic or representation-changing store may lack a literal
++        // valuation. The complete prefix proof below still gets to establish
++        // the actual post-store predicate across every incoming alternative.
++        place.window_open = place.established || place.window_open;
+     }
+ 
+     // Obligation: a field participating in either an authored `where` fact or
+     // an implicit range/containment gate must help re-establish the whole
+     // value. Unrelated writes preserve the current establishment state.
+-    let selected_symbol =
+-        crate::value_custody::places::effective_member_symbol(program, member.receiver, member);
+-    let selected_field = crate::value_custody::places::exact_data_member_field(
+-        program,
+-        place.definition,
+-        selected_symbol,
+-        &field_name,
+-        member.case_variant.as_ref().map(|case| case.as_str()),
+-    )
+-    .filter(|field| {
++    let selected_field = Some(store.field).filter(|field| {
+         let parent = program.symbols.get(field.symbol).parent;
+         program.symbols.get(parent).kind != symbols::SymbolKind::Variant
+             || place.active_case.is_none_or(|active| active == parent)
+@@ -460,7 +616,8 @@ pub(crate) fn handle_assignment<'program>(
+                             machine,
+                             state,
+                             statement_index,
+-                            member.receiver,
++                            &store.receiver,
++                            store.preserves_scalar_value,
+                             place,
+                             written,
+                             value,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/post_store_predicates.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/post_store_predicates.rs
+index 64a73fdc929..1035277d3f1 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/post_store_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/post_store_predicates.rs
+@@ -44,12 +44,28 @@ pub(super) fn post_store_predicate_holds(
+     machine: &Machine,
+     state: &State,
+     statement_index: usize,
+-    receiver: ExpressionHandle,
++    receiver: &crate::CanonicalPlace,
++    preserves_scalar_value: bool,
+     place: &TrackedPlace<'_>,
+     written_field: SymbolHandle,
+     written_value: ExpressionHandle,
+     predicate: ExpressionHandle,
+ ) -> bool {
++    // A representation-changing store supplies source bits, not the RHS's
++    // numerical value. The execution-prefix owner interprets those bits at
++    // the captured source coordinate before proving its predicate.
++    if !preserves_scalar_value {
++        return crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
++            program,
++            machine,
++            state,
++            statement_index,
++            receiver,
++            place.definition,
++            place.active_case,
++            predicate,
++        );
++    }
+     // Exact scalar substitution can finish without reconstructing private
+     // arrivals. Both queries are independently sufficient proofs; replay the
+     // execution prefix only when the scalar query cannot establish the fact.

@@ -1,0 +1,16 @@
+{
+  "candidate": "a334c21381a5c173eb8650617a7ae1842fdb30c4",
+  "fixed_base": "326591276188e2fcc3ca124ad47be809d7dba4ec",
+  "compiler_input_patch_sha256": "c4b1bcc36858f3c0c1ef62b32a494d8a1a93dd8a745d4b6c87f9d34cb7a2bc3c",
+  "unchanged_compiler_paths": [
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/stored_predicates.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects/entry_reads.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/post_store_predicates.rs"
+  ],
+  "excluded_noncompiler_change": "omega-rust/psi/compilation/checking/README.md",
+  "applicability": "Frozen CLI base plus patch exactly matches all submitted Rust/compiler/library/toolchain changes. Subsequent source checkpoint adds fixtures/docs only, and final commit adds goldens only. Corpus runner built at source checkpointb32. All raw observations preserve their actual producer identities."
+}

@@ -1,0 +1,2 @@
+cannot compile admitted project: checked compilation failed for package `write_only_recast` with 1 diagnostic(s)
+  error: machine `overwrite` state `entry` reads field `value` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation

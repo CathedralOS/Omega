@@ -1,0 +1,11 @@
+{
+  "preserved": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-omega",
+  "sha256": "a10f855a139286aa0e672d567d5d48eeb3160631cb689f431c3545c3a24e27cb",
+  "allocated_before": 233009152,
+  "allocated_after": 68755456,
+  "removed_matching_generated_aliases": [
+    "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/omega",
+    "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/build/omega/e0770576184fb3d5/out/omega"
+  ],
+  "free": 592363520
+}

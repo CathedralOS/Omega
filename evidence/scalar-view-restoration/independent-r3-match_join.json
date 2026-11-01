@@ -1,0 +1,54 @@
+{
+  "reviewer": "Codex independent semantic reviewer",
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-omega",
+    "run",
+    "--both",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/main.omg"
+  ],
+  "exit": 0,
+  "seconds": 3.154286708,
+  "observed_workspace_head": "b32b6171a411d03717503717e27b365fcd86d7c3",
+  "producer": {
+    "source": "326591276188e2fcc3ca124ad47be809d7dba4ec",
+    "patch_sha256": "c4b1bcc36858f3c0c1ef62b32a494d8a1a93dd8a745d4b6c87f9d34cb7a2bc3c",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 6.744434542,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/candidate-r3-relink-omega",
+      "sha256": "a10f855a139286aa0e672d567d5d48eeb3160631cb689f431c3545c3a24e27cb",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "environment": {
+    "OMEGA_LIBRARY_ROOT": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/source/library",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "stdin_hex": "",
+  "input_hashes": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/main.omg": "b78ab5df3d433a7f32c2630b49589896d94d1c9a5d18931f1b35acaf89a2ca02",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/main.omg": "62024e6a8efb5b9d6b520f69f3c4fd33ea7c0fa3ab3747c8caccee91d9d9fa14",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/main.omg": "3e5d6a4244170112fd58515435c1afa98ff8e5cf3b9300e20d86d1614377d2d8",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908"
+  },
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/independent-r3-match_join.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/alias-restoration-20261101/independent-r3-match_join.stderr"
+}

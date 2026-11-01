@@ -1,0 +1,4631 @@
+{
+  "status": "complete",
+  "scope": "Only inactive >=1MiB UTF-8 text files in the two authorized historical folders; T/P/source and existing archives untouched",
+  "free_before": 538312704,
+  "target_allocated_recovery": 1073741824,
+  "inventory": {
+    "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022": {
+      "eligible_count": 73,
+      "eligible_allocated": 198746112
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027": {
+      "eligible_count": 55,
+      "eligible_allocated": 239001600
+    }
+  },
+  "files": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/ce8289fd97114977bb3816ef27f986b3.json",
+      "sha256": "fc6f1196b3c70e9203a4baad9fb0175773cb4f79f68479ed7217ef7095244ee5",
+      "before": {
+        "size": 6610199,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793201882180473974,
+        "allocated": 6610944,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282662127
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/ce8289fd97114977bb3816ef27f986b3.json"
+      ],
+      "after": {
+        "size": 6610199,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793201882180473974,
+        "allocated": 827392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282662127
+      },
+      "allocated_reduction": 5783552,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/1720a8898c704e39b71277a746206f2d.json",
+      "sha256": "bb3bf273fbfbe25d48f22eff8be8045db47c79db95f2a513c20d44d331d6de26",
+      "before": {
+        "size": 6610221,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793202891227273683,
+        "allocated": 6610944,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282663922
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/1720a8898c704e39b71277a746206f2d.json"
+      ],
+      "after": {
+        "size": 6610221,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793202891227273683,
+        "allocated": 827392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282663922
+      },
+      "allocated_reduction": 5783552,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/145e47c0bb6c4913869f64aaa195e95b.json",
+      "sha256": "42ecdf0d30c830191b239e9d91cd39a97bfb5706a6d59ff8eb3ca99d9d156e5d",
+      "before": {
+        "size": 6610166,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793200298629546002,
+        "allocated": 6610944,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282657228
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/145e47c0bb6c4913869f64aaa195e95b.json"
+      ],
+      "after": {
+        "size": 6610166,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793200298629546002,
+        "allocated": 827392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282657228
+      },
+      "allocated_reduction": 5783552,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/fde7fa593d4e431cba5e0cd78bd124f0.json",
+      "sha256": "e11e948204d50a70ee0a2686a1bfd5b9fc44e65ab75bc5cebc27c0892aa20bd4",
+      "before": {
+        "size": 6583096,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793198888852133403,
+        "allocated": 6586368,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282646305
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/fde7fa593d4e431cba5e0cd78bd124f0.json"
+      ],
+      "after": {
+        "size": 6583096,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793198888852133403,
+        "allocated": 819200,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282646305
+      },
+      "allocated_reduction": 5767168,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/cc466963f7fa416889a4fd9da3dac299.json",
+      "sha256": "feeb8ef1c9e2692db157d3c5611c0af58825936c2805f9db5d08f4fd34ebecb3",
+      "before": {
+        "size": 6583171,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793168011897492071,
+        "allocated": 6586368,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282607851
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/cc466963f7fa416889a4fd9da3dac299.json"
+      ],
+      "after": {
+        "size": 6583171,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793168011897492071,
+        "allocated": 819200,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282607851
+      },
+      "allocated_reduction": 5767168,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/bbea75e96ba24de98dab426e4c50b306.json",
+      "sha256": "0718309c7e4b23c3e94fbceff51376b0d56da00fde707a89a1c7e868329f5b31",
+      "before": {
+        "size": 6583022,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199283793124145,
+        "allocated": 6586368,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282647650
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/bbea75e96ba24de98dab426e4c50b306.json"
+      ],
+      "after": {
+        "size": 6583022,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199283793124145,
+        "allocated": 819200,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282647650
+      },
+      "allocated_reduction": 5767168,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/946a5e6078ba438bbce6b96398d26624.json",
+      "sha256": "3e3a05aeb89820a3228dce2086870414e364942ae9726302957ca2ce79a2a7f5",
+      "before": {
+        "size": 6582011,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793166278420300123,
+        "allocated": 6582272,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282587735
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-graph-a6-completion-qualification.records/946a5e6078ba438bbce6b96398d26624.json"
+      ],
+      "after": {
+        "size": 6582011,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793166278420300123,
+        "allocated": 819200,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282587735
+      },
+      "allocated_reduction": 5763072,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-daf-run-pending.json",
+      "sha256": "3d543d26ef7c0106c602de2b6a67707fa1bc38e5df381edeb4e81bc27399858c",
+      "before": {
+        "size": 4710996,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161344423446344,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282477091
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-daf-run-pending.json"
+      ],
+      "after": {
+        "size": 4710996,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161344423446344,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282477091
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-daf-amend.json",
+      "sha256": "a274b873e746871d35bb22a71cccac22d06f366183e8cf26c8ecac2894279a5e",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161105330781678,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282477085
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-daf-amend.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161105330781678,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282477085
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-a6-amend.json",
+      "sha256": "164b5f67eddeedb69c80260209007701c510ebdb938405093285580ea4cd7679",
+      "before": {
+        "size": 4711005,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162519385688597,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282483137
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-a6-amend.json"
+      ],
+      "after": {
+        "size": 4711005,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162519385688597,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282483137
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-8920-run-pending.json",
+      "sha256": "5f154b6147e557d6db19c6606273e58a47fb129dfe68cb2dbd4eb4a649a96731",
+      "before": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793156603457349155,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282203473
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-8920-run-pending.json"
+      ],
+      "after": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793156603457349155,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282203473
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-8920-amend.json",
+      "sha256": "71334cd16c92ca8ef39fc252f5aa29192daf32b9a18bde8c3b91ceca0506fce4",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793156472183044681,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282203434
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-8920-amend.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793156472183044681,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282203434
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-748-run-pending.json",
+      "sha256": "adbfd54a7d90729b837f42c0bf7e9b2fbca616d8429d47cc70bd612be28d1fcb",
+      "before": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793160096182510514,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282464075
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-748-run-pending.json"
+      ],
+      "after": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793160096182510514,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282464075
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-748-amend.json",
+      "sha256": "b791dcb90e2823d524c07c635d012c776bcda5898107435be935b2897ceb9715",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159880999021541,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282464063
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-runtime-748-amend.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159880999021541,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282464063
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-a6-nonaccepted-recovery-result.json",
+      "sha256": "b5e7e1b48ea636e6cf2919f11fb363e8a3a48fc83c084bdfc0c353a7353f90d6",
+      "before": {
+        "size": 4710917,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793163565514142832,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282577979
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-a6-nonaccepted-recovery-result.json"
+      ],
+      "after": {
+        "size": 4710917,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793163565514142832,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282577979
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-run-pending.json",
+      "sha256": "d8affd978b03cdfcbe63ea363917d4550709b543cb7c653fc51259d3f9feaa93",
+      "before": {
+        "size": 4710883,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152872278795484,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194582
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-run-pending.json"
+      ],
+      "after": {
+        "size": 4710883,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152872278795484,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194582
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-ebb4d965cbe7-run-pending.json",
+      "sha256": "aa459aa99449366ddf5fe52e13312542f51dc2b28a518c72af71183ed0451f0d",
+      "before": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154110145218060,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198475
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-ebb4d965cbe7-run-pending.json"
+      ],
+      "after": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154110145218060,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198475
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-ebb4d965cbe7-amend.json",
+      "sha256": "ea43885d239c41b971a7af4a6659622683067375a72cfd6c0cdf28fcaa35b522",
+      "before": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154045949619822,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198463
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-ebb4d965cbe7-amend.json"
+      ],
+      "after": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154045949619822,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198463
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-amend.json",
+      "sha256": "219b5429d35cb532d90f9f392ef4e5ab30daec91415585f094198ebce9239a69",
+      "before": {
+        "size": 4710980,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152814914738675,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194562
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-amend.json"
+      ],
+      "after": {
+        "size": 4710980,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152814914738675,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194562
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-783453263d2d-run-pending.json",
+      "sha256": "c1b6ce0301eb6f39c44b99b997d50520ea752651cc2f213cb6d438f350dbbf6f",
+      "before": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153546864646019,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282197675
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-783453263d2d-run-pending.json"
+      ],
+      "after": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153546864646019,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282197675
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-783453263d2d-amend.json",
+      "sha256": "b337f85bc39fa4d5153b1b586ee85c553c73fd429ba8b20bf0dcb97f08aeb2dc",
+      "before": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153483588402800,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282197661
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-783453263d2d-amend.json"
+      ],
+      "after": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153483588402800,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282197661
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-72e1f5a18f5a-run-pending.json",
+      "sha256": "3e71faa2e9f0bbd48857b234c231e9fa42668949c474ffaee2ffab95ed74cb7e",
+      "before": {
+        "size": 4711007,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154664528104586,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282199891
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-72e1f5a18f5a-run-pending.json"
+      ],
+      "after": {
+        "size": 4711007,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154664528104586,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282199891
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-72e1f5a18f5a-amend.json",
+      "sha256": "29b0fb17b69bf36c5c402b32c3f59fbe9867ac6884d2623613ca829be03e9f3d",
+      "before": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154585577658887,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282199857
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-std-72e1f5a18f5a-amend.json"
+      ],
+      "after": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154585577658887,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282199857
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-run-pending.json",
+      "sha256": "04dfd37da70570f63e796f457d40b159ef12e98edd1e19f8778660c4cddb96a1",
+      "before": {
+        "size": 4710980,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152785247487388,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282189775
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-run-pending.json"
+      ],
+      "after": {
+        "size": 4710980,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152785247487388,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282189775
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-ebb4d965cbe7-run-pending.json",
+      "sha256": "221efab49824f0a8234cbd6f80045ce635953f6c30523a05dc6bd9e9b03baee2",
+      "before": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153828336053609,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198069
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-ebb4d965cbe7-run-pending.json"
+      ],
+      "after": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153828336053609,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198069
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-ebb4d965cbe7-amend.json",
+      "sha256": "d16a3323eee92bbdcdb665b0602924b29ea422cee34db1b4be158bc7b94ece60",
+      "before": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153712817171436,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198059
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-ebb4d965cbe7-amend.json"
+      ],
+      "after": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153712817171436,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198059
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-daf2cc084629-run-pending.json",
+      "sha256": "94e0f6651c9f3b013c1f41371c76b7effb6e2ae528784d303bdaf13c74006176",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161078971950841,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282471071
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-daf2cc084629-run-pending.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161078971950841,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282471071
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-daf2cc084629-amend.json",
+      "sha256": "6051627d75cee510bbc0f5a59d34ee7ad38424eeb29b9e7c0954a8167acc4729",
+      "before": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793160510939000567,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282470803
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-daf2cc084629-amend.json"
+      ],
+      "after": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793160510939000567,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282470803
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-amend.json",
+      "sha256": "c2da395d3635332c58d246e6c10110d8d052057758160ee7cd9a8eb92e23aaf2",
+      "before": {
+        "size": 4710673,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152385186261392,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282189766
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-amend.json"
+      ],
+      "after": {
+        "size": 4710673,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152385186261392,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282189766
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-a6ea19579d45-run-pending.json",
+      "sha256": "e3b797acf51d705927e38da441e40f268d69a0b9d91abbe39afe693b77ddf557",
+      "before": {
+        "size": 4711005,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162426187490740,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282480048
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-a6ea19579d45-run-pending.json"
+      ],
+      "after": {
+        "size": 4711005,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162426187490740,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282480048
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-a6ea19579d45-amend.json",
+      "sha256": "e91fce9d9fb6cfb0c9939a1b47a9c3cf91cd5fb167fcd6d521f2ca490410fd08",
+      "before": {
+        "size": 4710996,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161959950455008,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282480023
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-a6ea19579d45-amend.json"
+      ],
+      "after": {
+        "size": 4710996,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161959950455008,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282480023
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-8920a35d359e-run-pending.json",
+      "sha256": "407e86feda9a7649436c4a173b7a42efbdb073189180fffe6a3d452556fbb9d0",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155981496695804,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282201777
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-8920a35d359e-run-pending.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155981496695804,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282201777
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-8920a35d359e-amend.json",
+      "sha256": "7e506b073fa3da1db3434750a6d80486fd94f5bb22ef4aaffdd4978e44011f28",
+      "before": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155642664092849,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282201719
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-8920a35d359e-amend.json"
+      ],
+      "after": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155642664092849,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282201719
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-78a513fb1686-run-pending.json",
+      "sha256": "cb0fd6f4fef1b340e9b84df793592227f61292fd84428be2e0a2d790d8c739a6",
+      "before": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155292999816765,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282200367
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-78a513fb1686-run-pending.json"
+      ],
+      "after": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155292999816765,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282200367
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-78a513fb1686-amend.json",
+      "sha256": "449cce56ec49debd726ff11951251ff48daac1c1ee27433dff5de9f6bd74c08b",
+      "before": {
+        "size": 4711007,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154966452192258,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282200316
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-78a513fb1686-amend.json"
+      ],
+      "after": {
+        "size": 4711007,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154966452192258,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282200316
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-783453263d2d-run-pending.json",
+      "sha256": "c602c75dea149a9c7793c08eb08f2320feba5f9e32f180ba725d5d907d0b42c9",
+      "before": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153457523514732,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194821
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-783453263d2d-run-pending.json"
+      ],
+      "after": {
+        "size": 4711011,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153457523514732,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194821
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-783453263d2d-amend.json",
+      "sha256": "25a70781a66b37100e4e786a414119d7a58bc6cb068582b93bf72e9d85ec5236",
+      "before": {
+        "size": 4710883,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153077517660432,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194812
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-783453263d2d-amend.json"
+      ],
+      "after": {
+        "size": 4710883,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153077517660432,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194812
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-748106b9f4ce-run-pending.json",
+      "sha256": "206ed178a6815ceff00649a865e9e6245719fd6e3eaa4a64f74e37d0f2ed1d5a",
+      "before": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159327601540029,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282447053
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-748106b9f4ce-run-pending.json"
+      ],
+      "after": {
+        "size": 4711010,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159327601540029,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282447053
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-748106b9f4ce-amend.json",
+      "sha256": "775a3c77c18cad7d7d7ed02e51d7462da16a4555b26ba5be29f6cbdff955c2f4",
+      "before": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159135033950683,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282447043
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-748106b9f4ce-amend.json"
+      ],
+      "after": {
+        "size": 4710898,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159135033950683,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282447043
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-72e1f5a18f5a-run-pending.json",
+      "sha256": "30bfdd624bffbf7d65cdbdc712b7752872494a9788d5ddbd69aa3ea1f17d9951",
+      "before": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154522212344274,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198874
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-72e1f5a18f5a-run-pending.json"
+      ],
+      "after": {
+        "size": 4711006,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154522212344274,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198874
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-72e1f5a18f5a-amend.json",
+      "sha256": "3fceb2ad332c6a7af9923711bf9331090fa6998fe9c4a10adf10b63ba9a2a96b",
+      "before": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154323355568238,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198821
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/candidate-build-72e1f5a18f5a-amend.json"
+      ],
+      "after": {
+        "size": 4710909,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154323355568238,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198821
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-std-run-pending.json",
+      "sha256": "0483d4640859441110861d189f7faaf27b32d012d29596977facb8ae2beda028",
+      "before": {
+        "size": 4710673,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145214845851149,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282144465
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-std-run-pending.json"
+      ],
+      "after": {
+        "size": 4710673,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145214845851149,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282144465
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-std-amend.json",
+      "sha256": "cfd74f19d53a0e0a02a40932622d8c8b167aab6e334d9102f7d8da68c02725f3",
+      "before": {
+        "size": 4710776,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145152909093187,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282144424
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-std-amend.json"
+      ],
+      "after": {
+        "size": 4710776,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145152909093187,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282144424
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-run-pending.json",
+      "sha256": "0a63d0aa2838cba270cd6eca01c7053eee1f7d94d0b9dc655c6ae71e754de641",
+      "before": {
+        "size": 4710776,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144421688966087,
+        "allocated": 4714496,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282142180
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-run-pending.json"
+      ],
+      "after": {
+        "size": 4710776,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144421688966087,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282142180
+      },
+      "allocated_reduction": 4399104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-amend.json",
+      "sha256": "c7450615675001e001ac597af90d0e84abebb70b0aa26be652008143ea7ca297",
+      "before": {
+        "size": 4697721,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144148668526967,
+        "allocated": 4698112,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282142156
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/baseline-amend.json"
+      ],
+      "after": {
+        "size": 4697721,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144148668526967,
+        "allocated": 315392,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282142156
+      },
+      "allocated_reduction": 4382720,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/b9868e97cbdd4407bcf1d118f96873fa.json",
+      "sha256": "926a209fe94b7c708fc033a5b33cd62eea2429890be38a11a3eef5075c018279",
+      "before": {
+        "size": 3875208,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138606049539435,
+        "allocated": 3878912,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282125401
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/b9868e97cbdd4407bcf1d118f96873fa.json"
+      ],
+      "after": {
+        "size": 3875208,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138606049539435,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282125401
+      },
+      "allocated_reduction": 3457024,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2b05565a4eba463aa2fdf3be3e3a3650.json",
+      "sha256": "8dfc56b57591212c1787c256ee1e116f166a7e8d6302bcd2e5cdc3067bb419ac",
+      "before": {
+        "size": 3875213,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138581581437617,
+        "allocated": 3878912,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282125216
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2b05565a4eba463aa2fdf3be3e3a3650.json"
+      ],
+      "after": {
+        "size": 3875213,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138581581437617,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282125216
+      },
+      "allocated_reduction": 3457024,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/be8246f6b3e240a1b5a198601ee4b1c9.json",
+      "sha256": "842861b00b70eecddcbb1567f641dbf9009594caa99b6907bacba33d71e20e5d",
+      "before": {
+        "size": 3874733,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138450888453289,
+        "allocated": 3874816,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282124408
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/be8246f6b3e240a1b5a198601ee4b1c9.json"
+      ],
+      "after": {
+        "size": 3874733,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138450888453289,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282124408
+      },
+      "allocated_reduction": 3452928,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/855957ea64a54d4d87e7f72d245d7535.json",
+      "sha256": "3fedaed477db384fc5d133f04579ee4fac52e8e3826f51cde8bb31e41227c2d1",
+      "before": {
+        "size": 3874727,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138080523642208,
+        "allocated": 3874816,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282123381
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/855957ea64a54d4d87e7f72d245d7535.json"
+      ],
+      "after": {
+        "size": 3874727,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138080523642208,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282123381
+      },
+      "allocated_reduction": 3452928,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/509355e0756e484fa8a683affcc159f2.json",
+      "sha256": "448cf3fbd0a0fac184d7e095d56f8226aecb456daee203c08b3893d76e294ddf",
+      "before": {
+        "size": 3874735,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138348664410230,
+        "allocated": 3874816,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282123794
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/509355e0756e484fa8a683affcc159f2.json"
+      ],
+      "after": {
+        "size": 3874735,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138348664410230,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282123794
+      },
+      "allocated_reduction": 3452928,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0e4d03dd40af4ab6ba0f27e31ccbfa1a.json",
+      "sha256": "3f6a2ce0bba01efb2b32931e57a509922a51fce3f5cfd579fd9df4d0742de989",
+      "before": {
+        "size": 3874727,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138377279873178,
+        "allocated": 3874816,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282124045
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0e4d03dd40af4ab6ba0f27e31ccbfa1a.json"
+      ],
+      "after": {
+        "size": 3874727,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138377279873178,
+        "allocated": 421888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282124045
+      },
+      "allocated_reduction": 3452928,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/c8b64a45504b40c4a30d6fa646c0b07f.json",
+      "sha256": "d7b51eac91f9b93e7939fa65e5e1d47fc7e065178dccca83a426c80b87b428e8",
+      "before": {
+        "size": 2770496,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122865313277608,
+        "allocated": 2772992,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282051695
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/c8b64a45504b40c4a30d6fa646c0b07f.json"
+      ],
+      "after": {
+        "size": 2770496,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122865313277608,
+        "allocated": 274432,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282051695
+      },
+      "allocated_reduction": 2498560,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6df80082479d4501819f725490f209ab.json",
+      "sha256": "72d4d08426e478cfbdc7a0ff1e3085ac6bbbe926912434c055ca1cbfdf7cab6d",
+      "before": {
+        "size": 2770508,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122930132807906,
+        "allocated": 2772992,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282051751
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6df80082479d4501819f725490f209ab.json"
+      ],
+      "after": {
+        "size": 2770508,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122930132807906,
+        "allocated": 274432,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282051751
+      },
+      "allocated_reduction": 2498560,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7c9501f2cc604748bc0880fce64055f7.json",
+      "sha256": "8b28efef91fdaaada9864376859f1f6656d284aab1b757436b2b0dc3e294648b",
+      "before": {
+        "size": 2716596,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121758518766551,
+        "allocated": 2719744,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282049318
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7c9501f2cc604748bc0880fce64055f7.json"
+      ],
+      "after": {
+        "size": 2716596,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121758518766551,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282049318
+      },
+      "allocated_reduction": 2453504,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/67b8114c9d2d4fc2b1e4092051087a0e.json",
+      "sha256": "823b3e67b59c09b4d421aa342739ce2c0dfe9a758cee6b8e16995d20717a4d9d",
+      "before": {
+        "size": 2716594,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121827895894676,
+        "allocated": 2719744,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282049775
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/67b8114c9d2d4fc2b1e4092051087a0e.json"
+      ],
+      "after": {
+        "size": 2716594,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121827895894676,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282049775
+      },
+      "allocated_reduction": 2453504,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/625a3f7c9c9d4c34a15158f9ed348886.json",
+      "sha256": "b40d2e8c2333bbb800384ae1a8784abb1e4b30a19f02950c9869e22fbcbeb74d",
+      "before": {
+        "size": 2716628,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122525609160507,
+        "allocated": 2719744,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282051094
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/625a3f7c9c9d4c34a15158f9ed348886.json"
+      ],
+      "after": {
+        "size": 2716628,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122525609160507,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282051094
+      },
+      "allocated_reduction": 2453504,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/3675566deb8344bd9e321002e268f16d.json",
+      "sha256": "f7365ae0f6b52f8a1ab71bcf6b706e004dcd00ef1afb0d730be8d6b6eb56ff9c",
+      "before": {
+        "size": 2716625,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122594447656321,
+        "allocated": 2719744,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282051480
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/3675566deb8344bd9e321002e268f16d.json"
+      ],
+      "after": {
+        "size": 2716625,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122594447656321,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282051480
+      },
+      "allocated_reduction": 2453504,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/fd516e3ae70d422f95afdff89fe57368.json",
+      "sha256": "be9cb975d5aaeb4034fa8ed97134d5ed0060dbfec1710b1bea0a02b7bfceaf0e",
+      "before": {
+        "size": 2712828,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122411123025516,
+        "allocated": 2715648,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282050663
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/fd516e3ae70d422f95afdff89fe57368.json"
+      ],
+      "after": {
+        "size": 2712828,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122411123025516,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282050663
+      },
+      "allocated_reduction": 2449408,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f467bac759e6425d8925b3c22b54ebc0.json",
+      "sha256": "07ee9dc2bc64bc7481b10dd337152142d1a14fda4489dbcf2a83a27f86b77494",
+      "before": {
+        "size": 2713629,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122672390934222,
+        "allocated": 2715648,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282051533
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f467bac759e6425d8925b3c22b54ebc0.json"
+      ],
+      "after": {
+        "size": 2713629,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793122672390934222,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282051533
+      },
+      "allocated_reduction": 2449408,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/988159f33f284e3b9d8bea05787b7efe.json",
+      "sha256": "0b7de4bb19f67fa3fd1d2a6d9b9f3a0f7037cd7507bb7a9235ed926c2a5a94b8",
+      "before": {
+        "size": 2713606,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121852850955583,
+        "allocated": 2715648,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282050091
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/988159f33f284e3b9d8bea05787b7efe.json"
+      ],
+      "after": {
+        "size": 2713606,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121852850955583,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282050091
+      },
+      "allocated_reduction": 2449408,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2f009d5be8394fcbae8e4779c3b4b38a.json",
+      "sha256": "640616a336e41af6eb10e5527bdee95bbe076ea002320fc822a8c270f6a73cef",
+      "before": {
+        "size": 2712802,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121641360471350,
+        "allocated": 2715648,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282048781
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2f009d5be8394fcbae8e4779c3b4b38a.json"
+      ],
+      "after": {
+        "size": 2712802,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793121641360471350,
+        "allocated": 266240,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282048781
+      },
+      "allocated_reduction": 2449408,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/75c7388e98b849acb0ac422356b74204.json",
+      "sha256": "642fcada1a9d48db52ccdae33f6cc67cf7fe1da4d8a2739114ca816da583e786",
+      "before": {
+        "size": 2687920,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132818013359171,
+        "allocated": 2691072,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282112092
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/75c7388e98b849acb0ac422356b74204.json"
+      ],
+      "after": {
+        "size": 2687920,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132818013359171,
+        "allocated": 270336,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282112092
+      },
+      "allocated_reduction": 2420736,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f43a068f4f104daba00937f6856415b5.json",
+      "sha256": "60dd5bf740c8737dcf1633fb3656f66d455d8a0650efeb766416830f0c0e134c",
+      "before": {
+        "size": 2610954,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793106828505301513,
+        "allocated": 2613248,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 281722378
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f43a068f4f104daba00937f6856415b5.json"
+      ],
+      "after": {
+        "size": 2610954,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793106828505301513,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 281722378
+      },
+      "allocated_reduction": 2359296,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ea9dca7eaeac40279b59fdee5d3e1a76.json",
+      "sha256": "83e01ad4a34b2726308265cd801c998b7364e3eb82d8124aa9eacf550cf94864",
+      "before": {
+        "size": 2611734,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793106885709463506,
+        "allocated": 2613248,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 281722424
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ea9dca7eaeac40279b59fdee5d3e1a76.json"
+      ],
+      "after": {
+        "size": 2611734,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793106885709463506,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 281722424
+      },
+      "allocated_reduction": 2359296,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/e48ca5b4282949fcab449b96c574b156.json",
+      "sha256": "28c25983717059936429a90bc55e3672ec19967113698d4264f47c019badc386",
+      "before": {
+        "size": 2605415,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132769253481679,
+        "allocated": 2609152,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111827
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/e48ca5b4282949fcab449b96c574b156.json"
+      ],
+      "after": {
+        "size": 2605415,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132769253481679,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111827
+      },
+      "allocated_reduction": 2355200,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f49813fabce043768939689d81ebd238.json",
+      "sha256": "a2d9915fd10c074a237ce629d9751fbd772bc4508c2ce13984760996301134e1",
+      "before": {
+        "size": 2601335,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132331881566818,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282110089
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f49813fabce043768939689d81ebd238.json"
+      ],
+      "after": {
+        "size": 2601335,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132331881566818,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282110089
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/d51560edfb5c45f791cf92dfeb702d18.json",
+      "sha256": "1e8daec61ba74403e0771f201f1b7f701f0bf5e9174e8b924b93be962b2e9ae2",
+      "before": {
+        "size": 2601333,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131906466280934,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282108141
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/d51560edfb5c45f791cf92dfeb702d18.json"
+      ],
+      "after": {
+        "size": 2601333,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131906466280934,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282108141
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ce425fb284d342cb949d8a0165472626.json",
+      "sha256": "b574880c4c07964fe279bf53d7191b32ab808d6b8e4b559456a2ba96eba7c218",
+      "before": {
+        "size": 2604909,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132800713130586,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282112000
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ce425fb284d342cb949d8a0165472626.json"
+      ],
+      "after": {
+        "size": 2604909,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132800713130586,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282112000
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/cd921840b81743879b85382599b4cd30.json",
+      "sha256": "49186ca860c97e5d80b18f4099d7deb656a083292228fd86871167e239b2d812",
+      "before": {
+        "size": 2601327,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131889741445092,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282107987
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/cd921840b81743879b85382599b4cd30.json"
+      ],
+      "after": {
+        "size": 2601327,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131889741445092,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282107987
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/b9bdceb08bba42c1b2512d2fa196038e.json",
+      "sha256": "1c8d00b74e83c078a9b203fb6f6df0dce058565aad541d717e2063c31c1707ef",
+      "before": {
+        "size": 2604848,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132785087990164,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111916
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/b9bdceb08bba42c1b2512d2fa196038e.json"
+      ],
+      "after": {
+        "size": 2604848,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132785087990164,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111916
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/9c04427cf88044d9a696711e90dda7bc.json",
+      "sha256": "97da763e49188aba497c66b7a9da011f79b77549d3fa17f1d292499fc1b89c4d",
+      "before": {
+        "size": 2601402,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132362983739721,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282110567
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/9c04427cf88044d9a696711e90dda7bc.json"
+      ],
+      "after": {
+        "size": 2601402,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132362983739721,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282110567
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/69896a05c0c74021bf8717df33ab57b2.json",
+      "sha256": "30cb47be7781f79ec01f494c026d0736a47d95b388617ff7cbed16f41b755b30",
+      "before": {
+        "size": 2601341,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132347269145100,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282110484
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/69896a05c0c74021bf8717df33ab57b2.json"
+      ],
+      "after": {
+        "size": 2601341,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132347269145100,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282110484
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/610df5704bf2401fae222203dfd9fe98.json",
+      "sha256": "66693cfdc789f9c53ca0aa694f39de9e877a0d09441a1d2d2c9f26ea2926b3b4",
+      "before": {
+        "size": 2604701,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132665978343266,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111249
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/610df5704bf2401fae222203dfd9fe98.json"
+      ],
+      "after": {
+        "size": 2604701,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132665978343266,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111249
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5eb9f8832d3f4886a8e39bb2dfb03dff.json",
+      "sha256": "6f8b1b2004a4eb21e4900558334197e408396f1545736c3d6400bc57b7c8a438",
+      "before": {
+        "size": 2603173,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132698730266508,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111397
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5eb9f8832d3f4886a8e39bb2dfb03dff.json"
+      ],
+      "after": {
+        "size": 2603173,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132698730266508,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111397
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/4b747cee40fe4f5c9870908f1a236fd2.json",
+      "sha256": "341cfb265d9ac2b1a8d49e8dbdc5626fe8265f1c4e186d24d217320fb3661ee8",
+      "before": {
+        "size": 2604697,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132681073716588,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111323
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/4b747cee40fe4f5c9870908f1a236fd2.json"
+      ],
+      "after": {
+        "size": 2604697,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132681073716588,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111323
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/211885c3986443e5aaa5bc4812f606c8.json",
+      "sha256": "b4dcf27aab156ea197936b88a6c8fb01ba4f677912aaa37c4e04d6a0fea8c192",
+      "before": {
+        "size": 2601402,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132377466013043,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282110657
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/211885c3986443e5aaa5bc4812f606c8.json"
+      ],
+      "after": {
+        "size": 2601402,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132377466013043,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282110657
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1e04a09afe374f4687dfdbc4f1a83ade.json",
+      "sha256": "1b1ee988722169d5a7805b244128fb683a5aebe34941ca8baea680e79b4204ad",
+      "before": {
+        "size": 2604129,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132546025490489,
+        "allocated": 2605056,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282111003
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1e04a09afe374f4687dfdbc4f1a83ade.json"
+      ],
+      "after": {
+        "size": 2604129,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132546025490489,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282111003
+      },
+      "allocated_reduction": 2351104,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a0577083e8d74a10846767104ef914e6.json",
+      "sha256": "f233526d1f862b8643bfe647f55268f89e03f14236c78a9c834e2bb549140cce",
+      "before": {
+        "size": 2599949,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131066371902385,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282098010
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a0577083e8d74a10846767104ef914e6.json"
+      ],
+      "after": {
+        "size": 2599949,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131066371902385,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282098010
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/806cdf5bf8384c7dad592e66a458c1ea.json",
+      "sha256": "868bc4192b0c54a01e849ba19f6d441d70eb29849d8b552d74aded3826ad5b77",
+      "before": {
+        "size": 2599955,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131080057830202,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282098041
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/806cdf5bf8384c7dad592e66a458c1ea.json"
+      ],
+      "after": {
+        "size": 2599955,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131080057830202,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282098041
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/34d9dd37bc4045bf9536baabbc611c76.json",
+      "sha256": "f3fec0f1b8d1f704a04da5d0494eb2073379ac54a0b93da88c5e5f103b2dc8ef",
+      "before": {
+        "size": 2597351,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154633572032605,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282200088
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/34d9dd37bc4045bf9536baabbc611c76.json"
+      ],
+      "after": {
+        "size": 2597351,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154633572032605,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282200088
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2a841e53e1894ecea052e0fa67097727.json",
+      "sha256": "bc97cd9646faf98c667505fe4971ac39d68185be5ab33c0f671a2c58f81f1f7b",
+      "before": {
+        "size": 2597319,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152863091934961,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194631
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/2a841e53e1894ecea052e0fa67097727.json"
+      ],
+      "after": {
+        "size": 2597319,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152863091934961,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194631
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/29cc7412ef4542149d6cf3784d8a1c29.json",
+      "sha256": "fa68f7b53a451c2fd7f86b4a8399fc80bfad584ea9c35dc6d139939ef60bd072",
+      "before": {
+        "size": 2597345,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154096948187955,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198630
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/29cc7412ef4542149d6cf3784d8a1c29.json"
+      ],
+      "after": {
+        "size": 2597345,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154096948187955,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198630
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0c92c2ff09d749baa374a0329ae2c807.json",
+      "sha256": "85e506cc50a38a6b433fa15251c120b58c27346eee480a0547c3ee68be93eb9a",
+      "before": {
+        "size": 2598900,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162387062557865,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282482946
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0c92c2ff09d749baa374a0329ae2c807.json"
+      ],
+      "after": {
+        "size": 2598900,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793162387062557865,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282482946
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/054d1be62b69456e8c9939cd912824ef.json",
+      "sha256": "2fbdb4c160a889105f8875d6d1a8becea7c6bddd1b6daadba46f05fb2f407be3",
+      "before": {
+        "size": 2597345,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153534257386367,
+        "allocated": 2600960,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282197725
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/054d1be62b69456e8c9939cd912824ef.json"
+      ],
+      "after": {
+        "size": 2597345,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153534257386367,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282197725
+      },
+      "allocated_reduction": 2347008,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ff7b8cf43bf64cd3bbcd2e40485790bc.json",
+      "sha256": "50c667f2f4bc6d0b26bcf19feba185f3831856a5cbb0d1491f2d1286436c26f4",
+      "before": {
+        "size": 2595422,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155263491974813,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282201512
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ff7b8cf43bf64cd3bbcd2e40485790bc.json"
+      ],
+      "after": {
+        "size": 2595422,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155263491974813,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282201512
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f5336b7698c944a2ad9f268f247d2c27.json",
+      "sha256": "96f3fe1b5704024b54937636bd829c39797ccf144bc32bf13e9a210134a08765",
+      "before": {
+        "size": 2595054,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793130882134440193,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282097914
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f5336b7698c944a2ad9f268f247d2c27.json"
+      ],
+      "after": {
+        "size": 2595054,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793130882134440193,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282097914
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f3fb51283e91436a8bbfc760c7082df9.json",
+      "sha256": "51b949c4e9412a89d9eedc4dfdf4e0f9a784f0d7e4e7f58e5942193ae0bc3e9f",
+      "before": {
+        "size": 2595574,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138512310316134,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282124776
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/f3fb51283e91436a8bbfc760c7082df9.json"
+      ],
+      "after": {
+        "size": 2595574,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138512310316134,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282124776
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/de2ce9991df94f1ab29727cce09113b0.json",
+      "sha256": "55416032bb1e610cfdcacbf360f0403cec20914c932514151ec7e4d031849ffb",
+      "before": {
+        "size": 2595036,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153432965613862,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282197651
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/de2ce9991df94f1ab29727cce09113b0.json"
+      ],
+      "after": {
+        "size": 2595036,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153432965613862,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282197651
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/cec1264b35b44954ab4ab801c289a308.json",
+      "sha256": "53c5d3a8ebab8efff8dc2db60c47f0490d1e8fb5cd5aa66f4438b2351f02784e",
+      "before": {
+        "size": 2595427,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159301254653632,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282447927
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/cec1264b35b44954ab4ab801c289a308.json"
+      ],
+      "after": {
+        "size": 2595427,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793159301254653632,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282447927
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/bc9c176e0d6b494b94127567f9e9ee31.json",
+      "sha256": "94636739061df1bb4296197bc5c170b6cf5bad672cb356eaa080920d9cddf6ef",
+      "before": {
+        "size": 2595279,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138488547454142,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282124656
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/bc9c176e0d6b494b94127567f9e9ee31.json"
+      ],
+      "after": {
+        "size": 2595279,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138488547454142,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282124656
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/bbea4f2d3de848ccb104b5f39ef1f6af.json",
+      "sha256": "71e250f050224db1d67605619530ed53cfef378edeb08373821801bb33cb862f",
+      "before": {
+        "size": 2594174,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134771454209254,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282115592
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/bbea4f2d3de848ccb104b5f39ef1f6af.json"
+      ],
+      "after": {
+        "size": 2594174,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134771454209254,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282115592
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a5133faf28ac4410bc53c4cb48e7b45a.completed-recovery.json",
+      "sha256": "f91ca3cd2723bbdf62b37d8e3aa92fa11b36a775723617b584b3c4c3a6effc2d",
+      "before": {
+        "size": 2592992,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134358073753446,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282114951
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a5133faf28ac4410bc53c4cb48e7b45a.completed-recovery.json"
+      ],
+      "after": {
+        "size": 2592992,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134358073753446,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282114951
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/92fd917fd092418489b89a37cb6b4e48.json",
+      "sha256": "4d5e9dfe944709c8aaff3f71d669871f2ac2fdddb98d52e21243e89d4c08785c",
+      "before": {
+        "size": 2594740,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793135038063771557,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282115869
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/92fd917fd092418489b89a37cb6b4e48.json"
+      ],
+      "after": {
+        "size": 2594740,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793135038063771557,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282115869
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7e0a1c3408144e6d89c2d76d11368749.json",
+      "sha256": "af5dd6d3289a7ec9d9d72cefd41aca6670ed6aa397b001b8bd93adbee93f2473",
+      "before": {
+        "size": 2593618,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137339239675916,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282120048
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7e0a1c3408144e6d89c2d76d11368749.json"
+      ],
+      "after": {
+        "size": 2593618,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137339239675916,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282120048
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7bdc912f1d924ea5a626e2b77be76815.json",
+      "sha256": "b333c12d5899823a985233d2b38a30b439d5dc3088e7ad87dd2a7bf8a42389b9",
+      "before": {
+        "size": 2595427,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155952857019632,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282203114
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/7bdc912f1d924ea5a626e2b77be76815.json"
+      ],
+      "after": {
+        "size": 2595427,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793155952857019632,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282203114
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/75db79e8fc3042e9bc250d4a728cfea3.json",
+      "sha256": "7800fd24307b21fbd2c419cf54fc77d1f276f95f8b781f543fa1b19d53df0128",
+      "before": {
+        "size": 2596184,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161047385405807,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282477058
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/75db79e8fc3042e9bc250d4a728cfea3.json"
+      ],
+      "after": {
+        "size": 2596184,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793161047385405807,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282477058
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6dac544868d04b7d841e326c9885b61b.json",
+      "sha256": "cd658def2f15c1a73a7aad71e9ef369c80c0ed85a84ee86e3bc5c9713b70e4a6",
+      "before": {
+        "size": 2595035,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153799401694812,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282198233
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6dac544868d04b7d841e326c9885b61b.json"
+      ],
+      "after": {
+        "size": 2595035,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793153799401694812,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282198233
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6b5a4cf4b5c94a14881feb23ec3296bf.json",
+      "sha256": "92de17b79651507cb7c850ea019ed3fa67a4b2c5f9e7b3f5d3b3f012d9e857a1",
+      "before": {
+        "size": 2596013,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131838159587958,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282107851
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6b5a4cf4b5c94a14881feb23ec3296bf.json"
+      ],
+      "after": {
+        "size": 2596013,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793131838159587958,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282107851
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/663607af6e944b319b7ad4ff668f9ad8.json",
+      "sha256": "ec05cd10cf812cd2170cffed7169f602a09de0563beab6f921fe51d5c1a02a14",
+      "before": {
+        "size": 2593936,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145195745610683,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282144634
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/663607af6e944b319b7ad4ff668f9ad8.json"
+      ],
+      "after": {
+        "size": 2593936,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793145195745610683,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282144634
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5b9d71f895c543a59dbfa29d3682c61c.json",
+      "sha256": "923affa9991319bc84a702d13a46b0b8540e6aabc26280d98a86d31476ec9a13",
+      "before": {
+        "size": 2594979,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152760813108400,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282194539
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5b9d71f895c543a59dbfa29d3682c61c.json"
+      ],
+      "after": {
+        "size": 2594979,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793152760813108400,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282194539
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/399cd5660a7344f8bb223fdb1f9c2f4f.json",
+      "sha256": "86068ddfcd8d6d94cace59f8271db0f5ee1a3a8a7ef5436947c059cec0bc22b4",
+      "before": {
+        "size": 2594654,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793130243896818019,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282097171
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/399cd5660a7344f8bb223fdb1f9c2f4f.json"
+      ],
+      "after": {
+        "size": 2594654,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793130243896818019,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282097171
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/3927c64fcad24a4e8b093eed00f3867b.json",
+      "sha256": "639fae45f834b2fffe91ee89e6ee0dc545f0677edb4f12380c568d38c76891ad",
+      "before": {
+        "size": 2595422,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154494357893443,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282199764
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/3927c64fcad24a4e8b093eed00f3867b.json"
+      ],
+      "after": {
+        "size": 2595422,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793154494357893443,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282199764
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/37c367a157d74bf3ac85e1ec8eebb191.json",
+      "sha256": "efaa29ce2f15afc1b0735a73a844b834b4ae81455d135b456e7c44d1e40cb907",
+      "before": {
+        "size": 2593377,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139842069266829,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282130208
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/37c367a157d74bf3ac85e1ec8eebb191.json"
+      ],
+      "after": {
+        "size": 2593377,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139842069266829,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282130208
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/32e99b4ce6dc4e6ca337bbec6326e3aa.json",
+      "sha256": "8fbdc0745d090c88c8a6c77e24b190fe9662d862bb96b540b6300806c08a99ee",
+      "before": {
+        "size": 2593406,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139817793053034,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282130185
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/32e99b4ce6dc4e6ca337bbec6326e3aa.json"
+      ],
+      "after": {
+        "size": 2593406,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139817793053034,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282130185
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/329d54db4c8f49e7bdef5da107328136.json",
+      "sha256": "d72571d0aa60933c3609a4000023a086f9c17aa65c9951b5dd284f13c9561b05",
+      "before": {
+        "size": 2592777,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144399791307598,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282143925
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/329d54db4c8f49e7bdef5da107328136.json"
+      ],
+      "after": {
+        "size": 2592777,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793144399791307598,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282143925
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1537a66fcf2d439fbc553684caeed75a.json",
+      "sha256": "f182a76c7096ebb792e0f52e7acc8ece717128816775baa8bf9ce862f88feb53",
+      "before": {
+        "size": 2595242,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138469862294604,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282124531
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1537a66fcf2d439fbc553684caeed75a.json"
+      ],
+      "after": {
+        "size": 2595242,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793138469862294604,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282124531
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0cd26828d19540978293b601bcbddd21.json",
+      "sha256": "90d756d16d63e7878f755d4ef2f15c71be99f4c8f9cc4e60724560f5ba76a373",
+      "before": {
+        "size": 2596025,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132264419221556,
+        "allocated": 2596864,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282109860
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/0cd26828d19540978293b601bcbddd21.json"
+      ],
+      "after": {
+        "size": 2596025,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793132264419221556,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282109860
+      },
+      "allocated_reduction": 2342912,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ea2ebbe98b56407b912c24a2ed959702.json",
+      "sha256": "1f12291f7b9a4633924c5278b22b571138af6b25868b7f9309a89401a4710007",
+      "before": {
+        "size": 2591963,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793136394149481015,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282117352
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/ea2ebbe98b56407b912c24a2ed959702.json"
+      ],
+      "after": {
+        "size": 2591963,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793136394149481015,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282117352
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/e5c54b96bdcb43f2bb4b7ab86f961b92.json",
+      "sha256": "acb69bdff97c1e27b0aa11213c37dcea588f672332945ceefc15e9e212bcd30d",
+      "before": {
+        "size": 2590621,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137144913197973,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282119797
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/e5c54b96bdcb43f2bb4b7ab86f961b92.json"
+      ],
+      "after": {
+        "size": 2590621,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137144913197973,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282119797
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/df7586dd1d254037a83738ce060ff0c7.json",
+      "sha256": "7a85f92f64b3bb969fbe649d1c203d886680f21c2d0b6bf38a9c94c6eb002d07",
+      "before": {
+        "size": 2591537,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793141690368800421,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282139334
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/df7586dd1d254037a83738ce060ff0c7.json"
+      ],
+      "after": {
+        "size": 2591537,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793141690368800421,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282139334
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a7e74e6bb9014957be97578037e73236.json",
+      "sha256": "f7534943908a981a29589070a4e7d773aa479114c519ce87438948bcd5dc367d",
+      "before": {
+        "size": 2591575,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134588623564936,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282115342
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a7e74e6bb9014957be97578037e73236.json"
+      ],
+      "after": {
+        "size": 2591575,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134588623564936,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282115342
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a17332cbc969456a94eb9e8e4e97b8c8.json",
+      "sha256": "e8a26591b808283c0f2edc47a2fe4e44eb6a81edd3e36521347886bbefe68640",
+      "before": {
+        "size": 2590644,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137631872321474,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282120869
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/a17332cbc969456a94eb9e8e4e97b8c8.json"
+      ],
+      "after": {
+        "size": 2590644,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793137631872321474,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282120869
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/72be22c90b324d0e99867d86a9772abb.json",
+      "sha256": "3d97a8c45ca155783f2e2860002d55201d33ac96f86f07d0f87d8b34299fd973",
+      "before": {
+        "size": 2591142,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793133970249677253,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282114471
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/72be22c90b324d0e99867d86a9772abb.json"
+      ],
+      "after": {
+        "size": 2591142,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793133970249677253,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282114471
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6e65a00e58834f33bec1239d3b280988.json",
+      "sha256": "5739ed35e9c93e7116491cd42a8424a384a5e8dde6a8b6e9f033817c7230f16e",
+      "before": {
+        "size": 2590273,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139740793375962,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282130095
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/6e65a00e58834f33bec1239d3b280988.json"
+      ],
+      "after": {
+        "size": 2590273,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793139740793375962,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282130095
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5da5ac1915f7494a91349b6ad7bf9500.json",
+      "sha256": "8089ae85a774c6568c8e2de6d01ee9232012f3f9c8fc19ad864f8b6fb26ff9d0",
+      "before": {
+        "size": 2590277,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793140416297932831,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282131119
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/5da5ac1915f7494a91349b6ad7bf9500.json"
+      ],
+      "after": {
+        "size": 2590277,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793140416297932831,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282131119
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/477ba077693049afa36499335fb86d7c.json",
+      "sha256": "0aaedf83d991edeb6ee0d62cafa3b3f246b887df46649ebeb8275ccd4e4af1ef",
+      "before": {
+        "size": 2591543,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134434721669766,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282115105
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/477ba077693049afa36499335fb86d7c.json"
+      ],
+      "after": {
+        "size": 2591543,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793134434721669766,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282115105
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/373b5802069c43c5b002c04f2da1933b.json",
+      "sha256": "b9ab3ccbba30518534463d083949d6515bdd8e792631fd7a374b22bcb146fa3a",
+      "before": {
+        "size": 2591157,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793135501933508855,
+        "allocated": 2592768,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282116607
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/373b5802069c43c5b002c04f2da1933b.json"
+      ],
+      "after": {
+        "size": 2591157,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793135501933508855,
+        "allocated": 253952,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282116607
+      },
+      "allocated_reduction": 2338816,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1d59c39d84e54f55835de34ef8978d6e.json",
+      "sha256": "3525ebff0959e2656f4ceafb429eb9215b3483f9017be16d22b4cfa8b8f0e5b7",
+      "before": {
+        "size": 2547966,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793113559818929998,
+        "allocated": 2551808,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282019570
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-20261022/general-source-continuation-qualification.records/1d59c39d84e54f55835de34ef8978d6e.json"
+      ],
+      "after": {
+        "size": 2547966,
+        "mode": 384,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793113559818929998,
+        "allocated": 245760,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282019570
+      },
+      "allocated_reduction": 2306048,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-80.jsonl",
+      "sha256": "23066a342e30b5824eff11a1994a917d13ee91b21c5a8e1bc1a4dff4aa93852e",
+      "before": {
+        "size": 1852212,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149709289032902,
+        "allocated": 1855488,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282180038
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-80.jsonl"
+      ],
+      "after": {
+        "size": 1852212,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149709289032902,
+        "allocated": 106496,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282180038
+      },
+      "allocated_reduction": 1748992,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-7e6897c69917-build-config.json",
+      "sha256": "4cf8de2ab1fd4229f316fd02a6a55536e8424b2b0a201a84fb30416703c66cd3",
+      "before": {
+        "size": 1352913,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793201557871341849,
+        "allocated": 1355776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282660990
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-7e6897c69917-build-config.json"
+      ],
+      "after": {
+        "size": 1352913,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793201557871341849,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282660990
+      },
+      "allocated_reduction": 1286144,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-3f8b63cb6ed7-build-config.json",
+      "sha256": "99bed440a6b4d17343b777e5a415a3a85e460f89331ba46439d867e84556389c",
+      "before": {
+        "size": 1352880,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199906865713869,
+        "allocated": 1355776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282653569
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-3f8b63cb6ed7-build-config.json"
+      ],
+      "after": {
+        "size": 1352880,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199906865713869,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282653569
+      },
+      "allocated_reduction": 1286144,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-0e8430e95d25-build-config.json",
+      "sha256": "10c4f75f1b4f5f0d92d67d5c1216fd54d358ce7be4df2db9999c840d2979d9c3",
+      "before": {
+        "size": 1352935,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793202584792351599,
+        "allocated": 1355776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282662809
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-0e8430e95d25-build-config.json"
+      ],
+      "after": {
+        "size": 1352935,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793202584792351599,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282662809
+      },
+      "allocated_reduction": 1286144,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-9bd-bounded-build-config.json",
+      "sha256": "d517b572416a9fc470d34ab9042d6580f1cd0c764cd3f2a96844b393f409c4e3",
+      "before": {
+        "size": 1347609,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793167555609069760,
+        "allocated": 1351680,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282591409
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-9bd-bounded-build-config.json"
+      ],
+      "after": {
+        "size": 1347609,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793167555609069760,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282591409
+      },
+      "allocated_reduction": 1282048,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-781-bounded-build-config.json",
+      "sha256": "04a5e0e3da6d313e8f864c99d74aafd144cf45572a284141f42a3c6acd9630f0",
+      "before": {
+        "size": 1347562,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793165966101208968,
+        "allocated": 1347584,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282584713
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-781-bounded-build-config.json"
+      ],
+      "after": {
+        "size": 1347562,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793165966101208968,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282584713
+      },
+      "allocated_reduction": 1277952,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-48c-bounded-build-config.json",
+      "sha256": "40be7feab4d943be15c1fb7c335a1125ea96dac981cb82755ab5ca8bd9eee27a",
+      "before": {
+        "size": 1347534,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793170816781044857,
+        "allocated": 1347584,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282613662
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-48c-bounded-build-config.json"
+      ],
+      "after": {
+        "size": 1347534,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793170816781044857,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282613662
+      },
+      "allocated_reduction": 1277952,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-14473f6f1f61-build-config.json",
+      "sha256": "3632eb5f1b682a6a52cd188da60492fc4bd1c64a0a1770083b9cb6f225bf787e",
+      "before": {
+        "size": 1347220,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199161588636314,
+        "allocated": 1347584,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282647121
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/graph-14473f6f1f61-build-config.json"
+      ],
+      "after": {
+        "size": 1347220,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793199161588636314,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282647121
+      },
+      "allocated_reduction": 1277952,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-90.jsonl",
+      "sha256": "169bfd1ea85c82a1e41219c971d351015eb04acbdc7167a172857d277154d77d",
+      "before": {
+        "size": 1250784,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149733525966956,
+        "allocated": 1253376,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282180484
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-90.jsonl"
+      ],
+      "after": {
+        "size": 1250784,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149733525966956,
+        "allocated": 77824,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282180484
+      },
+      "allocated_reduction": 1175552,
+      "tool_exit": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-71.jsonl",
+      "sha256": "68df1ed1e1d07ec2f2f6c8591ace92f9c018d0ccd6c12e05f3ce8de29922e23f",
+      "before": {
+        "size": 1118732,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149687248314389,
+        "allocated": 1122304,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 282179839
+      },
+      "status": "compressed_verified",
+      "command": [
+        "/opt/homebrew/bin/afsctool",
+        "-c",
+        "-T",
+        "LZFSE",
+        "/Users/zcanann/Documents/Projects/Omega/build/checked-reuse-graph-20261027/source-storage-check-71.jsonl"
+      ],
+      "after": {
+        "size": 1118732,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793149687248314389,
+        "allocated": 69632,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 282179839
+      },
+      "allocated_reduction": 1052672,
+      "tool_exit": 0
+    }
+  ],
+  "allocated_recovered": 399568896,
+  "free_after": 933580800,
+  "goal_met": false,
+  "processed_count": 128,
+  "remaining_candidates": 0
+}
