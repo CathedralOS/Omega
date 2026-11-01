@@ -117,13 +117,28 @@ The target-body place selects ordinary PendingTransferCode for the private
 PendingTransfer requirement. Its result transfers the consumed input's existing
 loan debt; Pending::Retained still names only its original register issuers.
 The match join runs both choices and returns the same owned Pending through its
-selected arm, recording17/23 in a separate scalar. Both complete the original
-37/41/73 protocol and preserve the captured37 value. No private snapshot or new
+selected arm, recording 17 or 23 in a separate scalar. Both complete the original
+37/41/73 protocol and preserve the captured 37 value. No private snapshot or new
 issuer is introduced.
 
-Preliminary migrated local/match observations pass on the repaired
-`d3b71168d930` producer with its matching SDK. The selected-body path exposes the
-shared P04 owned-carrier classification prerequisite; final migration acceptance
-is pending that general repair and the complete row/control replay. Historical
-four-host observations and the original Windows timeout above keep their original
-identities. The parent migrations remain open beyond this cohort.
+The full replay of 25 migrated programs on the actual `2409883f539c` producer
+observed 11 native/Terminal agreements, 13 intended Source rejections, and the
+existing uncovered-qualification native 0 / Terminal 201 refusal. The corrected
+`68fcb6037d19` generation uses the same SDK and restores a separate bare-family
+field-walker path. Fresh recording on that generation covers all 24 Source pins,
+all 11 pinned native/Terminal agreements, public target-body/field/match/mixed
+issuer/stale-fact/uncovered cases, and Terminal marker falsifiers (positive 0,
+each wrong marker traps). Retained public observations keep their actual
+producer identity and require consumer applicability review across that change.
+
+The general owned-carrier repair preserves an already owned Pending and its
+complete existing debt; it does not reinterpret the value as a newly created
+borrowed pointer. All original lifecycle, issuer and capacity controls remain.
+The mutable C provider passes its self-test and all nine deliberate lifecycle
+traps. The matching shared provider's existing self-test/nine-trap receipt is
+reused for mixed issuers after source/library digest verification.
+
+Fresh migration execution is macOS ARM64 only. Historical four-host observations
+and the original Windows timeout above keep their original identities. This
+cohort discharges its Source migration under the two Build-owned tasks; their
+remaining sources, compiler deletion and broader acceptance stay open.
