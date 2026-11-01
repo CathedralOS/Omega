@@ -84,29 +84,24 @@ Preliminary R2 admits that candidate and still rejects its `<=16` twin with
 inferred [1,17] versus required [0,16]. Those source/Terminal-production results
 are historical discovery evidence, not execution of these newly authored files.
 
-Qualified on macOS arm64 with optimized R3 producer SHA256
-`514ed72c7571284454e67b09e516c4a85ed4e9468301044ba220d8d2ee044f0e`,
-base `225551dd8184c58a9cb777ef540b6e5e8c3b7448` plus patch SHA256
-`fad17e85a893c07746029f7ca953fcfd512167252c0eac5478861aaac7cdf654`:
-all nine positives complete normal source/Terminal publication and observe native
-exit 0 / Terminal exit 0; all nine twins refuse the intended `pump_next` receiving
-`where` obligation. Both choices, origin markers and canaries are checked by the
-authored runtime oracle in every place. The nine consumed locks were captured
-and unchanged by execution; all authored files and fixture copies remained
-byte-identical throughout the chain. Other hosted bindings are declared, not
-runtime qualification of those hosts.
+Final behavior is qualified on macOS arm64 with optimized R5 producer SHA256
+`717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3`,
+source `6c8950d4825fde942fde2b421f26b6192635114a`: all nine canonical `requires`
+positives observe native exit 0 / Terminal exit 0, and all nine twins refuse the
+intended `pump_next` receiving-`where` obligation. Both choices, origin markers,
+writeback and canaries are checked in every place. Authored sources and fixture
+copies remained unchanged throughout execution; the nine consumed locks were
+captured and unchanged. Other hosted bindings are declarations, not cross-host
+runtime qualification.
 
-The historical F candidate and receipts remain frozen. This row uses equivalent
-hex canary spellings and adds an origin oracle for transport discrimination.
-The focused corpus check records nine checked positives and nine intended
-rejections; its macOS arm64 `--both` leg records nine engine agreements.
-Independent candidate review remains a separate gate. The parent's unrelated
-mixed-predicate restoration-window acceptance remains open: this repair retains
-only bounds independently enforced by every store.
+The focused corpus records retain their original R3/`9150cfa6fe03` observation
+identities: nine checked positives, nine intended rejections and nine macOS
+arm64 engine agreements. Their 54 fixture files are unchanged; fresh R5 public
+CLI runs exercise the identical pinned program sources and oracles. Independent
+consumer review accepts this reuse without relabeling historical observations.
+The historical discovery sources, producers, raw streams and replay inputs remain
+retained with the PR evidence.
 
-The row uses canonical `requires self.pumped >= 0 && self.pumped <= 16`.
-The canonical local pair and all nine canonical places were freshly qualified
-with the R3 producer above: nine native/Terminal 0/0 observations and nine intended
-rejects. Their authored hashes and fixture copies matched before and after
-setup/execution, and all nine consumed locks were captured unchanged. The earlier
-spelling's sources, locks and receipts remain frozen as historical evidence.
+This closes the captured-read prerequisite only. Full GUI qualification and the
+parent's mixed-predicate restoration-window acceptance remain open; the new
+intake retains only additional bounds independently enforced by every store.
