@@ -849,11 +849,11 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete remaining schema/case composition support;
-    migrate complete platform ABI records;
-    retain explicit named policies for sparse views. Darwin timestamp pairs and
-    the complete stat extent must agree with the SDK rather than inferring
-    missing fields from the current seconds-only record.
+  - Complete remaining schema/case composition support and platform ABI
+    migrations; retain explicit named policies for sparse views. Complete the
+    remaining six transport places for
+    [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
+    preserving complete SDK fields, timestamp pairs and signed carriers.
   - Complete the [fallible conversion transport row](samples/cli/facts/representation_conversion/README.md),
     ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
@@ -1877,6 +1877,12 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
+  - Supply Darwin `_futimens` through the existing matching-host filesystem
+    adapter with its exact OS signature, guest descriptor custody and explicit
+    metadata-mutation delegation; keep missing-delegation rejection. Complete
+    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
+    well as native execution. The private native sponsor supplies no extra
+    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
