@@ -6,9 +6,10 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
 };
 
-/// Completed checking and the whole selected provider companion it consumed.
-/// Neither values alone nor the native scope's local adapter subset can replace
-/// this deployment binding.
+/// Completed checking and the native selection's original declaration custody.
+/// The scalar companion can omit dormant native plans; admission joins their
+/// exact canonical installations rather than substituting one plan roster for
+/// another. Neither values alone nor local adapters replace this binding.
 pub struct NativeScalarApplications<'request> {
     pub completed: &'request AdmittedScalarApplications,
     pub provider_declarations: &'request [backend_plan::TerminalTargetProviderPlan],
