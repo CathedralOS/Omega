@@ -1,0 +1,2 @@
+machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose`
+requires facts are not a conservative refinement
