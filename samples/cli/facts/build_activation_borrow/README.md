@@ -82,7 +82,7 @@ and their neighbors. Existing counterfeit-local controls remain unchanged.
   rebinds its descriptor; an owned Build replacement remains forbidden.
   Ordinary loan checking still owns exclusivity, access and lifetime; the
   runtime binding host retains its issuer check.
-- **Psi 05–07:** ordinary reference-carrying records and helper completions lower
+- **Psi 06–08:** ordinary reference-carrying records and helper completions lower
   to Terminal Psi. The product observes both selection paths and both writes;
   readonly controls reject before execution.
 - **Omega 00–02:** the executed Build companion binds the exact entry for each

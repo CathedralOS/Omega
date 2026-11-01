@@ -57,7 +57,7 @@ regressions of the shared retention operation.
 | Identity and lifetime | Original captured input, applied lifetime, consumed Pending holder and complete overlapping cohort must identify the same loan. Caller-array observation checks its original backing. |
 | Composition | The same Pending crosses all nine places; branch alternatives must each carry justified supply. The generic borrowed-root control retains the predicate-only composition. |
 | Soundness boundaries | Missing mint and live-loan controls reject. Additional input-only root qualifications and stale scalar facts cannot be restored from the declared child contract. |
-| Psi 05–07 | Current completion facts must become loan-completion qualifications and Terminal access on the actual restored storage. Old scalar 37 remains distinct from new value 73. |
+| Psi 06–08 | Current completion facts must become loan-completion qualifications and Terminal access on the actual restored storage. Old scalar 37 remains distinct from new value 73. |
 | Omega 00–02 | The C pointer-to-array ABI, exact record/array geometry, admitted provider and ordinary call plans remain unchanged; routed supply is semantic preservation, not C byte equality. |
 | Omega 03–06 | Guards check original pointer writes, values surviving calls, selected routing and untouched neighbors. The retained public runs observe the original caller storage and all canaries after completion. |
 | Omega 07–09 and emission | All nine authored zero exits require actual native/Terminal agreement on matching hosts. macOS public execution and independent native custody replay pass; matching Windows and Linux observations remain pending. |

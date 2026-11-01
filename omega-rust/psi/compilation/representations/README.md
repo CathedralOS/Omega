@@ -16,12 +16,12 @@ transformations live in the linked pipeline stages.
 | [Tokens](tokens/src/lib.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/04_typed-trees-to-checked-trees/README.md) |
-| [Checked trees](checked-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/04_typed-trees-to-checked-trees/README.md) | [05: checked trees → lowered Psi](../pipeline/05_checked-trees-to-lowered-psi/README.md) |
-| [Lowered Psi](lowered-psi/src/lib.rs) | [05: checked trees → lowered Psi](../pipeline/05_checked-trees-to-lowered-psi/README.md) | [06: lowered Psi → lowered Psi](../pipeline/06_lowered-psi-to-lowered-psi/README.md), then [07: lowered Psi → Terminal Psi](../pipeline/07_lowered-psi-to-terminal-psi/README.md) |
-| [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/07_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/05_typed-trees-to-checked-trees/README.md) |
+| [Checked trees](checked-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/05_typed-trees-to-checked-trees/README.md) | [05: checked trees → lowered Psi](../pipeline/06_checked-trees-to-lowered-psi/README.md) |
+| [Lowered Psi](lowered-psi/src/lib.rs) | [05: checked trees → lowered Psi](../pipeline/06_checked-trees-to-lowered-psi/README.md) | [06: lowered Psi → lowered Psi](../pipeline/07_lowered-psi-to-lowered-psi/README.md), then [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
-Stage 06 optimizes lowered Psi in the same representation. The independent
+Stage 07 optimizes lowered Psi in the same representation. The independent
 [checked interpreter](../../interpreter/checked-interpreter/README.md) and
 [Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consume
 their respective program forms without creating another pipeline representation.

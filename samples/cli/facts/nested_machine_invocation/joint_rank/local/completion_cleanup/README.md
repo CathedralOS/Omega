@@ -74,7 +74,7 @@ built with `CARGO_PROFILE_DEV_OPT_LEVEL=1` (`omega --build-profile` reports
   operation.
 - Soundness: ranking, the drop precondition and borrow ownership remain
   independent obligations. Ranking does not supply the precondition.
-- Psi 05-07: the drop is the automatic scope-exit cleanup of the moved
+- Psi 06-08: the drop is the automatic scope-exit cleanup of the moved
   resource at `done`. Terminal Psi and native execution agree on one drop per
   invocation and on the unchanged canary.
 - Omega 00-09: ordinary calling plans and register/frame realization carry the

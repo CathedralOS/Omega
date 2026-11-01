@@ -195,7 +195,7 @@ pub fn case_where_field_intervals(
 /// (`exhaustiveness::variant_is_impossible` in stage 03), so a dispatch may
 /// omit it without a `_` arm. Every later roster of the instance's cases —
 /// the checked structural shape, the closed-sum terminator, the permission
-/// schedule's run coverage, stage 05's computed-case bindings — applies this
+/// schedule's run coverage, stage 06's computed-case bindings — applies this
 /// same rule, or one of them would demand an arm, a tag or a successor for
 /// a value that cannot exist. Facts that need evaluation are not
 /// contradictions and keep the case.

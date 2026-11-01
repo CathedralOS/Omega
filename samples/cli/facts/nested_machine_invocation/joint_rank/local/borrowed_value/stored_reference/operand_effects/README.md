@@ -54,7 +54,7 @@ references without restoring it is not this acceptance.
   All recurrent edges and normal returns retain their ordinary obligations.
 - Soundness boundaries: rank evidence grants no reference access, loan closure
   or restoration. The zero-result twins still reject complete-cycle descent.
-- Psi 05–07: the programs retain the operand's calls, slot stores, reference
+- Psi 06–08: the programs retain the operand's calls, slot stores, reference
   captures and terminal cycle through Terminal Psi and its interpreter.
 - Omega 00–02: all four hosted targets have authored ProgramEntry bindings;
   ordinary call plans retain original borrowed backing and descriptor words.

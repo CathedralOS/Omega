@@ -41,7 +41,7 @@ The row and twins are pinned under
   natively but Terminal refuses the mutable call because its normal guarantee
   does not cover the extra caller qualification. That refusal is an explicit
   limitation, not a positive execution result.
-- Psi 05–07: checked custody retains the actual supplier access. Normal mutable
+- Psi 06–08: checked custody retains the actual supplier access. Normal mutable
   parameter memberships have their own lowered roster, separate from result
   qualifications. Terminal wire format 188 carries that roster. Root and scalar
   leaf restoration check the original formal owner and the same coverage;

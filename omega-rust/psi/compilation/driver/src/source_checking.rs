@@ -119,7 +119,7 @@ impl CheckRequest<'_> {
         // A retained language judgment cannot bypass final application custody.
         // Reclosure also derives copy properties; callers cannot supply them.
         let representations = self.admission.representations.admit(&program)?;
-        phase_profile::scope("05.a.source_completion", || {
+        phase_profile::scope("psi.source.completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
                 self.admission.completion,
@@ -141,14 +141,14 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let admission = preparation.admission();
-        let matching = phase_profile::scope("05.b.retained_match", || {
+        let matching = phase_profile::scope("psi.source.retained_match", || {
             self.previous
                 .iter()
                 .copied()
                 .find(|prior| prior.judges_preparation_input(&program, &admission))
         });
         let outcome = if let Some(prior) = matching {
-            phase_profile::count("05.b.retained_match.hit", 1);
+            phase_profile::count("psi.source.retained_match.hit", 1);
             record_whole_program_reuse();
             let outcome =
                 typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
@@ -158,16 +158,16 @@ impl CheckRequest<'_> {
             )?;
             outcome
         } else {
-            let retained_input = phase_profile::scope("05.b.retained_input_clone", || {
+            let retained_input = phase_profile::scope("psi.source.retained_input_clone", || {
                 self.retain.then(|| (Arc::new(program.clone()), admission))
             });
-            let (program, preparation) = phase_profile::scope("05.c.prepare_typed_trees", || {
+            let (program, preparation) = phase_profile::scope("psi.04", || {
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
             })?;
             // Whole-value lifecycle demands become concrete through the same
             // specialization as ordinary calls. Add geometry only: preparation's
             // executable bodies and mathematical judgments remain unchanged.
-            let program = phase_profile::scope("05.c.access_lifecycle_plans", || {
+            let program = phase_profile::scope("psi.04.access_lifecycle_plans", || {
                 build_time_evaluation::retain_access_lifecycle_plans(
                     program,
                     self.admission.declarations,
@@ -183,7 +183,7 @@ impl CheckRequest<'_> {
                 .iter()
                 .flat_map(|prior| prior.strict_frozen_dependency_bodies().iter().cloned())
                 .collect();
-            phase_profile::scope("05.d.lower_typed_trees", || {
+            phase_profile::scope("psi.05", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(
                     program,
                     preparation,

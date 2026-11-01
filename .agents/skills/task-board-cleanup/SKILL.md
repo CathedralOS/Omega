@@ -25,7 +25,7 @@ Board tasks follow one flow:
    transport places with fact-sensitive reject twins, or the named customer
    program with its invalid controls) that demonstrates the requirement and
    carries it through the entire pipeline—from source checking and proof
-   (`Psi 00–04`) through Terminal Psi lowering and interpretation (`Psi 05–07`)
+   (`Psi 00–05`) through Terminal Psi lowering and interpretation (`Psi 06–08`)
    to target realization, layout/calling plans, instruction selection, register
    homes, encoding, and native image execution agreement (`Omega 00–09`,
    `omega run --both`).
@@ -62,7 +62,7 @@ creates handoff loss, duplicate ramp-up, and competing partial fixes.
 
 - **Reframe stage-sliced or internal tasks around end-to-end samples.** If an
   item is phrased as an internal pass edit, intermediate representation change,
-  or single-stage obligation ("teach stage 04 to...", "restore X in compile-time
+  or single-stage obligation ("teach stage 05 to...", "restore X in compile-time
   evaluator", "wire Y into backend plan"), reframe it around the runnable sample
   or `samples/cli/facts/<fact>/` row that proves the requirement end to end
   through `omega run --both` and its reject twins. Keep internal symbols and

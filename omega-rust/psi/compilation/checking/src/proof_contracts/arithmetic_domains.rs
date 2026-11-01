@@ -16,7 +16,7 @@
 //! hell -- are S4.)
 //!
 //! This module owns the shared integer interval domain and premise-ordering
-//! oracle used by stage 04, proof obligations, constructor checks and selected
+//! oracle used by stage 05, proof obligations, constructor checks and selected
 //! scalar plans. Clients establish selected meaning, operand formation and
 //! live subject identity; the domain computes bounds and composes only those
 //! established premises. Durable fact records remain in their representation

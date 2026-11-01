@@ -89,7 +89,7 @@ with finite stdin. Check a twin with `omega --check <place>/invalid/main.omg` or
   when any incoming path weakens the premise bound to `< 6`. The checker strictly
   enforces proof obligations rather than passing on unproved assumptions, and
   distinguishes erased static contracts from executable runtime transitions.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Checked `requires` and
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked `requires` and
   `ensures` range obligations erase cleanly after verification, while the
   executable scalar operations, control flow, and calls lower without loss into
   canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs

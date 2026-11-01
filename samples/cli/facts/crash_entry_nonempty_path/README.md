@@ -38,7 +38,7 @@ Known precision difference, shared with the view rows: a statement that reads a 
 - **Identity and lifetime:** the operand stays the entry field `leaf.bits`, two steps under `packet`, and a caller crash ceiling is not added on `read_bits`.
 - **Composition:** the same path equality is carried through a local, the field operand, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body.
 - **Soundness boundaries:** deleting the path equality leaves the Trap route uncovered. The witness does not use a proof-only binding as an executable guard.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the nested read and guarded call lower to Terminal Psi and execute with exit 0 under `omega run --both`.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the nested read and guarded call lower to Terminal Psi and execute with exit 0 under `omega run --both`.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `Build::bind` settles `ProgramEntry` for the four hosted targets. `Packet` and `Leaf` are ordinary records.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** the nested `u64` read, comparison, and call select native instructions inside the program entry.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** the native image exits 0 in agreement with Terminal Psi.

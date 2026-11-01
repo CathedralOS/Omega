@@ -162,20 +162,20 @@ Rust files:
 - `omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications.rs`
 - `omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications/prepared.rs`
 - `omega-rust/psi/compilation/checking/src/proof_contracts/relevance/runtime_uses.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/current_values.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/current_scalar_values/call_contracts.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/runtime_indices.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking/current_values.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/argument_paths.rs`
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/call_lowering.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/continuation_identities/proofs.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/contracts.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/admission.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/ordinary_machine.rs`
-- `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/ordinary_machine/proof_scope.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/current_values.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values/call_contracts.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/runtime_indices.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/termination/ranking/current_values.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/argument_paths.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values/scalar/call_lowering.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/continuation_identities/proofs.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/contracts.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/admission.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/admission.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/ordinary_machine.rs`
+- `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/ordinary_machine/proof_scope.rs`
 - `omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature.rs`
 - `omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/scope.rs`
 - `omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/source_evidence.rs`
@@ -308,7 +308,7 @@ native rows as well as the retained `interpreter:agrees` evidence at
    wrapper and two simultaneously live results check that caller-local
    identities do not alias callee-local births. Physical storage, Stable access
    and an actual multi-input claim transformation are not modelled here.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the checked ownership
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the checked ownership
    transfers and erased proof facts lower into canonical target-neutral Terminal
    Psi (`PSITERM\0`), and the interpreter replays the product that native
    execution ran (`interp exit: 0`, `native exit 0` for root and all nine

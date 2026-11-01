@@ -12,6 +12,7 @@ pub(crate) mod target_families;
 mod component_arguments;
 mod component_calls;
 mod component_contents;
+pub(crate) use component_arguments::{ComponentCallScope, ComponentInputCustody};
 
 use crate::custody::{
     bind_active_structural_arguments, bind_arguments, bind_boundary_arguments, complete_claims,

@@ -11,7 +11,7 @@
 //! backing storage. A result with both frontiers needs both ordinary joins,
 //! not a separate combined-result family or a loan-free linear shortcut.
 //!
-//! Stage 04 decides each ordinary structural call's custody here once and
+//! Stage 05 decides each ordinary structural call's custody here once and
 //! records it in the call plan; lowering reads that record and never decides
 //! it again. These source facts are not portable PCC openings.
 

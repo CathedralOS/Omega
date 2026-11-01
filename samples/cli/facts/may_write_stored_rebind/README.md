@@ -40,7 +40,7 @@ Parent outcome: **R5** (`TASKS.md`), the stored-rebind row.
 2. **Identity and lifetime.** The bound names the other mutable input. The reference is rebound from scratch to the chosen input, then loaded. The reject twin rebinds onto the other input and retires the bound.
 3. **Composition.** `choose` returns one input. That result is stored in the reference and loaded before `overwrite`. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
 4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`).** The rebind, the write through the loaded referent, and the proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`).** The rebind, the write through the loaded referent, and the proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The assignment installs the reference descriptor, not a store through the previous referent.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the rebound referent and reloads the other input as the index.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.

@@ -4,19 +4,19 @@ Read-only review, 2026-10-29, current controller `8a2dc20ceb5a551f20fd5427dd9e9f
 
 **Interpretation: a promising large complete-compile improvement from an existing opt-in, target-neutral optimizer family.** The screen is not a new Rust implementation, shipped default change, per-function parallel allocator, or new parallelism result. Its source-bound screen at `40ad58e4bd5` used the same frozen O3 executable SHA-256 `9ef68e447263104d505bf03e8109ca1cd24f43d51c49ecb4ad7a7dc4836c6615`, recorded compiler source `244e4de7fabae4c8a2ee43f4002805abe0ec63ee`.
 
-## Correct execution owner: Psi 06, not the legacy Stage 01 rule
+## Correct execution owner: Psi 07, not the legacy Stage 01 rule
 
 An important correction to the earlier candidate note: the production route for this experiment executes `CopyPropagation` **before Terminal publication**:
 
 1. `omega-rust/omega/foundation/optimization-core/src/optimization_core.rs:183` assigns the family to `Psi`. The driver `compilation/driver/src/terminal/terminal_artifact.rs:478–500` projects the effective selection into `TerminalProductionRequest.optimization_selections`.
-2. `omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/psi_optimization.rs:29–65` dispatches the family to `copy_propagation::propagate` on the complete unsealed `LoweredPsi` and fingerprints input/output in the execution record.
+2. `omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/psi_optimization.rs:29–65` dispatches the family to `copy_propagation::propagate` on the complete unsealed `LoweredPsi` and fingerprints input/output in the execution record.
 3. `omega-rust/omega/application/build/src/native_completion.rs:77` passes only `rollback.effective().project_post_terminal()` into native production. `optimization_core.rs:638–660` excludes Psi selections from that projection; `optimization_core/post_terminal.rs:38–49` rejects pre-Terminal selections at the typed native API.
 
-The Stage 01 redundant-block-parameter implementation still exists, but this production on/off comparison does **not** select that legacy post-Terminal implementation again. Do not attribute the observed reduction to that rule or to Stage 04 selected copy removal. Read-only `git diff --stat 244e4de… HEAD` over the relevant Psi 06 implementation, native projection and Stage 03 edge builder returned no differences, supporting applicability to the frozen producer in addition to the harness's source-manifest checks.
+The Stage 01 redundant-block-parameter implementation still exists, but this production on/off comparison does **not** select that legacy post-Terminal implementation again. Do not attribute the observed reduction to that rule or to Stage 04 selected copy removal. Read-only `git diff --stat 244e4de… HEAD` over the relevant Psi 07 implementation, native projection and Stage 03 edge builder returned no differences, supporting applicability to the frozen producer in addition to the harness's source-manifest checks.
 
 ## Precisely what work is avoided
 
-The actual owner is `psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/copy_propagation/{mod.rs,copies.rs}`.
+The actual owner is `psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/copy_propagation/{mod.rs,copies.rs}`.
 
 - It inventories every ordinary incoming `Jump`/`Conditional` scalar argument list, keyed by target block and parameter position. Structural-case payload targets remain excluded.
 - It resolves parameter-copy chains transitively. A parameter collapses only when all inventoried incoming values resolve to one source. Differing values remain distinct; recursive resolution encountering a value already being visited returns that value rather than assuming equality through a cycle.

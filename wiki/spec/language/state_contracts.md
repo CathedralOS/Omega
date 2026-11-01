@@ -222,5 +222,5 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
 Current algorithms and support limits belong beside
-[checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md)
+[checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md)
 and [validation](../../../omega-rust/psi/compilation/checking/README.md).

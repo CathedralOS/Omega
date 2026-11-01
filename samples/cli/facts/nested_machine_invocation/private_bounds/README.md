@@ -51,7 +51,7 @@ Requirement evidence:
   All feasible or unresolved arrivals participate; lexical ancestry grants none.
 - Soundness: builtin-coordinate selection remains mandatory. Minimum length is
   not exact extent; unknown origins or incomplete coverage remain conservative.
-- Psi 05–07: actual Terminal execution preserves guarded selection, view extents,
+- Psi 06–08: actual Terminal execution preserves guarded selection, view extents,
   explicit borrows, helper calls and byte reads through ordinary lowering.
 - Omega 00–02: existing view descriptors and calling plans carry the same
   explicit operands. This does not establish another ABI placement lane.

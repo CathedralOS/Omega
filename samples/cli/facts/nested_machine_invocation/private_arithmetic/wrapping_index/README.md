@@ -35,7 +35,7 @@ before a result participates in integer laws. Interval reduction must preserve
 the entire interval width before endpoints establish a narrow wrapping range.
 
 Structural path discovery separately retains the qualified endpoint while
-inspecting reference shells. Previously it returned bare `u64`, making stage 04
+inspecting reference shells. Previously it returned bare `u64`, making stage 05
 record Exact addition for Wrapping/Saturating fields. The controls exposed an
 actual Terminal failure and a native saturation trap; retaining the endpoint
 fixes their producing path without changing interpreter admission.

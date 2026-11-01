@@ -229,7 +229,7 @@ fn collect_selections_in(
 }
 
 /// One requirement a dynamic caller reaches through one selector
-/// application: what stage 04 instantiates into a
+/// application: what stage 05 instantiates into a
 /// [`typed_trees::dynamic_traits::DynamicSlotSignature`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicSlotDemand {

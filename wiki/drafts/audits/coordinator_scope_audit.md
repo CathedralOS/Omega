@@ -88,9 +88,9 @@ the family to the admission owner.
 | `native_pipeline/{mod,report}.rs` + `physical_pipeline/mod.rs` | pure sequence: selections → instruction selection → optimization → allocation → machine → realization |
 | `abstract_operation_optimization/mod.rs` | entrance + re-exports only |
 | `compiler/src/checked/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
-| `04_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
-| `05_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
-| `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
+| `05_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
+| `06_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
+| `07_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
 | `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
 | `05_selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
 | `compiler/src/terminal/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |

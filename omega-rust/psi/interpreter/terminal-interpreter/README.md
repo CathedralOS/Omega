@@ -78,6 +78,23 @@ provider execution, no prefix replay and premature-call/adapter/rebinding
 refusals. Build dependency acquisition and exact backing preparation are still
 application-coordinator work, not interpreter responsibilities.
 
+An independent component may borrow an original closed Inert host atom under
+its exact shared or mutable parameter contract. The pending call retains the
+original prepared tuple and caller activation through the real child, including
+host computation pauses, until normal return is acknowledged. Its parent stays
+paused with the original home and loan lineage. Nested components retain that
+authenticated association through the same private carrier. Owned inputs retain their normal
+transfer rules. An opaque identity cannot supply materialized backing, reference
+companions, write-only access or a borrowed result; those require their own
+carriers and remain refused. A bare borrowed entry annotation also supplies no
+host backing. See [component arguments](src/calls/component_arguments.rs).
+
+Opaque lending supplies no guest field cells. Local scalar/atomic stores and
+subtree replacement refuse before making detached payloads under those exact
+borrowed homes; actual host effects still use the original object. Owned
+materialized inputs use complete checked contents in the child's declaration
+space. Borrowed materialized storage still needs its own transfer carrier.
+
 `poll_host_computation` yields `HostComputationPending` when a synchronous host
 operation needs executor work before returning. The full invocation, prepared
 arguments and borrowed storage remain live; polling neither replays effects nor

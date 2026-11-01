@@ -125,7 +125,7 @@ so sample and fixture cannot drift apart.
    when the value makes `mark.kept` a literal falsehood), and the consuming
    `hold` refuses with `direct == true`. Missing projections are never replaced
    by a satisfier search or fallback arithmetic.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The call, the recorded
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The call, the recorded
    premise, and the consuming contract lower without loss into canonical
    target-neutral Terminal Psi; the Terminal Psi interpreter executes all nine
    positive places in agreement with native execution (`omega run --both`).

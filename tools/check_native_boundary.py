@@ -74,8 +74,8 @@ SOURCE_STAGES = tuple(
     for stage in (
         "02_syntax-trees-to-symbol-resolved-trees",
         "03_symbol-resolved-trees-to-typed-trees",
-        "03b_typed-trees-to-typed-trees",
-        "04_typed-trees-to-checked-trees",
+        "04_typed-trees-to-typed-trees",
+        "05_typed-trees-to-checked-trees",
     )
 )
 PARSER_STAGES = tuple(
@@ -84,9 +84,9 @@ PARSER_STAGES = tuple(
 TERMINAL_STAGES = tuple(
     f"{PSI_PIPELINE}/{stage}"
     for stage in (
-        "05_checked-trees-to-lowered-psi",
-        "06_lowered-psi-to-lowered-psi",
-        "07_lowered-psi-to-terminal-psi",
+        "06_checked-trees-to-lowered-psi",
+        "07_lowered-psi-to-lowered-psi",
+        "08_lowered-psi-to-terminal-psi",
     )
 )
 
@@ -253,7 +253,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         (
             f"{PSI}/compilation/compile-time",
             f"{PSI}/interpreter/checked-interpreter",
-            f"{PSI_PIPELINE}/04_typed-trees-to-checked-trees",
+            f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
             f"{PSI}/compilation/checking/terminal-installation",
             f"{PSI}/compilation/representations/terminal-psi",
             f"{OMEGA}/compilation/backend/target",
@@ -264,7 +264,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (PSI_FACADE,),
         TERMINAL_STAGES,
-        "stages 05-07 are sequenced only by terminal-production",
+        "stages 06-08 are sequenced only by terminal-production",
         (TERMINAL_PRODUCTION,),
     ),
     (

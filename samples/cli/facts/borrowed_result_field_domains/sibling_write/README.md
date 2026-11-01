@@ -41,7 +41,7 @@ undeclared promise about a returned pointer's alignment within Table.
 | Identity and lifetime | Captured descriptors retain complete possible storage coordinates independently of lifetime debt and exact pointer identity. Unknown selectors preserve element dimensions; coarse enclosures cannot accept field projections. |
 | Composition | All nine transports carry the same field fact and operation. Joins retain every alternative's footprint; writes and complete intervening effects determine whether the promise survives. |
 | Soundness | Every twin rejects the overlapping byte write. Existing stale-result, descriptor-replacement, loan and recast controls retain their authored outcomes. Recasts discard typed projection capability; footprints grant no access or new membership. |
-| Psi 05–07 | Each program runs in Terminal Psi with exit 0, using the emitted descriptor, selection, field store and inspection. Its oracle observes caller storage after both calls. |
+| Psi 06–08 | Each program runs in Terminal Psi with exit 0, using the emitted descriptor, selection, field store and inspection. Its oracle observes caller storage after both calls. |
 | Omega 00–02 | All four hosted ProgramEntry bindings are authored. Native execution validates the selected provider, Cell/Table layout, borrowed arguments and scalar returns on macOS ARM64. |
 | Omega 03–06 | Distinct bytes and intermediate/final stamp canaries observe the selected element, store offset and live caller values across calls. |
 | Omega 07–09 and emission | Retained Terminal/native products execute with matching exit 0. Omitting the stamp store or forcing element 0 reaches Trap in Terminal Psi and the matching native signal 5 presentation. |

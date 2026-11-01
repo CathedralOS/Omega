@@ -38,7 +38,7 @@ Applicable requirements:
   implementation of `Reading`. The default call `Reading::floor<Other>()`
   is rejected. Data, conformance, domain, proposition, and machine telescopes
   still do not admit an evidence binder.
-- **Psi 05–07:** the default call, the substituted implementation, and the
+- **Psi 06–08:** the default call, the substituted implementation, and the
   scalar subtraction reach Terminal Psi and execute there.
 - **Omega 00–02:** the result is an ordinary `u64`. This row adds no new ABI
   placement lane.

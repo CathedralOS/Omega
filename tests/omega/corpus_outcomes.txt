@@ -14,6 +14,8 @@ fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be stored in field `builder`
+fail/build/component_borrowed_access_refused rejected 1375ms expected @017c32ace00f
+	argument `value` for state `touch` is declared `&mut` (`&mut Token`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/default_component_abi_wrong_arity rejected 444ms expected @930d13be83c0
 	Product application must supply its complete declaration telescope
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
@@ -2621,6 +2623,7 @@ pass/build/component_assumption_policy_changed checked 4054ms @ccdb99ca2214
 pass/build/component_assumption_policy_missing checked 3616ms @ccdb99ca2214
 pass/build/component_assumption_reborrow checked 2772ms @ccdb99ca2214
 pass/build/component_assumption_user_declaration checked 3193ms @ccdb99ca2214
+pass/build/component_borrowed_continuation checked 84537ms check-target:macos_arm64 terminal-runtime.mutable_lender_entry:unrequested terminal-runtime.reborrow_lender_entry:unrequested terminal-runtime.shared_lender_entry:unrequested terminal-runtime.owned_entry:unrequested terminal-runtime.guest_lender_entry:unrequested terminal-runtime.nested_lender_entry:unrequested terminal-runtime.borrowed_entry:unrequested terminal-runtime.write_lender_entry:unrequested terminal-runtime.owned_materialized_entry:unrequested terminal-inspections:match @017c32ace00f
 pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/conditional_root_binding checked 7552ms check-target:windows_x86_64 terminal-runtime.build:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/const_index_dependency_order_exit checked 3890ms check-target:macos_arm64 @ccdb99ca2214
@@ -2775,7 +2778,7 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 15598ms check-ta
 pass/calls/case_arm_payload_receiver_arg checked 16898ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_payload_clone_observation_exit checked 19036ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_scrutinee_param_clone_exit checked 16163ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/case_scrutinee_self_dispatch_exit checked 16595ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/case_scrutinee_self_dispatch_exit checked 50225ms check-target:macos_arm64 @2e34e43cf530
 pass/calls/completed_effectful_result_requirement_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/completed_narrowing_result_case_bounds checked 1857ms check-target:macos_arm64 @33b180036351
 pass/calls/computed_binding_argument_exit checked 3502ms check-target:macos_arm64 @ccdb99ca2214
@@ -3190,7 +3193,7 @@ pass/collections/element_view_whole_write rejected 0ms regressed-from:checked+ch
 pass/collections/element_view_write_transition checked 11948ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/empty_record_array_borrow_exit checked 3012ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/float_array_completed_call_store_exit checked 22636ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/indexed_row_array_literal_store checked 16724ms check-target:macos_arm64 @ccdb99ca2214
+pass/collections/indexed_row_array_literal_store checked 49440ms check-target:macos_arm64 @2e34e43cf530
 pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
@@ -12632,7 +12635,7 @@ pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3136ms check-ta
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 11151ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 11310ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_argument_exit rejected 12141ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18179, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18179, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
 pass/slices/runtime_call_endpoint_field_transition_exit checked 12097ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_order_exit checked 12461ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_view_exit checked 14438ms check-target:macos_arm64 @ccdb99ca2214
@@ -12659,7 +12662,7 @@ pass/slices/runtime_helper_stored_view_return_exit rejected 3031ms check-target:
 pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_imported_slice_provider_composition_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 12556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 4113ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_record_field_range_exit checked 8680ms check-target:macos_arm64 @ccdb99ca2214
@@ -34889,7 +34892,7 @@ run/calls/named_transition_suffixed_float_arguments_exit checked 5626ms check-ta
 run/calls/named_transition_zero_argument_guard_exit checked 5812ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_case_terminal_process_exit checked 10410ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_range_call_operands rejected 3157ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214

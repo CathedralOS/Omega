@@ -132,6 +132,9 @@ impl TerminalExecution<'_> {
                 matched.then(|| operand(replacement)).transpose()?
             }
         };
+        if replacement.is_some() {
+            self.require_guest_storage_mutation(&cell.parent)?;
+        }
         match (prior, &operation.result) {
             (Some(prior), OperationResult::Structural(result))
                 if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) =>

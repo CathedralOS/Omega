@@ -32,7 +32,7 @@ wrong element cannot settle element 0's restoration debt.
    transports retain the same original storage and caller-visible updates.
 4. **Rejection:** wrong-element repair leaves element 0 absent. Unknown or changed
    selector values cannot acquire equality from their spelling or producer body.
-5. **Psi 05–07:** actual selector evaluation and the pre-RHS destination survive
+5. **Psi 06–08:** actual selector evaluation and the pre-RHS destination survive
    lowering; the move's exact claim path agrees with that captured operand.
 6. **Omega 00–02:** structural owned arguments and borrowed address joins preserve
    the original owner's claim frontier and exact selected geometry.

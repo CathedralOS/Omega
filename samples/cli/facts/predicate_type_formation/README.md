@@ -43,7 +43,7 @@ Requirement evidence:
 - **Composition:** the same formation is judged at a local, a field, an
   argument, a return, a join, a constant, a nested machine, another machine and
   a selected implementation.
-- **Psi 05-07 and Omega 00-09:** the formed `Value<bool>` executes through the
+- **Psi 06-08 and Omega 00-09:** the formed `Value<bool>` executes through the
   existing layouts, calls and entry bindings; no new ABI or provider mechanism
   is claimed.
 

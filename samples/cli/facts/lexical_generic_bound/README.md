@@ -52,7 +52,7 @@ bindings. Byte-identical source/Build mirrors live under
 - **Soundness boundaries:** local-first resolution retains exact owner and
   parameter identity; it grants no ownership, effects or new proof premise.
   Every generic argument and declared contract still undergoes ordinary checking.
-- **Psi 05–07:** the ordinary selected member and scalar transports must lower
+- **Psi 06–08:** the ordinary selected member and scalar transports must lower
   to Terminal Psi with their static contracts erased only after checking and
   execute through the Terminal interpreter.
 - **Omega 00–02:** the Build entry, selected target body and scalar call/result

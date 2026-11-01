@@ -6,6 +6,8 @@ mod calling_policy;
 mod carried_requirements;
 #[path = "terminal_cleanup_resume.rs"]
 mod cleanup_resume;
+#[path = "component_input_controls.rs"]
+mod component_inputs;
 #[path = "terminal_extent_view.rs"]
 mod extent_view;
 #[path = "terminal_input_contents.rs"]
@@ -36,6 +38,20 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["component-input", requirement, observations, nested @ ..] => {
+            let observations = if *observations == "storage-refusal" {
+                component_inputs::InputExpectation::StorageRefusal
+            } else if *observations == "write-refusal" {
+                component_inputs::InputExpectation::WriteRefusal
+            } else {
+                component_inputs::InputExpectation::Observations(
+                    observations
+                        .parse()
+                        .map_err(|_| "component input observation count")?,
+                )
+            };
+            component_inputs::inspect(artifact, requirement, observations, nested)
+        }
         ["calling-policy", target, accepted, rejected] => {
             calling_policy::observe(artifact, target, accepted, rejected)
         }

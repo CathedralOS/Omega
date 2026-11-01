@@ -1,4 +1,4 @@
-> Later production-route inspection corrected the phase attribution in this initial note: the measured family executes in Psi 06 before Terminal publication. See [result-review.md](result-review.md) and the final [result](README.md).
+> Later production-route inspection corrected the phase attribution in this initial note: the measured family executes in Psi 07 before Terminal publication. See [result-review.md](result-review.md) and the final [result](README.md).
 
 # Copy pressure: screen existing forwarding before changing edge capture
 

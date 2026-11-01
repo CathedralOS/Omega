@@ -97,8 +97,8 @@ one layer to completion before the next exists.
 | 2 | Lex | bytes → tokens | Rust stage 00 token stream | Done in C and D. |
 | 3 | Parse | tokens → syntax tables | Rust stage 01 syntax | C covers the grammar minus the forms listed on `OMEGA-PRODUCT-COMPILER-SOURCE`; D covers C's own roots. |
 | 4 | Resolve | syntax → symbol-resolved | Rust stage 02 | Handle-first symbols; module namespaces pending `MODULE-NAMESPACE-RESOLUTION`. |
-| 5 | Type | resolved → typed | Rust stages 03, 03b | Generics by unification exist in C; trait requirement calls, conformance static arguments, `Id` for data identity remain. |
-| 6 | Check and prove | typed → checked + obligations discharged | Rust stage 04 diagnostics | The largest layer: zones, ownership, loans, termination, domains, and the proof kernel (predicative sMLTT with Id, W, quotients). D must carry the same kernel. |
+| 5 | Type | resolved → typed | Rust stages 03, 04 | Generics by unification exist in C; trait requirement calls, conformance static arguments, `Id` for data identity remain. |
+| 6 | Check and prove | typed → checked + obligations discharged | Rust stage 05 diagnostics | The largest layer: zones, ownership, loans, termination, domains, and the proof kernel (predicative sMLTT with Id, W, quotients). D must carry the same kernel. |
 | 7 | Lower | checked → Terminal Psi (`PSITERM`) | Compare decoded modules and execution; compare bytes under matched identity, lowering and optimization profiles | The one portable boundary. Canonical encoding fixes the bytes of a particular module; independent frontends can produce different valid modules. |
 | 8 | Realize for alpha_bootstrap | Terminal Psi + Build companion rows → Alpha operations | None in Rust; compare by execution | Provider selection, layout and calling plan for one target with no host ABI. |
 | 9 | Emit | Alpha operations → raw tape, OCOUT | Execute the tape on the Alpha VM; compare `TerminalTraceV1` with Rust's Terminal Psi interpreter on the same PSITERM | 22 opcodes, 256 64-bit registers, flat 128 GiB memory, tape ≤ 16,777,212 bytes. D already has an encoder with labels and fixups to reuse. |

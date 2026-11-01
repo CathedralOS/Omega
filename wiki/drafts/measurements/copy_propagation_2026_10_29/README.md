@@ -14,7 +14,7 @@ Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation)
 ```
 
 The pass removes redundant scalar forwarding parameters and corresponding
-incoming edge arguments in **Psi 06 before Terminal publication**. Fewer
+incoming edge arguments in **Psi 07 before Terminal publication**. Fewer
 transport positions produce fewer selected registers/copies and spill rewrites.
 Bounded spills fell **2,159 to 131** in every profiled off/on comparison.
 The [production-route review](result-review.md) corrects the initial research's

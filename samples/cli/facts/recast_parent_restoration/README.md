@@ -68,7 +68,7 @@ Sample twins use `expected.txt` for their intended-invalid discovery/oracle.
 4. **Soundness boundaries:** unrestricted `u32` validity grants no signed-parent
    predicate. Both twin inputs satisfy all explicit entry contracts; rejection
    must be the unclosed parent domain, with authority and custody preserved.
-5. **Psi 05–07:** qualify source checking, alias-store and loan restoration
+5. **Psi 06–08:** qualify source checking, alias-store and loan restoration
    lowering, and actual Terminal Psi observations for all nine positives. The
    parent readback after `inspect` makes restoration observable; no affine
    cleanup or ownership-hole mechanism is claimed by this scalar row.

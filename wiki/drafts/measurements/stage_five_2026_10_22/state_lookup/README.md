@@ -7,7 +7,7 @@ the patches are experiment records, not production implementations.
 Measured base: `b428c347b51786c5f57d577d59413977d6cf5d9f`.
 Host: Apple M4, macOS ARM64, Rust nightly 2026-09-04, optimized dev profile 1.
 The user requested optimization of Stage 05, the CLI timing label for typed-tree
-preparation/checking (current checking directory `04_typed-trees-to-checked-trees`).
+preparation/checking (current checking directory `05_typed-trees-to-checked-trees`).
 The workload is the unchanged `samples/cli/facts/length/local/main.omg --check`.
 No language capability closure or remote publication is claimed.
 

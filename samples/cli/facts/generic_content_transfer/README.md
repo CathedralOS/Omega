@@ -43,7 +43,7 @@ Its behavior remains a no-op, so this row claims no observable cleanup side effe
 - Soundness boundaries: each loss twin rejects the body replacing 29 with 28.
   Public trait evidence does not inherit an unproved stronger guarantee or
   authorize a resource introduction.
-- Psi 05–07: copied proof contracts are checked in their own formal scope and
+- Psi 06–08: copied proof contracts are checked in their own formal scope and
   erased before Terminal execution. Owned moves and selected nominal cleanup
   survive lowering. This row claims no borrow restoration, initialization or
   dynamic dispatch coverage.

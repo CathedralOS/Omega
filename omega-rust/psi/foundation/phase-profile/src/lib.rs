@@ -2,15 +2,23 @@
 
 //! Process-wide compile-time attribution scopes and event counters.
 //!
-//! Stage 05 used to be one opaque timer. These scopes let a measurement run
-//! split it by pass without temporary, reverted instrumentation. Collection
-//! is off unless `OMEGA_PHASE_PROFILE` is set when the process first asks;
-//! a disabled scope costs one relaxed load and records nothing.
+//! These scopes let a measurement run split a compile by pass without
+//! temporary, reverted instrumentation. Collection is off unless
+//! `OMEGA_PHASE_PROFILE` is set when the process first asks; a disabled scope
+//! costs one relaxed load and records nothing.
 //!
-//! Rows are keyed by `&'static str` names (dot-separated by convention, e.g.
-//! `05.check.flow`). Times are inclusive wall time on the recording thread:
-//! nested scopes overlap their parents, and concurrent compilations in one
-//! process add together. This is measurement, never semantic input: no
+//! Rows are keyed by `&'static str` names. A name starts with `psi.` or
+//! `omega.`. A scope that covers exactly one pipeline stage continues with that
+//! stage's folder number (`psi.05` is typed-to-checked trees, `omega.05`
+//! register homes); work outside a single stage uses a word (`psi.source`,
+//! `omega.product`, `omega.native`). Nested scopes append dot-separated words,
+//! so a child sorts under its parent: `psi.05.check_checked_facts` contains
+//! `psi.05.check_checked_facts.check_linear_obligations`. Names carry no
+//! outline numbers or letters.
+//!
+//! Times are inclusive wall time on the recording thread: nested scopes
+//! overlap their parents, and concurrent compilations in one process add
+//! together. This is measurement, never semantic input: no
 //! compiler decision may read these values.
 //! Keep rows sorted as names first appear: frequent updates then search only
 //! logarithmically. A linear name scan charged profiler bookkeeping to parent

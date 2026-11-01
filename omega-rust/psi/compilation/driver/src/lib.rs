@@ -16,7 +16,7 @@
 //! checking for both Product and Build. Successful checking precedes product
 //! pruning; consumers supply admission facts, never a stage sequence.
 //! `terminal-production/src/terminal_production.rs` owns checked trees through
-//! stages 05-07 and canonical publication, including separate consumer admissions.
+//! stages 06-08 and canonical publication, including separate consumer admissions.
 //! That shared operation sits below this source facade so early compile-time jobs
 //! can use it without recursively importing their source coordinator. Source/package assembly,
 //! source completion roles and distinct entry-root production remain outside
