@@ -309,6 +309,30 @@ fail/facts/generic_terminated_array_through_parameter rejected 738ms expected @a
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/generic_terminated_array_through_target_body rejected 678ms expected @a889c2d8b84c
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/in_place_view_argument_through_call_result_rejected rejected 6882ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_const_name_rejected rejected 6808ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_field_rejected rejected 7180ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/in_place_view_argument_through_local_rejected rejected 7160ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_match_join_rejected rejected 8076ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from choose: match first { true => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes11:shared left15:common:name:tag1:516:common:name:tail1:9, _ => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes12:shared right15:common:name:tag1:516:common:name:tail1:9 }.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_machine_rejected rejected 10644ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from relay: constructor:79:package:e04e150308d22a5303408da0d4afb493e3c32640f84d2380d32150635f2ff2ee::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_state_rejected rejected 5342ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_parameter_rejected rejected 5302ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from probe: constructor:79:package:0044af01741cbdc92a0d30dd58701590b9b33c3a55f6513c90c82f786fe01daa::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_target_body_rejected rejected 4814ms expected @ca41410e2ee2+wt
+	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/independent_call_result_bound_applied_requirement_rejected rejected 8402ms expected @1efc2536b3bc+wt
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
@@ -6038,6 +6062,15 @@ pass/facts/ieee_guard_i32_from_f64_other_machine checked 1953ms check-target:mac
 pass/facts/ieee_guard_i32_from_f64_other_state checked 1952ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_parameter checked 1948ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_target_body checked 1934ms check-target:macos_arm64 @da380b16b89b+wt
+pass/facts/in_place_view_argument_through_call_result_exit checked 12157ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_const_name_exit checked 10996ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_field_exit checked 10919ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_local_exit checked 10903ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_match_join_exit checked 9468ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_other_machine_exit checked 10987ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_other_state_exit checked 9456ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_parameter_exit checked 9683ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/facts/in_place_view_argument_through_target_body_exit checked 9912ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/facts/independent_call_result_bound_applied_requirement_exit checked 10603ms check-target:macos_arm64 @1efc2536b3bc+wt
 pass/facts/independent_call_result_bound_through_call_result_exit checked 9994ms check-target:macos_arm64 @1efc2536b3bc+wt
 pass/facts/independent_call_result_bound_through_const_name_exit checked 10023ms check-target:macos_arm64 @1efc2536b3bc+wt
@@ -13258,8 +13291,7 @@ pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms che
 pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 4282ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_stored_byte_input incomplete 3835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `Main::main::main`, statement 3
+pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
