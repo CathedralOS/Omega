@@ -170,19 +170,45 @@ use fixture_package_inputs::{
 };
 
 fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if path.join("main.omg").is_file() {
-                mains.push(path.join("main.omg"));
-            } else {
-                collect_mains(&path, mains);
+    // A fixture may contain independent fact productions as well as its own
+    // source packages. A nested authored oracle declares another fixture;
+    // package roots without one remain inputs of their containing fixture.
+    fn has_oracle(dir: &Path) -> bool {
+        fs::read_dir(dir).is_ok_and(|entries| {
+            entries.flatten().any(|entry| {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                entry.file_type().is_ok_and(|kind| kind.is_file())
+                    && (name == "expected.txt"
+                        || (name.starts_with("expected_") && name.ends_with(".txt")))
+            })
+        })
+    }
+    fn walk(dir: &Path, mains: &mut Vec<PathBuf>, inside_fixture: bool) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                continue;
             }
+            if inside_fixture
+                && matches!(
+                    entry.file_name().to_str(),
+                    Some("build" | "target" | ".omega")
+                )
+            {
+                continue;
+            }
+            let path = entry.path();
+            let has_main = path.join("main.omg").is_file();
+            if has_main && (!inside_fixture || has_oracle(&path)) {
+                mains.push(path.join("main.omg"));
+            }
+            walk(&path, mains, inside_fixture || has_main);
         }
     }
+    walk(dir, mains, false);
 }
 
 /// Exact reviewed pending roots, not a recursive walk of every unfinished
