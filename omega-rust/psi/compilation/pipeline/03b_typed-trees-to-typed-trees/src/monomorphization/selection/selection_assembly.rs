@@ -278,7 +278,7 @@ pub(crate) fn proposal_bindings(
             selection.unresolved_const_parameters = true;
             continue;
         }
-        if type_reference_is_any_generic_parameter(program, binding) {
+        if !typed_trees::domain::index_argument_is_closed(program, binding) {
             selection.unresolved_const_parameters = true;
         }
         match selection.const_bindings[parameter] {
