@@ -281,6 +281,40 @@ pub fn ranking_range_required_coordinates(
     };
     super::push_measure_subjects(measure, &mut expressions);
     let mut coordinates = Vec::new();
+    if let RankingRangeMeasure::Computed {
+        subject,
+        parameter,
+        body,
+        ..
+    } = measure
+    {
+        let declaration = program.measures().iter().find(|declaration| {
+            declaration
+                .parameter
+                .as_ref()
+                .is_some_and(|formal| formal.symbol == parameter)
+        })?;
+        if expression_table(program).expression_handles(declaration.body) != [body] {
+            return None;
+        }
+        let shape = super::declared_input_shape(program, declaration)?;
+        let input =
+            crate::canonical_place_from_expression_in_state(program, root.symbol, 0, subject)?;
+        // Demand every declared read on the actual root. The declaration's
+        // foreign AST must never be traversed under the machine namespace.
+        // The root itself remains input identity, never a scalar observation.
+        for read in shape.reads {
+            coordinates.push(RankSubjectCoordinate {
+                parameter: input.root.as_symbol()?,
+                path: input
+                    .segments
+                    .iter()
+                    .chain(&read.coordinate.path)
+                    .cloned()
+                    .collect(),
+            });
+        }
+    }
     if matches!(premises, RankingRangePremises::EntryInvariant) {
         expressions.extend(super::required_contract_expressions(program, machine));
         let mut constrained = Vec::new();

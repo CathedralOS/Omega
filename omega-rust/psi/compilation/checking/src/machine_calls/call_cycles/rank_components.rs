@@ -177,6 +177,15 @@ pub fn retain_runtime_rank_component(
                         casts: application_casts,
                         calls: application_calls,
                     },
+                    application_bindings: {
+                        let bindings = value
+                            .application_bindings
+                            .iter()
+                            .map(|binding| binding.retain(admitted))
+                            .collect::<Vec<_>>();
+                        admitted.bindings.insert_many(bindings)
+                    },
+                    input_type: value.input_type,
                     measure: value.measure,
                     coordinate,
                     parameter_position: value.parameter_position,
@@ -283,6 +292,17 @@ pub fn retained_runtime_natural_components(
                                     }
                                     None
                                 },
+                                application_bindings: admitted
+                                    .bindings
+                                    .span(value.application_bindings)?
+                                    .iter()
+                                    .map(|binding| {
+                                        super::RuntimeRankApplicationBinding::from_checked(
+                                            admitted, binding,
+                                        )
+                                    })
+                                    .collect::<Option<Vec<_>>>()?,
+                                input_type: value.input_type,
                                 measure: value.measure,
                                 parameter: coordinate.parameter,
                                 coordinate: crate::RankSubjectCoordinate {

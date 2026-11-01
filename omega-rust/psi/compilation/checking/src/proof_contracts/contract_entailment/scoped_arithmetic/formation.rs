@@ -6,7 +6,9 @@
 
 use super::{ScopedArithmeticExpression, ScopedArithmeticHypothesis, calls, install_hypotheses};
 use crate::frozen_program::expression_table;
-use crate::proof_contracts::contract_entailment::arithmetic_judgment::Engine;
+use crate::proof_contracts::contract_entailment::arithmetic_judgment::{
+    Engine, IntegerApplicationInput,
+};
 use typed_trees::machine::Machine;
 use typed_trees::types::PrimitiveType;
 
@@ -17,6 +19,7 @@ pub fn scoped_declared_integer_application_formation(
     context_machine: &Machine,
     hypotheses: &[ScopedArithmeticHypothesis],
     expression: &ScopedArithmeticExpression,
+    input_type: typed_trees::types::TypeReferenceHandle,
     result: PrimitiveType,
 ) -> Option<super::super::IntegerApplicationFormation> {
     let Some(declaration) = program
@@ -24,9 +27,6 @@ pub fn scoped_declared_integer_application_formation(
         .iter()
         .find(|definition| definition.symbol == expression.owner)
     else {
-        return None;
-    };
-    let Some(formal) = declaration.parameter.as_ref() else {
         return None;
     };
     if expression_table(program).expression_handles(declaration.body) != [expression.expression]
@@ -48,9 +48,7 @@ pub fn scoped_declared_integer_application_formation(
     {
         return None;
     }
-    let Some(input) = engine.strict_symbol_value(formal.symbol) else {
-        return None;
-    };
+    let input = IntegerApplicationInput::captured(&engine, declaration.symbol, input_type)?;
     engine
         .form_declared_integer_application(declaration.symbol, &input)
         .and_then(|application| application.formation)

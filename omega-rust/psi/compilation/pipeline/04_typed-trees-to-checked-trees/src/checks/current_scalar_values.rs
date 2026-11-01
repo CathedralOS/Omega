@@ -1083,6 +1083,7 @@ impl<'program> CurrentScalarValues<'program> {
         &self,
         machine: &Machine,
         expression: &ScopedArithmeticExpression,
+        input_type: typed_trees::types::TypeReferenceHandle,
         result: PrimitiveType,
     ) -> Option<validation::IntegerApplicationFormation> {
         validation::scoped_declared_integer_application_formation(
@@ -1090,6 +1091,7 @@ impl<'program> CurrentScalarValues<'program> {
             machine,
             &self.hypotheses,
             expression,
+            input_type,
             result,
         )
     }

@@ -10,7 +10,6 @@ use symbols::{BuiltinTypeAtom, JoinedPath, SymbolHandle};
 use typed_trees::data::{DataMember, TypeParameterKind};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
-use typed_trees::name::Identifier;
 use typed_trees::ranking::witness_expression_text;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
@@ -18,10 +17,7 @@ use typed_trees::types::TypeReferenceNode;
 use typed_trees::unsigned_integer_primitive_pattern;
 use validation::mathematical_applications::operand_type_reference;
 
-use validation::{
-    MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
-    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-};
+use validation::{declared_scalar_view, find_declared_measure};
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,24 +52,8 @@ pub(super) enum RankingOrder {
         measure: SymbolHandle,
         parameter: SymbolHandle,
         body: ExpressionHandle,
-        input_carrier: BuiltinTypeAtom,
+        input_type: TypeReferenceHandle,
         result_carrier: BuiltinTypeAtom,
-    },
-    /// A declared `measure` whose body projects a field of a struct parameter,
-    /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`, or a
-    /// nested path `{ card.stats.power }` whose record-typed steps `path` lead
-    /// from the parameter's record to `owner`, the record declaring `field`.
-    /// The subject is that root record, owned or reached through a reference;
-    /// the stored field type retains its exact declaration's range constraints.
-    /// `measure` is the declaration itself, which the relational range route
-    /// hands to validation to re-resolve the projection independently.
-    CustomStructView {
-        measure: SymbolHandle,
-        path: Vec<ProjectionStep>,
-        field: Identifier,
-        field_type: TypeReferenceHandle,
-        field_symbol: SymbolHandle,
-        owner: SymbolHandle,
     },
     /// A declared lexicographic view. The complete invocation-component owner
     /// resolves and retains its ordered field identities; classification grants
@@ -266,78 +246,19 @@ impl RankingOrder {
                 .then_some(Self::Lexicographic);
         }
 
-        let Some(shape) = measure_body_shape(program, measure) else {
-            // Neither a forward nor a projection: only a computation admitted
-            // for this exact subject by the shared classification remains.
-            let view = declared_scalar_view(program, state, decreases, &order.join("::"))?;
-            let computation = view.computation?;
-            return Some(Self::CustomScalarView {
+        let view = declared_scalar_view(program, state, decreases, &order.join("::"))?;
+        Some(match view.computation {
+            Some(computation) => Self::CustomScalarView {
                 measure: measure.symbol,
                 parameter: computation.parameter,
                 body: computation.body,
-                input_carrier: view.input_carrier,
+                input_type: view.input_type,
                 result_carrier: view.result_carrier,
-            });
-        };
-        match shape {
-            MeasureBodyShape::ParameterForward {
-                carrier,
-                constraints,
-            } => {
-                if identity_subject_matches(program, state, decreases, carrier)
-                    && measure_constraints_cover_subject(program, state, decreases, &constraints)
-                {
-                    Some(Self::CustomNatDescending {
-                        measure: measure.symbol,
-                    })
-                } else {
-                    None
-                }
-            }
-            MeasureBodyShape::FieldProjection {
-                path,
-                field,
-                owner,
-                field_type,
-                field_symbol,
-            } => {
-                // Applying the projection requires the exact nominal carrier,
-                // not another declaration with the same displayed type name.
-                // The subject may reach that record through a reference: the
-                // view reads the referent's fields, and the self-loop prover
-                // separately keeps the binding and the ranked path unwritten.
-                let subject_path = program.expression_table.name_path_node(decreases)?;
-                let subject = program.state_parameters(state).iter().find(|parameter| {
-                    (parameter.symbol.is_valid())
-                        && parameter.symbol == subject_path.symbol
-                        && subject_path.head_symbol == subject_path.symbol
-                })?;
-                let root = path.first().map_or(owner, |step| step.owner);
-                let mut reference = program
-                    .type_reference_table
-                    .unconstrained_type_reference(subject.type_reference);
-                if let TypeReferenceNode::Reference { referee, .. } =
-                    program.type_reference_table.type_reference(reference)
-                {
-                    reference = program
-                        .type_reference_table
-                        .unconstrained_type_reference(*referee);
-                }
-                if !matches!(program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Named { symbol, .. } if *symbol == root)
-                {
-                    return None;
-                }
-                Some(Self::CustomStructView {
-                    measure: measure.symbol,
-                    path,
-                    field,
-                    field_type,
-                    field_symbol,
-                    owner,
-                })
-            }
-        }
+            },
+            None => Self::CustomNatDescending {
+                measure: measure.symbol,
+            },
+        })
     }
 }
 

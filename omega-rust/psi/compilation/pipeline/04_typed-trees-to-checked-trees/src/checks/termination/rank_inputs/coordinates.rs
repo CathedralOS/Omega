@@ -15,10 +15,26 @@ pub(in crate::checks::termination) struct Coordinate {
     pub(in crate::checks::termination) entry_value: ScopedArithmeticValue,
     pub(in crate::checks::termination) position: usize,
     pub(in crate::checks::termination) primitive: PrimitiveType,
+    pub(in crate::checks::termination) type_reference: typed_trees::types::TypeReferenceHandle,
     pub(in crate::checks::termination) observation: validation::RankPremiseObservation,
 }
 
 impl Coordinate {
+    /// A completed typed read has its carrier's inherent bounds independently
+    /// of authored requirements. These describe the observed word, never a
+    /// desired measure or the safety of an unexecuted intermediate.
+    pub(in crate::checks::termination) fn bounded_value(
+        &self,
+        value: ScopedArithmeticValue,
+    ) -> Option<ScopedArithmeticValue> {
+        let (minimum, maximum) = self.primitive.integer_bounds()?;
+        Some(ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(value),
+            minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
+            maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+        })
+    }
+
     pub(in crate::checks::termination) fn current(
         &self,
         values: &CurrentScalarValues<'_>,
@@ -81,6 +97,7 @@ pub(in crate::checks::termination) fn coordinates(
                         entry_value,
                         position,
                         primitive,
+                        type_reference: parameter.type_reference,
                         observation,
                     });
                 }
@@ -110,6 +127,7 @@ pub(in crate::checks::termination) fn coordinates(
                         entry_value: value.clone(),
                         position,
                         primitive,
+                        type_reference: field.result_type_reference,
                         observation,
                     });
                 }
@@ -134,6 +152,13 @@ pub(in crate::checks::termination) fn coordinates(
                     {
                         continue;
                     }
+                    let Some(type_reference) = validation::project_type_reference_from_segments(
+                        program,
+                        parameter.type_reference,
+                        &path,
+                    ) else {
+                        continue;
+                    };
                     coordinates.push(Coordinate {
                         parameter: parameter.symbol,
                         path,
@@ -141,6 +166,7 @@ pub(in crate::checks::termination) fn coordinates(
                         entry_value: value.clone(),
                         position,
                         primitive: PrimitiveType::U64,
+                        type_reference,
                         observation,
                     });
                 }

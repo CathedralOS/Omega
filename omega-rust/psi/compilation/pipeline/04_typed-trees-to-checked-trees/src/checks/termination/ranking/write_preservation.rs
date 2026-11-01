@@ -3,9 +3,7 @@
 use facts::NormalizedWriteFrame;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
-use validation::{
-    CallFrameResolver, RankPremiseObservation, RankProtectedPath, frame_preserves_rank_premises,
-};
+use validation::{CallFrameResolver, RankProtectedPath, frame_preserves_rank_premises};
 
 /// A write frame is preservation evidence only when it is complete -- an
 /// opaque frame admits nothing -- and every caller-relative path it may
@@ -36,22 +34,4 @@ pub(super) fn prefix_preserves_premise<'program>(
                 carrier,
             )
     })
-}
-
-/// A whole-value carrier: every overlapping write invalidates it.
-pub(super) fn prefix_preserves_path<'program>(
-    frames: &CallFrameResolver<'program>,
-    machine: &'program Machine,
-    statements: &[StatementNode],
-    path: &str,
-) -> bool {
-    prefix_preserves_premise(
-        frames,
-        machine,
-        statements,
-        &RankProtectedPath {
-            path: path.to_owned(),
-            observation: RankPremiseObservation::Value,
-        },
-    )
 }
