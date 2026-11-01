@@ -595,7 +595,10 @@ impl Evaluation<'_, '_> {
         capture: &mut Capture,
         mut observed: Option<&mut ObservedValue>,
     ) -> Option<()> {
-        if !expression.is_valid() {
+        // A statically excluded occurrence has no checked invocation or normal
+        // descriptor generation. Borrow-call collection uses this same owned
+        // reachability result; source formation remains checked separately.
+        if !expression.is_valid() || self.program.static_type_context_is_unreachable(expression) {
             return Some(());
         }
         if capture.value_requested && expression == capture.expression && observed.is_none() {

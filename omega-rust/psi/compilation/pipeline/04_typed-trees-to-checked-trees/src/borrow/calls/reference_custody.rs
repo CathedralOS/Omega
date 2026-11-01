@@ -83,9 +83,10 @@ pub(in crate::borrow) fn append_reference_custody(
                         && call.authored_expression == expression
                 });
                 let Some(call) = matching.next().filter(|_| matching.next().is_none()) else {
-                    return Err(diagnostics::Diagnostic::error(
-                        "normal reference-slot completion has no unique checked invocation",
-                    ));
+                    return Err(diagnostics::Diagnostic::error(format!(
+                        "machine `{}` state `{}` statement {statement_index}: normal reference-slot completion for {expression:?} has no unique checked invocation",
+                        machine.name, state.name,
+                    )));
                 };
                 if published_calls.contains(&call) {
                     return Err(diagnostics::Diagnostic::error(
