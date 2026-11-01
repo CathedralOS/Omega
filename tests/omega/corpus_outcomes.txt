@@ -11780,8 +11780,7 @@ pass/providers/boundary_req_inherit checked 3350ms @ccdb99ca2214
 pass/providers/boundary_scalar_field_store checked 21385ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/build_product_adapter_frontiers_exit rejected 951ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	anonymous source tests/omega/pass/providers/build_product_adapter_frontiers_exit/support/values.omg belongs to a different reconciled package at Product join
-pass/providers/calling_application_region_scopes_exit rejected 3101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	executed provider choice lost its complete static application
+pass/providers/calling_application_region_scopes_exit checked 4336ms check-target:macos_arm64 @5d84e10310e4+wt
 pass/providers/canonical_inherited_provider_instances_exit checked 3219ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 19831ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
