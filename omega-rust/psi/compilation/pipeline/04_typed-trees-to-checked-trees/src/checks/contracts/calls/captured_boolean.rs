@@ -833,36 +833,17 @@ fn source_read_changes_interpretation(
     }
     let (machine, captured_state) =
         program.state_flow_site(state.machine_symbol, capture.state_symbol)?;
-    let reference = validation::expression_result_type_reference(
-        program,
-        machine,
-        captured_state,
-        capture.expression,
-    )?;
-    let (expected, _) = validation::scalar_observation_meaning(program, reference)?;
     let mut place = validation::canonical_place_from_expression(program, capture.expression)?;
     place.extend_segments(remaining);
     let mut owned_frames = None;
     let frames = crate::flow::shared_call_frames_or(None, program, &mut owned_frames)?;
-    let backing = frames.storage_read_backing_at_expression(
+    frames.scalar_read_changes_interpretation(
         machine,
         captured_state,
         capture.expression,
         place.root.as_symbol()?,
         &place.segments,
-    )?;
-    Some(backing.sources.iter().any(|source| {
-        source
-            .scalar_storage_coordinate(program, captured_state)
-            .map_or_else(
-                || !source.recasts.is_empty() || source.representation.is_some(),
-                |scalar| {
-                    !scalar.preserves_scalar_value
-                        || scalar.source_primitive != expected
-                        || scalar.view_primitive != expected
-                },
-            )
-    }))
+    )
 }
 
 /// One exact returned reference to parameter storage. The callee projects a
