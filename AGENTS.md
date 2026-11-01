@@ -216,8 +216,7 @@ capability.
      authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
      `state` with nested `machine` across 100% of `.omg` files,
      `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
-     ~25% of `.omg` files, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
-     `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+     ~25% of `.omg` files, `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
      `BUILD-OWNED-NATIVE-BINDINGS`, and
      `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
      witnesses and samples are not continually authored in deprecated syntax.
@@ -652,9 +651,9 @@ The rules that touch every edit:
   per-API intrinsics. Float extrema are finite; exact bit/classification APIs
   preserve their promised sign/payload/kind without strengthening arithmetic
   NaN guarantees. Payload constructors are conveniences, not permanent compiler
-  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis);
-  `CORE-INTEGER-FLOAT-APIS` owns implementation and migration, without admitting
-  arbitrary-width integer families or general owned aggregate casts.
+  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis),
+  without admitting arbitrary-width integer families or general owned aggregate
+  casts.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls
@@ -694,7 +693,9 @@ The rules that touch every edit:
   reconcile concurrent edits at rebase. Implementation status belongs on the
   board, not in `omega-rust/pipeline.md` or `wiki/spec`: those are contracts,
   and `tools/check_rules.py` fails admission when a contract file's status
-  phrasing grows.
+  phrasing grows. It also fails when this file, a skill, `pipeline.md`, the
+  specification or a fact README cites a task ID no board holds, so the change
+  that deletes or merges an item repoints or deletes its citations.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or

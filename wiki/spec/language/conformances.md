@@ -55,8 +55,8 @@ public SaturatingIncrement satisfies Incrementable<Counter> {
 ```
 
 The endpoint query is ordinary core library vocabulary under
-[numeric values](numeric_values.md#core-integer-and-float-apis); its implementation
-remains `CORE-INTEGER-FLOAT-APIS` work, not a primitive-member alias.
+[numeric values](numeric_values.md#core-integer-and-float-apis), not a
+primitive-member alias.
 
 `SaturatingIncrement` is the implementation name, `Incrementable<Counter>`
 is the contract, and `Counter` is an ordinary type argument. The named
