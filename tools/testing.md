@@ -135,8 +135,10 @@ concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
 
-Linux and macOS pilots share the post-merge workflow's `compiler-regression` cache prefix
-and `/tmp/ot` target directory. Both must match: GitHub's cache version includes
+Linux pilots share the post-merge workflow's `compiler-regression` cache prefix
+and `/tmp/ot` target directory. macOS 15 uses `compiler-regression-macos15` in both
+workflows, with the same target directory, keeping retired macOS 14/SDK objects
+out of that namespace. Both key and path must match: GitHub's cache version includes
 the archived paths. This lets a fresh branch reuse main's compatible Cargo
 objects instead of starting a private cold cache. Windows pilots retain their
 own namespace because their runner image differs. Restored objects still pass
