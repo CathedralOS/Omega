@@ -283,6 +283,25 @@ fail/facts/contract_excluded_case_through_parameter_rejected rejected 3578ms exp
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/facts/contract_excluded_case_through_target_body_rejected rejected 3046ms expected @f8ae8d815e07
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/coupled_requires_construction_call_result_rejected rejected 1393ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_const_name_rejected rejected 4289ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_field_rejected rejected 4288ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_local_rejected rejected 1215ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_match_join_rejected rejected 2797ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_other_machine_rejected rejected 3268ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_other_state_rejected rejected 4090ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_parameter_rejected rejected 1329ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/coupled_requires_construction_target_body_rejected rejected 1636ms expected @b9a2381a9f27+wt
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -5397,6 +5416,15 @@ pass/facts/correlated_invariant_store_through_other_machine_exit checked 4669ms 
 pass/facts/correlated_invariant_store_through_other_state_exit checked 3424ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/correlated_invariant_store_through_parameter_exit checked 3200ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/correlated_invariant_store_through_target_body_exit checked 3456ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/coupled_requires_construction_call_result_exit checked 11087ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_const_name_exit checked 9553ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_field_exit checked 9553ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_local_exit checked 6994ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_match_join_exit checked 9610ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_other_machine_exit checked 8619ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_other_state_exit checked 10221ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_parameter_exit checked 8593ms check-target:macos_arm64 @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_target_body_exit checked 8694ms check-target:macos_arm64 @b9a2381a9f27+wt
 pass/facts/crash_entry_boolean_view_call_result_exit checked 4433ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_boolean_view_const_name_exit checked 4582ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_boolean_view_exit checked 3457ms check-target:macos_arm64 @ccdb99ca2214
