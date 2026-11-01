@@ -1,0 +1,35 @@
+// A fresh guarded slice bound survives reference transport after a generic visitor.
+// Expected exit: 0
+data Context {
+    slots: &mut [u8];
+    count: u64;
+    valid: bool;
+    fuel: u64;
+}
+machine visit(context: &mut Context) {
+    context.count = 1;
+    context.fuel = 7;
+}
+machine need(context: &Context, out: &mut [u8], fuel: u64) -> u64
+requires context.count <= context.slots.len && fuel > 0
+{ fuel }
+machine relay<machine Visit>(slots: &mut [u8], out: &mut [u8], fuel: u64) -> u64
+requires machine Visit(context: &mut Context);
+{
+    let mut context: Context = Context { slots: slots, count: 0, valid: true, fuel: fuel };
+    Visit(&mut context);
+    transition context.valid && context.count <= context.slots.len && context.fuel > 0 {
+        true -> need(&context, out, context.fuel)
+        _ -> 0
+    }
+}
+machine main() crashes Trap {
+    let mut slots: [u8; 2];
+    let mut out: [u8;2];
+    transition relay<visit>(&mut slots[..],&mut out[..],3) == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
