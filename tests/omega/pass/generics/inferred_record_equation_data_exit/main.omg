@@ -4,7 +4,7 @@ data Configuration [copy] { minimum: u64; }
 const SEVEN: Configuration = Configuration { minimum: 7 };
 data Token<const Setting: Configuration> [copy] { marker: u8; }
 data Package<Item [copy], const Setting: Configuration> [copy]
-where Item == Token<Setting>
+requires Item == Token<Setting>
 { item: Item; }
 machine read<Item [copy], const Setting: Configuration>(item: Item) -> u64
 where Item == Token<Setting>

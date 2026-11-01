@@ -199,13 +199,18 @@ fn rejects_ranking_witness_on_trait_requirement() {
 }
 
 #[test]
-fn parses_data_default_domain_where_clause() {
-    // R2 rung 1 (ch12 "Dependent Data"): the where clause between the data
-    // signature and the body -- bare field names, comma-separated facts,
-    // trailing comma tolerated.
+fn parses_data_default_domain_requires_clause() {
+    // The default-domain `requires` clause between the data signature and the
+    // body -- bare field names, comma-separated facts, trailing comma
+    // tolerated. The retired `where` spelling has no parse path.
+    let retired = super::parse_tokenized_error(
+        "data MemoryMap where count <= len { len: u32; count: u32; }",
+        "retired data `where` must reject",
+    );
+    super::expect_error(&retired, "expected `{`, found identifier `where`");
     let source = r#"
         data MemoryMap
-        where
+        requires
             count <= len,
             stride >= 40,
         {

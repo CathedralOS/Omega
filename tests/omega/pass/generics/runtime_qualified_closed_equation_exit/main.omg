@@ -2,11 +2,11 @@ use models::Token;
 use models::COUNT;
 
 data Projected<Anchor [copy], Token [copy]> [copy]
-where Token == models::Token
+requires Token == models::Token
 { value: Token; anchor: Anchor; }
 
 data Reversed<Anchor [copy], Payload [copy]> [copy]
-where models::Token == Payload, Payload == Token
+requires models::Token == Payload, Payload == Token
 { value: Payload; anchor: Anchor; }
 
 machine capacity<Payload>() -> u64
@@ -18,11 +18,11 @@ where models::Token == Payload
 { Count }
 
 data Builtin<Anchor [copy], Payload [copy]> [copy]
-where Payload == u64
+requires Payload == u64
 { value: Payload; anchor: Anchor; }
 
 data Check<const Count: u64> [copy]
-where models::COUNT == 4
+requires models::COUNT == 4
 { value: u64; }
 
 data Main {

@@ -2,7 +2,7 @@
 // its Player field excludes zero. An established incoming borrow still
 // carries its declared domains independently of the caller's machine name.
 data Player
-where
+requires
     health >= 1,
 {
     health: i32;

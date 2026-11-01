@@ -1,18 +1,18 @@
 // Expected exit: 0.
 use omega_language_std::console;
 
-data Vitality [copy] where maximum >= 0, current >= 0 && current <= maximum {
+data Vitality [copy] requires maximum >= 0, current >= 0 && current <= maximum {
     current: i32; maximum: i32;
 }
-data Actor<const Rooms: u64> [copy] where Rooms >= 1, room < Rooms, facing < 4 {
+data Actor<const Rooms: u64> [copy] requires Rooms >= 1, room < Rooms, facing < 4 {
     room: u64; facing: u32; vitality: Vitality;
 }
 data Actors<const Capacity: u64, const Rooms: u64>
-where Capacity >= 1, Rooms >= 1, count <= Capacity {
+requires Capacity >= 1, Rooms >= 1, count <= Capacity {
     items: [Actor<Rooms>; Capacity]; count: u64;
 }
-data Command [copy] where direction >= -1 && direction < 4 { direction: i32; }
-data Commands<const Capacity: u64> where Capacity >= 1 { items: [Command; Capacity]; }
+data Command [copy] requires direction >= -1 && direction < 4 { direction: i32; }
+data Commands<const Capacity: u64> requires Capacity >= 1 { items: [Command; Capacity]; }
 data Main { actors: Actors<2, 4>; commands: Commands<2>; }
 
 machine turn<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>

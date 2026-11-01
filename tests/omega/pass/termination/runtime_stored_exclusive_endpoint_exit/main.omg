@@ -17,7 +17,7 @@
 
 use omega_language_std::console;
 
-data Wrap where 4 <= remaining, remaining <= 500 { remaining: u64; }
+data Wrap requires 4 <= remaining, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }
 data Main { }
 

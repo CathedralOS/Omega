@@ -2,7 +2,7 @@
 
 Compile-scope probe. Imports `omega::language::core::float_operations`.
 
-- `data Main where meter_value >= 0.0 && meter_value <= 1.0` — float
+- `data Main requires meter_value >= 0.0 && meter_value <= 1.0` — float
   where-gate rides the carrier (zero-init satisfies); mid-body
   stores are not construction — `= 2.0` writes out-of-gate, `= 0.25`
   restores.

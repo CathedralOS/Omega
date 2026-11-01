@@ -2,7 +2,7 @@
 // The helper's entry condition n <= spare.cap is therefore not established.
 // Optional interval bounds may change across invocations; that does not waive
 // ordinary callee Requires under exact actual substitution.
-data Limits where cap <= 9 { cap: u64; }
+data Limits requires cap <= 9 { cap: u64; }
 
 machine outer(remaining: u64, limits: Limits) -> u64
 requires remaining <= limits.cap

@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 data Cursor { calls: u32 in Wrapping; trace: u32 in Wrapping; }
-data Selection where row == 2 && column == 1 { row: u64; column: u64; }
+data Selection requires row == 2 && column == 1 { row: u64; column: u64; }
 machine choose_row(cursor: &mut Cursor, row: u64) -> u64
 requires row == 2
 ensures result == 2 {

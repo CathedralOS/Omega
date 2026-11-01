@@ -1,4 +1,4 @@
-data Coordinate where value <= 2 { value: u64; }
+data Coordinate requires value <= 2 { value: u64; }
 machine reset(value: &mut u64) -> u64
 requires value <= 2
 ensures value <= 2

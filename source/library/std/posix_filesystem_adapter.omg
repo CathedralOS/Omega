@@ -411,7 +411,7 @@ data PosixDirectoryKind [copy] {
 }
 
 data PosixFilesystem
-where open_writable >= 0 && open_writable <= 1,
+requires open_writable >= 0 && open_writable <= 1,
     open_readable >= 0 && open_readable <= 1,
     open_creating >= 0 && open_creating <= 1
 {

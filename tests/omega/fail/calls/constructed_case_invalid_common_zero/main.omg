@@ -1,6 +1,6 @@
 data Sample [copy] { value: u64; }
 data Reply [copy]
-where marker >= 1,
+requires marker >= 1,
 {
     marker: u64;
     case Values(payload: Sample);

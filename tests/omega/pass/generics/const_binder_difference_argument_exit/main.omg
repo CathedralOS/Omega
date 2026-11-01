@@ -2,7 +2,7 @@
 // A const binder can appear in arithmetic that selects another const machine.
 // step<0> is 1 and step<1> is the base. power<Degree> multiplies by
 // step<Degree - 1>, through a local, a field, a parameter, and that call result.
-data Basis<const Degree: u64> where Degree <= 2 {
+data Basis<const Degree: u64> requires Degree <= 2 {
     setting: i64 in Wrapping;
 }
 

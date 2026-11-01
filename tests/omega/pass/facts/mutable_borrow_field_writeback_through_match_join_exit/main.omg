@@ -2,7 +2,7 @@
 // Place: match_join. Both match arms take the borrow, write back, and converge on one refined result.
 // Expected exit: 0
 
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

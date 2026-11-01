@@ -29,7 +29,7 @@ At library inventory revision `c1303f89d4`, and before this repair,
 `source/library/std/time.omg` declares
 `Duration.subsecond_nanoseconds: u32 [0..=999_999_999]`. It is a common field:
 the replacement is `subsecond_nanoseconds: u32` under
-`pub data Duration [copy] where subsecond_nanoseconds <= 999_999_999`.
+`pub data Duration [copy] requires subsecond_nanoseconds <= 999_999_999`.
 The unsigned carrier establishes the original lower bound 0. The upper bound
 remains the containing duration's normalization obligation; no nominal interval
 domain replaces it. `Duration::ZERO` and `Duration::MAX` retain their authored

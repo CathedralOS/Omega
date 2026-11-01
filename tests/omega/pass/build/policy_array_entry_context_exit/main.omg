@@ -9,12 +9,12 @@ data Mode [copy] {
     case Busy;
 }
 
-data Cell [copy] where weight <= 9 {
+data Cell [copy] requires weight <= 9 {
     mode: Mode;
     weight: u64;
 }
 
-data Table where count <= 4 {
+data Table requires count <= 4 {
     modes: [Mode; 4] in Trapping;
     count: u64;
 }

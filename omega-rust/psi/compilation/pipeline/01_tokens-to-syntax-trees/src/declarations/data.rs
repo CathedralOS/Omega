@@ -1,5 +1,4 @@
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
-use crate::contracts::facts::parse_logical_proof_facts_until;
 use crate::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
@@ -139,19 +138,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             input,
         ));
     }
-    // Both spellings still share the default-domain carrier during source
-    // migration. Requires clauses conjoin in declaration order; no machine
-    // entry contract or additional logical subject is introduced.
+    // Requires clauses conjoin in declaration order into the default-domain
+    // carrier; no machine entry contract or additional logical subject is
+    // introduced. The retired `where` spelling has no parse path.
     let mut default_domain_facts = crate::handle_spans::HandleSpanBuilder::new();
-    if input.at_contextual("where") {
-        input = input.take_contextual("where")?;
-        let ((facts, _token_count), rest) =
-            parse_logical_proof_facts_until(syntax_trees, input, |input| {
-                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
-            })?;
-        default_domain_facts.push_span(facts);
-        input = rest;
-    }
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let ((facts, _token_count), rest) =
@@ -215,11 +205,6 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     let (properties, input) = parse_property_brackets(input)?;
     let ((), input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     validate_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
-    if input.at_contextual("where") {
-        return Err(input.error_here(
-            "opaque `boundary data` has no visible fields for a default-domain `where` clause",
-        ));
-    }
     if input.at_contextual("requires") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for default-domain predicates",

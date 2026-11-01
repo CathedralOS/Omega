@@ -1,9 +1,10 @@
 //! Prepare exact owned opaque arguments for a real independent child.
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
-//! Only an actual unchanged host atom crosses this initial closed-Inert lane;
-//! materialized backing, loans, routed claims and projected memberships need
-//! their own transfer carriers. Whole memberships use the installation's sealed
+//! Unchanged host atoms retain their tokens; materialized owned contents use the
+//! ordinary complete scalar/case initializer in the child's declaration space.
+//! Loans, routed claims and projected memberships require their own transfer
+//! carriers. Whole memberships use the installation's sealed
 //! domain-theory relation, never a provider annotation or a copied dense ID.
 //! Preparing these values executes nothing and changes no
 //! parent custody. The caller commits the staged frontier only after a real
@@ -25,6 +26,7 @@ use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 
 pub(super) struct PreparedComponentArguments {
     pub(super) values: Vec<TerminalStructuralValue>,
+    pub(super) contents: Vec<crate::TerminalStructuralContents>,
     pub(super) remaining_affine: BTreeSet<StructuralAffineDiscard>,
     pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
     pub(super) retired_sources: Vec<PlaceId>,
@@ -68,6 +70,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
         let mut values = prepared.into_opaque_values(self.local_structural_identities.cursor())?;
+        let mut contents = Vec::new();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
@@ -181,31 +184,40 @@ impl<'artifact> TerminalExecution<'artifact> {
             // Ancestor cases were authenticated by ordinary projection and
             // remain with the residual parent. Only metadata belonging to this
             // exact subtree would need to accompany the moved value.
-            if self.structural_cases.keys().any(within_value)
-                || self.reference_referents.keys().any(within_value)
+            if self.reference_referents.keys().any(within_value)
                 || self.structural_element_view_fields.keys().any(within_value)
-                || self.structural_byte_storage.keys().any(within_value)
-                || self.empty_array_storage.rows.keys().any(within_value)
-                || self.structural_primitive_storage.keys().any(within_value)
+                || self.original_storage_roots.keys().any(within_value)
+                || self.provider_storage.descriptors.keys().any(within_value)
                 || self
-                    .structural_scalar_fields
+                    .provider_storage
+                    .completed_profiles
                     .keys()
-                    .any(|field| within_value(&field.parent))
+                    .any(within_value)
+                || self
+                    .activation_storage
+                    .claim_descriptors
+                    .keys()
+                    .any(within_value)
+                || self.structural_byte_descriptors.keys().any(within_value)
                 || self
                     .structural_byte_sequence_fields
                     .keys()
                     .any(|field| within_value(&field.parent))
             {
                 return Err(reject(
-                    "component opaque input retains unsupported subtree storage or case metadata",
+                    "component input requires a loan or resource storage transfer carrier",
                 ));
             }
             // The existing storage map authenticates the actual atom. A plain
             // opaque_identity, equal layout or synthesized input cannot answer it.
             if !self.forward_host_atom(value) {
-                return Err(reject(
-                    "component input requires actual unchanged opaque host storage",
-                ));
+                contents.push(self.capture_component_contents(
+                    argument,
+                    value,
+                    argument_index,
+                    provider,
+                    supplied.structural_type,
+                )?);
             }
             // The caller binder authenticated these exact occurrence facts
             // before custody staging. Installation joined their full nominal
@@ -242,6 +254,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         Ok(PreparedComponentArguments {
             values,
+            contents,
             remaining_affine,
             remaining_claims,
             retired_sources,

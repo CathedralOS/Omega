@@ -1,6 +1,6 @@
 // Static arguments are not fields in the zero image. The first application
 // admits zero; its answer cannot certify another application of the same owner.
-data Gate<const Number: u64> where Number == 0 {
+data Gate<const Number: u64> requires Number == 0 {
     code: u8;
 }
 

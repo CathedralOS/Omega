@@ -2,7 +2,7 @@
 // Place: other_state. The post-writeback aggregate is passed as an argument across a transition into another state.
 // Expected exit: 0
 
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

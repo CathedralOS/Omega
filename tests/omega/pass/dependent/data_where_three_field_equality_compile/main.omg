@@ -2,7 +2,7 @@
 // `Triple` is valid only while `first == second` and `second == third`
 // — a full-equality invariant folded from pairwise conjuncts.
 data Triple
-where
+requires
     first == second,
     second == third,
 {

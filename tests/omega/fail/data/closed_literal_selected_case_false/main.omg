@@ -1,5 +1,5 @@
-data Cell [copy] where value <= 7 { value: u64; }
-data Packet [copy] where count <= 2 
+data Cell [copy] requires value <= 7 { value: u64; }
+data Packet [copy] requires count <= 2 
     requires ((self in Packet::Ready) && (self.marker == 9))
 {
     count: u64;

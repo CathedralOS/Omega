@@ -276,7 +276,7 @@ home. An unqualified name may establish the same home through one unique
 declared-domain constraint across the operand tuple. Resolution considers the
 complete operand tuple's binding qualifications, not incidental flow facts.
 Association with a domain grants no authority to establish its membership;
-`established by` remains the separate establishment route. Inactive same-carrier
+the domain's access policy independently controls establishment. Inactive same-carrier
 declarations may coexist; competing participating meanings at a use reject.
 [Domain semantic roles](domains.md#semantic-roles-and-operators) separately
 determine whether their theories compose into one operation meaning.

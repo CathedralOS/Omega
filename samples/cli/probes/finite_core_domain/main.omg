@@ -19,7 +19,7 @@
 
 use omega::language::core::float_operations;
 
-data Main where ranged >= 0.0 && ranged <= 1.0 {
+data Main requires ranged >= 0.0 && ranged <= 1.0 {
     direct: f64 in Finite;
     ranged: f32;
     hits: i32 in Wrapping;

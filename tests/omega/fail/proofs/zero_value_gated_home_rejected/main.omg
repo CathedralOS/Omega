@@ -2,7 +2,7 @@
 // that storage from being an established value. A representation theorem may
 // not claim an unestablished zero as its home value.
 data Gated
-where
+requires
     marker >= 1,
 {
     marker: i32;

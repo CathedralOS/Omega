@@ -8,7 +8,7 @@ use omega::language::core::filesystem_authority;
 // caller, and a local buffer, each read twice into the same backing.
 use omega_language_std::posix_filesystem_host;
 
-data Main where received <= 320 {
+data Main requires received <= 320 {
     source: [u8; 300];
     buffer: [u8; 320];
     window: [u8; 64];

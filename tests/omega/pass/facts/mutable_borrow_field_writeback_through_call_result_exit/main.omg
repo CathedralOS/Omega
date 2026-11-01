@@ -2,7 +2,7 @@
 // Place: call_result. The helper machine takes the borrow, writes back, and returns the updated Counter.
 // Expected exit: 0
 
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

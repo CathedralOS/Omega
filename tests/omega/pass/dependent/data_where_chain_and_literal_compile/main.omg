@@ -2,7 +2,7 @@
 // `Pair` is valid only while `x <= y` and `y <= 3` — the literal end
 // bounds the chain's top.
 data Pair
-where
+requires
     x <= y,
     y <= 3,
 {

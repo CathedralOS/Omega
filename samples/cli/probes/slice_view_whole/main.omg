@@ -27,7 +27,7 @@ requires index < cells.len
 ensures cells[index] >= 0 && cells[index] <= 255
 {}
 
-data Bag where cells_valid(&cells) == true {
+data Bag requires cells_valid(&cells) == true {
     cells: [i32; 4];
 }
 

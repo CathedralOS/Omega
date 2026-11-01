@@ -13,7 +13,7 @@ The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
 `use path::member;` roots,
-`[public] data Name [<generic parameters>] [properties] [where facts] { ... }`
+`[public] data Name [<generic parameters>] [properties] [requires facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `[#N] case Name;` or structured

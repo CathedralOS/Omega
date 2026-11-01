@@ -1,5 +1,5 @@
 // A writable indexed loan retains the field's complete receiving range.
-data Cell where value <= 1 { prefix: u64; value: u8; suffix: u32; }
+data Cell requires value <= 1 { prefix: u64; value: u8; suffix: u32; }
 data Main { cells: [Cell; 2]; }
 machine clear(value: &mut u8)
 ensures value <= 1

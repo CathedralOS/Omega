@@ -2,7 +2,7 @@
 // while `-5 <= value` and `value <= 5` — a symmetric band around zero.
 // Signed literals prove the band at construction.
 data Temp
-where
+requires
     value >= -5,
     value <= 5,
 {

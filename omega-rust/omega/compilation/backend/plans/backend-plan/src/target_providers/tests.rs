@@ -15,6 +15,9 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
     let mut schema_identities = ProviderIdentityTable::default();
     let trait_name = schema_identities.intern("Child");
     let schema_requirement = schema_identities.intern("Parent::read");
+    let parent_name = schema_identities.intern("Parent");
+    let parent_application = schema_identities.intern("Parent<u64>");
+    let argument = schema_identities.intern("u64");
     let selected = TerminalTargetProviderPlan {
         provider_declaration: Some("FirstMap".into()),
         row_numeric_realizations: vec![None],
@@ -26,6 +29,24 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
             schema: ServiceSchema::from_declaration(std::sync::Arc::new(
                 effects::provider_plan::ServiceSurface {
                     trait_name,
+                    receiver_applications: vec![
+                        effects::provider_plan::ServiceReceiverApplication {
+                            application: trait_name,
+                            trait_name,
+                            trait_package_identity: None,
+                            argument_identities: vec![],
+                            lifetime_argument_identities: vec![],
+                            requirement_identities: vec![schema_requirement],
+                        },
+                        effects::provider_plan::ServiceReceiverApplication {
+                            application: parent_application,
+                            trait_name: parent_name,
+                            trait_package_identity: None,
+                            argument_identities: vec![argument],
+                            lifetime_argument_identities: vec![],
+                            requirement_identities: vec![schema_requirement],
+                        },
+                    ],
                     identities: schema_identities,
                     methods: vec![ServiceMethod {
                         name: "read".into(),
@@ -132,6 +153,11 @@ fn canonical_projection_preserves_partial_toolchain_plan_custody() {
     missing.name = "unavailable".into();
     let surface = std::sync::Arc::make_mut(&mut declaration.plan.schema.declaration);
     missing.requirement_identity = surface.identities.intern("Parent::unavailable");
+    for application in &mut surface.receiver_applications {
+        application
+            .requirement_identities
+            .push(missing.requirement_identity);
+    }
     surface.methods.push(missing);
     assert!(
         effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration.plan.clone()])
@@ -202,7 +228,14 @@ fn canonical_projection_joins_exact_target_before_rejecting_duplicate_coordinate
 #[test]
 fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
     let (declaration, module) = fixture();
-    for mismatch in ["owner", "requirement", "body", "duplicate"] {
+    for mismatch in [
+        "owner",
+        "requirement",
+        "body",
+        "receiver",
+        "package",
+        "duplicate",
+    ] {
         let mut changed = module.clone();
         match mismatch {
             "owner" => changed.provider_candidates.retain(|row| {
@@ -216,6 +249,21 @@ fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
                 .provider_candidates
                 .iter_mut()
                 .for_each(|row| row.source_candidate_identity = TerminalIdentityIndex::ABSENT),
+            "receiver" => {
+                let mut identities = changed.identities.clone().into_builder();
+                let substituted = identities.intern("Parent<bool>");
+                for row in &mut changed.provider_candidates {
+                    row.receiving_application = substituted;
+                }
+                changed.identities = identities.build();
+            }
+            "package" => {
+                // The plan's None is an exact package coordinate, not a wildcard.
+                for row in &mut changed.provider_candidates {
+                    row.source_candidate_package_identity =
+                        semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]);
+                }
+            }
             _ => changed
                 .provider_candidates
                 .push(changed.provider_candidates[0].clone()),
@@ -232,4 +280,55 @@ fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
             "{mismatch}: {error}"
         );
     }
+}
+
+#[test]
+fn component_and_native_projection_retain_the_same_complete_closed_roster() {
+    let (selected, module) = fixture();
+    let projected = selected_provider_candidate_rows(&selected.plan, "FirstMap", &module).unwrap();
+    assert_eq!(projected.len(), 1);
+    assert_eq!(projected[0].candidate_positions, vec![0, 1]);
+    let installations = checked_candidate_roster(std::slice::from_ref(&selected), &module).unwrap();
+    assert_eq!(installations.len(), projected[0].candidate_positions.len());
+    for (installation, position) in installations.iter().zip(&projected[0].candidate_positions) {
+        assert_eq!(
+            installation.boundary,
+            module.provider_candidates[*position].boundary
+        );
+        assert_eq!(
+            installation.candidate,
+            module.provider_candidates[*position].candidate
+        );
+        assert_eq!(installation.provider_declaration, "FirstMap");
+    }
+    assert!(selected_provider_candidate_rows(&selected.plan, "", &module).is_err());
+}
+
+#[test]
+fn inherited_requirement_uses_its_declaring_receiver_not_the_child_view() {
+    let (mut selected, mut module) = fixture();
+    let surface = std::sync::Arc::make_mut(&mut selected.plan.schema.declaration);
+    let child_application = surface.identities.intern("Child<u8>");
+    let argument = surface.identities.intern("u8");
+    surface.receiver_applications[0].application = child_application;
+    surface.receiver_applications[0].argument_identities = vec![argument];
+    surface.receiver_applications[1].application = surface.receiver_applications[1].trait_name;
+    surface.receiver_applications[1].argument_identities.clear();
+    for candidate in &mut module.provider_candidates {
+        candidate.receiving_application = TerminalIdentityIndex::ABSENT;
+    }
+    assert_eq!(
+        checked_candidate_roster(std::slice::from_ref(&selected), &module)
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let mut identities = module.identities.clone().into_builder();
+    let substituted_child = identities.intern("Child<u8>");
+    module.identities = identities.build();
+    for candidate in &mut module.provider_candidates {
+        candidate.receiving_application = substituted_child;
+    }
+    assert!(checked_candidate_roster(std::slice::from_ref(&selected), &module).is_err());
 }

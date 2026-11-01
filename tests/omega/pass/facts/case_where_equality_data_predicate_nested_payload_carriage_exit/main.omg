@@ -1,7 +1,7 @@
 // Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
 // Expected exit: 0
-data Pair [copy] where lo == hi { lo: u64; hi: u64; }
-data Envelope [copy] where (self in Envelope::Empty) || (self in Envelope::Point) {
+data Pair [copy] requires lo == hi { lo: u64; hi: u64; }
+data Envelope [copy] requires (self in Envelope::Empty) || (self in Envelope::Point) {
     marker: u64;
     case Empty;
     case Point(pair: Pair);

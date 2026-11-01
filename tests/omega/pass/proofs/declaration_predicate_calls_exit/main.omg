@@ -14,22 +14,22 @@ domain Narrow::Small requires helpers::small_byte(self.envelope.payload);
 data Wide [copy] { envelope: Envelope<u64>; }
 domain Wide::Small requires helpers::within_hundred(self.envelope.payload);
 
-data Ordered [copy] where embed(lower) <= embed(upper) {
+data Ordered [copy] requires embed(lower) <= embed(upper) {
     lower: u64;
     upper: u64;
 }
 
 machine read(value: &Bounded in Small) -> u64 { value.amount }
-data Wrapped [copy] where embed(left + right) == 0 {
+data Wrapped [copy] requires embed(left + right) == 0 {
     left: u8 in Wrapping;
     right: u8 in Wrapping;
 }
-data Saturated [copy] where embed(left + right) == 255 {
+data Saturated [copy] requires embed(left + right) == 255 {
     left: u8 in Saturating;
     right: u8 in Saturating;
 }
 data Mixed [copy] { child: Bounded; tag: u8; }
-data SignedWrapped [copy] where embed(left - right) == 127 {
+data SignedWrapped [copy] requires embed(left - right) == 127 {
     left: i8 in Wrapping;
     right: i8 in Wrapping;
 }

@@ -2,7 +2,7 @@
 // Place: target_body. The post-writeback aggregate is consumed inside target-scoped machine bodies for all four hosted targets.
 // Expected exit: 0
 
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

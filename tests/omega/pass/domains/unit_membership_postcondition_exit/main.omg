@@ -88,7 +88,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
 }
 
 // Qualification applies to actual storage; live-prefix validity is checked separately.
-data Buffer16 [copy] where used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
+data Buffer16 [copy] requires used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
 machine Buffer16::view(buffer: &Buffer16) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {

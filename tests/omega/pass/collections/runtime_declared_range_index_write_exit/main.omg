@@ -3,7 +3,7 @@
 // the read-back confirms -> exit 30.
 use omega_language_std::console;
 
-data Main where 0 <= i, i <= 4 {
+data Main requires 0 <= i, i <= 4 {
     arr: [i32; 5];
     i: u64;
 }

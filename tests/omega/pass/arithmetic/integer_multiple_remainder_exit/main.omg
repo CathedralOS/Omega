@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Divisibility includes negative dividends, negative divisors and constants.
-data Multiple where value % -3 == 0 { value: i64; }
+data Multiple requires value % -3 == 0 { value: i64; }
 machine signed(count: i64) -> Multiple requires count >= -4095 && count <= 4095 {
     Multiple { value: count * 6 + 12 }
 }

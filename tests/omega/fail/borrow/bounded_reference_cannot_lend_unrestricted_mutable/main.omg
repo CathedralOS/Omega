@@ -1,5 +1,5 @@
 // A specialized reference result supplies one scalar selector snapshot.
-data Main where position <= 1 { values: [i64; 2]; position: u64; }
+data Main requires position <= 1 { values: [i64; 2]; position: u64; }
 machine identity<'input, T>(position: &'input T) -> &'input T { position }
 machine reset(position: &mut u64) -> i64 {
     position = 2;

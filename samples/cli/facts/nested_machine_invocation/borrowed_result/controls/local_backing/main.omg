@@ -1,5 +1,5 @@
 public domain [u8]::Utf8 requires valid_utf8(self);
-public data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+public data Buffer requires used <= 4 { storage: [u8; 4]; used: u64; }
 public machine escaped(seed: u8) -> &[u8] in Utf8 crashes Trap {
     let mut buffer: Buffer = Buffer { storage: [65u8, 66u8, 0u8, 255u8], used: 2 };
     buffer.storage[0] = seed;

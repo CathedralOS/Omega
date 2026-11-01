@@ -1,6 +1,6 @@
 // A transfer before a later sibling loan remains a valid authored order.
 // The loan and extraction use disjoint storage; the repair closes the hole.
-data Inventory where slots >= 0, slots <= 100 { slots: i32; }
+data Inventory requires slots >= 0, slots <= 100 { slots: i32; }
 data Bundle { loan: &Inventory; taken: Inventory; }
 data Main { first: Inventory; second: Inventory; }
 

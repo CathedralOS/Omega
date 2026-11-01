@@ -5,7 +5,7 @@
 
 const LIMIT: u64 = 4;
 
-data Main where 0 <= k, k <= LIMIT {
+data Main requires 0 <= k, k <= LIMIT {
     arr: [i32 in Wrapping; 5];
     k: u64;
     r: i32 in Wrapping;
