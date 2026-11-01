@@ -1513,6 +1513,13 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 .iter()
                 .filter(|plan| plan.data_symbol == data.symbol)
             {
+                // A layout keeps its complete constructor and selected policy
+                // application, not only the lowered schema and plan symbols.
+                // Premise checking still needs the constructor's own telescope
+                // and core contract after this Source closure is projected.
+                visit_type_reference(program, retained, plan.application);
+                visit_type_reference(program, retained, plan.semantic_type);
+                visit_closed_conformance(program, retained, &plan.policy_application);
                 visit_symbol(retained, plan.schema_symbol);
                 visit_symbol(retained, plan.policy_symbol);
                 visit_symbol(retained, plan.policy_plan_machine_symbol);

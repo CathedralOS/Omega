@@ -187,11 +187,8 @@ pub(super) fn lower(
                 return unsupported("fixed representation changed its exact target input custody");
             }
             let geometry = &alternative.geometry;
-            if !geometry.private_callback_demands.is_empty() {
-                return unsupported(
-                    "target layout publication cannot discard private callback demands",
-                );
-            }
+            // The companion native-layout catalog retains the complete report
+            // and each selected private slot; this row owns semantic storage.
             let byte_size = geometry
                 .validated_layout
                 .size

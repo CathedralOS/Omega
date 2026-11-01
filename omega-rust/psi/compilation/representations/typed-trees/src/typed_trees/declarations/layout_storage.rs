@@ -17,6 +17,25 @@ pub struct LayoutStorageArguments {
 }
 
 impl TypedTrees {
+    /// Nominal data coordinate used by native callback layout identity. A
+    /// compiler-generated closed instance keeps its original application;
+    /// spelling or arena allocation order never supplies a replacement.
+    pub fn native_data_declaration_identity(
+        &self,
+        data: &crate::data::DataDefinition,
+    ) -> Result<String, String> {
+        self.normalized_hermetic_symbol_identity(data.symbol)
+            .or_else(|reason| {
+                data.generic_instance
+                    .map(|origin| {
+                        format!(
+                            "closed-data-instance::{}",
+                            self.package_qualified_type_identity_text(origin)
+                        )
+                    })
+                    .ok_or(reason)
+            })
+    }
     /// The snapshot operation belongs to the exact sealed Core layout source.
     /// A same-spelled user operation remains an ordinary call. Its result is
     /// checked Source data; only the opaque argument has compiler provenance.
@@ -212,6 +231,54 @@ impl TypedTrees {
         self.plan_laid_layouts.iter().find(|plan| {
             plan.application.is_valid()
                 && self.normalized_type_identity(plan.application) == identity
+        })
+    }
+}
+
+impl crate::PlanLaidLayout {
+    /// Retain the selected implementation's complete nominal application,
+    /// independently from any particular slot or target member it produces.
+    pub fn native_policy_identity(&self, program: &TypedTrees) -> Result<String, String> {
+        use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
+        let storage = program
+            .layout_storage_arguments(self.application)
+            .ok_or("native layout lost its exact constructor application")?;
+        let selected = program.static_operand_from_type_reference(storage.policy)?;
+        let owner = program
+            .data_implementation_applications
+            .iter()
+            .find_map(|(_, demand)| {
+                (program.normalized_type_identity(demand.source_application)
+                    == program.normalized_type_identity(self.application))
+                .then_some(demand.lexical_owner)
+            })
+            .unwrap_or_else(|| {
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(storage.policy)
+            });
+        let identity = portable_applied_index_identity(
+            program,
+            IndexIdentityArgument::StaticArgument(&selected),
+            owner,
+            &[],
+        )
+        .ok_or("native layout has no complete selected implementation identity")?;
+        program
+            .type_identity_text(identity)
+            .ok_or("native layout lost its selected implementation coordinate".into())
+    }
+
+    pub fn native_data_identity(
+        &self,
+        program: &TypedTrees,
+        data: &crate::data::DataDefinition,
+        policy: &str,
+    ) -> Result<String, String> {
+        program.native_data_declaration_identity(data).or_else(|_| {
+            program
+                .normalized_hermetic_symbol_identity(self.schema_symbol)
+                .map(|schema| format!("closed-plan-laid-data::{policy}::{schema}"))
         })
     }
 }

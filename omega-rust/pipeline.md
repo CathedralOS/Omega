@@ -353,9 +353,12 @@ Canonical Terminal now retains the emitted boundaries' calling telescopes;
 native callback placement reads those exact declaration rows, including
 native-only function-pointer arguments, instead of taking their identity and
 order from the source-prepared ABI application. The proposed application must
-agree with that retained telescope. Runtime value recipes, opaque selection,
-and private inline-slot layout closure still need migration before the complete
-signature/contract set can be prepared after source release.
+agree with that retained telescope. Canonical Terminal also retains exact nominal
+record/field associations and complete native layout reports, including invariant
+and target-specific private-slot selections. Native layout identity closes from
+those retained or decoded records. Runtime value recipes, opaque selection,
+and full private inline-slot storage/path closure still need migration before
+the complete signature/contract set can be prepared after source release.
 
 Psi's same immutable catalog also retains the complete explicit calling-policy
 application census: the owning vocabulary, concrete boundary arguments, exact

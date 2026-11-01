@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 212 even when every table
+order below. This layout uses semantic format marker 225 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -872,27 +872,62 @@ Older markers are rejected before their payload is read.
 | 15 | access-view inputs | counted access-view input rows |
 | 16 | reborrow restored call uses | counted restored-use rows |
 | 17 | boundary machines | counted boundary machine declarations |
-| 18 | provider candidates | counted provider candidate rows |
-| 19 | dynamic dispatch | counted interfaces and implementation tables |
-| 20 | float-meaning projections | counted projection rows |
-| 21 | float-meaning equalities | counted equality rows |
-| 22 | proposition declarations | counted proposition declaration rows |
-| 23 | proposition applications | counted proposition application rows |
-| 24 | evidence terms | counted evidence term rows |
-| 25 | evidence contract lanes | counted evidence lane rows |
-| 26 | proof-output invocations | counted proof-output call rows |
-| 27 | proof recursive components | counted recursive component rows |
-| 28 | closed conformance applications | counted conformance application rows |
-| 29 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 30 | scalar block invariants | the counted invariant rows above |
-| 31 | operation crash contracts | counted operation crash contract rows |
-| 32 | machines | counted machine rows |
-| 33 | legacy target-machine families | counted family rows; removal pending |
-| 34 | target layout applications | counted complete checked policy alternatives |
-| 35 | boundary application demands | counted exact requirement/application rows |
-| 36 | callback applications | counted checked registrar occurrences |
-| 37 | boundary application candidates | counted checked bodies for closed applications |
-| 38 | task activation demands | counted task activation demand rows |
+| 18 | calling signatures | counted exact boundary calling telescopes |
+| 19 | unoptimized behavior | counted pre-optimization behavior rows |
+| 20 | external providers | counted external provider conformances |
+| 21 | provider candidates | counted provider candidate rows |
+| 22 | dynamic dispatch | counted interfaces and implementation tables |
+| 23 | float-meaning projections | counted projection rows |
+| 24 | float-meaning equalities | counted equality rows |
+| 25 | proposition declarations | counted proposition declaration rows |
+| 26 | proposition applications | counted proposition application rows |
+| 27 | evidence terms | counted evidence term rows |
+| 28 | evidence contract lanes | counted evidence lane rows |
+| 29 | proof-output invocations | counted proof-output call rows |
+| 30 | proof recursive components | counted recursive component rows |
+| 31 | closed conformance applications | counted conformance application rows |
+| 32 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 33 | scalar block invariants | the counted invariant rows above |
+| 34 | operation crash contracts | counted operation crash contract rows |
+| 35 | machines | counted machine rows |
+| 36 | legacy target-machine families | counted family rows; removal pending |
+| 37 | target layout applications | counted complete checked policy alternatives |
+| 38 | native layout catalog | counted nominal records and complete native reports, below |
+| 39 | boundary application demands | counted exact requirement/application rows |
+| 40 | callback applications | counted checked registrar occurrences |
+| 41 | boundary application candidates | counted checked bodies for closed applications |
+| 42 | task activation demands | counted task activation demand rows |
+
+Marker 225 adds a native-layout catalog alongside semantic storage. Its ordered
+record roster equals the complete structural record inventory. Each row encodes
+the structural type id, nominal data and selected policy identity-table indices
+(`u32`, zero denotes absence), then counted nominal fields and realizations.
+Each field carries its structural field id and declaration identity-table index
+in semantic field order. Natural records have no policy or authored realization.
+
+A realization encodes an optional target input (deployment string, `u64` pointer
+size and alignment, Boolean endianness), followed by the full normalized layout
+report and counted private-slot demands. Invariant policies retain exactly one
+untargeted report; target-dependent policies retain the exact ordered semantic
+alternative roster with identical target facts, extent and alignment.
+
+The report stores its `u64` Schema fingerprint, counted entries, optional counted
+`u64` offsets, optional `u64` size and `u64` alignment. Entries carry a field
+identity string, optional `u64` member identity, and a placement tag: `0` is
+`At(offset)`, `1` is `IntegerAt(offset, stored_width, interpretation)`, and `2`
+is `Bits(container, container_width, destination_lsb, source_lsb, width)`; numeric
+payloads are `u64`, and interpretation is `0` signed or `1` unsigned.
+
+Each private demand retains the complete portable selected application, slot,
+layout-owner and callback-requirement identity strings, plus its `u64` offset.
+The selection stores declaration, trait, semantic, layout and requirement
+identities, the `u64` Source-v4 application fingerprint, 32-byte commitment and
+counted Source-v4 identity preimage. Ingress verifies that preimage and exact
+slot roles; a hash alone is not declaration authenticity. Reports preserve native
+layout identity without reconstructing Source. They do not independently grant
+callback placement, access authority or proof of non-overlap: those obligations
+remain with the receiving native callback closure. Complete data-application
+layout identity and slot-owning plan identity remain distinct.
 
 Marker 199 task demands carry canonical callable/entry identity indices, exact
 requirement package ownership, specialization commitment, signature storage

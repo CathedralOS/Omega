@@ -1,37 +1,7 @@
-//! Plan-laid semantic ranges and the canonical plan-laid data identity.
+//! Plan-laid semantic ranges.
 
 use crate::FieldLayout;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataDefinition;
-
-pub(crate) fn canonical_plan_laid_data_identity(
-    program: &TypedTrees,
-    plan: &typed_trees::typed_trees::PlanLaidLayout,
-    definition: &DataDefinition,
-    canonical_layout_subject: &str,
-) -> Option<String> {
-    program
-        .normalized_hermetic_symbol_identity(definition.symbol)
-        .ok()
-        .or_else(|| {
-            definition.generic_instance.map(|origin| {
-                format!(
-                    "closed-data-instance::{}",
-                    program.package_qualified_type_identity_text(origin)
-                )
-            })
-        })
-        .or_else(|| {
-            program
-                .normalized_hermetic_symbol_identity(plan.schema_symbol)
-                .ok()
-                .map(|schema_identity| {
-                    format!("closed-plan-laid-data::{canonical_layout_subject}::{schema_identity}")
-                })
-        })
-}
-
 pub(crate) fn plan_laid_semantic_ranges(
     plan: &typed_trees::typed_trees::PlanLaidLayout,
     geometry: &typed_trees::PlanLaidGeometry,
