@@ -127,6 +127,7 @@ pub(super) fn checked_unit_provider_candidates(
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     retained_requirements: &mut Vec<symbols::SymbolHandle>,
+    known: &mut Vec<(symbols::SymbolHandle, Vec<CheckedUnitProviderCandidate>)>,
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let bodies = closure
         .iter()
@@ -181,156 +182,20 @@ pub(super) fn checked_unit_provider_candidates(
     *retained_requirements = boundary_symbols.clone();
     let mut output = Vec::new();
     for boundary_symbol in boundary_symbols {
-        let boundary = unique_unit_boundary(plans, boundary_symbol).map_err(
-            crate::lowering_error::unit_machine_plan_error(
-                checked,
-                checked.symbols.name(boundary_symbol),
-                boundary_symbol,
-            ),
-        )?;
-        let exact_requirements = checked
-            .typed
-            .traits()
+        // Discovery revisits every retained boundary each round; its candidates
+        // depend only on the checked program and its plans, not on the closure.
+        let index = match known
             .iter()
-            .filter(|definition| definition.is_boundary)
-            .flat_map(|definition| {
-                checked
-                    .typed
-                    .executable_trait_machine_instances(definition)
-                    .filter(move |signature| signature.symbol == boundary_symbol)
-                    .map(move |signature| (definition, signature))
-            })
-            .collect::<Vec<_>>();
-        // A boundary-trait requirement names its trait and signature; a
-        // top-level `boundary requirement` is its own declaration, which its
-        // adapters satisfy directly. Either way the catalog lists every
-        // checked adapter, and Omega installs the Build's selected one.
-        let requirement = match exact_requirements.as_slice() {
-            [(definition, signature)] => CatalogRequirement::Trait {
-                definition,
-                signature,
-            },
-            [] => match checked.typed.machines().iter().find(|machine| {
-                machine.symbol == boundary_symbol
-                    && machine.supply_mode
-                        == language_semantics::MachineSupplyMode::TopLevelRequirement
-            }) {
-                Some(requirement) => CatalogRequirement::TopLevel(requirement),
-                None => match checked
-                    .typed
-                    .operators()
-                    .iter()
-                    .find(|operator| operator.is_boundary && operator.symbol == boundary_symbol)
-                {
-                    Some(operator) => CatalogRequirement::Operator(operator),
-                    None => continue,
-                },
-            },
-            _ => {
-                return unsupported(
-                    "Unit boundary provider catalog requires one exact trait/signature symbol coordinate",
-                );
+            .position(|(boundary, _)| *boundary == boundary_symbol)
+        {
+            Some(index) => index,
+            None => {
+                let candidates = boundary_candidates(checked, plans, boundary_symbol)?;
+                known.push((boundary_symbol, candidates));
+                known.len() - 1
             }
         };
-        let requirement_identity = match requirement {
-            CatalogRequirement::Trait {
-                definition,
-                signature,
-            } => checked
-                .typed
-                .trait_requirement_callable_identity(definition, signature),
-            CatalogRequirement::TopLevel(requirement) => {
-                checked.typed.machine_callable_identity(requirement)
-            }
-            CatalogRequirement::Operator(operator) => checked
-                .typed
-                .boundary_operator_requirement_callable_identity(operator),
-        };
-        if !requirement_identity.is_valid() {
-            return unsupported("Unit boundary requirement has an empty overload identity");
-        }
-        for machine in checked.typed.machines().iter().filter(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        }) {
-            let providers = provider_identities(checked, machine, requirement)?;
-            if providers.is_empty() {
-                continue;
-            }
-            // Every result shape is served by the candidate's ordinary callable
-            // body; this match only rejoins the body's result to the
-            // requirement's.
-            match &boundary.result {
-                checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
-                    let candidate = callable_candidate(checked, plans, machine)?;
-                    if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
-                        return unsupported(
-                            "provider result disagrees with its Unit boundary requirement",
-                        );
-                    }
-                }
-                checked_trees::CheckedBoundaryMachineResultPlan::Structural {
-                    type_identity,
-                    multiplicity,
-                    qualifications,
-                    projected_qualifications,
-                } => {
-                    let candidate = callable_candidate(checked, plans, machine)?;
-                    let checked_trees::CheckedControlResultPlan::Structural(result) =
-                        candidate.result()?
-                    else {
-                        return unsupported(
-                            "provider result disagrees with its structural boundary requirement",
-                        );
-                    };
-                    // Conformance authorizes boundary result qualifications.
-                    // Ownership comes from the selected ordinary body's actual
-                    // return claims, joined by typed path at installation and
-                    // transferred through its ordinary call continuation.
-                    if result.type_identity != *type_identity
-                        || result.multiplicity != *multiplicity
-                        || projected_qualifications
-                            .iter()
-                            .any(|row| !result.projected_qualifications.contains(row))
-                        || result
-                            .qualifications
-                            .iter()
-                            .any(|domain| !qualifications.contains(domain))
-                    {
-                        return unsupported(
-                            "provider structural result disagrees with its boundary requirement",
-                        );
-                    }
-                }
-                // A scalar requirement is served by an ordinary callable body
-                // returning the same primitive; installation replays the
-                // call's scalar result like its Unit and structural cousins.
-                checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
-                    let candidate = callable_candidate(checked, plans, machine)?;
-                    if candidate.scalar_result_type() != Some(*expected) {
-                        return unsupported(
-                            "provider result disagrees with its scalar boundary requirement",
-                        );
-                    }
-                }
-            }
-            for (provider, provider_identity) in providers {
-                if !provider.is_valid() {
-                    return unsupported("provider candidate has no exact declaration owner");
-                }
-                output.push(CheckedUnitProviderCandidate {
-                    provider,
-                    boundary: boundary_symbol,
-                    candidate: machine.symbol,
-                    requirement_identity,
-                    // The selected declaration owns provider identity; the body
-                    // may be an independently owned named-map realization.
-                    provider_identity,
-                    // Provider selection compares semantic overload identities;
-                    // diagnostic display paths cannot distinguish those overloads.
-                    candidate_identity: checked.typed.machine_callable_identity(machine),
-                });
-            }
-        }
+        output.extend(known[index].1.iter().cloned());
     }
     output.sort_by(|left, right| {
         (
@@ -359,6 +224,166 @@ pub(super) fn checked_unit_provider_candidates(
             && pair[0].candidate == pair[1].candidate
     }) {
         return unsupported("Unit provider catalog contains a duplicate exact candidate");
+    }
+    Ok(output)
+}
+
+fn boundary_candidates(
+    checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
+    boundary_symbol: symbols::SymbolHandle,
+) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
+    let mut output = Vec::new();
+    let boundary = unique_unit_boundary(plans, boundary_symbol).map_err(
+        crate::lowering_error::unit_machine_plan_error(
+            checked,
+            checked.symbols.name(boundary_symbol),
+            boundary_symbol,
+        ),
+    )?;
+    let exact_requirements = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            checked
+                .typed
+                .executable_trait_machine_instances(definition)
+                .filter(move |signature| signature.symbol == boundary_symbol)
+                .map(move |signature| (definition, signature))
+        })
+        .collect::<Vec<_>>();
+    // A boundary-trait requirement names its trait and signature; a
+    // top-level `boundary requirement` is its own declaration, which its
+    // adapters satisfy directly. Either way the catalog lists every
+    // checked adapter, and Omega installs the Build's selected one.
+    let requirement = match exact_requirements.as_slice() {
+        [(definition, signature)] => CatalogRequirement::Trait {
+            definition,
+            signature,
+        },
+        [] => match checked.typed.machines().iter().find(|machine| {
+            machine.symbol == boundary_symbol
+                && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        }) {
+            Some(requirement) => CatalogRequirement::TopLevel(requirement),
+            None => match checked
+                .typed
+                .operators()
+                .iter()
+                .find(|operator| operator.is_boundary && operator.symbol == boundary_symbol)
+            {
+                Some(operator) => CatalogRequirement::Operator(operator),
+                None => return Ok(Vec::new()),
+            },
+        },
+        _ => {
+            return unsupported(
+                "Unit boundary provider catalog requires one exact trait/signature symbol coordinate",
+            );
+        }
+    };
+    let requirement_identity = match requirement {
+        CatalogRequirement::Trait {
+            definition,
+            signature,
+        } => checked
+            .typed
+            .trait_requirement_callable_identity(definition, signature),
+        CatalogRequirement::TopLevel(requirement) => {
+            checked.typed.machine_callable_identity(requirement)
+        }
+        CatalogRequirement::Operator(operator) => checked
+            .typed
+            .boundary_operator_requirement_callable_identity(operator),
+    };
+    if !requirement_identity.is_valid() {
+        return unsupported("Unit boundary requirement has an empty overload identity");
+    }
+    for machine in
+        checked.typed.machines().iter().filter(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        })
+    {
+        let providers = provider_identities(checked, machine, requirement)?;
+        if providers.is_empty() {
+            continue;
+        }
+        // Every result shape is served by the candidate's ordinary callable
+        // body; this match only rejoins the body's result to the
+        // requirement's.
+        match &boundary.result {
+            checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
+                let candidate = callable_candidate(checked, plans, machine)?;
+                if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
+                    return unsupported(
+                        "provider result disagrees with its Unit boundary requirement",
+                    );
+                }
+            }
+            checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+                type_identity,
+                multiplicity,
+                qualifications,
+                projected_qualifications,
+            } => {
+                let candidate = callable_candidate(checked, plans, machine)?;
+                let checked_trees::CheckedControlResultPlan::Structural(result) =
+                    candidate.result()?
+                else {
+                    return unsupported(
+                        "provider result disagrees with its structural boundary requirement",
+                    );
+                };
+                // Conformance authorizes boundary result qualifications.
+                // Ownership comes from the selected ordinary body's actual
+                // return claims, joined by typed path at installation and
+                // transferred through its ordinary call continuation.
+                if result.type_identity != *type_identity
+                    || result.multiplicity != *multiplicity
+                    || projected_qualifications
+                        .iter()
+                        .any(|row| !result.projected_qualifications.contains(row))
+                    || result
+                        .qualifications
+                        .iter()
+                        .any(|domain| !qualifications.contains(domain))
+                {
+                    return unsupported(
+                        "provider structural result disagrees with its boundary requirement",
+                    );
+                }
+            }
+            // A scalar requirement is served by an ordinary callable body
+            // returning the same primitive; installation replays the
+            // call's scalar result like its Unit and structural cousins.
+            checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
+                let candidate = callable_candidate(checked, plans, machine)?;
+                if candidate.scalar_result_type() != Some(*expected) {
+                    return unsupported(
+                        "provider result disagrees with its scalar boundary requirement",
+                    );
+                }
+            }
+        }
+        for (provider, provider_identity) in providers {
+            if !provider.is_valid() {
+                return unsupported("provider candidate has no exact declaration owner");
+            }
+            output.push(CheckedUnitProviderCandidate {
+                provider,
+                boundary: boundary_symbol,
+                candidate: machine.symbol,
+                requirement_identity,
+                // The selected declaration owns provider identity; the body
+                // may be an independently owned named-map realization.
+                provider_identity,
+                // Provider selection compares semantic overload identities;
+                // diagnostic display paths cannot distinguish those overloads.
+                candidate_identity: checked.typed.machine_callable_identity(machine),
+            });
+        }
     }
     Ok(output)
 }
