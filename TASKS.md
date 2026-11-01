@@ -874,9 +874,11 @@ helper that passes does not close an item.
     with the original 256-width and mismatched-policy-argument rejects.
     Stored-descriptor reads/roundtrips, other-host execution and broader
     reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
-    [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
-    also remains unqualified: preserve its distinct environment/storage regions
-    and the same constant index through the original forwarding call.
+    [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
+    now executes the original call with both independent environment/storage
+    binders and the same const index, preserving value 42 in Mac ARM64
+    native/Terminal execution. Its full transport row and other-host execution
+    remain outstanding; wrong regions/indices and stored evidence still reject.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
