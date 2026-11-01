@@ -670,6 +670,41 @@ impl<'program> Collector<'program> {
         reference: SourceSpan,
         occurrence: Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
     ) -> Result<(), String> {
+        if let validation::CallSite::Statement(call) = &site
+            && let Some(origin) = &call.reflected_field_origin
+        {
+            if occurrence.is_some() {
+                return Err("reflected callback cannot claim an authored call occurrence".into());
+            }
+            self.reflected_query_dependency(origin.query, context)?;
+            let target = call_selections::retained_target(self.program, &site)?;
+            if !self.selected_target_matches(origin.callback.symbol, target, false)? {
+                return Err("reflected callback changed its selected source operation".into());
+            }
+            if self.expand_callees {
+                let machine = self
+                    .program
+                    .machine_holding_state(target)
+                    .ok_or("reflected callback lost its selected executable body")?;
+                self.machines.push(machine.symbol);
+            }
+            return Ok(());
+        }
+        // A reflection dispatch jump stays inside the exact generated helper.
+        // It is not an authored declaration lookup and borrows no package edge.
+        if occurrence.is_none()
+            && self.active_reflection_origin(context.machine).is_some()
+            && let validation::CallSite::TransitionNamed { .. } = &site
+        {
+            let target = call_selections::retained_target(self.program, &site)?;
+            if self
+                .program
+                .machine_holding_state(target)
+                .is_some_and(|owner| owner.symbol == context.machine.symbol)
+            {
+                return Ok(());
+            }
+        }
         let selection = occurrence
             .and_then(|occurrence| {
                 self.program
@@ -703,6 +738,130 @@ impl<'program> Collector<'program> {
         let occurrence = selection.occurrence_id();
         self.selected_call(&site, context, authored, reference)?;
         push_unique(&mut self.custody.call_occurrences, occurrence);
+        Ok(())
+    }
+
+    /// Exact compiler derivation plus retained source query. Generated names,
+    /// source-less bodies and shape equality alone cannot claim this origin.
+    fn active_reflection_origin(
+        &self,
+        machine: &Machine,
+    ) -> Option<(typed_trees::statement::StatementHandle, SymbolHandle)> {
+        let program = self.program;
+        let source_state = program.symbols.get(machine.symbol).generated_from;
+        if !source_state.is_valid() || program.symbols.get(source_state).kind != SymbolKind::State {
+            return None;
+        }
+        let entry = program.machine_states(machine).first()?;
+        let mut markers = program
+            .statement_table
+            .statements(entry.statement_nodes)
+            .iter()
+            .filter_map(|statement| {
+                statement
+                    .as_local_data()
+                    .and_then(|local| local.reflected_query_origin)
+            });
+        let query = markers.next()?;
+        if markers.next().is_some() || !program.statement_table.statement_is_valid(query) {
+            return None;
+        }
+        let StatementNode::Call(call) = program.statement_table.statement(query) else {
+            return None;
+        };
+        let symbol = program.symbols.get(call.target_symbol);
+        let declaration = if symbol.kind == SymbolKind::State {
+            symbol.parent
+        } else {
+            call.target_symbol
+        };
+        let source = program
+            .symbols
+            .symbol_source_span(declaration)
+            .and_then(|span| program.symbols.source_file(span))?;
+        (source.origin == source::SourceOrigin::Toolchain
+            && source.path.strip_prefix(&source.package_root).ok()
+                == Some(std::path::Path::new("reflect.omg"))
+            && matches!(
+                program.symbols.name(declaration),
+                "visit_active_fields" | "visit_active_fields_mut"
+            ))
+        .then_some((query, source_state))
+    }
+
+    /// A typed expansion retains the authored query exactly once, including
+    /// empty records. Callback invocations retain separate executable reach;
+    /// they never fabricate Call occurrences for their synthetic projections.
+    fn reflected_query_dependency(
+        &mut self,
+        handle: typed_trees::statement::StatementHandle,
+        context: Context<'program>,
+    ) -> Result<(), String> {
+        let program = self.program;
+        let context =
+            if let Some((query, source_state)) = self.active_reflection_origin(context.machine) {
+                if query != handle {
+                    return Err("active reflection helper changed its original query".into());
+                }
+                let machine = program
+                    .machine_holding_state(source_state)
+                    .ok_or("active reflection helper lost its author")?;
+                let state = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == source_state)
+                    .ok_or("active reflection helper lost its authored state")?;
+                Context {
+                    machine,
+                    state,
+                    lexical_owner: machine.symbol,
+                    initializer: context.initializer,
+                }
+            } else {
+                context
+            };
+        if !program.statement_table.statement_is_valid(handle) {
+            return Err("reflected callback retained a stale query".into());
+        }
+        let StatementNode::Call(query) = program.statement_table.statement(handle) else {
+            return Err("reflected callback lost its original query".into());
+        };
+        if query.reflected_field_origin.is_some() {
+            return Err("reflected callback has cyclic query custody".into());
+        }
+        let symbol = program.symbols.get(query.target_symbol);
+        let declaration = if symbol.kind == SymbolKind::State {
+            symbol.parent
+        } else {
+            query.target_symbol
+        };
+        let query_source = program
+            .symbols
+            .symbol_source_span(declaration)
+            .and_then(|span| program.symbols.source_file(span));
+        if !query_source.is_some_and(|source| {
+            source.origin == source::SourceOrigin::Toolchain
+                && source.path.strip_prefix(&source.package_root).ok()
+                    == Some(std::path::Path::new("reflect.omg"))
+        }) || !matches!(
+            program.symbols.name(declaration),
+            "visit_runtime_fields"
+                | "visit_runtime_fields_mut"
+                | "inspect_record_fields"
+                | "visit_active_fields"
+                | "visit_active_fields_mut"
+        ) {
+            return Err(
+                "reflected callback does not retain its selected reflection declaration".into(),
+            );
+        }
+        self.selected_retained_call(
+            validation::CallSite::Statement(query),
+            context,
+            query.source_span,
+            query.authored_call_selection,
+        )?;
+        self.static_arguments(&query.machine_arguments);
         Ok(())
     }
 
@@ -1274,6 +1433,9 @@ impl<'program> Collector<'program> {
                     }
                     StatementNode::Expression(expression) => expressions.push(*expression),
                     StatementNode::LocalData(local) => {
+                        if let Some(query) = local.reflected_query_origin {
+                            self.reflected_query_dependency(query, context)?;
+                        }
                         if local.initial_value.is_valid() {
                             expressions.push(local.initial_value);
                         }

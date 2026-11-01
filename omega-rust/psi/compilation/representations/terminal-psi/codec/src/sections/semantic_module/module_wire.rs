@@ -30,6 +30,7 @@ mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;
 mod folded_constant_wire;
+mod native_layout_wire;
 mod operation_crash_contract_wire;
 mod proof_output_wire;
 mod proof_scope_wire;
@@ -126,6 +127,7 @@ wire_record! {
         machines: List<Machine>,
         target_machine_families: List<TargetFamily>,
         target_layout_applications: List<target_layout_wire::Application>,
+        native_layouts: native_layout_wire::Catalog,
         boundary_application_demands: List<BoundaryDemand>,
         callback_applications: List<callback_application_wire::Application>,
         boundary_application_candidates: List<BoundaryCandidate>,

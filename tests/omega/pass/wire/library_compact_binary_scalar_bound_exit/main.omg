@@ -1,0 +1,24 @@
+// Expected exit: 0
+// Capacity is computed from the exact owner schema by a pure source query.
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data First { #0 counter: u32; }
+data Second { #0 counter: u32; #1 timestamp: u32; }
+machine first(bound: &mut ScalarBound) {
+    reflect::inspect_record_fields<First, CompactBinary::max_scalar_field>(bound);
+}
+machine second(bound: &mut ScalarBound) {
+    reflect::inspect_record_fields<Second, CompactBinary::max_scalar_field>(bound);
+}
+const FIRST: ScalarBound = CompactBinary::scalar_bound<first>();
+const SECOND: ScalarBound = CompactBinary::scalar_bound<second>();
+machine main() crashes Trap {
+    let first_buffer: [u8; FIRST.bytes];
+    let second_buffer: [u8; SECOND.bytes];
+    transition FIRST.valid && SECOND.valid && FIRST.bytes == 7u64 && SECOND.bytes == 13u64
+        && first_buffer.len == 7u64 && second_buffer.len == 13u64 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

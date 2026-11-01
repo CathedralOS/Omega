@@ -1,3 +1,6 @@
+//! Closed applications retain the exact conformance roster. Project those
+//! rows directly, rather than reconstructing and comparing their selecting
+//! declarations from the earlier static binding syntax.
 //! Preserve closed substitution before the source companions are discarded.
 //!
 //! The original generic graph supplies the finite dependency; the selected
@@ -57,16 +60,23 @@ fn capture_view<'a>(
     checked: &'a CheckedTrees,
     capture: &'a typed_trees::typed_trees::CapturedMachineApplication,
 ) -> Result<ReachApplicationView<'a>, LoweringError> {
-    use typed_trees::static_applications::StaticMachineBindingValue;
+    use checked_trees::CheckedCaptureArgumentValue;
     let owner = checked
         .conformance_by_symbol(capture.conformance_application.declaration)
         .ok_or(LoweringError::Unsupported(
             "closed capture lost its selecting declaration",
         ))?;
     let parameters = checked.conformance_type_parameters(owner);
-    let bindings = checked
-        .expression_table
-        .static_machine_application_bindings(capture.binding_application);
+    let inputs = checked
+        .facts
+        .executable_bindings
+        .captures
+        .iter()
+        .find(|inputs| inputs.instance == capture.instance)
+        .ok_or(LoweringError::Unsupported(
+            "closed capture lost its checked operands",
+        ))?;
+    let bindings = inputs.arguments.as_slice();
     if bindings.len() != parameters.len() {
         return unsupported("closed capture lost its complete typed substitution");
     }
@@ -79,24 +89,24 @@ fn capture_view<'a>(
         let (Some(binding), None) = (matches.next(), matches.next()) else {
             return unsupported("closed capture has no unique exact parameter binding");
         };
-        match (&parameter.kind, &binding.value) {
-            (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
-                types.push(checked.normalized_type_identity_text(*reference));
+        match &binding.value {
+            CheckedCaptureArgumentValue::Type(identity) => {
+                types.push(checked.type_identity_text(*identity).ok_or(
+                    LoweringError::Unsupported("closed capture type has no checked identity"),
+                )?);
             }
-            (
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                StaticMachineBindingValue::Const(reference),
-            ) => {
-                constants.push(
-                    checked
-                        .static_const_type_reference_identity(*reference)
-                        .ok_or(LoweringError::Unsupported(
-                            "closed capture has an open const operand",
-                        ))?,
-                );
+            CheckedCaptureArgumentValue::Const(identity) => {
+                constants.push(checked.type_identity_text(*identity).ok_or(
+                    LoweringError::Unsupported("closed capture has an open const operand"),
+                )?);
             }
-            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {}
-            _ => return unsupported("closed capture argument differs from its declared kind"),
+            CheckedCaptureArgumentValue::Machine => {}
+            CheckedCaptureArgumentValue::RuntimeValue => {
+                return unsupported("closed capture needs a static value operand");
+            }
+            CheckedCaptureArgumentValue::Conformance => {
+                return unsupported("closed capture has no conformance-parameter route");
+            }
         }
     }
     let identity = checked
@@ -116,12 +126,7 @@ fn capture_view<'a>(
         normalized_template_identity: &capture.normalized_template_identity,
         type_argument_identities: types,
         const_argument_identities: constants,
-        machine_arguments: checked
-            .expression_table
-            .static_machine_application_selected_machines(capture.binding_application)
-            .iter()
-            .map(|argument| argument.symbol)
-            .collect(),
+        machine_arguments: inputs.machines.clone(),
         machine_contracts: identity.machine_argument_contract_commitments.to_vec(),
         evidence_bindings: Vec::new(),
     })
@@ -206,7 +211,6 @@ fn closed_evidence_bindings(
     checked: &CheckedTrees,
     application: &typed_trees::typed_trees::MachineSpecialization,
 ) -> Result<Vec<(SymbolHandle, String)>, LoweringError> {
-    use typed_trees::static_applications::StaticMachineBindingValue;
     let template = checked
         .machine(application.template)
         .ok_or(LoweringError::Unsupported(
@@ -218,31 +222,12 @@ fn closed_evidence_bindings(
     {
         return unsupported("closed reach evidence lost its complete substitution");
     }
-    let bindings = checked
-        .expression_table
-        .static_machine_application_bindings(application.binding_application);
     bounds
         .iter()
         .enumerate()
         .map(|(position, bound)| {
-            let mut matches = bindings
-                .iter()
-                .filter(|binding| binding.parameter == bound.binder);
-            let (Some(binding), None) = (matches.next(), matches.next()) else {
-                return unsupported("closed reach evidence has no unique original binder operand");
-            };
-            let StaticMachineBindingValue::Conformance(selected) = &binding.value else {
-                return unsupported("closed reach evidence operand differs from its declared kind");
-            };
             let selected_application = &application.conformance_applications[position];
-            if selected.symbol != application.conformance_arguments[position]
-                || selected.symbol != selected_application.declaration
-            {
-                return unsupported(
-                    "closed reach evidence operand differs from its exact application",
-                );
-            }
-            let declaration = declaration_identity(checked, selected.symbol);
+            let declaration = declaration_identity(checked, selected_application.declaration);
             let commitment = hex_text(&selected_application.commitment.as_bytes());
             Ok((
                 bound.binder,

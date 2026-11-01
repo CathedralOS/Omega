@@ -1,0 +1,16 @@
+// Library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+data Record [copy] { first: u8; second: u64; last: u16; }
+OtherPolicy satisfies FixedLayout<Record> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        CAbiPolicy<Record>::plan(schema, target)
+    }
+}
+machine main() {
+    let mut record: CLayout<Record>;
+    record.first = 17u8;
+    record.second = 42u64;
+    record.last = 9u16;
+    let wrong: LayoutStorage<Record, OtherPolicy> = record;
+}

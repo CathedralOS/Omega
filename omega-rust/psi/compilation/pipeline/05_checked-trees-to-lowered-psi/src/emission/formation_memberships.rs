@@ -5,12 +5,11 @@
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::lowering_error::LoweringError;
-use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralDomainId};
 
 pub(crate) fn publish(
     operations: &mut OperationBuffer,
     place: PlaceId,
-    carrier: StructuralTypeId,
     domains: Vec<StructuralDomainId>,
 ) -> Result<(), LoweringError> {
     let result = operations
@@ -25,11 +24,6 @@ pub(crate) fn publish(
         .ok_or(LoweringError::Unsupported(
             "fresh construction has no producer",
         ))?;
-    if result.structural_type != carrier {
-        return Err(LoweringError::Unsupported(
-            "formation membership carrier differs from its producer",
-        ));
-    }
     result.qualifications.extend(domains);
     result.qualifications.sort();
     result.qualifications.dedup();

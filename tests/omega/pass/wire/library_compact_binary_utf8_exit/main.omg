@@ -1,0 +1,50 @@
+// Expected exit: 0
+// Independent Unicode boundary and malformed byte classes.
+use omega_language_std::wire;
+machine main() crashes Trap {
+    let empty: [u8; 0] = [];
+    let ascii: [u8; 3] = [0u8, 65u8, 127u8];
+    let min_two: [u8; 2] = [194u8, 128u8];
+    let max_two: [u8; 2] = [223u8, 191u8];
+    let euro: [u8; 3] = [226u8, 130u8, 172u8];
+    let min_three: [u8; 3] = [224u8, 160u8, 128u8];
+    let before_surrogate: [u8; 3] = [237u8, 159u8, 191u8];
+    let after_surrogate: [u8; 3] = [238u8, 128u8, 128u8];
+    let min_four: [u8; 4] = [240u8, 144u8, 128u8, 128u8];
+    let max_four: [u8; 4] = [244u8, 143u8, 191u8, 191u8];
+    let mixed: [u8; 7] = [65u8, 226u8, 130u8, 172u8, 194u8, 128u8, 0u8];
+    let lonely_tail: [u8; 1] = [128u8];
+    let overlong_two: [u8; 2] = [192u8, 128u8];
+    let overlong_three: [u8; 3] = [224u8, 128u8, 128u8];
+    let surrogate: [u8; 3] = [237u8, 160u8, 128u8];
+    let overlong_four: [u8; 4] = [240u8, 128u8, 128u8, 128u8];
+    let beyond_unicode: [u8; 4] = [244u8, 144u8, 128u8, 128u8];
+    let illegal_head: [u8; 4] = [245u8, 128u8, 128u8, 128u8];
+    let truncated: [u8; 2] = [240u8, 144u8];
+    let not_tail: [u8; 3] = [226u8, 65u8, 172u8];
+    transition CompactBinary::valid_utf8(&empty[..])
+        && CompactBinary::valid_utf8(&ascii[..])
+        && CompactBinary::valid_utf8(&min_two[..])
+        && CompactBinary::valid_utf8(&max_two[..])
+        && CompactBinary::valid_utf8(&euro[..])
+        && CompactBinary::valid_utf8(&min_three[..])
+        && CompactBinary::valid_utf8(&before_surrogate[..])
+        && CompactBinary::valid_utf8(&after_surrogate[..])
+        && CompactBinary::valid_utf8(&min_four[..])
+        && CompactBinary::valid_utf8(&max_four[..])
+        && CompactBinary::valid_utf8(&mixed[..])
+        && !CompactBinary::valid_utf8(&lonely_tail[..])
+        && !CompactBinary::valid_utf8(&overlong_two[..])
+        && !CompactBinary::valid_utf8(&overlong_three[..])
+        && !CompactBinary::valid_utf8(&surrogate[..])
+        && !CompactBinary::valid_utf8(&overlong_four[..])
+        && !CompactBinary::valid_utf8(&beyond_unicode[..])
+        && !CompactBinary::valid_utf8(&illegal_head[..])
+        && !CompactBinary::valid_utf8(&truncated[..])
+        && !CompactBinary::valid_utf8(&not_tail[..]) {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -16,6 +16,7 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
 {
     dependencies: CapturedStorageReadBacking,
     identity: Option<(CapturedStorageCoordinate, PrimitiveType)>,
+    representation: Option<(CapturedStorageCoordinate, PrimitiveType, PrimitiveType)>,
 }
 
 impl CapturedScalarReadBacking {
@@ -121,6 +122,7 @@ impl StructuralJudge<'_> {
                 stored.backing = Some(CapturedScalarReadBacking {
                     dependencies: backing,
                     identity: None,
+                    representation: None,
                 });
             }
         }
@@ -207,19 +209,28 @@ impl StructuralJudge<'_> {
         dependencies: CapturedStorageReadBacking,
         capture: impl Fn(crate::CanonicalPlace) -> Option<CapturedStorageCoordinate>,
     ) -> CapturedScalarReadBacking {
-        let identity = (|| {
+        let scalar = (|| {
             let [source] = dependencies.sources.as_slice() else {
                 return None;
             };
             let scalar = source.scalar_storage_coordinate(self.program, state)?;
-            if !scalar.preserves_scalar_value || scalar.source_primitive != scalar.view_primitive {
-                return None;
-            }
-            Some((capture(scalar.place)?, scalar.view_primitive))
+            Some((capture(scalar.place.clone())?, scalar))
         })();
+        let identity = scalar.as_ref().and_then(|(coordinate, scalar)| {
+            (scalar.preserves_scalar_value && scalar.source_primitive == scalar.view_primitive)
+                .then(|| (coordinate.clone(), scalar.view_primitive))
+        });
+        let representation = scalar.and_then(|(coordinate, scalar)| {
+            (identity.is_none() && scalar.preserves_primitive_bits).then_some((
+                coordinate,
+                scalar.source_primitive,
+                scalar.view_primitive,
+            ))
+        });
         CapturedScalarReadBacking {
             dependencies,
             identity,
+            representation,
         }
     }
 
@@ -254,12 +265,19 @@ impl StructuralJudge<'_> {
             );
         }
         let dependencies = dependencies?;
-        let identity = self
-            .freeze_scalar_read_backing(state, dependencies)
-            .identity?;
-        if identity.1 != primitive {
-            return None;
-        }
+        let backing = self.freeze_scalar_read_backing(state, dependencies);
+        let (identity, representation) = if let Some(identity) = backing.identity {
+            if identity.1 != primitive {
+                return None;
+            }
+            (identity, None)
+        } else {
+            let (coordinate, source, view) = backing.representation?;
+            if view != primitive {
+                return None;
+            }
+            ((coordinate, source), Some((source, view)))
+        };
         if super::super::super::struct_trace() {
             for stored in self.stored_values.iter() {
                 eprintln!(
@@ -278,9 +296,17 @@ impl StructuralJudge<'_> {
             }
         }
         self.stored_values.iter().find_map(|stored| {
-            (stored.backing.as_ref()?.identity.as_ref()? == &identity)
-                .then(|| stored.current.clone())
-                .flatten()
+            if stored.backing.as_ref()?.identity.as_ref()? != &identity {
+                return None;
+            }
+            let value = stored.current.clone()?;
+            Some(if let Some((source, view)) = representation {
+                super::super::super::structural_terms::normalize_scalar_representation(
+                    source, view, value,
+                )
+            } else {
+                value
+            })
         })
     }
 }

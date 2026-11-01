@@ -22,6 +22,7 @@ pub use closed_types::closed_static_call_type_bindings;
 use typed_trees::static_applications::StaticMachineBindingValue;
 pub(crate) mod contract_facts;
 mod nominal_admission;
+mod reflection_coverage;
 mod type_refinement;
 pub use type_refinement::infer_call_type_arguments;
 
@@ -29,7 +30,6 @@ use crate::frozen_program::expression_table;
 use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
-pub use callable_shape::validate_trait_callable_parameter_refinement as validate_callable_parameter_refinement;
 pub(crate) use contract_facts::validate_callable_contract_refinement;
 use nominal_admission::validate_nominal_machine_selection;
 use type_refinement::TypeBinding;
@@ -763,6 +763,7 @@ fn form_call_selection(
             &rendered,
             &generic_types,
             &mut bindings,
+            Some(site),
             diagnostics,
         );
         // Retain which selection this binder admitted even when no nominal
@@ -929,6 +930,7 @@ fn validate_declaration_machine_selection(
         selected_name,
         generic_types,
         &mut bindings,
+        None,
         diagnostics,
     );
     let applied_requirement = program

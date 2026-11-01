@@ -1,7 +1,8 @@
 use omega::language::core::external_binding;
 
-data ForeignCall {}
-boundary requirement ForeignCall::perform();
+boundary trait ForeignCall {
+    machine perform() reaches;
+}
 data ForeignLeaf {}
 
 // Checking every authored member includes normalizing its own physical

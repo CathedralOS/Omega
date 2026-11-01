@@ -1119,6 +1119,38 @@ impl TypedTrees {
         )
     }
 
+    /// Exact argument correspondence under already established static type
+    /// equations at this occurrence. Delivered substitutions are transitive;
+    /// receiving substitutions are simultaneous caller operands. Every nested
+    /// carrier and qualification uses the same normalizer. This proves type
+    /// correspondence only; access, loans and runtime facts remain independent.
+    pub fn type_identities_match_in_static_context(
+        &self,
+        expression: crate::expression::ExpressionHandle,
+        actual: TypeIdentityRequest<'_>,
+        required: TypeIdentityRequest<'_>,
+    ) -> bool {
+        if self.static_type_context_is_unreachable(expression) {
+            return true;
+        }
+        let normalize = |request: TypeIdentityRequest<'_>, semantics| {
+            normalize_type_reference(
+                self,
+                request.type_reference,
+                &TypeIdentityContext {
+                    binders: request.binders,
+                    substitutions: request.substitutions,
+                    qualification: request.qualification,
+                    substitution_semantics: semantics,
+                    static_context: expression,
+                    ..TypeIdentityContext::default()
+                },
+            )
+        };
+        normalize(actual, SubstitutionSemantics::Transitive)
+            == normalize(required, SubstitutionSemantics::Simultaneous)
+    }
+
     /// Identity for a retained storage plan, never application compatibility.
     /// Only declaration-identified value positions proven independent of every
     /// member's complete type may share storage across runtime subjects.

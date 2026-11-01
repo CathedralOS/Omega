@@ -35,6 +35,9 @@ pub use boundary_applications::{
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub selection: effects::SelectedProviderPlanFacts,
+    /// Original whole-plan declaration custody, retained with that selection.
+    /// A target scalar companion may omit dormant native-only declarations.
+    pub declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     /// Declaration-qualified complete row projection, including closed
     /// requirements and family aliases. This is policy, not installation.
     pub checked_adapters: Vec<crate::SelectedProviderAdapter>,

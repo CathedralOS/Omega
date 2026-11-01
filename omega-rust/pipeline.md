@@ -353,9 +353,16 @@ Canonical Terminal now retains the emitted boundaries' calling telescopes;
 native callback placement reads those exact declaration rows, including
 native-only function-pointer arguments, instead of taking their identity and
 order from the source-prepared ABI application. The proposed application must
-agree with that retained telescope. Runtime value recipes, opaque selection,
-and private inline-slot layout closure still need migration before the complete
-signature/contract set can be prepared after source release.
+agree with that retained telescope. Canonical Terminal also retains exact nominal
+record/field associations and complete native layout reports, including invariant
+and target-specific private-slot selections. Native layout identity closes from
+those retained or decoded records. Canonical signature projection also closes
+the native-only callback arguments, binder requirements and private inline-record
+paths against borrowed selected field storage. Completed scalar extent inputs
+are explicit; missing backing and unfinished extents refuse rather than imply
+empty callback demand. The production calling-application census, opaque
+selection and source-qualified review still need migration before target
+planning can discard its source-side signature preparation.
 
 Psi's same immutable catalog also retains the complete explicit calling-policy
 application census: the owning vocabulary, concrete boundary arguments, exact
@@ -364,13 +371,14 @@ Requests and their refusal results remain in source order. Omega follows these
 arena-backed associations rather than traversing trait requirements or rebuilding
 application scopes for every target. It still selects each deployment's policy
 body and admits its compiler-run closure. The compiler publishes one immutable
-policy-code dependency through ordinary Psi production per checked source;
-target children share it. Initial policy activation and callback-geometry
+policy-code catalog through ordinary Psi production per checked source;
+target children borrow the same artifact as the final Product. Initial policy
+activation and callback-geometry
 reevaluation both execute that catalog in Terminal, with finite Terminal fuel
-and metered storage/results, not the checked-source interpreter. This dependency
-is distinct from the final Product artifact: it does not yet make Product
-provider settlement Terminal-only. Publishing these applications and their closed
-storage/contract inputs in Terminal, rather than retaining source coordinates,
+and metered storage/results, not the checked-source interpreter. Shared code
+publication does not yet make Product provider settlement Terminal-only.
+Publishing these applications and their closed storage/contract inputs in
+Terminal, rather than retaining source coordinates,
 remains the next connected migration.
 
 The owner approved this implementation plan on 2026-10-24. It is the acceptance

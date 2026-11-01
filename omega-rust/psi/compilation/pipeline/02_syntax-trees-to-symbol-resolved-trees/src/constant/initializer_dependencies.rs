@@ -79,6 +79,22 @@ pub(crate) fn collect_machine_body_demand(
         machines: machine_roots.iter().rev().copied().collect(),
         expressions: expression_roots.iter().rev().copied().collect(),
         initializer_expressions: expression_roots.to_vec(),
+        // An exact initializer owner supplies its declared type as readiness
+        // input too. Its selected implementation members must be complete
+        // before ordinary dependency collection; this grants no invocation.
+        types: program
+            .const_declarations
+            .iter()
+            .filter(|declaration| {
+                let initializer = if declaration.authored_initializer.is_valid() {
+                    declaration.authored_initializer
+                } else {
+                    declaration.initializer
+                };
+                expression_roots.contains(&initializer)
+            })
+            .map(|declaration| &declaration.declared_type)
+            .collect(),
         deferred_machines: Some(Vec::new()),
         // This route completes declarations before source or realized custody
         // is collected. Visiting an owned member here grants no invocation.

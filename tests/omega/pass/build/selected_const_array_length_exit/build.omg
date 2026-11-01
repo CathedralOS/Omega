@@ -11,8 +11,9 @@ machine inspect_build(subject: &Optional<BuildToken>) -> u64 {
     }
 }
 
-data CheckedMath {}
-boundary requirement CheckedMath::offset_zero(value: i32) -> i32;
+boundary trait CheckedMath {
+    machine offset_zero(value: i32) -> i32 reaches;
+}
 
 data CheckedMathProvider {}
 machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32

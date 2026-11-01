@@ -63,7 +63,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     // The ordinary callable contract publishes the checked requirements and
     // guarantees. Result custody below independently transports linear claims;
     // a linear carrier does not require a second source-contract admission.
-    super::ranking::require_witness_ranks(checked, plan)?;
     super::super::admission::reject_attachment(plan)?;
     // Each executable occurrence resolves its authored owner. Custody
     // specialization may retain multiple occurrences of the same declaration;

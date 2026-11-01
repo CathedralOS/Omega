@@ -54,7 +54,14 @@ pub(super) fn establishment(
     let (operation, result, value) = producer(function, place)?;
     let size = primitive_size(value.scalar_type)?;
     let contract = selected.structural.as_ref()?;
-    if !result.is_unrestricted_plain()
+    // Terminal primitive-local foundation validation already joins inherited
+    // root memberships to this exact SSA initializer. They add no machine
+    // effect. This physical join retains that result while excluding new
+    // establishments, projected custody, claims and non-unrestricted storage.
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
         || contract
             .structural_places
             .iter()

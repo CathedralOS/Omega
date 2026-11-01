@@ -13,9 +13,12 @@ public data AllocationStatistics {
     available_bytes: u64;
     releasable_bytes: u64;
 }
-public data AllocationProbe {}
-public boundary requirement AllocationProbe::statistics() -> AllocationStatistics;
-public boundary requirement AllocationProbe::exit_with(code: i32);
+public boundary trait AllocationProbe {
+    machine statistics() -> AllocationStatistics reaches;
+    machine exit_with(code: i32) reaches;
+    machine allocate(bytes: u64) -> addr reaches;
+    machine release(pointer: addr) reaches;
+}
 data AllocationProvider {}
 linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 9, 10> {
     ForeignBinding::DllImport {
@@ -36,8 +39,6 @@ satisfies AllocationProbe::statistics via statistics_binding();
 linux_x86_64 machine AllocationProvider::exit_with(code: i32)
 satisfies AllocationProbe::exit_with via exit_binding();
 
-public boundary requirement AllocationProbe::allocate(bytes: u64) -> addr;
-public boundary requirement AllocationProbe::release(pointer: addr);
 linux_x86_64 machine allocate_binding() -> ForeignBinding<9, 6, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "malloc", version: "GLIBC_2.2.5",

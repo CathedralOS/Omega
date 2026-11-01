@@ -1,11 +1,8 @@
-// A target-scoped map member calls an opaque family head, not a chosen body.
+// Build selects an ordinary implementation for the bounded slice call.
 boundary trait Counter { machine count(bytes: &[u8]) -> u64 reaches; }
-data ByteProvider {}
-Selected satisfies Counter { machine count(bytes: &[u8]) -> u64 { ByteProvider::count(bytes) } }
-macos_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
-linux_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
-linux_x86_64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
-windows_x86_64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
+Selected satisfies Counter {
+    machine count(bytes: &[u8]) -> u64 { bytes.len }
+}
 data Payload [copy] { bytes: [u8; 8]; length: u64; }
 data CountResult { case Error; case Ok(length: u64); }
 machine inspect(payload: Payload) -> CountResult

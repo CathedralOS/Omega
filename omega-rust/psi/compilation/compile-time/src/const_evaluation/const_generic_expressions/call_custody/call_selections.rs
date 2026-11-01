@@ -199,7 +199,7 @@ pub(super) fn callable_entry(
 /// same-template callback from another application do not establish custody.
 pub(super) fn static_callable_matches(
     program: &TypedTrees,
-    mut owner: SymbolHandle,
+    owner: SymbolHandle,
     site: &CallSite<'_>,
     authored: SymbolHandle,
 ) -> Result<bool, String> {
@@ -207,30 +207,9 @@ pub(super) fn static_callable_matches(
     if parameter != authored || program.retained_static_machine_contract(authored).is_none() {
         return Ok(false);
     }
-    let mut visited = Vec::new();
-    loop {
-        if visited.contains(&owner) {
-            return Err("constant static call has cyclic invocation ownership".into());
-        }
-        visited.push(owner);
-        let mut instances = program
-            .machine_specializations
-            .iter()
-            .filter(|instance| instance.instance == owner);
-        let Some(instance) = instances.next() else {
-            return Ok(false);
-        };
-        if instances.next().is_some() {
-            return Err("constant static call has ambiguous invocation ownership".into());
-        }
-        if let Some(StaticMachineBindingValue::Machine(argument)) =
-            program.specialization_binding(instance, authored)
-        {
-            return Ok(argument.application.is_none()
-                && argument.symbol == retained_target(program, site)?);
-        }
-        owner = instance.template;
-    }
+    program
+        .static_machine_binding_selects_target(owner, authored, retained_target(program, site)?)
+        .map_err(str::to_owned)
 }
 
 pub(super) fn logical_requirement_matches(

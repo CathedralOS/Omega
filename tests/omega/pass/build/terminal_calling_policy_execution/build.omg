@@ -2,6 +2,8 @@ machine build(builder: &mut Build) {
     Build::application(builder, "terminal_calling_policy_execution");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::select_representation<PolicyToken, PolicyTokenRepresentation>(builder);
+    Build::select_provider<Endpoint, Actual>(builder, macos_arm64);
+    Build::select_provider<Endpoint, Actual>(builder, linux_arm64);
     Build::select_provider<OpaqueRelay, OpaqueRelayMap>(builder, macos_arm64);
     Build::select_provider<OpaqueRelay, OpaqueRelayMap>(builder, linux_arm64);
     Build::select_provider<OpaqueEntry, OpaqueEntryMap>(builder, macos_arm64);

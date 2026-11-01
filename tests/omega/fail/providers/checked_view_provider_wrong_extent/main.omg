@@ -1,7 +1,9 @@
 // A second view cannot supply the first view's bounds contract.
-data Window {}
-boundary requirement Window::at(first: &[u8], second: &[u8], index: u64) -> u8
-requires index < first.len;
+boundary trait Window {
+    machine at(first: &[u8], second: &[u8], index: u64) -> u8
+    reaches
+    requires index < first.len;
+}
 
 data Provider {}
 machine Provider::at(first: &[u8], second: &[u8], index: u64) -> u8

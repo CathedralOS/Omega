@@ -69,12 +69,13 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let bytes = self.byte_sequence_values.require(source)?.immutable()?;
+        let binding = self.byte_sequence_values.require(source)?;
+        let bytes = binding.snapshot(self)?;
         // A qualified value is still a readable byte carrier. Its immutable
         // binding retains the captured contents and exact descriptor home;
         // qualifiers neither change those bytes nor require an empty backing
         // path for a descriptor borrowed from a field.
-        if !bytes.matches_descriptor_home(source_value) || bytes.len() as u128 != *length {
+        if !binding.matches_shared_home(source_value) || bytes.len() as u128 != *length {
             return Err(malformed());
         }
         // Sharing immutable backing copies the semantic value. An indexed
@@ -174,28 +175,22 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let view = self
-            .byte_sequence_values
-            .require(source)?
-            .immutable()?
-            .clone();
-        if !view.matches_descriptor_home(source_value) {
+        let view = self.byte_sequence_values.require(source)?.clone();
+        if !view.matches_shared_home(source_value) {
             return Err(malformed());
         }
         match destination_field {
             Some(destination_field) => {
                 self.structural_byte_sequence_fields
-                    .insert(destination_field, ByteSequenceBinding::Immutable(view))?;
+                    .insert(destination_field, view)?;
             }
             None => {
                 // Replacing a descriptor transfers its observed window, not
                 // its old storage identity. Rehome only the descriptor; its
                 // backing and captured extent remain those of the source.
                 let home = self.structural_value(*destination)?;
-                self.byte_sequence_values.insert(
-                    *destination,
-                    ByteSequenceBinding::Immutable(view.with_descriptor_home(home.clone())),
-                )?;
+                self.byte_sequence_values
+                    .insert(*destination, view.with_descriptor_home(home.clone()))?;
             }
         }
         Ok(())

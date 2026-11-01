@@ -295,6 +295,7 @@ fn project_terminal_native_body(
                 &request.direct_boundary_leaves,
             )?,
             selection: selected,
+            declarations: request.provider_declarations.to_vec(),
             checked_adapters,
             external_bindings: external_binding_rows,
             intrinsic_executions,

@@ -1,0 +1,13 @@
+use omega::language::core::reflect;
+data Subject { value: u64; }
+machine handle<Kind>(count: &mut u64, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u64
+{ count = value as u64; }
+machine handle<Kind>(count: &mut u64, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u64
+{ count = 0u64; }
+machine main() {
+    let subject: Subject = Subject { value: 19u64 };
+    let mut count: u64 = 0u64;
+    reflect::visit_runtime_fields<Subject, handle>(&subject, &mut count);
+}

@@ -112,8 +112,8 @@ impl OperationFrame<'_, '_> {
                 self.boundary_call(identities, call, &inputs)?;
                 Ok(())
             }
-            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(result)) => {
-                let value = self.boundary_scalar_call(identities, call, result, &inputs)?;
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
+                let value = self.boundary_scalar_call(identities, call, &inputs)?;
                 self.bind_scalar_result(identities, call.coordinate, value)
             }
             (

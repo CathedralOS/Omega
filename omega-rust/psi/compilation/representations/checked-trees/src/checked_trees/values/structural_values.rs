@@ -9,7 +9,6 @@ use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
-use typed_trees::expression::ExpressionNode::SavedSubject;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValuePlans {
@@ -86,6 +85,7 @@ pub struct CheckedStructuralValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedElementViewRegion {
     WholeCollection,
+    WholeRepresentation,
     RepresentationBytes {
         start: CheckedScalarComputationHandle,
         end: u64,
@@ -676,22 +676,66 @@ impl CheckedStructuralValuePlans {
         expressions: &typed_trees::expression::ExpressionTable,
         state: SymbolHandle,
         statement: Option<u32>,
+        expression: ExpressionHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        self.completed_dependency_from(state, statement, expression, |expression| {
+            if !expressions.expression_is_valid(expression) {
+                return crate::CheckedExpressionSource::Invalid;
+            }
+            match expressions.expression(expression) {
+                typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
+                    crate::CheckedExpressionSource::Saved {
+                        capture: saved.capture,
+                        source: expressions
+                            .saved_subject_source(saved)
+                            .unwrap_or_else(ExpressionHandle::invalid),
+                    }
+                }
+                _ => crate::CheckedExpressionSource::Value,
+            }
+        })
+    }
+
+    /// Resolve the same dependency from checking's final supplier bindings.
+    pub fn completed_checked_expression_dependency(
+        &self,
+        bindings: &crate::CheckedExecutableBindings,
+        state: SymbolHandle,
+        statement: Option<u32>,
+        expression: ExpressionHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        self.completed_dependency_from(state, statement, expression, |expression| {
+            bindings.expression(expression)
+        })
+    }
+
+    fn completed_dependency_from(
+        &self,
+        state: SymbolHandle,
+        statement: Option<u32>,
         mut expression: ExpressionHandle,
+        source_kind: impl Fn(ExpressionHandle) -> crate::CheckedExpressionSource,
     ) -> Option<&CheckedStructuralValueRoot> {
         let mut active_captures = Vec::new();
-        if !expressions.expression_is_valid(expression) {
+        if matches!(
+            source_kind(expression),
+            crate::CheckedExpressionSource::Invalid
+        ) {
             return None;
         }
-        if let SavedSubject(saved) = expressions.expression(expression) {
-            active_captures.push(saved.capture);
-            expression = expressions.saved_subject_source(saved)?;
+        if let crate::CheckedExpressionSource::Saved { capture, source } = source_kind(expression) {
+            active_captures.push(capture);
+            expression = source;
         }
         loop {
-            if !expressions.expression_is_valid(expression) {
+            if matches!(
+                source_kind(expression),
+                crate::CheckedExpressionSource::Invalid
+            ) {
                 return None;
             }
-            if let SavedSubject(saved) = expressions.expression(expression)
-                && active_captures.contains(&saved.capture)
+            if let crate::CheckedExpressionSource::Saved { capture, .. } = source_kind(expression)
+                && active_captures.contains(&capture)
             {
                 return None;
             }
@@ -721,14 +765,15 @@ impl CheckedStructuralValuePlans {
                     && self.nodes.get(root.root).expression == expression)
                     .then_some(root);
             }
-            let SavedSubject(saved) = expressions.expression(expression) else {
+            let crate::CheckedExpressionSource::Saved { capture, source } = source_kind(expression)
+            else {
                 return None;
             };
-            if active_captures.contains(&saved.capture) {
+            if active_captures.contains(&capture) {
                 return None;
             }
-            active_captures.push(saved.capture);
-            expression = expressions.saved_subject_source(saved)?;
+            active_captures.push(capture);
+            expression = source;
         }
     }
 

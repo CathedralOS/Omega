@@ -46,6 +46,8 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) exact_toolchain_sources: &'binders [(source::SourceId, [u8; 32])],
     pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     pub(crate) qualification: TypeIdentityQualification,
+    /// Established type equations at the consuming expression, never inferred from a destination.
+    pub(crate) static_context: crate::expression::ExpressionHandle,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -683,6 +685,16 @@ pub(crate) fn normalize_type_reference(
             *replacement,
             &context.replacement_context_at(ordinal),
         );
+    }
+    // Receiving substitutions run first. Their operands belong to the caller,
+    // whose established equations may then refine nested references, arrays,
+    // applications and qualifications through this same recursive normalizer.
+    if context.static_context.is_valid() {
+        let refined =
+            program.statically_refined_type_reference(context.static_context, type_reference);
+        if refined != type_reference && crate::domain::index_argument_is_closed(program, refined) {
+            return normalize_type_reference(program, refined, context);
+        }
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {

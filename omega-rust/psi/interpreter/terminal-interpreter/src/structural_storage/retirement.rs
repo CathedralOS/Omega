@@ -134,6 +134,7 @@ impl RetainedStorage {
     pub(crate) fn primitive_endpoint(&mut self, endpoint: &PrimitiveStorageEndpoint) {
         use crate::primitive_storage::PrimitiveStorageEndpoint;
         match endpoint {
+            PrimitiveStorageEndpoint::RepresentationByte(byte) => byte.view.retain_storage(self),
             PrimitiveStorageEndpoint::Projection { fragments, .. } => {
                 for fragment in fragments {
                     self.primitive_endpoint(&fragment.storage.endpoint);
@@ -149,6 +150,7 @@ impl RetainedStorage {
         use crate::byte_sequences::binding::ByteSequenceBinding;
         match binding {
             ByteSequenceBinding::MutableArray { array, .. } => self.array_storage(array),
+            ByteSequenceBinding::Representation(view) => view.retain_storage(self),
             ByteSequenceBinding::Immutable(bytes) => {
                 // A shared descriptor keeps its authenticated lending array
                 // alive just as an exclusive descriptor does. Owned byte

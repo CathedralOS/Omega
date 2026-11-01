@@ -8,18 +8,18 @@ use typed_trees::TypedTrees;
 use super::schema_reflection::{build_schema_value, schema_fields};
 use crate::BuildTimeAdmissionPlan;
 use crate::build_time_evaluation::type_reference_table;
+use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 use symbols::SymbolKind;
 use typed_trees::expression::StaticMachineArgument;
 
 mod plan_validation;
 pub(crate) use plan_validation::validate_plan;
 
-/// Validated native layout with exact typed custody for each selected slot.
+/// Validated native layout retaining Source reach and portable slot facts.
 pub type NativeLayoutPlanReport =
-    layout_plans::NativeLayoutPlanReport<typed_trees::typed_trees::ClosedConformanceApplication>;
-pub type PrivateCallbackLayoutDemandReport = layout_plans::PrivateCallbackLayoutDemandReport<
-    typed_trees::typed_trees::ClosedConformanceApplication,
->;
+    layout_plans::NativeLayoutPlanReport<typed_trees::PrivateCallbackSlotApplication>;
+pub type PrivateCallbackLayoutDemandReport =
+    layout_plans::PrivateCallbackLayoutDemandReport<typed_trees::PrivateCallbackSlotApplication>;
 
 /// Evaluate one exact checked policy body. A family interface is never replaced
 /// with a selected member here; the application owner evaluates its full roster.
@@ -150,7 +150,7 @@ pub(crate) fn normalize_private_callback_demands(
             ));
         }
         let arguments = type_reference_table(typed).type_reference_handles(conformance.arguments);
-        let [_semantic_argument, layout_argument, requirement_argument] = arguments else {
+        let [semantic_argument, layout_argument, requirement_argument] = arguments else {
             return Err(format!(
                 "private layout conformance `{}` must retain semantic type, fixed-layout implementation and callback requirement",
                 selected.display_name()
@@ -240,12 +240,34 @@ pub(crate) fn normalize_private_callback_demands(
                 selected.display_name()
             ));
         }
+        let semantic_identity = closed_trait_argument_identity(
+            typed,
+            &closed_application,
+            *semantic_argument,
+            policy_machine.symbol,
+        )?;
+        let callback_requirement_identity =
+            typed.trait_requirement_callable_identity_text(requirement_trait, requirement_row);
+        let slot_application = PrivateCallbackSlotSelection {
+            declaration_identity: typed.normalized_hermetic_symbol_identity(selected.symbol)?,
+            trait_identity: typed.normalized_hermetic_symbol_identity(trait_definition.symbol)?,
+            semantic_identity: typed
+                .type_identity_text(semantic_identity)
+                .ok_or("private layout slot lost its exact substituted semantic type")?,
+            layout_identity: layout_subject_identity.clone(),
+            requirement_identity: callback_requirement_identity.clone(),
+            application_report_fingerprint: closed_application.report_fingerprint,
+            application_commitment: closed_application.commitment.as_bytes(),
+            application_encoding: closed_application.identity_encoding.clone(),
+        };
         normalized.push(PrivateCallbackLayoutDemandReport {
-            slot_application: closed_application,
+            slot_application: typed_trees::PrivateCallbackSlotApplication {
+                application: closed_application,
+                selection: slot_application,
+            },
             slot_identity,
             layout_subject_identity,
-            callback_requirement_identity: typed
-                .trait_requirement_callable_identity_text(requirement_trait, requirement_row),
+            callback_requirement_identity,
             offset: receipt.offset,
         });
     }

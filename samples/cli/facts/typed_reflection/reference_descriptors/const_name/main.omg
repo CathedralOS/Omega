@@ -1,0 +1,37 @@
+// Fact: Authorized typed visitation borrows a stored reference descriptor with its complete reference type, preserving its referent and caller access.
+// Expected exit: 0
+use omega::language::core::reflect;
+data Observation [copy] { calls: u64; valid: bool; }
+data Subject [copy] { items: &[u8]; }
+data Holder { value: Subject; }
+machine observe<Kind>(count: &mut Observation, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == &[u8]
+{
+    count.calls = ((count.calls as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    transition { Kind == &[u8] -> bytes(count, value) _ -> invalid(count) }
+    machine bytes(count: &mut Observation, value: & &[u8]) {
+        transition value.len == 4u64 { true -> read(count, value) false -> invalid(count) }
+    }
+    machine read(count: &mut Observation, value: & &[u8])
+    requires value.len == 4u64
+    {
+        count.valid = count.valid && value[0u64] == 11u8 && value[3u64] == 47u8;
+    }
+    machine invalid(count: &mut Observation) { count.valid = false; }
+}
+machine visit(value: &Subject, count: &mut Observation) {
+    reflect::visit_runtime_fields<Subject, observe>(value, count);
+}
+machine measured() -> Observation {
+    let bytes: [u8; 4] = [11u8, 29u8, 31u8, 47u8];
+    let subject: Subject = Subject { items: &bytes[..] };
+    let mut count: Observation = Observation { calls: 0u64, valid: true };
+    visit(&subject, &mut count);
+    count
+}
+const OBSERVED: Observation = measured();
+machine main() crashes Trap {
+    transition OBSERVED.calls == 1u64 && OBSERVED.valid { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

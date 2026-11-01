@@ -235,16 +235,6 @@ fn validate_machine_top_level_requirement_conformance(
         }
     }
     let generic_types = required_type_parameters.iter().collect::<Vec<_>>();
-    crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
-        program,
-        &label,
-        requirement.symbol,
-        machine.symbol,
-        required_type_parameters,
-        actual_type_parameters,
-        &generic_types,
-        diagnostics,
-    );
     for (index, (required, actual)) in required_type_parameters
         .iter()
         .zip(actual_type_parameters)
@@ -397,6 +387,21 @@ fn validate_machine_top_level_requirement_conformance(
         }
     }
 
+    match top_level_lifetime_frame(program, requirement, machine) {
+        Ok(frame) => {
+            crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
+                program,
+                &label,
+                &frame,
+                required_type_parameters,
+                actual_type_parameters,
+                &generic_types,
+                diagnostics,
+            );
+        }
+        Err(reason) => diagnostics.push(Diagnostic::error(format!("{label}: {reason}"))),
+    }
+
     validate_top_level_requirement_effect_ceiling(
         program,
         service_reaches,
@@ -422,9 +427,51 @@ fn validate_machine_top_level_requirement_conformance(
             requirement.symbol,
             machine.symbol,
             &[],
+            Default::default(),
             diagnostics,
         );
     }
+}
+
+/// A top-level requirement has no trait-application captures: its explicit
+/// lifetime application is the identity already checked above. Normalize that
+/// relation directly, without enumerating the carrier's physical view leaves.
+/// In particular a symbolic array extent does not change this binder relation.
+fn top_level_lifetime_frame(
+    program: &dyn crate::CheckingInput,
+    required: &Machine,
+    actual: &Machine,
+) -> Result<crate::borrow_contracts::CallableLifetimeFrame, &'static str> {
+    let required = program.lifetime_declaration_owner(required.symbol);
+    let actual = program.lifetime_declaration_owner(actual.symbol);
+    let parameters = |owner| {
+        typed_trees::type_identity::declaration_lifetime_parameters(program.typed_program(), owner)
+            .ok_or("top-level lifetime application lost its declaration-owned telescope")
+    };
+    let required_parameters = parameters(required)?;
+    let actual_parameters = parameters(actual)?;
+    if required_parameters.len() != actual_parameters.len() {
+        return Err("enclosing callable lifetime telescopes have different arity");
+    }
+    Ok(crate::borrow_contracts::CallableLifetimeFrame {
+        required: Vec::new(),
+        actual: required_parameters
+            .iter()
+            .enumerate()
+            .map(
+                |(ordinal, _)| crate::borrow_contracts::CallableLifetimeBinding {
+                    parameter: typed_trees::type_identity::LifetimeParameterIdentity {
+                        declaration: actual,
+                        ordinal,
+                    },
+                    argument: typed_trees::type_identity::LifetimeParameterIdentity {
+                        declaration: required,
+                        ordinal,
+                    },
+                },
+            )
+            .collect(),
+    })
 }
 
 /// Recheck one exact top-level requirement realization from retained typed

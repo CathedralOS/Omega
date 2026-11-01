@@ -1,0 +1,2 @@
+local `wrong` expects `LayoutStorage<Record, OtherPolicy>`
+but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`

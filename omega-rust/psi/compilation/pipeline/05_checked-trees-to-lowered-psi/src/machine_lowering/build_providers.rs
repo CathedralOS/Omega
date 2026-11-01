@@ -28,20 +28,15 @@ pub(super) fn retain(
         else {
             continue;
         };
-        let checked_trees::expression::ExpressionNode::Call(call) =
-            checked.expression_table.expression(expression)
-        else {
-            continue;
-        };
-        let Some(checked_trees::expression::BuildSelectionRequest::ProviderReadiness(request)) =
-            checked
-                .expression_table
-                .build_selection_request(call.build_selection)
+        let checked_trees::CheckedExpressionSource::ProviderReadiness {
+            selection,
+            requirement,
+        } = checked.facts.executable_bindings.expression(expression)
         else {
             continue;
         };
         if requirements.iter().any(|requirement| {
-            requirement.selection == call.build_selection && requirement.source_state == site.state
+            requirement.selection == selection && requirement.source_state == site.state
         }) {
             continue;
         }
@@ -51,7 +46,7 @@ pub(super) fn retain(
                 "Build readiness lost its source owner",
             ))?;
         let scope = checked
-            .build_provider_requirement_scope(request.requirement, owner.symbol)
+            .build_provider_requirement_scope(requirement, owner.symbol)
             .map_err(LoweringError::Unsupported)?;
         let application = scope
             .portable_application_identity(checked)
@@ -91,7 +86,7 @@ pub(super) fn retain(
             }
         }
         requirements.push(LoweredBuildProviderRequirement {
-            selection: call.build_selection,
+            selection: selection,
             source_state: site.state,
             declaration,
             application: identities.intern(&application),

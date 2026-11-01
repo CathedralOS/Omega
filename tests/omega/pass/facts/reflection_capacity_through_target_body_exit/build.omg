@@ -1,0 +1,12 @@
+machine build(builder: &mut Build) {
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "reflection_capacity");
+    Build::select_provider<Measure, WindowsMeasure>(builder, windows_x86_64);
+    Build::select_provider<Measure, LinuxX86Measure>(builder, linux_x86_64);
+    Build::select_provider<Measure, MacMeasure>(builder, macos_arm64);
+    Build::select_provider<Measure, LinuxArmMeasure>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

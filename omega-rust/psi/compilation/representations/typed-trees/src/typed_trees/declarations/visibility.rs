@@ -64,8 +64,8 @@ pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) ->
 }
 
 /// Visibility of the declaration an authored callable application selects.
-/// A state inherits its machine's visibility. Specialization retains the exact
-/// template identity; a generated name, signature resemblance or source span
+/// A state inherits its machine's visibility. Capture and invocation
+/// specialization retain the exact template identity; a generated name, signature resemblance or source span
 /// cannot substitute for that association. Missing or cyclic custody closes
 /// nothing, and a private template remains private for every application.
 pub fn authored_selection_visibility(
@@ -104,26 +104,34 @@ pub fn authored_selection_visibility(
     if program.symbols.get(declaration).kind != SymbolKind::Machine {
         return declaration_visibility(program, symbol);
     }
-    for _ in 0..=program.machine_specializations.len() {
+    let origin_count =
+        program.machine_specializations.len() + program.captured_machine_applications.len();
+    for _ in 0..=origin_count {
         let mut origins = program
             .machine_specializations
             .iter()
-            .filter(|specialization| specialization.instance == declaration);
-        let Some(origin) = origins.next() else {
+            .filter(|specialization| specialization.instance == declaration)
+            .map(|specialization| specialization.template)
+            .chain(
+                program
+                    .captured_machine_applications
+                    .iter()
+                    .filter(|(_, capture)| capture.instance == declaration)
+                    .map(|(_, capture)| capture.template),
+            );
+        let Some(template) = origins.next() else {
             return declaration_visibility(program, declaration);
         };
         if origins.next().is_some() {
             return None;
         }
-        if origin.template == declaration {
+        if template == declaration {
             return declaration_visibility(program, declaration);
         }
-        if !origin.template.is_valid()
-            || program.symbols.get(origin.template).kind != SymbolKind::Machine
-        {
+        if !template.is_valid() || program.symbols.get(template).kind != SymbolKind::Machine {
             return None;
         }
-        declaration = origin.template;
+        declaration = template;
     }
     None
 }
@@ -276,6 +284,66 @@ mod tests {
             });
             assert!(declaration_visibility(&program, symbol).is_none());
             assert!(super::authored_selection_visibility(&program, symbol).is_none());
+        }
+    }
+
+    #[test]
+    fn capture_and_invocation_selection_keep_authored_member_visibility() {
+        use crate::typed_trees::{CapturedMachineApplication, MachineSpecialization};
+        for is_public in [false, true] {
+            let mut builder = SymbolTableBuilder::default();
+            let template =
+                builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("member"));
+            let captured =
+                builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("captured"));
+            let invoked =
+                builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("invoked"));
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            for (symbol, is_public) in [(template, is_public), (captured, false), (invoked, false)]
+            {
+                program.push_machine(Machine {
+                    symbol,
+                    is_public,
+                    ..Default::default()
+                });
+            }
+            program
+                .captured_machine_applications
+                .insert(CapturedMachineApplication {
+                    template,
+                    instance: captured,
+                    ..Default::default()
+                });
+            program.machine_specializations.push(MachineSpecialization {
+                template: captured,
+                instance: invoked,
+                ..Default::default()
+            });
+            for symbol in [captured, invoked] {
+                assert!(
+                    !declaration_visibility(&program, symbol)
+                        .unwrap()
+                        .is_public()
+                );
+                assert_eq!(
+                    super::authored_selection_visibility(&program, symbol)
+                        .unwrap()
+                        .is_public(),
+                    is_public
+                );
+            }
+            // A second derivation is ambiguous even if it claims a public origin.
+            program
+                .captured_machine_applications
+                .insert(CapturedMachineApplication {
+                    template,
+                    instance: invoked,
+                    ..Default::default()
+                });
+            assert!(super::authored_selection_visibility(&program, invoked).is_none());
         }
     }
 

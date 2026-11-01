@@ -1,0 +1,27 @@
+// Expected exit: 0
+machine convert<Kind>(value: &Kind) -> u64
+requires Kind == bool || Kind == u64
+{
+    forward<Kind>(value)
+}
+machine forward<Inner>(value: &Inner) -> u64
+requires Inner == bool || Inner == u64
+{
+    transition {
+        Inner == bool -> boolean(value)
+        _ -> integer(value)
+    }
+    machine boolean(value: &bool) -> u64 { transition value { true -> 1u64 false -> 0u64 } }
+    machine integer(value: &u64) -> u64 { value }
+}
+machine main() crashes Trap {
+    let yes: bool = true;
+    let no: bool = false;
+    let number: u64 = 19u64;
+    transition convert<bool>(&yes) == 1u64 && convert<bool>(&no) == 0u64 && convert<u64>(&number) == 19u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -44,7 +44,9 @@ impl TerminalExecution<'_> {
                 };
                 (owner, capacity)
             }
-            ByteSequenceBinding::MutableArray { .. } => return Err(malformed()),
+            ByteSequenceBinding::Representation(_) | ByteSequenceBinding::MutableArray { .. } => {
+                return Err(malformed());
+            }
         };
         let TerminalScalarValue::Integer {
             value: IntegerValue::Unsigned(length),
@@ -53,11 +55,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let bytes = self
-            .byte_sequence_values
-            .require(source)?
-            .immutable()?
-            .clone();
+        let bytes = self.byte_sequence_values.require(source)?.snapshot(self)?;
         if bytes.len() as u128 != *length || *length > u128::from(capacity) {
             return Err(malformed());
         }

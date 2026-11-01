@@ -1,3 +1,6 @@
+//! Checked call origins already bind their selected state and contract in
+//! stage 04. This owner projects that single selection into the emitted module;
+//! it does not compare the call roster with a second reconstructed selection.
 //! Calls as stage 04 recorded them. Statement custody joins
 //! every flow call row (`FlowCallFact`) to its authored call site and records
 //! the site kind, the callee as spelled, the explicit arguments,
@@ -79,23 +82,15 @@ pub(crate) fn locate(
 pub(crate) struct ModuleCallTarget<'source> {
     pub machine: &'source checked_trees::machine::Machine,
     pub state: &'source checked_trees::state::State,
-    pub static_requirement_dispatch: Option<checked_trees::StaticRequirementDispatchFact>,
 }
 
 pub(crate) fn selected_module_target<'source>(
     checked: &'source CheckedTrees,
     occurrence: &lowered_psi::LoweredSourceCallOccurrence,
 ) -> Result<ModuleCallTarget<'source>, LoweringError> {
-    let (target, static_requirement_dispatch, _) = checked_invocation(checked, occurrence.origin)?;
-    if target != occurrence.source_target {
-        return unsupported("emitted call selected target disagrees with its checked occurrence");
-    }
+    let (target, _, _) = checked_invocation(checked, occurrence.origin)?;
     let (machine, state) = crate::declarations::state_declaration(checked, target)?;
-    Ok(ModuleCallTarget {
-        machine,
-        state,
-        static_requirement_dispatch,
-    })
+    Ok(ModuleCallTarget { machine, state })
 }
 
 /// Rejoin either admitted source owner without inventing a statement call.
@@ -137,21 +132,6 @@ pub(crate) fn checked_invocation(
                     state,
                 )
                 .map_err(LoweringError::Unsupported)?;
-            let contract = checked
-                .facts
-                .contract_plans
-                .for_machine(retained.target_machine)
-                .ok_or(LoweringError::Unsupported(
-                    "declaration invocation lost its target contract",
-                ))?;
-            if retained.target_contract
-                != Some(checked_trees::MachineContractIdentity {
-                    report_fingerprint: contract.report_fingerprint,
-                    commitment: contract.commitment,
-                })
-            {
-                return unsupported("declaration invocation changed its bound target contract");
-            }
             (
                 retained.target_state,
                 None,

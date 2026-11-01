@@ -3,7 +3,6 @@
 use crate::builder::LayoutBuilder;
 use crate::builder::generic_bindings::GenericLayoutBinding;
 use crate::builder::private_callback_closure::close_private_callback_demands;
-use crate::builder::semantic_ranges::canonical_plan_laid_data_identity;
 use crate::packing::{
     PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
 };
@@ -161,50 +160,21 @@ impl<'program> LayoutBuilder<'program> {
                     element_stride: repeated_field.element_stride,
                 });
             }
-            let canonical_layout_subject = self
-                .program
-                .normalized_hermetic_symbol_identity(plan.policy_symbol)
-                .ok()
-                .or_else(|| {
-                    geometry
-                        .private_callback_demands
-                        .first()
-                        .map(|demand| demand.layout_subject_identity.clone())
-                })
-                .or_else(|| {
-                    let mut retained = self
-                        .program
-                        .plan_laid_layouts
-                        .iter()
-                        .filter(|candidate| candidate.policy_symbol == plan.policy_symbol)
-                        .flat_map(|candidate| candidate.geometries(self.program))
-                        .flat_map(|geometry| geometry.private_callback_demands.iter())
-                        .map(|demand| demand.layout_subject_identity.as_str())
-                        .collect::<Vec<_>>();
-                    retained.sort_unstable();
-                    retained.dedup();
-                    let [identity] = retained.as_slice() else {
-                        return None;
-                    };
-                    Some((*identity).to_owned())
-                });
+            let canonical_layout_subject = plan.native_policy_identity(self.program).ok();
             let native_layout_report_fingerprint =
                 layout_plans::normalized_native_layout_plan_report_fingerprint(
-                    &layout_plans::NativeLayoutPlanReport {
-                        layout: geometry.validated_layout.clone(),
-                        private_callback_demands: geometry.private_callback_demands.clone(),
-                    },
+                    &geometry.native_layout_report(),
                 );
             let canonical_data_identity =
                 canonical_layout_subject
                     .as_deref()
                     .and_then(|canonical_layout_subject| {
-                        canonical_plan_laid_data_identity(
+                        plan.native_data_identity(
                             self.program,
-                            plan,
                             definition,
                             canonical_layout_subject,
                         )
+                        .ok()
                     });
             let terminal_layout_identity = callback_layout_plan_id(
                 native_layout_report_fingerprint,

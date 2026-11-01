@@ -35,7 +35,6 @@ pub(crate) fn task_specialization_commitment<'program>(
     target_machine: &checked_trees::machine::Machine,
     target_entry: &checked_trees::state::State,
     target_contract: &checked_trees::MachineContractPlan,
-    requirement_identity: &str,
 ) -> Result<[u8; 32], Vec<Diagnostic>> {
     let requirement_owner = typed
         .trait_definition_by_symbol(selection.requirement_owner)
@@ -53,29 +52,6 @@ pub(crate) fn task_specialization_commitment<'program>(
         })?;
     let normalized_requirement =
         typed.trait_requirement_callable_identity_text(requirement_owner, requirement);
-    let application = typed
-        .closed_requirement_application(selection.requirement)
-        .filter(|application| application.declaring_trait == requirement_owner.symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "task specialization lost its exact closed requirement application",
-            )]
-        })?;
-    let authored_requirement = typed
-        .trait_machine_signature_by_symbol(requirement_owner, application.template)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "task specialization lost its authored runtime requirement",
-            )]
-        })?;
-    if typed.trait_requirement_callable_identity_text(requirement_owner, authored_requirement)
-        != requirement_identity
-    {
-        return Err(vec![Diagnostic::error(
-            "task specialization selected-runtime requirement differs from its exact authored requirement",
-        )]);
-    }
-
     let mut strong = ExactSpecializationEncoder::new();
     strong.string(normalized_requirement.as_str());
     strong.optional_digest(

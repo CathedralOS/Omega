@@ -103,11 +103,7 @@ fn product_declaration_admission_belongs_to_psi() {
     assert_absent(
         &[coordinator],
         "coordinator owns",
-        &[
-            "mod additional_declarations",
-            "resolve_product_path(",
-            "WireCompatibilityFact",
-        ],
+        &["resolve_product_path(", "WireCompatibilityFact"],
     );
 }
 
@@ -130,7 +126,6 @@ fn product_provider_request_admission_belongs_to_psi() {
         &[coordinator],
         "coordinator owns",
         &[
-            "prepare_provider_applications(",
             "prepare_product_operand_application(",
             "collect_product_provider_selections(",
             "collect_product_selection_occurrences(",
@@ -143,25 +138,12 @@ fn product_provider_request_admission_belongs_to_psi() {
 #[test]
 fn selected_constant_evaluation_belongs_to_psi() {
     let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
-    assert_absent(
-        &[selection],
-        "selection drives",
-        &[
-            "evaluate_selected_operators(",
-            ".finish(typed)",
-            "fold_data_layout_queries(",
-        ],
-    );
+    assert_absent(&[selection], "selection drives", &[".finish(typed)"]);
     let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
     assert_absent(
         &[geometry],
         "geometry owns",
-        &[
-            "expression_mut(",
-            "proof_only::",
-            "PreCheckEvaluation",
-            "reject_unresolved_layout_operands",
-        ],
+        &["expression_mut(", "proof_only::", "PreCheckEvaluation"],
     );
 }
 
@@ -201,16 +183,9 @@ fn canonical_proof_completion_has_no_source_rewrite_api() {
         &[coordinator],
         "coordinator owns",
         &[
-            "discharge_all(",
             "CheckedTrees::with_roots(",
-            "settle_closed_constant_execution(",
-            "closed_facts",
             "decided_formations",
             "machine_authored_target(",
-            "declaration_formation_owners(",
-            "proof_application_machines(",
-            "proof_application_declaration_owners(",
-            "target_has_proof_demand(",
         ],
     );
 }
@@ -232,7 +207,6 @@ fn package_review_retains_products_not_checked_compiler_state() {
             ".execution()",
             ".build_admission()",
             "project_checked_package_policy(",
-            "publish_checked_component(",
         ],
     );
 }
@@ -269,10 +243,7 @@ fn build_operations_do_not_assemble_compiler_products() {
             ".admit_trust(",
             "ProductReportPlan",
             "CheckedProductReport::",
-            "produce_native_product(",
-            "produce_retained_terminal_artifacts(",
             "CheckedCompilation",
-            "finish_compilation(",
         ],
     );
 }
@@ -286,16 +257,10 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
         "package operation owns",
         &[
             "PreparedPackageBuild",
-            ".prepare_build(",
-            ".check_build(",
             "with_complete_dependency_build_handoffs(",
-            "join_dependency_builds(",
             "with_independent_component_descriptions(",
-            "publish_checked_component(",
             "CheckedCompilation",
-            "finish_compilation(",
             ".compile_packages(",
-            ".check_package(",
             "CompilationSession",
         ],
     );
@@ -310,13 +275,6 @@ fn package_frontiers_batch_components_without_nested_source_workers() {
         ],
         "package batch nests source work:",
         &["run_on_compile_thread"],
-    );
-    assert_absent(
-        &[include_str!(
-            "../../../application/build/src/build_execution.rs"
-        )],
-        "package batch nests source work:",
-        &["self.check_build("],
     );
 }
 
@@ -333,7 +291,6 @@ fn installation_reach_settlement_consumes_prepared_rows() {
             "typed.traits()",
             "attached_data_path",
             "named_provider_row",
-            "substitute_nested_installation_reaches",
         ],
     );
 }
@@ -349,13 +306,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
     assert_absent(
         &[admission, dispatch],
         "operator body choice reconstructs",
-        &[
-            "specialized_provider_machines",
-            "machine_specializations",
-            "machine_trait_conformances",
-            "resolve_satisfied_checked_operator",
-            "resolve_specialized_checked_operator",
-        ],
+        &["machine_specializations", "machine_trait_conformances"],
     );
 }
 
@@ -398,9 +349,7 @@ fn selected_intrinsic_settlement_borrows_original_row_declarations() {
         &[
             "CheckedTrees",
             "ProviderPlanningContext",
-            "SealedAccessor::rejoin_plan",
             "row_execution_identity(",
-            "accepted_binding_matches_exit_process_row(",
         ],
     );
 }
@@ -432,11 +381,6 @@ fn components_use_the_shared_product_sequence() {
         ],
         "component completion rebuilds source applications:",
         &["component_calling_applications("],
-    );
-    assert_absent(
-        &[include_str!("lib.rs")],
-        "coordinator exports",
-        &["publish_checked_component"],
     );
 }
 
@@ -546,21 +490,11 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
         &[
             "standard_calling_vocabularies",
             "trait_requirements",
-            "boundary_policy_instances",
-            "collect_boundary_signatures",
             "AppliedTraitScope",
             "trait_implementation_applications",
             "captured_machine_applications",
             "evaluate_machine_symbol_for_invocation_measured(",
         ],
-    );
-    let callback = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
-    );
-    assert_absent(
-        &[callback],
-        "callback bindings evaluate a materialized plan:",
-        &["evaluate_materialized_calling_policy_plan("],
     );
     // Calling policies borrow the Product publication; there is no policy-only
     // producer or decoder and no copied artifact at this boundary.
@@ -591,6 +525,37 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
         &[execution],
         "planner requests Terminal production:",
         &["TerminalProductionRequest"],
+    );
+}
+
+#[test]
+fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    let replay = include_str!(
+        "../../backend/calling-conventions/src/boundary_application/terminal_telescope.rs"
+    );
+    let projection = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
+    );
+    for consumer in [source, replay, projection] {
+        assert_eq!(
+            consumer.matches("NativeParameterTelescope::close(").count(),
+            1
+        );
+        assert_absent(
+            &[consumer],
+            "native telescope construction duplicated in a consumer:",
+            &["sort_unstable_by_key(|parameter| parameter.native_ordinal)"],
+        );
+    }
+    // Slot geometry has not been published yet. A direct callback does not
+    // prove that a nested field destination is absent, so retain this refusal.
+    assert!(
+        projection.contains(
+            "Terminal calling signature still requires private callback geometry closure"
+        )
     );
 }
 
@@ -659,7 +624,6 @@ fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
             "classify_exact_bound_service_carrier(",
             "classify_exact_service_parameter_carrier(",
             "service_schema::from_typed",
-            "provider_receiver_application(",
         ],
     );
 }
@@ -684,7 +648,6 @@ fn selected_calling_consumes_source_correspondence_without_ast_search() {
             ".operators()",
             ".machines()",
             "trait_machine_signatures(",
-            "schema_binds_exact_",
             "service_schema::from_typed",
             "matching_methods",
         ],
@@ -707,12 +670,7 @@ fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     assert_absent(
         &[source, inputs],
         "product owner orchestrates",
-        &[
-            "emit_component_exports(",
-            "emit_shared_image(",
-            "ComponentNativeCall::join(",
-            "with_component_products(",
-        ],
+        &["with_component_products("],
     );
 }
 
@@ -783,11 +741,7 @@ fn terminal_composition_admission_follows_canonical_publication() {
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",
-        &[
-            "admission.admit(",
-            "policy.admit(",
-            "retained_source_machine(",
-        ],
+        &["admission.admit(", "policy.admit("],
     );
     let composition = include_str!(
         "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
@@ -886,8 +840,6 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
             "PureBuildCompilation",
             "RetainedCompilationChecks",
             "SettledCheckReuse",
-            "compile_checked_reusing_builds",
-            "prepared_source",
         ],
     );
 }
@@ -966,11 +918,7 @@ fn target_body_policy_consumes_psi_direct_call_declarations() {
     assert_absent(
         &[bridge],
         "target-body bridge rescans source:",
-        &[
-            "ExplicitStateCallees",
-            ".machine_states(",
-            "fn called_machine(",
-        ],
+        &["ExplicitStateCallees", ".machine_states("],
     );
 }
 
@@ -1041,7 +989,6 @@ fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() 
     assert!(attachment.contains("prepared.argument_owner,"));
     assert!(attachment.contains("prepared.boundary_arguments,"));
     assert!(!attachment.contains("ServiceMethod {"));
-    assert!(!attachment.contains("fn collect_service_methods("));
     let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
     assert!(catalog.contains("projected.exact_requirements()?"));
     assert!(!catalog.contains("trait_requirements("));

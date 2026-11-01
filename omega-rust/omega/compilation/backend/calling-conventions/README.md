@@ -37,6 +37,13 @@ the materializer; do not copy them into another source of truth.
 
 ## Consumer obligations
 
+[NativeParameterTelescope](src/boundary_application/native_telescope.rs) constructs
+the native argument roster for source preparation and canonical replay. It
+preserves semantic identities/shapes, inserts target-sized direct callback
+arguments, and checks one contiguous native order. Direct destination demands
+come from those emitted rows, not a second parallel list. Source layout
+correspondence stays with the source-owned adapter.
+
 Native callback argument/binder correspondence is reconstructed by
 [TerminalCallingTelescope](src/boundary_application/terminal_telescope.rs) from
 the exact reached Terminal boundary declaration. Its ordinary argument shape

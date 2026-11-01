@@ -5,13 +5,6 @@ public data Transform [copy] { a: f64; b: f64; c: f64; d: f64; tx: f64; ty: f64;
 public boundary trait AffineTransforms {
     machine make(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Transform reaches;
 }
-macos_arm64 machine affine_binding() -> ForeignBinding<73, 22, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics", symbol: "_CGAffineTransformMake"
-    } }
-}
-macos_arm64 machine make(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Transform
-    satisfies AffineTransforms::make via affine_binding();
 
 machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransforms {
     let second: Transform = AffineTransforms::make(-11.0, 12.5, -13.25, 14.75, -15.5, 16.0);
@@ -41,13 +34,18 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
 }
 
 machine receive(value: Transform) -> bool reaches AffineTransforms { consume(value, value) == 0 }
-machine select(choice: bool) -> Transform reaches AffineTransforms {
+data SelectedTransform { value: Transform; branch: bool; }
+machine select(choice: bool) -> SelectedTransform reaches AffineTransforms {
  transition choice {
-  true -> AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)
-  _ -> AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)
+  true -> SelectedTransform { value: AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25), branch: true }
+  _ -> SelectedTransform { value: AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25), branch: false }
  }
 }
-machine observe() -> bool reaches AffineTransforms { receive(select(true)) && receive(select(false)) }
+machine observe_choice(choice: bool) -> bool reaches AffineTransforms {
+ let selected: SelectedTransform = select(choice);
+ selected.branch == choice && receive(selected.value)
+}
+machine observe() -> bool reaches AffineTransforms { observe_choice(true) && observe_choice(false) }
 
 machine main() reaches AffineTransforms crashes Trap {
     transition observe() { true -> done() false -> failed() }

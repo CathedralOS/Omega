@@ -544,6 +544,7 @@ pub(crate) fn scalar_qualification_owner(
                 .then_some(owner)
         }
         PrimitiveStorageEndpoint::OwnedArrayElement { .. }
+        | PrimitiveStorageEndpoint::RepresentationByte(_)
         | PrimitiveStorageEndpoint::ViewByte { .. } => None,
     }
 }

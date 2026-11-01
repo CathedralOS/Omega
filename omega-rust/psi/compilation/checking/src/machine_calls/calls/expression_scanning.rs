@@ -46,6 +46,7 @@ fn fence_generic_value_callee(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     callee_machine: &Machine,
+    expression: ExpressionHandle,
     target: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -53,10 +54,13 @@ fn fence_generic_value_callee(
     // emitted. Its symbolic value calls become concrete when an outer call
     // specializes the template. Keep the fence for concrete callers whose
     // selected callee somehow remains generic: that is still an incomplete
-    // lowering and must fail loudly.
-    if program
-        .typed_program()
-        .callable_body_has_open_parameters(caller_machine)
+    // lowering and must fail loudly. An exact occurrence with no admitted type
+    // world demands no executable result slot. Argument and requirement
+    // formation remain independently checked by the validators below.
+    if program.static_type_context_is_unreachable(expression)
+        || program
+            .typed_program()
+            .callable_body_has_open_parameters(caller_machine)
         || program.machine_type_parameters(callee_machine).is_empty()
     {
         return;
@@ -171,6 +175,7 @@ impl ValueCallSite<'_> {
             self.program,
             self.current_machine,
             callee.machine,
+            self.expression,
             self.call.target.as_str(),
             diagnostics,
         );

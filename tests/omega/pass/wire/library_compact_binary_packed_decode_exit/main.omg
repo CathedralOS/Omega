@@ -1,0 +1,41 @@
+// Expected exit: 0
+// Packed bodies are bounded regions; malformed suffixes and capacity/fuel
+// exhaustion never turn a partial element list into a successful document.
+use omega_language_std::wire;
+machine invalid(bytes: &[u8], capacity: u64, fuel: u64) -> bool {
+    let mut words: [u64; 3] = [99u64, 99u64, 99u64];
+    transition capacity <= 3u64 && fuel > 0u64 {
+        true -> read(bytes, &mut words[..], capacity, fuel)
+        false -> false
+    }
+    machine read(bytes: &[u8], words: &mut [u64], capacity: u64, fuel: u64) -> bool
+    requires capacity <= words.len && fuel > 0u64
+    {
+        transition CompactBinary::read_packed(bytes, &mut words[0u64..capacity], fuel) {
+            PackedRead::Invalid -> true
+            _ -> false
+        }
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 3] = [172u8, 2u8, 3u8];
+    let overlong: [u8; 2] = [128u8, 0u8];
+    let truncated: [u8; 1] = [128u8];
+    let mut words: [u64; 3] = [99u64, 99u64, 99u64];
+    transition CompactBinary::read_packed(&bytes[..], &mut words[0u64..2u64], 100u64) {
+        PackedRead::Read { count } -> inspect(&words[..], count, &bytes[..], &overlong[..], &truncated[..])
+        _ -> bad()
+    }
+    machine inspect(words: &[u64], count: u64, bytes: &[u8], overlong: &[u8], truncated: &[u8]) crashes Trap
+    requires words.len == 3u64
+    {
+        transition count == 2u64 && CompactBinary::signed_from_word(words[0u64]) == 150i64 && CompactBinary::signed_from_word(words[1u64]) == (0i64 - 2i64)
+            && words[2u64] == 99u64 && invalid(overlong, 2u64, 100u64)
+            && invalid(truncated, 2u64, 100u64) && invalid(bytes, 1u64, 100u64)
+            && invalid(bytes, 2u64, 1u64) {
+            true -> done() false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

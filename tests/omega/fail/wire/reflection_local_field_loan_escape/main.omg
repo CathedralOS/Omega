@@ -1,0 +1,20 @@
+use omega::language::core::reflect;
+data Subject { value: u64; }
+data Capture { saved: &u64; }
+machine remember<Kind>(context: &mut Capture, field: &reflect::FieldInfo, value: &Kind)
+requires Kind == u64
+{
+    context.saved = value;
+}
+machine escape(context: &mut Capture) {
+    let local: Subject = Subject { value: 9u64 };
+    reflect::visit_runtime_fields<Subject, remember>(&local, context);
+}
+machine main() crashes Trap {
+    let seed: u64 = 3u64;
+    let mut capture: Capture = Capture { saved: &seed };
+    escape(&mut capture);
+    transition capture.saved == 9u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

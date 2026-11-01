@@ -217,6 +217,7 @@ pub struct TerminalModule {
     pub target_machine_families: Vec<TargetMachineFamily>,
     /// Complete unclosed policy applications; exact deployment selects a result.
     pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
+    pub native_layouts: crate::NativeLayoutCatalog,
     /// Exact source-free operator requirements and closed applications for
     /// surviving operations. Provider choices belong to Omega, not this roster.
     pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
@@ -363,6 +364,7 @@ impl TerminalModule {
             machines: Vec::new(),
             target_machine_families: Vec::new(),
             target_layout_applications: Vec::new(),
+            native_layouts: Default::default(),
             boundary_application_demands: Vec::new(),
             task_activation_demands: TerminalTaskActivationDemands::default(),
         }

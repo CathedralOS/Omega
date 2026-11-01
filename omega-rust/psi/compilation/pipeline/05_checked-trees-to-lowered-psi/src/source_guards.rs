@@ -210,6 +210,40 @@ fn successor_transitions_have_one_plan_and_one_lowering() {
 /// never spell a bare `StructuralArgument { ... }` themselves. Boundary
 /// applications keep their own operation kind — a boundary is not a machine
 /// call.
+fn direct_call_construction(line: &str) -> bool {
+    let Some(position) = line.find(concat!("Direct", "Call {")) else {
+        return false;
+    };
+    let prefix = &line[..position];
+    let fields = &line[position + concat!("Direct", "Call").len()..];
+    if fields.trim_start().starts_with("{ .. }") {
+        return false;
+    }
+    // In a let pattern, the first assignment follows the destructuring
+    // record. In a value initializer it already precedes this constructor.
+    !(prefix.trim_start().starts_with("let ") && !prefix.contains('='))
+}
+
+#[test]
+fn direct_call_patterns_are_not_mints() {
+    assert!(direct_call_construction(concat!(
+        "Direct",
+        "Call { callee }"
+    )));
+    assert!(direct_call_construction(concat!(
+        "let call = crate::direct_calls::Direct",
+        "Call { callee };"
+    )));
+    assert!(!direct_call_construction(concat!(
+        "CheckedProviderRequirementKind::Direct",
+        "Call { .. }"
+    )));
+    assert!(!direct_call_construction(concat!(
+        "let CheckedProviderRequirementKind::Direct",
+        "Call { diagnostic_name } = &source.kind"
+    )));
+}
+
 #[test]
 fn calls_have_one_emitter_and_one_argument_constructor() {
     let stage_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -235,7 +269,7 @@ fn calls_have_one_emitter_and_one_argument_constructor() {
     let mut free_mints = Vec::new();
     for (file, line_number, line) in lines_under(&stage_root) {
         let trimmed = line.trim_start();
-        if trimmed.contains(concat!("Direct", "Call {"))
+        if direct_call_construction(trimmed)
             && !trimmed.starts_with(concat!("struct", " "))
             && !trimmed.starts_with(concat!("pub", " struct"))
             && !trimmed.starts_with(concat!("pub", "(crate) struct"))

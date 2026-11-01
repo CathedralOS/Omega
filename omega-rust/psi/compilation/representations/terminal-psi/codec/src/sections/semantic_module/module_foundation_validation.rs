@@ -17,6 +17,7 @@
 mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
+mod native_layouts;
 mod proof_scope;
 mod reference_outputs;
 mod scalar_applications;
@@ -249,6 +250,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .filter_map(|machine| machine.attachment),
     );
     target_layouts::validate(module, &attachment_storage)?;
+    native_layouts::validate(module)?;
     for declaration in &module.structural_types {
         structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }

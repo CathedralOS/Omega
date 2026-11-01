@@ -1060,6 +1060,17 @@ pub(super) fn active_context_facts(
     semantic: &facts::FactPlan,
     active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
 ) -> Vec<facts::Fact> {
+    active_context_facts_matching(contexts, semantic, active, |_| true)
+}
+
+/// Snapshot only the facts a consumer will inspect, at the same active cut.
+/// Filtering precedes allocation; source order and repeated facts survive.
+pub(super) fn active_context_facts_matching(
+    contexts: &FlowBuildContext<'_>,
+    semantic: &facts::FactPlan,
+    active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+    mut selected: impl FnMut(&facts::Fact) -> bool,
+) -> Vec<facts::Fact> {
     contexts
         .contexts
         .semantic_context_refs
@@ -1070,6 +1081,7 @@ pub(super) fn active_context_facts(
                 .context_view(semantic.contexts.get(reference.context))
                 .facts()
         })
+        .filter(|fact| selected(fact))
         .copied()
         .collect::<Vec<_>>()
 }

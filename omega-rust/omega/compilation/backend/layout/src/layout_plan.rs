@@ -253,9 +253,10 @@ impl Default for DataLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetClosedPrivateCallbackDemand {
     pub data_symbol: SymbolHandle,
-    /// Exact named conformance application retained by Psi normalization.
-    /// Compact slot/layout identifiers do not replace this selection custody.
-    pub slot_application: typed_trees::typed_trees::ClosedConformanceApplication,
+    /// Portable named application and substituted roles retained by Psi.
+    /// Source reach/review keep the resolved telescope at the producer; native
+    /// geometry never owns that tree. Compact reports do not replace custody.
+    pub slot_application: language_semantics::callback_declarations::PrivateCallbackSlotSelection,
     pub slot_identity: Arc<str>,
     pub layout_subject_identity: Arc<str>,
     pub callback_requirement_identity: Arc<str>,

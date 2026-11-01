@@ -522,6 +522,20 @@ impl TypedTrees {
         machine: &machine::Machine,
         symbol: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
+        self.machine_parameter_signature_in_with_scope_parents(machine, symbol, |owner| {
+            self.declaration_scope_parent(owner)
+        })
+    }
+
+    // Both the ordinary query and an invocation-owned query batch use this
+    // exact walk. Parent caching may avoid work; it cannot change the selected
+    // contract, lexical shadowing, first owner, or cycle refusal.
+    pub(super) fn machine_parameter_signature_in_with_scope_parents<'program>(
+        &'program self,
+        machine: &machine::Machine,
+        symbol: SymbolHandle,
+        mut scope_parent: impl FnMut(SymbolHandle) -> SymbolHandle,
+    ) -> Option<&'program signature::StateSignature> {
         let own = self.machine_type_parameters(machine);
         let mut parameters = own;
         let mut enclosing = machine.symbol;
@@ -538,7 +552,7 @@ impl TypedTrees {
                     _ => None,
                 };
             }
-            enclosing = self.declaration_scope_parent(enclosing);
+            enclosing = scope_parent(enclosing);
             if !enclosing.is_valid() || visited.contains(&enclosing) {
                 return None;
             }
@@ -567,13 +581,14 @@ impl TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
-        self.data_type_parameters.iter().find_map(|(_, parameter)| {
-            let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
-                return None;
-            };
-            (parameter.symbol == symbol)
-                .then(|| self.machine_parameter_contract_view(contract))
-                .flatten()
+        self.with_type_parameter_declarations(symbol, |rows| {
+            rows.iter().find_map(|(_, handle)| {
+                let parameter = self.data_type_parameters.get(*handle);
+                let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+                    return None;
+                };
+                self.machine_parameter_contract_view(contract)
+            })
         })
     }
 
@@ -584,12 +599,12 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &signature::StateSignature)> {
-        // Machine and conformance parameter spans share this arena. Most call
-        // targets are not parameters: use its revision-aware identity index to
-        // avoid walking every machine's declaration scopes for those misses.
-        // Presence is not authority or contract selection; the lexical walk
-        // still decides ownership, shadowing and the first matching contract.
-        self.data_type_parameter_by_symbol(symbol)?;
+        // Only a parameter with an actual callable contract can have a
+        // signature in a lexical scope. A type/const binder, or an absent
+        // symbol, cannot require a walk over every machine. This is only a
+        // negative filter; the unchanged scope walk still selects ownership,
+        // shadowing and the first matching contract.
+        self.retained_static_machine_contract(symbol)?;
         self.machines().iter().find_map(|machine| {
             self.machine_parameter_signature_in(machine, symbol)
                 .map(|signature| (machine, signature))

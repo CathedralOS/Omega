@@ -14,7 +14,7 @@ use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};
 use typed_trees::constant_recipes::{
     ConstantEvaluationEntry, ConstantRecipeHandle, RetainedConstantPosition,
 };
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::type_identity::TypeIdentityId;
 
 mod conditions;
@@ -313,10 +313,14 @@ impl SourceScalarApplications {
             self.expressions.push((expression, owner, application));
             return Ok(application);
         }
-        let (definition, scalar_type) = if let ExpressionNode::Call(call) =
-            checked.typed.expression_table.expression(expression)
-            && let Some(query) = &call.layout_query
-        {
+        let (definition, scalar_type) = if flow_facts(checked)
+            .terminal_unit_effects
+            .layout_observations
+            .iter()
+            .any(|observation| {
+                observation.expression == expression
+                    && (!owner.is_valid() || observation.owner == owner)
+            }) {
             let mut observations = flow_facts(checked)
                 .terminal_unit_effects
                 .layout_observations
@@ -328,12 +332,9 @@ impl SourceScalarApplications {
             let observation = observations.next().ok_or(LoweringError::Unsupported(
                 "pending layout query has no checked structural subject",
             ))?;
-            if observation.measurement != query.kind
-                || observations.any(|other| {
-                    other.subject != observation.subject
-                        || other.measurement != observation.measurement
-                })
-            {
+            if observations.any(|other| {
+                other.subject != observation.subject || other.measurement != observation.measurement
+            }) {
                 return Err(LoweringError::Unsupported(
                     "pending layout query has ambiguous lexical structural subjects",
                 ));

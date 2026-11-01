@@ -115,7 +115,9 @@ impl BoundaryByteBufferBinding {
                     },
                 )
             }
-            ByteSequenceBinding::Immutable(_) => return Err(malformed()),
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                return Err(malformed());
+            }
         };
         Ok((
             Self {
@@ -183,7 +185,9 @@ impl BoundaryByteBufferBinding {
                     capacity
                 }
             }
-            ByteSequenceBinding::Immutable(_) => return Err(malformed()),
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                return Err(malformed());
+            }
         };
         if current_capacity != self.capacity {
             return Err(malformed());
@@ -217,7 +221,9 @@ impl BoundaryByteBufferBinding {
             ByteSequenceBinding::MutableOwner { home, .. } => {
                 *execution.byte_owner_bytes_mut(&home)? = ByteSequenceView::new(buffer.bytes);
             }
-            ByteSequenceBinding::Immutable(_) => return Err(malformed()),
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                return Err(malformed());
+            }
         }
         Ok(())
     }

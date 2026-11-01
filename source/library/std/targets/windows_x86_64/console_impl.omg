@@ -96,7 +96,7 @@ crashes Trap
 
     machine byte(cell: i32) -> ByteRead {
         let value: u8 = narrow_i32_to_u8_wrapping(cell);
-        ByteRead::Byte { value: value as i32 }
+        ByteRead::Byte { value: widen_u8_to_i32(value) }
     }
 
     machine end() -> ByteRead { ByteRead::Eof }

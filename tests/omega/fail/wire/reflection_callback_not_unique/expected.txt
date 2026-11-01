@@ -1,0 +1,1 @@
+Machine slot `Visitor` has no proposal

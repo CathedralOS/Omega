@@ -608,30 +608,12 @@ fn evidence_argument_subjects(
             "evidence lane declaration fact is ambiguous",
         ));
     }
-    let declaration = checked
-        .machine(source_machine)
+    let roots = contract
+        .nominal_argument_roots
+        .and_then(|roots| checked.facts.proof.nominal_argument_roots.span(roots))
         .ok_or(LoweringError::Unsupported(
-            "evidence lane source machine is absent",
+            "evidence lane fact has no checked nominal argument subjects",
         ))?;
-    let entry = checked
-        .machine_states(declaration)
-        .first()
-        .ok_or(LoweringError::Unsupported(
-            "evidence lane source entry is absent",
-        ))?;
-    let application = checked
-        .proof_facts
-        .get(contract.fact)
-        .as_proposition()
-        .ok_or(LoweringError::Unsupported(
-            "evidence lane fact is not nominal",
-        ))?;
-    let roots = checked
-        .expression_table
-        .expression_handles(application.arguments)
-        .iter()
-        .map(|expression| validation::contract_argument_root(&checked.typed, entry, *expression))
-        .collect::<Vec<_>>();
     let callee = module
         .machine(terminal_machine)
         .ok_or(LoweringError::Unsupported(

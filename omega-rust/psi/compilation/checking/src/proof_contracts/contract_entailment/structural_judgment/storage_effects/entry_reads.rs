@@ -8,6 +8,47 @@ use super::{CapturedStorageCoordinate, StructuralJudge};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
 impl StructuralJudge<'_> {
+    /// A readable scalar parameter supplies initialized entry contents even
+    /// when Requires says nothing about their value. Keep that unknown value
+    /// only after the frame owner authenticates every reference crossing.
+    /// Otherwise an unrelated counter update can discard the whole prefix.
+    /// This is an entry observation, not an executed read or a new loan;
+    /// ordinary writes still retire its current contents.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_entry_scalar_parameters(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+    ) {
+        for parameter in self.program.state_parameters(state) {
+            if parameter.is_const
+                || parameter.relevance.is_erased()
+                || crate::reference_shell(self.program, parameter.type_reference).is_none()
+                || crate::value_custody::expression_types::scalar_observation_meaning(
+                    self.program,
+                    parameter.type_reference,
+                )
+                .is_none()
+            {
+                continue;
+            }
+            if let Err(reason) = self.retain_entry_scalar_observation(
+                machine,
+                state,
+                crate::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
+                    segments: Vec::new(),
+                },
+                StructuralTerm::Variable(parameter.name.to_string()),
+            ) && super::super::super::struct_trace()
+            {
+                eprintln!(
+                    "STRUCT entry-scalar refused machine={} parameter={} reason={reason}",
+                    machine.name, parameter.name,
+                );
+            }
+        }
+    }
+
     /// Whole entry values use the entry selector namespace too. A header
     /// coordinate has no executed selector occurrence in the body ledger.
     pub(in crate::proof_contracts::contract_entailment) fn captured_entry_place_projection(

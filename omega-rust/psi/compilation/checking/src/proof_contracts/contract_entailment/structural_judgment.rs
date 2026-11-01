@@ -1,3 +1,12 @@
+//! Contract facts over exact completed value meanings.
+//!
+//! Transparent mathematical predicates enter the same observed-value reader
+//! as inline predicates after the checked calculus substitutes their captures.
+//! Predicate classification must therefore include selected IEEE leaves, not
+//! just integer relations. Their truth can compose through conjunction, while
+//! each leaf retains its own carrier, format and comparison laws: IEEE equality
+//! is never a value-identity rewrite, and a false order does not exclude NaN.
+
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, SymbolHandle,
     TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
@@ -21,6 +30,7 @@ mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod invocation_entry;
 mod licenses;
+mod mathematical_predicates;
 pub(super) mod normal_returns;
 mod resolution_queries;
 mod returned_fields;
@@ -167,8 +177,9 @@ pub(crate) enum StructuralTerm {
         reference: TypeReferenceHandle,
         value: Box<StructuralTerm>,
     },
-    /// Builtin unbounded integer meaning, distinct from every finite runtime
-    /// carrier and its arithmetic policy. Children retain captured identities.
+    /// Builtin unbounded integer operations and logical connectives, distinct
+    /// from finite runtime arithmetic and selected IEEE comparison leaves.
+    /// Children retain their own captured identities and scalar meanings.
     MathematicalBinary {
         operator: BinaryOperator,
         left: Box<StructuralTerm>,
@@ -281,16 +292,20 @@ impl StructuralTerm {
         joined.map(Arc::new)
     }
 
-    pub(super) fn is_mathematical_predicate(&self) -> bool {
+    pub(super) fn is_checked_predicate(&self) -> bool {
+        if value_predicates::boolean_value(self.semantic_value()).is_some() {
+            return true;
+        }
         if let Self::MathematicalBinary {
-            operator: BinaryOperator::And,
+            operator: BinaryOperator::And | BinaryOperator::Or,
             left,
             right,
         } = self.semantic_value()
         {
-            return left.is_mathematical_predicate() && right.is_mathematical_predicate();
+            return left.is_checked_predicate() && right.is_checked_predicate();
         }
-        matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
+        matches!(self.semantic_value(),
+            Self::MathematicalBinary { operator, .. } | Self::ScalarBinary { operator, .. }
             if operator.is_comparison())
     }
 
@@ -984,6 +999,7 @@ impl<'program> StructuralJudge<'program> {
         if let Some(state) = state {
             judge.declaration_state = state.symbol;
             judge.retain_entry_owned_values(state);
+            judge.retain_entry_scalar_parameters(machine, state);
         }
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
@@ -1446,18 +1462,18 @@ impl<'program> StructuralJudge<'program> {
             self.intake_preserved_predicate(binary.left);
             self.intake_preserved_predicate(binary.right);
         } else if let Some(term) = self.declaration_term(fact) {
-            let predicate = match &term {
-                StructuralTerm::MathematicalBinary { .. } => term.is_mathematical_predicate(),
-                StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
-                    self.declaration_expression_type(fact)
-                        .and_then(|reference| program.primitive_type_reference(reference))
-                        == Some(PrimitiveType::Bool)
-                }
-                StructuralTerm::Variable(_) => {
-                    program.static_type_predicate_operands(fact).is_some()
-                }
-                _ => false,
-            };
+            let predicate = term.is_checked_predicate()
+                || match &term {
+                    StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
+                        self.declaration_expression_type(fact)
+                            .and_then(|reference| program.primitive_type_reference(reference))
+                            == Some(PrimitiveType::Bool)
+                    }
+                    StructuralTerm::Variable(_) => {
+                        program.static_type_predicate_operands(fact).is_some()
+                    }
+                    _ => false,
+                };
             if predicate {
                 self.intake_equation(term, value_predicates::boolean_term(true), 0);
             }
@@ -1503,8 +1519,8 @@ impl<'program> StructuralJudge<'program> {
                 left,
                 right,
             } = &left
-            && left.is_mathematical_predicate()
-            && right.is_mathematical_predicate()
+            && left.is_checked_predicate()
+            && right.is_checked_predicate()
         {
             self.intake_equation(
                 *left.clone(),
@@ -3334,27 +3350,15 @@ impl<'program> StructuralJudge<'program> {
             if !self.entry_storage_observations_preserved(fact) {
                 return StructuralJudgment::Unknown;
             }
-            // Mathematical facts consume their prepared term in the same
-            // judgment entrance, including proof-only Strict results. A result
-            // carrier or source call shape does not select another body walk.
-            let mut engine = super::arithmetic_judgment::Engine::for_proof_integer_formation(
-                self.program,
-                if self.declaration_state.is_valid() {
-                    self.declaration_state
-                } else {
-                    self.machine_symbol
-                },
-                &[],
-                &[],
-            );
-            return match engine.judge_mathematical_application(fact) {
-                super::arithmetic_judgment::Judgment::Proven => StructuralJudgment::Proven,
-                super::arithmetic_judgment::Judgment::Refuted
-                | super::arithmetic_judgment::Judgment::ConstantFalse => {
-                    StructuralJudgment::Refuted
-                }
-                super::arithmetic_judgment::Judgment::Unknown { .. } => StructuralJudgment::Unknown,
-            };
+            // Consume the checked calculus through the same completed-value
+            // predicate reader as an inline contract. Integer-only capture
+            // rebinding used to lose IEEE aliases despite retaining their
+            // selected relations in the prepared artifact.
+            return self
+                .declaration_term(fact)
+                .map_or(StructuralJudgment::Unknown, |predicate| {
+                    self.judge_observed_predicate(predicate, 0)
+                });
         }
         let Some(binary) = expression_table(program).binary_node(fact) else {
             return self

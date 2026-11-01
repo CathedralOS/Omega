@@ -150,7 +150,7 @@ fn task_frame_summary<'program>(
     reachable_crossings: &mut Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
 ) -> Result<TaskFrame, Vec<Diagnostic>> {
     let frame = frame_identity(typed, machine, entry)?;
-    let states = frame_state_closure(typed, machine, entry)?;
+    let states = frame_state_closure(typed, check_facts, machine, entry)?;
 
     let mut resident_states = Vec::new();
     for state in &states {
@@ -160,13 +160,14 @@ fn task_frame_summary<'program>(
             .filter(|parameter| !parameter.relevance.is_erased())
             .map(|parameter| parameter.type_reference)
             .collect::<Vec<_>>();
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            if let Some(local) = statement.as_local_data()
-                && !local.relevance.is_erased()
-            {
-                resident.push(local.type_reference);
-            }
-        }
+        resident.extend(
+            check_facts
+                .state_locals
+                .locals(state.symbol)
+                .iter()
+                .filter(|local| !local.is_erased)
+                .map(|local| local.declared_type),
+        );
         let mut crossing_coordinates = Vec::new();
         let mut crossing_arguments = Vec::new();
         for crossing in check_facts
@@ -314,6 +315,7 @@ fn task_frame_summary<'program>(
 /// of this activation and contributes no state.
 fn frame_state_closure<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
 ) -> Result<Vec<&'program checked_trees::state::State>, Vec<Diagnostic>> {
@@ -331,41 +333,21 @@ fn frame_state_closure<'program>(
                 machine.name
             ))]
         })?;
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            let Some(transition) = statement.as_transition() else {
-                continue;
-            };
-            push_transition_successor(typed, machine, transition.target, &mut pending);
-            if transition.continuation.is_valid() {
-                push_transition_successor(typed, machine, transition.continuation, &mut pending);
+        for transition in check_facts
+            .executable_bindings
+            .transitions
+            .iter()
+            .filter(|transition| transition.state == state.symbol)
+        {
+            for target in &transition.named_targets {
+                if typed.state_in_machine(machine, *target).is_some() {
+                    pending.push(*target);
+                }
             }
         }
         ordered.push(state);
     }
     Ok(ordered)
-}
-
-fn push_transition_successor<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
-    machine: &'program checked_trees::machine::Machine,
-    target: checked_trees::typed_trees::statement::TransitionTargetHandle,
-    pending: &mut Vec<SymbolHandle>,
-) {
-    let symbol = match typed.statement_table.transition_target(target) {
-        checked_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-            path.symbol
-        }
-        checked_trees::typed_trees::statement::TransitionTargetNode::Value(_)
-        | checked_trees::typed_trees::statement::TransitionTargetNode::Terminal => return,
-    };
-    if symbol.is_valid()
-        && typed
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == symbol)
-    {
-        pending.push(symbol);
-    }
 }
 
 /// Resolve a checked call target to its exact callee machine and entry state.

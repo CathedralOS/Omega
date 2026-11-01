@@ -150,10 +150,8 @@ with `cannot prove requires contract for call count ... index <= 4`;
 `corpus_gate.py` re-pinned the 27 fail rows to record the actual emitted
 diagnostics (previously recorded without diagnostic text).
 
-The row is pinned under two selectors: `tests/omega/{pass,fail}/facts/
-range_fact_delivery_through_<place>_{exit,rejected}` and
-`tests/omega/{pass,fail}/facts/integer_range_delivery_through_<place>_{exit,
-missing_bound}` — the integer `count` row pinned twice under both names.
+The row is pinned under `tests/omega/{pass,fail}/facts/
+range_fact_delivery_through_<place>_{exit,rejected}`.
 Every positive records native exit 0, every twin records its emitted
 rejection diagnostic. (The `float_range_delivery_through_*` family pins the
 sibling `samples/cli/facts/float_range_delivery/` row, not this folder.)

@@ -1,0 +1,104 @@
+// C ABI storage for complete, nonempty scalar records. Nested records and sums
+// are deliberately rejected: their native Omega geometry is not C ABI evidence.
+use omega::language::core::layout;
+use omega::language::core::option;
+
+public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
+
+public CAbiPolicy<T> satisfies FixedLayout<T> {
+    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        let initial: LayoutPlan = LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 };
+        match schema.case_count == 0 && schema.field_count > 0 {
+            true -> c_abi_fields(schema, initial, 0, 0, 1, 33),
+            _ -> c_abi_unsupported(initial)
+        }
+    }
+}
+
+// A plan cannot certify unsupported input. The ordinary receiving validator
+// rejects this out-of-capacity count before exposing storage or projections.
+machine c_abi_unsupported(mut plan: LayoutPlan) -> LayoutPlan reaches terminates {
+    plan.entry_count = 65;
+    plan
+}
+
+machine c_abi_padding(offset: u64, alignment: u64) -> u64
+reaches terminates
+requires alignment >= 1 && alignment <= 16
+ensures result < alignment
+{
+    let remainder: u64 = offset % alignment;
+    match remainder == 0 { true -> 0u64, _ -> alignment - remainder }
+}
+
+// One scalar per step, then trailing padding. Bounds include the final step;
+// checked arithmetic rejects unrepresentable extents rather than wrapping them.
+machine c_abi_fields(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64) -> LayoutPlan
+reaches terminates by fuel
+requires index <= 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 33
+{
+    transition index < schema.field_count && index < 32 && fuel > 1 {
+        true -> place(schema, plan, index, offset, alignment, fuel - 1)
+        _ -> finish(plan, offset, alignment)
+    }
+    machine place(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64) -> LayoutPlan
+    requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32
+    {
+        let field_align: u64 = schema.fields[index].align;
+        let field_size: u64 = schema.fields[index].size;
+        let padding: u64 = c_abi_padding(offset, field_align);
+        let next_align: u64 = match field_align > alignment { true -> field_align, _ -> alignment };
+        transition schema.fields[index].identity in Optional::None {
+            true -> scalar(schema, plan, index, offset, next_align, fuel, padding, field_size)
+            _ -> c_abi_unsupported(plan)
+        }
+    }
+    // Numbered schemas are canonically ordered by identity rather than authored
+    // declaration order. They require an explicit policy instead of guessed C order.
+    machine scalar(schema: Schema, plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, padding: u64, size: u64) -> LayoutPlan
+    requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32
+    {
+        match schema.fields[index].kind {
+            FieldKind::Scalar -> checked(schema, plan, index, offset, alignment, fuel, padding, size),
+            _ -> c_abi_unsupported(plan)
+        }
+    }
+    machine checked(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, padding: u64, size: u64) -> LayoutPlan
+    requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32
+    {
+        transition padding <= 18446744073709551615u64 - offset {
+            true -> extent(schema, plan, index, offset + padding, alignment, fuel, size)
+            _ -> c_abi_unsupported(plan)
+        }
+    }
+    machine extent(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, size: u64) -> LayoutPlan
+    requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32
+    {
+        transition size <= 18446744073709551615u64 - offset {
+            true -> append(schema, plan, index, offset, alignment, fuel, size)
+            _ -> c_abi_unsupported(plan)
+        }
+    }
+    machine append(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, size: u64) -> LayoutPlan
+    requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32 && size <= 18446744073709551615u64 - offset
+    {
+        plan.entries[index] = FieldEntry { key: schema.fields[index].key, representation: FieldPlan::At { offset: offset } };
+        plan.entry_count = index + 1;
+        c_abi_fields(schema, plan, index + 1, offset + size, alignment, fuel)
+    }
+    machine finish(mut plan: LayoutPlan, offset: u64, alignment: u64) -> LayoutPlan
+    requires alignment >= 1 && alignment <= 16
+    {
+        let padding: u64 = c_abi_padding(offset, alignment);
+        transition padding <= 18446744073709551615u64 - offset {
+            true -> complete(plan, offset + padding, alignment)
+            _ -> c_abi_unsupported(plan)
+        }
+    }
+    machine complete(mut plan: LayoutPlan, size: u64, alignment: u64) -> LayoutPlan {
+        plan.size_fixed = size;
+        plan.align = alignment;
+        plan
+    }
+}

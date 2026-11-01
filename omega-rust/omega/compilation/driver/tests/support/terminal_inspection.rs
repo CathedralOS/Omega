@@ -26,6 +26,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "native_layout_controls.rs"]
+mod native_layout_controls;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
 #[path = "scalar_issuer_controls.rs"]
@@ -38,9 +40,8 @@ mod task_activation_controls;
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum InspectionControls {
-    MethodApplications,
-    BoundaryCallables,
+enum InspectionControls<'selection> {
+    ConformanceApplications,
     IndexedFamily,
     MathematicalActuals,
     DynamicImage,
@@ -51,7 +52,8 @@ enum InspectionControls {
     ProviderChoices,
     BoundaryProviders,
     BehaviorAdmission,
-    CallbackTelescope,
+    CallbackTelescope(&'selection str),
+    NativeLayouts,
     ScalarIssuer,
 }
 
@@ -105,7 +107,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "closed-conformance-controls"] => (
                 *machine,
                 false,
-                Some(InspectionControls::MethodApplications),
+                Some(InspectionControls::ConformanceApplications),
             ),
             [machine, "closed-reach-capture-controls"] => (
                 *machine,
@@ -114,9 +116,6 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             ),
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
-            }
-            [machine, "boundary-conformance-controls"] => {
-                (*machine, false, Some(InspectionControls::BoundaryCallables))
             }
             [machine, "mathematical-actuals"] => (
                 *machine,
@@ -143,8 +142,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "behavior-admission-controls"] => {
                 (*machine, false, Some(InspectionControls::BehaviorAdmission))
             }
-            [machine, "callback-telescope-controls"] => {
-                (*machine, false, Some(InspectionControls::CallbackTelescope))
+            [machine, "callback-telescope-controls", policy] => (
+                *machine,
+                false,
+                Some(InspectionControls::CallbackTelescope(policy)),
+            ),
+            [machine, "native-layout-controls"] => {
+                (*machine, false, Some(InspectionControls::NativeLayouts))
             }
             [machine, "scalar-issuer-controls"] => {
                 (*machine, false, Some(InspectionControls::ScalarIssuer))
@@ -154,7 +158,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -174,7 +178,8 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
-                    | InspectionControls::CallbackTelescope
+                    | InspectionControls::CallbackTelescope(_)
+                    | InspectionControls::NativeLayouts
             )
         );
         let product = if provider_controls {
@@ -240,9 +245,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             drop(prepared);
             if matches!(
                 conformance_controls,
-                Some(InspectionControls::CallbackTelescope)
+                Some(InspectionControls::NativeLayouts)
             ) {
-                callback_telescope_controls::inspect(&retained)?;
+                native_layout_controls::inspect(&retained)?;
+                observations.push("native-layout-controls:match".into());
+            } else if let Some(InspectionControls::CallbackTelescope(policy)) = conformance_controls
+            {
+                callback_telescope_controls::inspect(&retained, profile, policy)?;
                 observations.push("callback-telescope-controls:match".into());
             } else if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
@@ -342,20 +351,22 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .map_err(|error| format!("cannot preserve canonical artifact: {error}"))?;
             }
             match controls {
-                InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::ConformanceApplications => {
+                    closed_conformance_controls(&decoded)?
+                }
                 InspectionControls::ScalarIssuer => scalar_issuer_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {
                     closed_reach_controls::inspect_captures(&decoded)?
                 }
-                InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::TaskActivations
                 | InspectionControls::SynchronousProviders
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
-                | InspectionControls::CallbackTelescope
+                | InspectionControls::CallbackTelescope(_)
+                | InspectionControls::NativeLayouts
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
@@ -436,158 +447,97 @@ fn inspect_cleanup_obligations(artifact: &CanonicalTerminalArtifact) -> Result<(
 /// Mutate actual Source-produced payloads at the public artifact ingress seam.
 /// These are fixture-authored invalid exchange controls, not fabricated compiler
 /// trees or logical Source proofs. Ordinary producer trust remains explicit.
-fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    use terminal_psi::TargetMachineCallable;
+fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
     let module = artifact.semantic_module();
-    let (position, row, boundary) = module
+    let (position, row, applied) = module
         .closed_conformance_applications
         .iter()
         .enumerate()
-        .find_map(|(position, application)| {
+        .flat_map(|(position, application)| {
             application
                 .static_applications
                 .iter()
                 .enumerate()
-                .find_map(|(row, applied)| {
-                    if let TargetMachineCallable::Boundary(boundary) = applied.callable {
-                        Some((position, row, boundary))
-                    } else {
-                        None
-                    }
-                })
+                .map(move |(row, applied)| (position, row, applied))
         })
-        .ok_or("artifact control fixture needs a static boundary callable")?;
-    let original = module
-        .boundary_machine(boundary)
-        .ok_or("static boundary is absent")?;
-    let declaration = original
-        .declaration
-        .as_ref()
-        .ok_or("static boundary has no source declaration")?;
-    let other = module
-        .boundary_machines
-        .iter()
-        .find(|candidate| {
-            candidate.id != boundary
-                && candidate.result == original.result
-                && candidate.owner != original.owner
-        })
-        .ok_or("retarget control needs another same-result boundary")?;
-    let mut controls = Vec::new();
-    let mut bad = module.clone();
-    let replacement = bad
-        .boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == other.id)
-        .ok_or("replacement boundary is absent")?;
-    replacement.declaration = Some(declaration.clone());
-    let application = &mut bad.closed_conformance_applications[position];
-    application.static_applications[row].callable = TargetMachineCallable::Boundary(other.id);
-    for callable in &mut application.realization_callables {
-        if callable.callable == TargetMachineCallable::Boundary(boundary) {
-            callable.callable = TargetMachineCallable::Boundary(other.id);
-        }
-    }
-    refresh_conformance_commitment(&mut bad, position);
-    controls.push((
-        "retargeted boundary with copied declaration",
-        "exact machine owner",
-        bad,
-    ));
-
-    let mut bad = module.clone();
-    bad.boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == boundary)
-        .ok_or("boundary is absent")?
-        .role = terminal_psi::BoundaryDeclarationRole::ContractEvidence;
-    controls.push((
-        "contract evidence as runtime callable",
-        "contract evidence",
-        bad,
-    ));
-
-    let mut bad = module.clone();
-    bad.boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == boundary)
-        .ok_or("boundary is absent")?
-        .declaration = None;
-    controls.push((
-        "missing boundary source declaration",
-        "checked declaration",
-        bad,
-    ));
-
-    let mut bad = module.clone();
-    bad.boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == boundary)
-        .and_then(|candidate| candidate.declaration.as_mut())
-        .ok_or("boundary declaration is absent")?
-        .source
-        .contract = [7; 32];
-    controls.push(("wrong family contract", "family contract", bad));
-
-    let mut bad = module.clone();
-    bad.boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == boundary)
-        .and_then(|candidate| candidate.declaration.as_mut())
-        .ok_or("boundary declaration is absent")?
-        .source
-        .state =
-        terminal_psi::NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex::ABSENT);
-    controls.push((
-        "invalid boundary declaration identity",
-        "invalid or empty identity",
-        bad,
-    ));
-
-    let mut bad = module.clone();
-    let unexpected = declaration.source.callable;
-    bad.boundary_machines
-        .iter_mut()
-        .find(|candidate| candidate.id == boundary)
-        .and_then(|candidate| candidate.declaration.as_mut())
-        .ok_or("boundary declaration is absent")?
-        .method_arguments
-        .push(terminal_psi::ClosedReachArgument::Const(unexpected));
-    controls.push((
-        "extra boundary invocation argument",
-        if declaration.source.specialization.is_some() {
-            "retained boundary invocation"
-        } else {
-            "unspecialized boundary carries method arguments"
-        },
-        bad,
-    ));
-
-    for (name, reason, invalid) in controls {
-        reject_module_at_ingress(&invalid, name, reason)?;
-    }
-    Ok(())
-}
-
-fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    let module = artifact.semantic_module();
-    let position = module
-        .closed_conformance_applications
-        .iter()
-        .position(|application| {
-            application
-                .static_applications
-                .iter()
-                .any(|row| !row.method_arguments.is_empty())
-        })
-        .ok_or("artifact control fixture needs a generic exact static application")?;
+        .min_by_key(|(_, _, applied)| applied.method_arguments.is_empty())
+        .ok_or("artifact control fixture needs an exact static application")?;
     let application = &module.closed_conformance_applications[position];
-    let row = application
-        .static_applications
-        .iter()
-        .position(|row| !row.method_arguments.is_empty())
-        .ok_or("missing generic application")?;
     let mut controls = Vec::new();
+    if let terminal_psi::TargetMachineCallable::Machine(machine) = applied.callable {
+        let original = module
+            .machine(machine)
+            .ok_or("conformance machine is absent")?;
+        let mut bad = module.clone();
+        bad.machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .ok_or("conformance machine is absent")?
+            .declaration = None;
+        controls.push((
+            "missing executable declaration",
+            if original.closed_reach_application.is_some() {
+                "closed reach application differs from its checked declaration commitment"
+            } else {
+                "static conformance target has no checked declaration"
+            },
+            bad,
+        ));
+
+        let mut bad = module.clone();
+        let declaration = bad
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .and_then(|candidate| candidate.declaration.as_mut())
+            .ok_or("conformance machine has no checked declaration")?;
+        if declaration.callable == applied.public_requirement_identity {
+            return Err(
+                "declaration identity control needs a distinct requirement identity".into(),
+            );
+        }
+        declaration.callable = applied.public_requirement_identity;
+        controls.push((
+            "retargeted executable declaration",
+            if module
+                .scalar_applications
+                .proof_scope
+                .callable_declaration(applied.callable)
+                .is_some()
+            {
+                "proof scope callable differs from its emitted declaration"
+            } else {
+                "conformance callable registry differs from its checked declaration identity"
+            },
+            bad,
+        ));
+
+        let mut bad = module.clone();
+        bad.machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .and_then(|candidate| candidate.declaration.as_mut())
+            .ok_or("conformance machine has no checked declaration")?
+            .contract = [0; 32];
+        controls.push((
+            "empty executable contract",
+            "empty checked machine commitment",
+            bad,
+        ));
+    }
+    if let Some(candidate) = module.provider_candidates.first() {
+        let mut bad = module.clone();
+        bad.boundary_machines
+            .iter_mut()
+            .find(|boundary| boundary.id == candidate.boundary)
+            .ok_or("provider requirement boundary is absent")?
+            .role = terminal_psi::BoundaryDeclarationRole::ContractEvidence;
+        controls.push((
+            "contract evidence as provider requirement",
+            "contract evidence",
+            bad,
+        ));
+    }
     let mut bad = module.clone();
     bad.closed_conformance_applications[position]
         .schemas
@@ -603,36 +553,46 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
         .static_applications
         .push(application.static_applications[row].clone());
     controls.push(("duplicate exact application", "canonical", bad));
-    let other = module
-        .closed_conformance_applications
-        .iter()
-        .flat_map(|application| &application.static_applications)
-        .find(|other| {
-            other.public_requirement_identity
-                == application.static_applications[row].public_requirement_identity
-                && other.realization_identity
-                    == application.static_applications[row].realization_identity
-                && other.method_arguments != application.static_applications[row].method_arguments
-        })
-        .ok_or("wrong-tuple control needs distinct actual member applications")?;
+    if !applied.method_arguments.is_empty() {
+        let other = module
+            .closed_conformance_applications
+            .iter()
+            .flat_map(|application| &application.static_applications)
+            .find(|other| {
+                other.public_requirement_identity == applied.public_requirement_identity
+                    && other.realization_identity == applied.realization_identity
+                    && other.method_arguments != applied.method_arguments
+            })
+            .ok_or("wrong-tuple control needs distinct actual member applications")?;
+        let mut bad = module.clone();
+        bad.closed_conformance_applications[position].static_applications[row].method_arguments =
+            other.method_arguments.clone();
+        refresh_conformance_commitment(&mut bad, position);
+        controls.push((
+            "wrong member invocation tuple",
+            "retained executable invocation",
+            bad,
+        ));
+    }
     let mut bad = module.clone();
-    bad.closed_conformance_applications[position].static_applications[row].method_arguments =
-        other.method_arguments.clone();
-    refresh_conformance_commitment(&mut bad, position);
-    controls.push((
-        "wrong member invocation tuple",
-        "retained executable invocation",
-        bad,
-    ));
-    let mut bad = module.clone();
-    bad.closed_conformance_applications[position].static_applications[row]
-        .method_arguments
-        .clear();
-    controls.push(("missing member invocation tuple", "telescope", bad));
+    let arguments = &mut bad.closed_conformance_applications[position].static_applications[row]
+        .method_arguments;
+    if arguments.is_empty() {
+        arguments.push(terminal_psi::ClosedReachArgument::Const(
+            applied.source_callable_identity,
+        ));
+    } else {
+        arguments.clear();
+    }
+    controls.push(("wrong member invocation arity", "telescope", bad));
     let mut bad = module.clone();
     bad.closed_conformance_applications[position].static_applications[row].application_commitment =
-        None;
-    controls.push(("missing executable commitment", "commitment", bad));
+        if applied.application_commitment.is_some() {
+            None
+        } else {
+            Some([7; 32])
+        };
+    controls.push(("wrong executable commitment", "commitment", bad));
     let mut bad = module.clone();
     bad.closed_conformance_applications[position].schemas[0]
         .definition

@@ -1,9 +1,9 @@
 //! Discover canonical scalar demand, then execute dependency-ready jobs.
 //!
 //! Every selected intermediate observation is known before the first entry
-//! executes. Conditions create demand, not execution prerequisites: an entry's
-//! own result obligation must not become a self-cycle. Installation retains
-//! provisional observations; the caller still owes complete condition discharge
+//! executes. Independently ready conditions reject before further execution;
+//! an entry's own result obligation must not become a self-cycle. Installation
+//! retains provisional observations; the caller still owes complete condition discharge
 //! and target admission before ordinary execution.
 
 use crate::evaluation_accounting::CanonicalScalarEvaluationReceipt;
@@ -154,6 +154,7 @@ fn evaluate_scope<'artifact>(
     let mut jobs = demand::discover(&program, observations, requested, &mut conditions)?;
     let order = demand::execution_order(&jobs)?;
     demand::retain_entry_results(observations, &conditions, &mut jobs)?;
+    conditions.discharge_ready(observations)?;
 
     for position in order {
         let job = &jobs[position];
@@ -179,6 +180,7 @@ fn evaluate_scope<'artifact>(
                 observations.record_value(job.application, observed.value)?;
             }
         }
+        conditions.discharge_ready(observations)?;
     }
     Ok(conditions)
 }

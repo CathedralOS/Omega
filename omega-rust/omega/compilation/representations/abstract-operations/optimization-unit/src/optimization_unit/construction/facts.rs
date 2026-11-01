@@ -121,7 +121,9 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
         }
         | O::EstablishElementView {
             psi_operation,
-            region: terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. },
+            region:
+                terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. }
+                | terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
             ..
         }
         | element_view_read_write_pair_pattern!(psi_operation, obligation, ..)

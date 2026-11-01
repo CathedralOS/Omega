@@ -19,7 +19,7 @@ use terminal_psi::{
     ScalarConditionSubject, ScalarConditions, ScalarRangeObservation, ScalarRangeRequirement,
     TargetMachineCallable, TerminalMachine,
 };
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 
 pub(super) struct Condition {
     owner: SymbolHandle,
@@ -306,8 +306,16 @@ fn observation(
     if let Some(value) = program.closed_integer_expression_value_in(expression, owner) {
         return Ok(Observation::Literal(value));
     }
-    if matches!(program.expression_table.expression(expression),
-        ExpressionNode::Call(call) if call.layout_query.is_some())
+    if checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .layout_observations
+        .iter()
+        .any(|observation| {
+            observation.expression == expression
+                && (!owner.is_valid() || observation.owner == owner)
+        })
     {
         return applications
             .retain_expression_in(checked, expression, owner)

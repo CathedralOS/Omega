@@ -1,0 +1,12 @@
+use omega::language::core::reflect;
+public data Subject { first: u64; second: u64; }
+public data Totals { total: u64; count: u64; }
+public machine visit(value: &Subject, context: &mut Totals) {
+    reflect::visit_runtime_fields<Subject, add>(value, context);
+}
+machine add<T>(context: &mut Totals, field: &reflect::FieldInfo, value: &T)
+requires T == u64
+{
+    context.total = ((context.total as u64 in Wrapping) + (value as u64 in Wrapping)) as u64;
+    context.count = ((context.count as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+}

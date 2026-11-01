@@ -48,16 +48,19 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
-    CheckedDeclarationCall, CheckedMachineRankCorrespondence, CheckedRankApplicationFacts,
-    CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle,
-    CheckedRankApplicationOwnedCopy, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
-    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
-    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
-    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeIntegerRank,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankInput, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
-    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedCaptureArgument, CheckedCaptureArgumentValue, CheckedCaptureInputs,
+    CheckedDeclarationCall, CheckedExecutableBindings, CheckedExpressionSource,
+    CheckedMachineRankCorrespondence, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
+    CheckedRankApplicationFormationHandle, CheckedRankApplicationOwnedCopy, CheckedRankArrivalEdge,
+    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
+    CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
+    CheckedRankLocalCapture, CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
+    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRequirementMachines,
+    CheckedRuntimeIntegerRank, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankInput, CheckedRuntimeRankMember,
+    CheckedSelectedMachine, CheckedSourceCallTarget, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedSourceTransition,
+    CheckedStateRankCorrespondence,
 };
 pub use facts::{
     CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,

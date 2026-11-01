@@ -1,8 +1,10 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // Encoding through an owned reference field preserves a disjoint index bound.
 // Expected exit: 0
 
 data Packet { #0 value: u64; }
-data Value { value: u64; }
+data Value { #0 value: u64; }
 data Counter<'a> { slot: &'a mut u64; }
 
 machine main() crashes Trap {
@@ -12,11 +14,26 @@ machine main() crashes Trap {
     let sample: Value = Value { value: 200 };
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let counters: [Counter; 1] = [Counter { slot: &mut index }];
-    Packet::encode(&sample, &mut buffer, counters[0].slot);
+    PacketCodec::encode(&sample, &mut buffer, counters[0].slot);
     transition written == 4 && items[index] == 7 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+// The semantic owner supplies visitation. The library owns all byte grammar.
+data PacketCodec {}
+machine PacketCodec::fields(value: &Value, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<Value, CompactBinary::scalar_field>(value, context);
+}
+machine PacketCodec::encode<const N: u64>(value: &Value, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<Value, PacketCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
 }

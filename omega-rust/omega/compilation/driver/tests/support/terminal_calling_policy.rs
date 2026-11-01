@@ -80,7 +80,8 @@ pub(super) fn observe(
                 "calling formal control reached an unrelated refusal: {error}"
             ));
         }
-        let signature = CallingPolicySignature::from_terminal(module, description, target)?;
+        let signature =
+            CallingPolicySignature::from_terminal(module, description, target, &unresolved_extent)?;
         let argument = module
             .boundary_machine(description)
             .and_then(|boundary| boundary.structural_parameters.first())
@@ -211,6 +212,7 @@ pub(super) fn observe(
             false_artifact.semantic_module(),
             description,
             target,
+            &unresolved_extent,
         )?;
         let account = sponsor
             .begin_invocation(measurement, 1_000_000)
@@ -268,7 +270,12 @@ pub(super) fn observe(
             ("fuel", description, 1),
             ("target", description, 1_000_000),
         ] {
-            let signature = CallingPolicySignature::from_terminal(module, description, target)?;
+            let signature = CallingPolicySignature::from_terminal(
+                module,
+                description,
+                target,
+                &unresolved_extent,
+            )?;
             let selected_target = if control == "target" {
                 target::TargetProfile::from_canonical_target_name("linux_x86_64")
                     .map_err(|error| error.message)?
@@ -303,4 +310,12 @@ pub(super) fn observe(
         }
     }
     Ok(())
+}
+
+fn unresolved_extent(
+    application: semantic_vocabulary::ScalarApplicationId,
+) -> Result<u64, terminal_semantics::StorageGeometryError> {
+    Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+        application,
+    ))
 }
