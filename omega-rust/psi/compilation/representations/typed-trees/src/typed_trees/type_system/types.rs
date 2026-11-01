@@ -59,6 +59,7 @@ pub struct TypeReferenceTable {
     operand_origins: Arena<TypeOperandOrigin>,
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
+    slice_views: SliceViewIndex,
     type_alias_applications: Arena<crate::type_aliases::TypeAliasApplication>,
 }
 
@@ -118,6 +119,27 @@ impl PartialEq for ArithmeticRowIndex {
 
 impl Eq for ArithmeticRowIndex {}
 
+/// For each element, whether a shared and a mutable plain slice view of it
+/// already exist: `Reference` rows whose referee is a `Slice` of that element.
+/// Lowering each collection type asks this, and each ask scanned every row.
+/// The index covers the rows seen so far under one append epoch of the row
+/// arena: appended rows extend it, and any other mutation of the arena (a
+/// rewrite, a free, a rewind) changes the epoch and rebuilds it. Derived
+/// content, so it never takes part in equality.
+#[derive(Clone, Default)]
+struct SliceViewIndex {
+    covered: Option<(u64, usize)>,
+    accesses: std::collections::HashMap<TypeReferenceHandle, [bool; 2]>,
+}
+
+impl PartialEq for SliceViewIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for SliceViewIndex {}
+
 impl TypeReferenceTable {
     pub fn new() -> Self {
         Self {
@@ -132,6 +154,7 @@ impl TypeReferenceTable {
             operand_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
+            slice_views: SliceViewIndex::default(),
             type_alias_applications: Arena::new(),
         }
     }
@@ -757,6 +780,46 @@ impl TypeReferenceTable {
         })
     }
 
+    /// Whether a shared and a mutable plain view of `element` exist, in that
+    /// order: the answer a scan of `slice_view_references` gives, read from
+    /// an index that visits each row once across calls.
+    fn slice_view_accesses(&mut self, element: TypeReferenceHandle) -> [bool; 2] {
+        let epoch = self.type_references.append_epoch();
+        let start = match (epoch, self.slice_views.covered) {
+            (Some((revision, length)), Some((covered_revision, covered)))
+                if revision == covered_revision && covered <= length =>
+            {
+                covered
+            }
+            _ => {
+                self.slice_views.accesses.clear();
+                0
+            }
+        };
+        for (_, node) in self.type_references.iter_from(start) {
+            let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = node
+            else {
+                continue;
+            };
+            let slot = match access {
+                ReferenceAccess::Shared => 0,
+                ReferenceAccess::Mutable => 1,
+                ReferenceAccess::WriteOnly => continue,
+            };
+            if let TypeReferenceNode::Slice { element_type } = self.type_references.get(*referee) {
+                self.slice_views.accesses.entry(*element_type).or_default()[slot] = true;
+            }
+        }
+        self.slice_views.covered = epoch;
+        self.slice_views
+            .accesses
+            .get(&element)
+            .copied()
+            .unwrap_or_default()
+    }
+
     pub fn type_reference_count(&self) -> usize {
         self.type_references.len()
     }
@@ -816,13 +879,12 @@ impl TypeReferenceTable {
             };
             self.retain_collection_result_types(symbols, element);
         }
-        for access in [ReferenceAccess::Shared, ReferenceAccess::Mutable] {
-            if self
-                .slice_view_references()
-                .any(|(_, candidate_access, candidate_element)| {
-                    candidate_access == access && candidate_element == element
-                })
-            {
+        let present = self.slice_view_accesses(element);
+        for (access, exists) in [
+            (ReferenceAccess::Shared, present[0]),
+            (ReferenceAccess::Mutable, present[1]),
+        ] {
+            if exists {
                 continue;
             }
             let slice = self.insert(TypeReferenceNode::Slice {
@@ -1658,7 +1720,7 @@ pub fn builtin_type_atom(kind: numerics::literals::LandedIntegerType) -> symbols
 #[cfg(test)]
 mod tests {
     use super::{
-        FixedArrayLength, TypeConstraintNode, TypeOperandOrigin, TypeReferenceNode,
+        FixedArrayLength, SliceViewIndex, TypeConstraintNode, TypeOperandOrigin, TypeReferenceNode,
         TypeReferenceTable,
     };
     use crate::name::Identifier;
@@ -1784,6 +1846,96 @@ mod tests {
     }
 
     #[test]
+    fn slice_view_index_agrees_with_a_row_scan_through_appends_and_rewrites() {
+        let mut builder = SymbolTableBuilder::default();
+        let carrier = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u8"));
+        let mut table = TypeReferenceTable::new();
+        let element = table.insert(TypeReferenceNode::Named {
+            symbol: carrier,
+            name: Identifier::from("u8"),
+        });
+        let other = table.insert(TypeReferenceNode::Unit);
+        let scan = |table: &TypeReferenceTable, element| {
+            let mut present = [false; 2];
+            for (_, access, candidate) in table.slice_view_references() {
+                match access {
+                    _ if candidate != element => {}
+                    ReferenceAccess::Shared => present[0] = true,
+                    ReferenceAccess::Mutable => present[1] = true,
+                    ReferenceAccess::WriteOnly => {}
+                }
+            }
+            present
+        };
+        macro_rules! agree {
+            ($($element:expr => $expected:expr),+) => {
+                $(
+                    assert_eq!(table.slice_view_accesses($element), $expected);
+                    assert_eq!(scan(&table, $element), $expected);
+                )+
+            };
+        }
+        agree!(element => [false, false], other => [false, false]);
+        let slice = table.insert(TypeReferenceNode::Slice {
+            element_type: element,
+        });
+        table.insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: ReferenceAccess::Shared,
+            lifetime: None,
+        });
+        agree!(element => [true, false], other => [false, false]);
+        let mutable = table.insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+        table.insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: ReferenceAccess::WriteOnly,
+            lifetime: None,
+        });
+        agree!(element => [true, true]);
+
+        // Rewrites keep the row count and must still be seen.
+        table.substitute_node(mutable, TypeReferenceNode::Unit);
+        agree!(element => [true, false]);
+        table.substitute_node(
+            slice,
+            TypeReferenceNode::Slice {
+                element_type: other,
+            },
+        );
+        agree!(element => [false, false], other => [true, false]);
+
+        let mut without_index = table.clone();
+        without_index.slice_views = SliceViewIndex::default();
+        assert_eq!(table, without_index);
+        assert_eq!(format!("{table:?}"), format!("{without_index:?}"));
+    }
+
+    #[test]
+    fn collection_result_views_are_added_once_per_element() {
+        let mut builder = SymbolTableBuilder::default();
+        let carrier = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u8"));
+        let symbols = builder.finish();
+        let mut table = TypeReferenceTable::new();
+        let element = table.insert(TypeReferenceNode::Named {
+            symbol: carrier,
+            name: Identifier::from("u8"),
+        });
+        let array = table.insert(TypeReferenceNode::FixedArray {
+            element_type: element,
+            length: FixedArrayLength::Literal(4),
+        });
+        table.retain_collection_result_types(&symbols, array);
+        assert_eq!(table.slice_view_accesses(element), [true, true]);
+        let rows = table.type_reference_count();
+        table.retain_collection_result_types(&symbols, array);
+        assert_eq!(table.type_reference_count(), rows);
+    }
+
+    #[test]
     fn instantiation_rebuilds_only_rows_that_name_a_binder() {
         let mut builder = SymbolTableBuilder::default();
         let binder = builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
@@ -1867,6 +2019,21 @@ impl compiler_storage::Record for NamedRowIndex {
 
 // This lookup is derived from the restored type rows, not a durable identity.
 impl compiler_storage::Record for ArithmeticRowIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for SliceViewIndex {
     fn write(
         &self,
         _: &mut compiler_storage::RecordWriter,

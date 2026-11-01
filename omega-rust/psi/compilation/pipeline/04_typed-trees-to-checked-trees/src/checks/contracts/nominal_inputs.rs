@@ -7,7 +7,7 @@
 //! Conditional payload validity does not select an active case; only the
 //! authored source access carries that separate selection obligation.
 
-use crate::collections::push_unique;
+use crate::collections::UniqueRoster;
 use crate::flow::CapturedResultMemberships;
 use crate::flow::OperandContextSelection;
 use crate::flow::OperandContextSelections;
@@ -23,7 +23,7 @@ use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramP
 use symbols::SymbolHandle;
 
 pub(super) struct DeclaredFieldRequirements {
-    rows: symbols::SymbolKeyMap<SymbolHandle, Vec<FieldRequirement>>,
+    rows: symbols::SymbolKeyMap<SymbolHandle, UniqueRoster<FieldRequirement>>,
 }
 
 type FieldRequirement = (
@@ -34,7 +34,7 @@ type FieldRequirement = (
 
 impl DeclaredFieldRequirements {
     pub(super) fn new(semantic: &FactPlan) -> Self {
-        let mut rows: symbols::SymbolKeyMap<SymbolHandle, Vec<FieldRequirement>> =
+        let mut rows: symbols::SymbolKeyMap<SymbolHandle, UniqueRoster<FieldRequirement>> =
             symbols::SymbolKeyMap::default();
         for (_, fact) in semantic.facts.iter() {
             let FactPayload::DomainMembership {
@@ -77,14 +77,13 @@ impl DeclaredFieldRequirements {
                 domain_symbol,
                 semantic_domain,
             );
-            let requirements = rows.entry(owner).or_default();
-            push_unique(requirements, requirement);
+            rows.entry(owner).or_default().push(requirement);
         }
         Self { rows }
     }
 
     fn requirements(&self, owner: SymbolHandle) -> &[FieldRequirement] {
-        self.rows.get(&owner).map_or(&[], Vec::as_slice)
+        self.rows.get(&owner).map_or(&[], UniqueRoster::as_slice)
     }
 }
 

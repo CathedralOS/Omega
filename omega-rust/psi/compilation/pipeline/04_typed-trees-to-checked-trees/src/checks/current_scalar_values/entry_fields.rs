@@ -9,6 +9,7 @@ use super::scalar_fields::ScalarField;
 use super::scalar_fields::entry_selector_value;
 use super::scalar_fields::same_projection;
 use super::scalar_fields::{ScalarProjection, capture_path};
+use crate::collections::UniqueRoster;
 use crate::flow::indexed_statements;
 use validation::BigIntInterval;
 use validation::ScopedArithmeticValue;
@@ -42,23 +43,19 @@ pub(crate) fn parameter_projection_paths(
             }
         }
     }
-    let mut seen = Vec::new();
-    let mut paths = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut paths = UniqueRoster::default();
     while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || seen.contains(&expression) {
+        if !expression.is_valid() || !seen.insert(expression) {
             continue;
         }
-        seen.push(expression);
         if let Some(place) = validation::canonical_place_from_expression(program, expression)
             && let facts::PlaceRoot::Symbol(root) = place.root
             && program.state_parameter_by_symbol(state, root).is_some()
         {
             let path = place.segments;
             for start in 0..path.len() {
-                let suffix = path[start..].to_vec();
-                if !paths.contains(&suffix) {
-                    paths.push(suffix);
-                }
+                paths.push(path[start..].to_vec());
             }
         }
         validation::expression_traversal::children(
@@ -67,7 +64,7 @@ pub(crate) fn parameter_projection_paths(
             |child| pending.push(child),
         );
     }
-    paths
+    paths.into_vec()
 }
 
 impl CurrentScalarValues<'_> {
