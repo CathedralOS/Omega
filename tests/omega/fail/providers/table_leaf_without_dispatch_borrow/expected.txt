@@ -1,0 +1,1 @@
+table leaf's first parameter must borrow its dispatch table

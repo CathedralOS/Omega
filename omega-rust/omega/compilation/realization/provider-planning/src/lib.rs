@@ -25,6 +25,7 @@
 mod boundary_value_recipes;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
+pub mod dispatch_tables;
 pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
