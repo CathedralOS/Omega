@@ -132,22 +132,39 @@ pub(crate) fn literal_value_path_is_inactive(
         ) else {
             return false;
         };
+        // A constructor retains its authored case while the queried path
+        // names the receiving application's case. A closed instance has its
+        // own member symbols; join them through that exact application.
+        let receiving = validation::project_type_reference_from_segments(
+            program,
+            reference,
+            &segments[..position],
+        );
+        let selected = |owner: SymbolHandle, authored: SymbolHandle| {
+            receiving
+                .and_then(|receiving| program.data_constructor_case(receiving, owner, authored))
+                .map_or(authored, |case| case.symbol)
+        };
         !projections.is_empty()
             && projections.iter().all(|projection| {
                 if !projection.remaining.is_empty() {
                     return false;
                 }
                 let actual = match program.expression_table.expression(projection.expression) {
-                    ExpressionNode::StructLiteral(literal) => {
-                        literal.case_symbol.filter(|symbol| {
+                    ExpressionNode::StructLiteral(literal) => literal
+                        .case_symbol
+                        .filter(|symbol| {
                             symbol.is_valid()
                                 && program.symbols.get(*symbol).parent == literal.type_symbol
                         })
-                    }
+                        .map(|symbol| selected(literal.type_symbol, symbol)),
                     ExpressionNode::Name(name)
                         if program.symbols.get(name.symbol).kind == SymbolKind::Variant =>
                     {
-                        Some(name.symbol)
+                        Some(selected(
+                            program.symbols.get(name.symbol).parent,
+                            name.symbol,
+                        ))
                     }
                     _ => None,
                 };

@@ -96,6 +96,11 @@ pub(super) fn append_transfer(
     // cannot silently omit its move event. Borrowed referents and copy
     // observations were excluded by the shared classification above.
     if !remaining.is_present(event.root, path) {
+        // Access to a payload whose case is proven inactive belongs to the
+        // case-access check, which rejects it with the missing tag evidence.
+        if remaining.crosses_inactive_case(event.root, path) {
+            return Ok(());
+        }
         if let Some(consumed) = remaining.consumed_place(event.root, path)
             && let Some(machine) = program.machine_by_symbol(machine)
             && let Some(state) = program.state_by_symbol(state)
