@@ -127,42 +127,7 @@ impl<'a> ProviderPlanInput<'a> {
                     previous_route = Some(key);
                 }
             }
-            // v6 carries every complete ABI application, not v5's optional
-            // singleton report. Read the same full-key order the writer emits.
-            let mut previous_application = None;
-            for _ in 0..reader.count()? {
-                if reader.nonempty_string()? != requirement {
-                    return Err("provider calling ABI differs from its schema requirement");
-                }
-                let declaring = reader.nonempty_string()?;
-                let mut operands = Vec::new();
-                for _ in 0..reader.count()? {
-                    let ordinal = u32::try_from(reader.number()?)
-                        .map_err(|_| "provider calling formal ordinal exceeds u32")?;
-                    if operands
-                        .last()
-                        .is_some_and(|(previous, _, _)| *previous >= ordinal)
-                    {
-                        return Err("provider calling operands repeat or reorder formal ordinals");
-                    }
-                    operands.push((ordinal, reader.tag(5)?, reader.nonempty_string()?));
-                }
-                let key = (declaring, operands);
-                if previous_application
-                    .as_ref()
-                    .is_some_and(|previous| *previous >= key)
-                {
-                    return Err("provider calling applications repeat or reorder complete keys");
-                }
-                previous_application = Some(key);
-                if reader.number()? == 0 {
-                    return Err("provider calling report is empty");
-                }
-                let commitment = reader.blob()?;
-                if commitment.len() != 32 || commitment.iter().all(|byte| *byte == 0) {
-                    return Err("provider calling commitment is empty or has the wrong width");
-                }
-            }
+            reader.calling_applications(requirement)?;
         }
         let mut rows = Vec::new();
         let mut row_keys = Vec::new();
@@ -320,14 +285,61 @@ impl<'a> Reader<'a> {
         }
         Ok(())
     }
+
+    /// Validate the complete v6 roster without granting calling authority or
+    /// replacing its declaration ABI keys with compact report coordinates.
+    fn calling_applications(&mut self, requirement: &str) -> Result<(), &'static str> {
+        let mut previous_application = None;
+        for _ in 0..self.count()? {
+            let actual_requirement = self.nonempty_string()?;
+            if actual_requirement != requirement {
+                return Err("provider calling application differs from its method requirement");
+            }
+            let declaring_application = self.nonempty_string()?;
+            let mut operands = Vec::new();
+            let mut previous_ordinal = None;
+            for _ in 0..self.count()? {
+                let ordinal = u32::try_from(self.number()?)
+                    .map_err(|_| "provider calling operand ordinal exceeds u32")?;
+                if previous_ordinal.is_some_and(|previous| previous >= ordinal) {
+                    return Err("provider calling operand ordinals repeat or reorder");
+                }
+                previous_ordinal = Some(ordinal);
+                let kind = self.tag(semantic_vocabulary::CallingOperandKind::Proposition as u8)?;
+                let identity = self.nonempty_string()?;
+                operands.push((ordinal, kind, identity));
+            }
+            let key = (actual_requirement, declaring_application, operands);
+            if previous_application
+                .as_ref()
+                .is_some_and(|previous| previous >= &key)
+            {
+                return Err("provider calling applications repeat or reorder");
+            }
+            if self.number()? == 0 {
+                return Err("provider calling report coordinate is zero");
+            }
+            let commitment = self.blob()?;
+            if commitment.len() != 32 {
+                return Err("provider calling commitment has the wrong width");
+            }
+            if commitment == [0; 32] {
+                return Err("provider calling commitment is zero");
+            }
+            previous_application = Some(key);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::provider_plan::{
-        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
+        BoundaryCallingPlanCommitment, ProviderBinding, ProviderPlan, ProviderPlanRow,
+        ServiceCallingApplication, ServiceCallingPlan, ServiceMethod, ServiceReceiverApplication,
     };
+    use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
 
     fn selected_plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -378,6 +390,218 @@ mod tests {
         ProviderPlanInput::read(bytes, &Sha256::digest(bytes).into())
     }
 
+    fn plan_with_calling_applications(count: usize) -> ProviderPlan {
+        let mut plan = selected_plan();
+        let kinds = [
+            CallingOperandKind::Type,
+            CallingOperandKind::Const,
+            CallingOperandKind::Value,
+            CallingOperandKind::Machine,
+            CallingOperandKind::Implementation,
+            CallingOperandKind::Proposition,
+        ];
+        for index in 0..count {
+            plan.schema
+                .calling_applications
+                .push(ServiceCallingApplication {
+                    requirement: plan.schema.declaration.methods[0].requirement_identity,
+                    abi: CallingAbiIdentity {
+                        requirement_identity: "Boundary::consume(opaque)".into(),
+                        declaring_application: format!("Boundary<application-{index}>"),
+                        operands: kinds
+                            .iter()
+                            .enumerate()
+                            .map(|(ordinal, kind)| CallingStaticOperand {
+                                ordinal: ordinal as u32,
+                                kind: *kind,
+                                identity: format!("static-operand-{ordinal}"),
+                            })
+                            .collect(),
+                    },
+                    plan: ServiceCallingPlan {
+                        report_fingerprint: index as u64 + 1,
+                        commitment: BoundaryCallingPlanCommitment::from_digest(
+                            [index as u8 + 17; 32],
+                        ),
+                    },
+                });
+        }
+        assert!(plan.validate_against_schema().is_empty());
+        plan
+    }
+
+    fn position(bytes: &[u8], value: &[u8]) -> usize {
+        let matches = bytes
+            .windows(value.len())
+            .enumerate()
+            .filter_map(|(position, candidate)| (candidate == value).then_some(position))
+            .collect::<Vec<_>>();
+        assert_eq!(matches.len(), 1);
+        matches[0]
+    }
+
+    #[test]
+    fn complete_calling_application_rosters_round_trip_in_canonical_order() {
+        for count in 0..=2 {
+            let mut plan = plan_with_calling_applications(count);
+            let bytes = plan.identity_preimage();
+            let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+            assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+            plan.schema.calling_applications.reverse();
+            assert_eq!(bytes, plan.identity_preimage());
+        }
+    }
+
+    #[test]
+    fn distinct_static_applications_can_share_one_physical_calling_plan() {
+        let mut plan = plan_with_calling_applications(2);
+        let first = plan.schema.calling_applications[0].clone();
+        let second = &mut plan.schema.calling_applications[1];
+        second.abi.declaring_application = first.abi.declaring_application;
+        second.abi.operands[0].identity = "static-operand-0-other".into();
+        second.plan = first.plan;
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+        plan.schema.calling_applications.reverse();
+        assert_eq!(bytes, plan.identity_preimage());
+    }
+
+    #[test]
+    fn calling_application_keys_reject_foreign_or_incomplete_coordinates() {
+        let original = plan_with_calling_applications(1);
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0]
+            .abi
+            .requirement_identity = "Other::consume".into();
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling application differs from its method requirement"
+        );
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0]
+            .abi
+            .declaring_application
+            .clear();
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider plan identity is empty"
+        );
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0].abi.operands[0]
+            .identity
+            .clear();
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider plan identity is empty"
+        );
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0].abi.operands[1].ordinal = 0;
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling operand ordinals repeat or reorder"
+        );
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0]
+            .abi
+            .operands
+            .reverse();
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling operand ordinals repeat or reorder"
+        );
+        let mut changed = original.clone();
+        changed
+            .schema
+            .calling_applications
+            .push(changed.schema.calling_applications[0].clone());
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling applications repeat or reorder"
+        );
+        let mut changed = original.clone();
+        changed.schema.calling_applications[0]
+            .plan
+            .report_fingerprint = 0;
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling report coordinate is zero"
+        );
+        let mut changed = original;
+        changed.schema.calling_applications[0].plan.commitment =
+            BoundaryCallingPlanCommitment::from_digest([0; 32]);
+        assert_eq!(
+            read(&changed.identity_preimage()).unwrap_err(),
+            "provider calling commitment is zero"
+        );
+    }
+
+    #[test]
+    fn calling_application_bytes_reject_malformed_lengths_tags_and_order() {
+        let plan = plan_with_calling_applications(1);
+        let bytes = plan.identity_preimage();
+        let operand = position(&bytes, b"static-operand-0");
+        let mut changed = bytes.clone();
+        changed[operand - 9] = 6;
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider plan input has an unknown tag"
+        );
+        let mut changed = bytes.clone();
+        changed[operand - 17..operand - 9]
+            .copy_from_slice(&(u64::from(u32::MAX) + 1).to_le_bytes());
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider calling operand ordinal exceeds u32"
+        );
+        let mut changed = bytes.clone();
+        let commitment = position(&bytes, &[17; 32]);
+        changed[commitment - 8..commitment].copy_from_slice(&31_u64.to_le_bytes());
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider calling commitment has the wrong width"
+        );
+        let mut changed = bytes.clone();
+        let application = position(&bytes, b"Boundary<application-0>");
+        let count = application - 24 - b"Boundary::consume(opaque)".len();
+        changed[count..count + 8].copy_from_slice(&4097_u64.to_le_bytes());
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider plan roster exceeds its bound"
+        );
+        for end in 0..bytes.len() {
+            assert!(
+                read(&bytes[..end]).is_err(),
+                "truncated calling roster at {end}"
+            );
+        }
+        assert!(ProviderPlanInput::read(&bytes, &[0; 32]).is_err());
+        let mut changed = bytes;
+        changed.push(0);
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider plan input has trailing bytes"
+        );
+
+        let bytes = plan_with_calling_applications(2).identity_preimage();
+        let requirement_bytes = b"Boundary::consume(opaque)".len() + 16;
+        let first = position(&bytes, b"Boundary<application-0>") - requirement_bytes;
+        let second = position(&bytes, b"Boundary<application-1>") - requirement_bytes;
+        let end = position(&bytes, &[18; 32]) + 32;
+        let changed = [
+            &bytes[..first],
+            &bytes[second..end],
+            &bytes[first..second],
+            &bytes[end..],
+        ]
+        .concat();
+        assert_eq!(
+            read(&changed).unwrap_err(),
+            "provider calling applications repeat or reorder"
+        );
+    }
+
     #[test]
     fn original_full_plan_input_exposes_exact_checked_row() {
         let plan = selected_plan();
@@ -390,71 +614,6 @@ mod tests {
         assert_eq!(
             input.rows[0].checked_adapter,
             Some(("Provider::consume(opaque)", None))
-        );
-    }
-
-    #[test]
-    fn retained_plan_reads_plural_full_abi_keys_and_rejects_malformed_rosters() {
-        use super::super::{
-            BoundaryCallingPlanCommitment, ServiceCallingApplication, ServiceCallingPlan,
-        };
-        use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
-        let mut plan = selected_plan();
-        let requirement = plan.schema.declaration.methods[0].requirement_identity;
-        plan.schema.calling_applications = ["u32", "u64"]
-            .into_iter()
-            .enumerate()
-            .map(|(ordinal, identity)| ServiceCallingApplication {
-                requirement,
-                abi: CallingAbiIdentity {
-                    requirement_identity: plan.schema.identity_text(requirement).into(),
-                    declaring_application: "Boundary<opaque>".into(),
-                    operands: vec![CallingStaticOperand {
-                        ordinal: 0,
-                        kind: CallingOperandKind::Type,
-                        identity: identity.into(),
-                    }],
-                },
-                plan: ServiceCallingPlan {
-                    report_fingerprint: ordinal as u64 + 1,
-                    commitment: BoundaryCallingPlanCommitment::from_digest([ordinal as u8 + 1; 32]),
-                },
-            })
-            .collect();
-        assert!(plan.validate_against_schema().is_empty());
-        let bytes = plan.identity_preimage();
-        let input = read(&bytes).unwrap();
-        assert_eq!(input.rows.len(), 1);
-        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
-        let mut duplicate = plan.clone();
-        duplicate
-            .schema
-            .calling_applications
-            .push(duplicate.schema.calling_applications[0].clone());
-        assert!(
-            read(&duplicate.identity_preimage())
-                .unwrap_err()
-                .contains("complete keys")
-        );
-        let mut foreign = plan.clone();
-        foreign.schema.calling_applications[0]
-            .abi
-            .requirement_identity = "Other::consume".into();
-        assert!(
-            read(&foreign.identity_preimage())
-                .unwrap_err()
-                .contains("schema requirement")
-        );
-        let mut repeated_operand = plan;
-        let operand = repeated_operand.schema.calling_applications[0].abi.operands[0].clone();
-        repeated_operand.schema.calling_applications[0]
-            .abi
-            .operands
-            .push(operand);
-        assert!(
-            read(&repeated_operand.identity_preimage())
-                .unwrap_err()
-                .contains("formal ordinals")
         );
     }
 

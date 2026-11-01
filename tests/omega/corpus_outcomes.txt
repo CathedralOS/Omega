@@ -8316,58 +8316,58 @@ pass/facts/non_owning_reference_erasure_through_other_state_exit checked 4277ms 
 pass/facts/non_owning_reference_erasure_through_parameter_exit checked 3511ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/non_owning_reference_erasure_through_target_body_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_closed_carrier_exchange_exit checked 20977ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_call_result_exit checked 3489ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_const_name_exit checked 3624ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_field_exit checked 4054ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_local_exit checked 3387ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_match_join_exit checked 3860ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_other_machine_exit checked 4317ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_other_state_exit checked 3815ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_parameter_exit checked 4192ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_closed_carrier_through_target_body_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/opaque_closed_carrier_through_call_result_exit checked 2376ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_const_name_exit checked 2324ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_field_exit checked 2328ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_local_exit checked 2330ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_match_join_exit checked 2417ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_other_machine_exit checked 2374ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_other_state_exit checked 2347ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_parameter_exit checked 2279ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_closed_carrier_through_target_body_exit checked 2400ms check-target:macos_arm64 @60ee163d4f0f
 pass/facts/opaque_inactive_carrier_payload_exit checked 16684ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_call_result_exit checked 8076ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_const_name_exit checked 6936ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_field_exit checked 6960ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_local_exit checked 6648ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_match_join_exit checked 8599ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 8888ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 7969ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 7909ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 7684ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_call_result_exit checked 8001ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_const_name_exit checked 8012ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_field_exit checked 8414ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_local_exit checked 8781ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_match_join_exit checked 8063ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_other_machine_exit checked 7767ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_other_state_exit checked 8085ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_parameter_exit checked 9613ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_copy_through_target_body_exit checked 7160ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_inherited_result_through_local_exit checked 25083ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_linear_through_call_result_exit checked 8901ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_const_name_exit checked 8454ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_field_exit checked 8535ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_local_exit checked 7186ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_match_join_exit checked 8929ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_other_machine_exit checked 7521ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_other_state_exit checked 7499ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_parameter_exit checked 7951ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_linear_through_target_body_exit checked 7449ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/opaque_independent_qualified_input_import_alias_exit checked 20918ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit checked 28095ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_call_result_exit checked 17145ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_const_name_exit checked 15844ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_field_exit checked 17018ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_local_exit checked 21042ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_match_join_exit checked 21087ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_other_machine_exit checked 24929ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_other_state_exit checked 25016ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_parameter_exit checked 19300ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_input_through_target_body_exit checked 18133ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_result_import_alias_exit checked 17536ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit checked 16922ms check-target:macos_arm64 @c375270acaf3
-pass/facts/opaque_independent_qualified_result_through_local_exit checked 16572ms check-target:macos_arm64 @c375270acaf3
+pass/facts/opaque_independent_closed_carrier_through_call_result_exit checked 4659ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_const_name_exit checked 4683ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_field_exit checked 4805ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_local_exit checked 4542ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_match_join_exit checked 4569ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 4536ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 4661ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 5579ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 4733ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_call_result_exit checked 4759ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_const_name_exit checked 4530ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_field_exit checked 4622ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_local_exit checked 4915ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_match_join_exit checked 5167ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_other_machine_exit checked 4561ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_other_state_exit checked 4629ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_parameter_exit checked 4655ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_copy_through_target_body_exit checked 4611ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_inherited_result_through_local_exit checked 4695ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_call_result_exit checked 5237ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_const_name_exit checked 4610ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_field_exit checked 4597ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_local_exit checked 3163ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_match_join_exit checked 5556ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_other_machine_exit checked 5589ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_other_state_exit checked 4614ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_parameter_exit checked 4871ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_linear_through_target_body_exit checked 2994ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_import_alias_exit checked 4850ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit checked 4590ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_call_result_exit checked 4575ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_const_name_exit checked 4575ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_field_exit checked 4573ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_local_exit checked 4647ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_match_join_exit checked 4644ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_other_machine_exit checked 4836ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_other_state_exit checked 4864ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_parameter_exit checked 4568ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_input_through_target_body_exit checked 4613ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_result_import_alias_exit checked 4684ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit checked 4607ms check-target:macos_arm64 @60ee163d4f0f
+pass/facts/opaque_independent_qualified_result_through_local_exit checked 3195ms check-target:macos_arm64 @60ee163d4f0f
 pass/facts/opaque_inherited_result_scalar_parent_tag_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/opaque_nested_carrier_exchange_exit checked 45215ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @ccdb99ca2214
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 22228ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @ccdb99ca2214
@@ -26303,109 +26303,109 @@ fail/facts/non_owning_reference_erasure_through_target_body_rejected rejected 13
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/opaque_closed_carrier_through_call_result_cleanup rejected 485ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_call_result_cleanup rejected 224ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_const_name_cleanup rejected 547ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_const_name_cleanup rejected 221ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_field_cleanup rejected 477ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_field_cleanup rejected 219ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_local_cleanup rejected 593ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_local_cleanup rejected 223ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_match_join_cleanup rejected 582ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_match_join_cleanup rejected 226ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_other_machine_cleanup rejected 610ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_other_machine_cleanup rejected 218ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_other_state_cleanup rejected 629ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_other_state_cleanup rejected 219ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_parameter_cleanup rejected 864ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_parameter_cleanup rejected 222ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_closed_carrier_through_target_body_cleanup rejected 903ms expected @ccdb99ca2214
+fail/facts/opaque_closed_carrier_through_target_body_cleanup rejected 225ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_growing_carrier_family rejected 6884ms expected @ccdb99ca2214
 	opaque representation carrier graph at `AddressCarrier<AddressWord>.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
 fail/facts/opaque_inactive_carrier_payload_cleanup rejected 7210ms expected @ccdb99ca2214
 	opaque representation carrier graph at `Carrier<Leaf>::Full(value)` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_call_result_cleanup rejected 1062ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_call_result_cleanup rejected 370ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_const_name_cleanup rejected 1279ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_const_name_cleanup rejected 350ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_field_cleanup rejected 1237ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_field_cleanup rejected 353ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_local_cleanup rejected 951ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_local_cleanup rejected 358ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_match_join_cleanup rejected 1236ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_match_join_cleanup rejected 366ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_other_machine_cleanup rejected 1284ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_other_machine_cleanup rejected 368ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_other_state_cleanup rejected 845ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_other_state_cleanup rejected 356ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 1106ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 349ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 1182ms expected @ccdb99ca2214
+fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 355ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_copy_through_call_result_rejected rejected 7342ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_call_result_rejected rejected 3444ms expected @60ee163d4f0f
 	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_const_name_rejected rejected 6411ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_const_name_rejected rejected 3150ms expected @60ee163d4f0f
 	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_field_rejected rejected 5905ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_field_rejected rejected 3192ms expected @60ee163d4f0f
 	cannot use `stored.value` in machine `observe` state `entry` (statement 3) after `stored.value` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `stored.value` first
-fail/facts/opaque_independent_copy_through_local_rejected rejected 7019ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_local_rejected rejected 3177ms expected @60ee163d4f0f
 	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_match_join_rejected rejected 7682ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_match_join_rejected rejected 3417ms expected @60ee163d4f0f
 	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_other_machine_rejected rejected 6089ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_other_machine_rejected rejected 3188ms expected @60ee163d4f0f
 	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_other_state_rejected rejected 6055ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_other_state_rejected rejected 3377ms expected @60ee163d4f0f
 	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_parameter_rejected rejected 6638ms expected @ccdb99ca2214
+fail/facts/opaque_independent_copy_through_parameter_rejected rejected 3136ms expected @60ee163d4f0f
 	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_copy_through_target_body_rejected rejected 5731ms expected @ccdb99ca2214
-	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 14895ms expected @c375270acaf3
+fail/facts/opaque_independent_copy_through_target_body_rejected rejected 3139ms expected @60ee163d4f0f
+	cannot use `first` in machine `ExchangeObservationCode::observe` state `observe` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 1587ms expected @60ee163d4f0f
 	`as ... in InternetAddress::Classified::Ready` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified::Ready
-fail/facts/opaque_independent_linear_through_call_result_unconsumed rejected 8441ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_call_result_unconsumed rejected 4009ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_const_name_unconsumed rejected 6010ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_const_name_unconsumed rejected 3332ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_field_unconsumed rejected 7007ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_field_unconsumed rejected 3469ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_local_unconsumed rejected 4408ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_local_unconsumed rejected 3376ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_match_join_unconsumed rejected 7195ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_match_join_unconsumed rejected 4046ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_other_machine_unconsumed rejected 8103ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_other_machine_unconsumed rejected 4046ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_other_state_unconsumed rejected 7893ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_other_state_unconsumed rejected 3318ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_parameter_unconsumed rejected 6308ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_parameter_unconsumed rejected 3326ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_linear_through_target_body_unconsumed rejected 6881ms expected @ccdb99ca2214
+fail/facts/opaque_independent_linear_through_target_body_unconsumed rejected 3621ms expected @60ee163d4f0f
 	linear value `pair.second` reaches scope exit without being consumed or transferred in machine `consume` state `entry`
-fail/facts/opaque_independent_qualified_input_bare_sibling_unissued rejected 6875ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_bare_sibling_unissued rejected 3692ms expected @60ee163d4f0f
 	cannot prove requires contract for call consume from observe: moved in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_input_through_call_result_unissued rejected 6599ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_call_result_unissued rejected 3384ms expected @60ee163d4f0f
 	cannot prove default-domain field requirement for return from produce, state entry, at statement 0: AddressBridge.make(10, 66051) requires InternetAddress::Classified
-fail/facts/opaque_independent_qualified_input_through_const_name_unissued rejected 7339ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_const_name_unissued rejected 3676ms expected @60ee163d4f0f
 	cannot prove requires contract for call consume from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_input_through_field_unissued rejected 6689ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_field_unissued rejected 3346ms expected @60ee163d4f0f
 	cannot prove requires contract for call consume from observe: stored.value in InternetAddress::Classified in state `entry`
 	construction of `AddressBox` field `value` is not proven in domain `InternetAddress::Classified` in observe state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/opaque_independent_qualified_input_through_local_unissued rejected 5884ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_local_unissued rejected 3322ms expected @60ee163d4f0f
 	cannot prove requires contract for call consume from observe: moved in InternetAddress::Classified in state `entry`
 	cannot prove initializer of `first` in observe is in domain `InternetAddress::Classified`; an annotation cannot establish routed qualification
 	cannot prove initializer of `moved` in observe is in domain `InternetAddress::Classified`; an annotation cannot establish routed qualification
-fail/facts/opaque_independent_qualified_input_through_match_join_unissued rejected 5139ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_match_join_unissued rejected 2474ms expected @60ee163d4f0f
 	match arms produce incompatible values
-fail/facts/opaque_independent_qualified_input_through_other_machine_unissued rejected 7291ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_other_machine_unissued rejected 3693ms expected @60ee163d4f0f
 	cannot prove requires contract for call forward from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_input_through_other_state_unissued rejected 6211ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_other_state_unissued rejected 3346ms expected @60ee163d4f0f
 	cannot prove requires contract for call receive from main: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_input_through_parameter_unissued rejected 6536ms expected @ccdb99ca2214
+fail/facts/opaque_independent_qualified_input_through_parameter_unissued rejected 3595ms expected @60ee163d4f0f
 	cannot prove requires contract for call receive from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_input_through_target_body_unissued rejected 6815ms expected @ccdb99ca2214
-	cannot prove requires contract for call consume from observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 8712ms expected @c375270acaf3
+fail/facts/opaque_independent_qualified_input_through_target_body_unissued rejected 3369ms expected @60ee163d4f0f
+	cannot prove requires contract for call consume from UnissuedExchangeObservationCode::observe: AddressBridge.make(10, 66051) in InternetAddress::Classified in state `observe`
+fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 1554ms expected @60ee163d4f0f
 	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified
 fail/facts/opaque_nested_carrier_cleanup rejected 7047ms expected @ccdb99ca2214
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
