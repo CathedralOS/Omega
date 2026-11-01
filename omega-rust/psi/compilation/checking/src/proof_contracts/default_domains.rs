@@ -1004,8 +1004,8 @@ fn walk_state(
                     program,
                     machine,
                     state,
-                    assignment.target,
-                    assignment.value,
+                    statement,
+                    call_frames,
                     &mut tracked,
                     entry_valuations,
                     &inherited_windows,
@@ -1013,6 +1013,7 @@ fn walk_state(
                     &mut poisoned_paths,
                     born_zero,
                     statement_ordinal,
+                    diagnostics,
                 );
                 // Assignment checking establishes the destination's declared
                 // type, not an unfinished containing predicate or every

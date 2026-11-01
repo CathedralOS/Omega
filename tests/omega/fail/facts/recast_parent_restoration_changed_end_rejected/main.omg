@@ -1,0 +1,20 @@
+// Expected exit: 0
+public data Pair [copy]
+requires self.start >= 0 && self.start <= self.end,
+{ before: u32; start: i32; end: i32; after: u32; }
+public machine inspect(pair: &mut Pair) {
+    let view: &mut u32 = &mut pair.start as &mut u32;
+    view = 0xFFFFFFFFu32;
+    pair.end = -2;
+    view = 0u32;
+}
+machine main() crashes Trap {
+    let mut pair: Pair = Pair { before: 0x13579BDF, start: 0, end: 10, after: 0x2468ACE0 };
+    inspect(&mut pair);
+    transition pair.start == 0 && pair.end == 10 && pair.before == 0x13579BDF && pair.after == 0x2468ACE0 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

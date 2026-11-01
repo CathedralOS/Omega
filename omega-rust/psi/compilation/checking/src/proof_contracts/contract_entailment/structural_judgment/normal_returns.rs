@@ -1798,14 +1798,15 @@ impl<'program> StructuralJudge<'program> {
                     ) {
                         Some(converted) => converted,
                         None if judge.runtime_body_values
-                            && !cast.form.is_recast()
-                            && program.primitive_type_reference(cast.target_type).is_some() =>
+                            && (cast.form.is_recast()
+                                || program.primitive_type_reference(cast.target_type).is_some()) =>
                         {
-                            // All operands and effects have completed. Missing
-                            // symbolic conversion meaning loses its equations,
-                            // not this path or unrelated captured inputs. In
-                            // particular a readable reference descriptor does
-                            // not become a proved scalar observation here.
+                            // All operands and effects have completed. A formed
+                            // reference or conversion result may have no symbolic
+                            // denotation. Keep its opaque descriptor and the
+                            // executed prefix, without asserting referent contents.
+                            // The storage-origin owner independently carries the
+                            // backing used by subsequent reads and writes.
                             judge.capture_unknown_value(expression, scope)?
                         }
                         None => return None,

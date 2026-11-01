@@ -22,19 +22,11 @@ pub(crate) fn stored_data_predicate_holds(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    receiver: ExpressionHandle,
+    place: &crate::CanonicalPlace,
     definition: &DataDefinition,
     active_case: Option<symbols::SymbolHandle>,
     predicate: ExpressionHandle,
 ) -> bool {
-    let Some(place) = crate::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        receiver,
-    ) else {
-        return false;
-    };
     let Some(next_statement) = statement_index.checked_add(1) else {
         return false;
     };
@@ -44,7 +36,7 @@ pub(crate) fn stored_data_predicate_holds(
             statement_index: next_statement,
             in_transition_target: false,
         },
-        place,
+        place: place.clone(),
         definition,
         active_case,
         predicate,
