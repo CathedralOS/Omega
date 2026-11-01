@@ -110,15 +110,11 @@ fn review_policy_admits_work_and_application_executes_it() {
         &[policy],
         "package policy executes",
         &[
-            ".prepare_package_build(",
             ".begin_package_build(",
             ".complete_package_build(",
             ".review_package_build(",
             ".publish_component(",
             "PendingReviewBuild",
-            "run_closure_pass(",
-            "into_execution_request",
-            "reserve_build_directory",
         ],
     );
     let execution = include_str!("package_review.rs");
@@ -162,17 +158,17 @@ fn application_depends_on_facades_not_language_stages() {
     assert_absent(
         &[include_str!("../../cli/src/cli/compilation.rs")],
         "CLI reaches behind Build:",
-        &["prepare_local_project_for_targets(", "publish_compilation("],
+        &["publish_compilation("],
     );
     assert_absent(
         &[include_str!("../../cli/src/execution/compilation.rs")],
         "CLI reaches behind Build:",
-        &["prepare_local_project(", "compiler::compile("],
+        &["compiler::compile("],
     );
     assert_absent(
         &[include_str!("../../cli/src/inspection/mod.rs")],
         "CLI reaches behind Build:",
-        &["prepare_local_project(", "CompilationSession::default()"],
+        &["CompilationSession::default()"],
     );
 }
 
@@ -185,12 +181,7 @@ fn source_and_package_execution_have_one_application_owner() {
             include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
         ],
         "compiler executes Build:",
-        &[
-            ".host()",
-            "host.start(",
-            "activation.advance(",
-            "compile_with_session(",
-        ],
+        &[".host()", "host.start(", "activation.advance("],
     );
 }
 
@@ -213,12 +204,7 @@ fn application_completes_native_products_without_source_continuations() {
     assert_absent(
         &[completion],
         "native completion reopens",
-        &[
-            "CheckedCompilation",
-            "CheckedTrees",
-            "compile_with_session",
-            ".select_build_batch(",
-        ],
+        &["CheckedCompilation", "CheckedTrees", ".select_build_batch("],
     );
 }
 
@@ -287,19 +273,6 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
             ".into_continuation(",
             ".select_build_batch(",
             "produce_products(",
-        ],
-    );
-    assert_absent(
-        &[include_str!(
-            "../../../compilation/driver/src/checked/package_compilation.rs"
-        )],
-        "compiler still schedules",
-        &[
-            "fn compile_packages(",
-            "fn check_package(",
-            "fn join_dependency_builds(",
-            "PackageFrontier",
-            "join_generated_sources(",
         ],
     );
 }

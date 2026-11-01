@@ -139,7 +139,7 @@ pub fn prepare_package(
 /// Execute dependencies and join their generated source into the root's inputs,
 /// leaving the root Build unexecuted. Diagnostic/review consumers may then
 /// compile that root under their own requested stop through the same compiler.
-pub fn join_dependency_builds(
+pub(crate) fn join_dependency_builds(
     compiler: &mut CompilationSession,
     occurrences: Vec<CheckedCompileRequest>,
 ) -> Result<package_compilation::PackageCompilationInputs, PackageCompileFailure> {

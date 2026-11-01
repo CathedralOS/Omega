@@ -146,7 +146,7 @@ pub trait LayoutQueryMeasurements {
 /// resolves or reports the layout authority's diagnostic. `selection` owns
 /// evaluation work, so canonical Product descriptions remain untouched while
 /// Build is evaluated on the same arenas.
-pub fn fold_data_layout_queries(
+pub(crate) fn fold_data_layout_queries(
     program: &mut TypedTrees,
     defer_uninstalled_plans: bool,
     selection: &DeclarationSelection,

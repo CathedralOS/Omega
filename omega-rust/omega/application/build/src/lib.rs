@@ -45,7 +45,7 @@ pub use build_execution::source_resolution::{
 };
 pub use build_session::BuildSession;
 pub use package_commands::execute_package_command;
-pub use package_compilation::{compile_packages, join_dependency_builds, prepare_package};
+pub use package_compilation::{compile_packages, prepare_package};
 pub use package_inspection::inspect_packages;
 
 use artifacts::compile_timings::CompileTimings;
