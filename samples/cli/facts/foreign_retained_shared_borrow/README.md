@@ -115,6 +115,13 @@ slot and completes the temporarily installed registration; its
 original backing. Distinct 37/91 values and opposite permitted writes make the
 current slot and loan epoch observable. Both pairs have matching pass/fail pins.
 
+The [borrowed-slot swap](controls/borrowed_slot_swap/main.omg) moves both tokens
+through a borrowed parameter and exchanges their caller-owned slots. Completing
+the swapped 91 token permits its backing write while the remaining token still
+observes 37. Its [twin](controls/borrowed_slot_swap/invalid/main.omg) writes the
+still-retained 37 backing. The matching pass/fail pins require logical contents
+to cross the borrowed parameter without retaining the address of the token slot.
+
 The former receiver-namespace refusal was an implementation limit: matching
 explicit lifetimes permit the helper once its complete normal-exit loan relation
 is carried to the caller. A historical install that is subsequently consumed or

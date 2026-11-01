@@ -21,6 +21,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     parameter: &StateParameter,
     actual: ExpressionHandle,
     relative: &FramePlaceOrigin,
+    retained_access: Option<language_semantics::ReferenceAccess>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
@@ -41,6 +42,30 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         {
             return None;
         }
+        // A dependency projected from a token loads that token's debt, while
+        // a dependency projected from ordinary backing retains the backing.
+        // Reference results still project addresses even when their referee is
+        // itself a retained carrier.
+        let logical = retained_access.is_some()
+            && crate::reference_shell(program, parameter.type_reference)
+                .and_then(|shell| {
+                    super::super::stored_origins::projected_storage_type(
+                        program,
+                        shell.referee,
+                        &relative.source.segments,
+                    )
+                })
+                .and_then(|reference| {
+                    crate::borrow_contracts::retained_lifetime_owner_paths(program, reference)
+                })
+                .is_some_and(|paths| paths.iter().any(Vec::is_empty));
+        let projected_kind = if logical {
+            super::super::stored_origins::StoredOriginKind::LifetimeDependency
+        } else {
+            super::super::stored_origins::StoredOriginKind::Reference(
+                crate::reference_shell(program, parameter.type_reference)?.access,
+            )
+        };
         let origins = inputs.reference(actual, parameter.type_reference, true, inference)?;
         let (_, suffix) = split_place_root(&relative.path);
         let mut sources = Vec::new();
@@ -51,6 +76,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
                 suffix,
                 relative.precision,
                 &relative.source,
+                projected_kind,
             )?);
         }
         return Some(sources);
@@ -74,6 +100,9 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
                 suffix,
                 relative.precision,
                 &relative.source,
+                super::super::stored_origins::StoredOriginKind::Reference(
+                    crate::reference_shell(program, parameter.type_reference)?.access,
+                ),
             )?);
         }
         return Some(sources);
@@ -148,6 +177,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
             suffix,
             relative.precision,
             &remaining,
+            leaf.kind,
         )? {
             if !sources.contains(&source) {
                 sources.push(source);

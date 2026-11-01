@@ -193,6 +193,7 @@ fn observations(
         parameter,
         captured.expression,
         &supplied.origin,
+        supplied.lifetime_access,
         symbols,
         &mut captured.inference.clone(),
         true,
@@ -555,6 +556,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         suffix: &str,
         precision: super::super::FramePathPrecision,
         relative: &super::super::FrameSourcePlace,
+        kind: stored_origins::StoredOriginKind,
     ) -> Option<Vec<ReferenceSource>> {
         if matches!(&source, ReferenceSource::Captured(observed) if observed.source.lifetime_access.is_some())
         {
@@ -576,6 +578,39 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             &observed.source.origin,
             &self.entry.stored,
         )?;
+        let completed = if kind == stored_origins::StoredOriginKind::LifetimeDependency {
+            // The outer pointer identified storage, not the debt stored there.
+            // Load the exact token at this invocation's captured entry cut;
+            // its previous backing must survive later slot replacement.
+            let mut dependencies = Vec::new();
+            for source in completed {
+                if source.lifetime_access.is_some() {
+                    if !dependencies.contains(&source) {
+                        dependencies.push(source);
+                    }
+                    continue;
+                }
+                let carrier = &source.origin.source;
+                let record = self
+                    .entry
+                    .stored
+                    .iter()
+                    .find(|record| record.local_symbol == carrier.root)?;
+                for mut dependency in
+                    stored_origins::selected_slot_sources(record, &carrier.segments, None)?
+                {
+                    dependency.lifetime_access?;
+                    dependency.carrier = carrier.clone();
+                    dependency.carrier_backing = None;
+                    if !dependencies.contains(&dependency) {
+                        dependencies.push(dependency);
+                    }
+                }
+            }
+            dependencies
+        } else {
+            completed
+        };
         Some(
             completed
                 .into_iter()

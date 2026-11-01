@@ -55,7 +55,12 @@ pub(in crate::machine_calls::calls::write_frames) fn written_paths(
     )?;
     let mut written = Vec::new();
     for leaf in leaves.references {
-        if matches!(leaf.kind, super::super::stored_origins::StoredOriginKind::Reference(access) if !access.is_exclusive())
+        // Retained lifetime debt travels with the owned argument, but supplies
+        // no pointer through which this invocation can write caller storage.
+        // Requiring its absent physical origin would make the entire frame
+        // opaque and erase facts about an unrelated replacement in that slot.
+        if !leaf.kind.may_indirect_storage()
+            || matches!(leaf.kind, super::super::stored_origins::StoredOriginKind::Reference(access) if !access.is_exclusive())
         {
             continue;
         }
@@ -242,6 +247,7 @@ pub(in crate::machine_calls::calls::write_frames) trait ArgumentOrigins {
         suffix: &str,
         precision: FramePathPrecision,
         relative: &super::super::FrameSourcePlace,
+        _kind: super::super::stored_origins::StoredOriginKind,
     ) -> Option<Vec<ReferenceSource>> {
         Some(vec![super::super::result_origins::compose_source(
             program, source, suffix, precision, relative,
