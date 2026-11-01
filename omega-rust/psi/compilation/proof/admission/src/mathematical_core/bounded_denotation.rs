@@ -159,7 +159,7 @@ use semantic_vocabulary::{
 
 use super::certificate::{
     MathematicalCertificate, certificate_assumption_closure, run_on_verification_stack,
-    verify_mathematical_certificate_on_current_thread,
+    verify_mathematical_certificate,
 };
 use super::conversion::Budget;
 use super::scheme_dsl::{self, Syntax};
@@ -493,12 +493,8 @@ pub(crate) fn verify_bounded_certificate_on_current_thread(
         machine_parameter_values,
         proof,
     )?;
-    verify_mathematical_certificate_on_current_thread(
-        &mut denoted.arena,
-        &denoted.certificate,
-        budget,
-    )
-    .map_err(BoundedDenotationError::Kernel)?;
+    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, budget)
+        .map_err(BoundedDenotationError::Kernel)?;
     Ok(denoted)
 }
 
