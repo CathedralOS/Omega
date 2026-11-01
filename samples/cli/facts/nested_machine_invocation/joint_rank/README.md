@@ -252,3 +252,7 @@ loan. Windows x86-64 native and Terminal Psi agree; other hosts were not run.
 [Mutable distance endpoints](parameter/bounded_distance/moving_upper/mutable_upper/README.md)
 carry the same fact through indexed storage in all nine places, retaining
 entry selectors and bounds while observing the replacement value after mutation.
+
+[Computed distance endpoints](parameter/bounded_distance/moving_upper/computed_upper/README.md)
+carry the same fact through arithmetic over explicit entry inputs in all nine
+places, preserving completed captures and each formal's carrier and policy.

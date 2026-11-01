@@ -87,70 +87,6 @@ pub(super) struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
-    pub(super) fn declaration_input(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<(ComputationHandle, TypeReferenceHandle)> {
-        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-        else {
-            return None;
-        };
-        let (_, value) = self
-            .declaration_values
-            .iter()
-            .find(|(formal, _)| *formal == name.symbol)?;
-        let formal = self
-            .declaration_parameters
-            .iter()
-            .find(|formal| formal.symbol == name.symbol)?;
-        (self.program.primitive_type_reference(formal.type_reference)
-            == Some(self.plans.nodes.get(*value).primitive_type))
-        .then_some((*value, formal.type_reference))
-    }
-
-    /// Pure lowering owns a scalar telescope, so a subtree that refers to
-    /// an explicitly rebound declaration input must first pass through the
-    /// computation graph. The shared typed-reference walk owns all expression
-    /// forms; independent literals and ordinary formals retain their fast path.
-    pub(super) fn has_declaration_binding(&self, expression: ExpressionHandle) -> bool {
-        if self.declaration_bindings.is_empty() {
-            return false;
-        }
-        struct Bindings<'bindings> {
-            bindings: &'bindings [(validation::CanonicalPlace, validation::CanonicalPlace)],
-            found: bool,
-            visited: Vec<ExpressionHandle>,
-        }
-        impl Extend<SymbolHandle> for Bindings<'_> {
-            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-                self.found |= symbols.into_iter().any(|symbol| {
-                    self.bindings
-                        .iter()
-                        .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
-                });
-            }
-        }
-        impl typed_trees::references::TypedReferences for Bindings<'_> {
-            fn expression(&mut self, expression: ExpressionHandle) -> bool {
-                if self.visited.contains(&expression) {
-                    return false;
-                }
-                self.visited.push(expression);
-                true
-            }
-            fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
-                false
-            }
-        }
-        let mut bindings = Bindings {
-            bindings: self.declaration_bindings,
-            found: false,
-            visited: Vec::new(),
-        };
-        typed_trees::references::visit_expression(self.program, &mut bindings, expression);
-        bindings.found
-    }
-
     pub(super) fn record_root(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
@@ -525,7 +461,9 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<ComputationHandle> {
-        if let Some((value, _)) = self.declaration_input(expression) {
+        // Only an unbound name permits ordinary lowering; a rejected binding
+        // makes this computation unavailable instead of selecting another input.
+        if let Some((value, _)) = self.declaration_input(expression).ok()? {
             return (self.plans.nodes.get(value).primitive_type == expected_type).then_some(value);
         }
         if let Some((constant, primitive)) = self.retained_constant(expression) {
@@ -567,23 +505,6 @@ impl Builder<'_, '_> {
             return Some(observation);
         }
 
-        if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-            && self
-                .program
-                .expression_table
-                .name_path_is_single_member(name)
-        {
-            let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
-                formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()
-            });
-            if let Some((_, coordinate)) = selected.next() {
-                if selected.next().is_some() {
-                    return None;
-                }
-                let coordinate = coordinate.clone();
-                return self.scalar_coordinate(expression, &coordinate, expected_type, &[]);
-            }
-        }
         if validation::atomic_load_carrier(self.program, expression).is_some() {
             return self.atomic_load(expression, expected_type);
         }
