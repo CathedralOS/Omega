@@ -244,6 +244,44 @@ pub(super) fn aggregate_expression_borrow_loans(
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
+    let mut loans = aggregate_expression_borrow_loans_inner(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        local_data,
+        type_reference,
+        expression,
+        owner_path_prefix,
+        loan_trackers,
+    );
+    if program
+        .type_reference_table
+        .case_view_subject(type_reference)
+        .is_some_and(|subject| validation::reference_shell(program, subject).is_none())
+    {
+        loans.retain(|loan| {
+            loan.owner_path.len() == owner_path_prefix.len()
+                || matches!(
+                    loan.owner_path.get(owner_path_prefix.len()),
+                    Some(BorrowOwnerSegment::Case(_))
+                )
+        });
+    }
+    loans
+}
+
+fn aggregate_expression_borrow_loans_inner(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+    owner_path_prefix: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
     match program.expression_table.expression(expression) {
         checked_trees::expression::ExpressionNode::Call(call) => {
             if let Some(field_loans) = super::returned_carriers::result_loans(

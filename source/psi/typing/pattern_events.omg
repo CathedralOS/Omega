@@ -1,0 +1,95 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::statements;
+use psi::typing::typer;
+
+public data PatternTypeEvent [copy] {
+    subject: u64 in Trapping;
+    arm: u64 in Trapping;
+    start: u64 in Trapping;
+}
+
+// The subject has typed before an arm's first guard/body node. Publish its
+// exact binder types at that boundary, before a nested match reads them.
+public machine Typer::prepare_pattern_types(typer: &mut Typer, syntax: &SyntaxTrees, root: u64 in Trapping)
+crashes Trap
+{
+    typer.pattern_event_count = 0;
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> scan(typer, syntax, tree.first_row, root + 1) }
+    machine scan(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, next: u64 in Trapping) {
+        transition next > low && typer.output.accepted {
+            true -> node(typer, syntax, low, next - 1)
+            _ -> done()
+        }
+    }
+    machine node(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        transition expression.kind == ExpressionKind::Match {
+            true -> arm(typer, syntax, low, index, expression, 0)
+            _ -> scan(typer, syntax, low, index)
+        }
+    }
+    machine arm(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        transition offset < expression.count && typer.output.accepted {
+            true -> selected(typer, syntax, low, index, expression, offset)
+            _ -> scan(typer, syntax, low, index)
+        }
+    }
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        let selected: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        transition selected.field_count > 0 {
+            true -> bounded(typer, syntax, low, index, expression, offset, selected)
+            _ -> arm(typer, syntax, low, index, expression, offset + 1)
+        }
+    }
+    machine bounded(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm) {
+        transition typer.pattern_event_count < 256 {
+            true -> stored(typer, syntax, low, index, expression, offset, selected)
+            _ -> full(typer, selected.source_span)
+        }
+    }
+    machine stored(typer: &mut Typer, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm)
+    requires typer.pattern_event_count < 256
+    {
+        let value: Expression = SyntaxTrees::expression(syntax, selected.target);
+        let start: u64 in Trapping = match selected.has_guard { true -> SyntaxTrees::expression(syntax, selected.guard).first_row false -> value.first_row };
+        typer.pattern_events[typer.pattern_event_count] = PatternTypeEvent { subject: expression.left, arm: expression.first + offset, start: start };
+        typer.pattern_event_count = typer.pattern_event_count + 1;
+        transition { _ -> arm(typer, syntax, low, index, expression, offset + 1) }
+    }
+    machine full(typer: &mut Typer, source_span: SourceSpan) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
+    }
+    machine done() {}
+}
+
+public machine Typer::pattern_types_at(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> event(typer, sources, syntax, resolution, index, 0) }
+    machine event(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < typer.pattern_event_count && offset < 256 && typer.output.accepted {
+            true -> pending(typer, sources, syntax, resolution, index, offset)
+            _ -> done()
+        }
+    }
+    machine pending(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, offset: u64 in Trapping)
+    requires offset < 256
+    {
+        let selected: PatternTypeEvent = typer.pattern_events[offset];
+        transition selected.start == index {
+            true -> bind(typer, sources, syntax, resolution, index, offset, selected)
+            _ -> event(typer, sources, syntax, resolution, index, offset + 1)
+        }
+    }
+    machine bind(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, offset: u64 in Trapping, selected: PatternTypeEvent) {
+        let reference: u64 in Trapping = Typing::expression_type(&typer.output, selected.subject);
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, selected.arm);
+        Typer::type_pattern(typer, sources, syntax, resolution, arm, reference, selected.subject);
+        transition { _ -> event(typer, sources, syntax, resolution, index, offset + 1) }
+    }
+    machine done() {}
+}

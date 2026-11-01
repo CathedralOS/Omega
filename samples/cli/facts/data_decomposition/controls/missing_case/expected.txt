@@ -1,0 +1,1 @@
+data pattern must mention every declared component

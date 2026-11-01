@@ -375,6 +375,9 @@ impl Capture<'_> {
         }
         self.active_types.push(reference);
         let value = match program.type_reference_table.type_reference(reference) {
+            types::TypeReferenceNode::CaseView { subject } => {
+                ProductOperandType::CaseView(self.ty(*subject)?)
+            }
             types::TypeReferenceNode::Unit => ProductOperandType::Unit,
             types::TypeReferenceNode::Named { symbol, name } => {
                 if !symbol.is_valid()
@@ -683,6 +686,7 @@ impl Capture<'_> {
                 },
             },
             expr::ExpressionNode::Member(member) => ProductExpressionKind::Member {
+                selector: member.selector,
                 receiver: self.expression(member.receiver)?,
                 member: self.name(member.member.as_str(), member.member_symbol),
             },

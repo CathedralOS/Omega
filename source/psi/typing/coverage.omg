@@ -4,6 +4,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::typer;
+use psi::typing::patterns;
 
 // Coverage (wiki/spec/language/patterns.md#coverage-and-domain-tests): every
 // dispatch covers its admitted subject, and a value no arm matches is a
@@ -24,7 +25,7 @@ public machine Typer::covers(
 ) -> bool
 crashes Trap
 {
-    let closed: bool = Typer::closing_arm(syntax, range);
+    let closed: bool = Typer::closing_arm(syntax, range) || Typer::outer_pattern_covers(typer, syntax, resolution, range, subject_type);
     transition closed {
         true -> answer(true)
         _ -> open(typer, sources, syntax, resolution, range, subject_type)
@@ -38,7 +39,7 @@ crashes Trap
     }
 
     machine subject(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
-        let base: u64 in Trapping = Typer::referent(typer, subject_type);
+        let base: u64 in Trapping = Typer::case_subject(typer, subject_type);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Data {
             true -> data(syntax, resolution, range, row.item)

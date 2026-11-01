@@ -903,10 +903,19 @@ impl RemainingCustody {
         {
             return;
         }
-        let Some(data) =
-            validation::canonical_place_type_reference(program, state, statement, place)
-                .and_then(|reference| program.closed_data_definition(reference))
-        else {
+        let Some(data) = validation::canonical_place_type_reference(
+            program, state, statement, place,
+        )
+        .and_then(|reference| {
+            // The prior stable-owned-place judgment supplies authority.
+            // A case component keeps this exact nominal application;
+            // its qualification narrows fields, never changes tags.
+            let subject = program
+                .type_reference_table
+                .case_view_subject(reference)
+                .unwrap_or(reference);
+            program.closed_data_definition(subject)
+        }) else {
             return;
         };
         let variants = program

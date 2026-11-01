@@ -52,6 +52,9 @@ pub(crate) fn place_path(
         }
         ExpressionNode::Member(member) => {
             let receiver = place_path(program, member.receiver)?;
+            if member.selector == language_core::DataComponentSelector::Case {
+                return Some(receiver);
+            }
             Some(format!("{receiver}.{}", member.member.as_str()))
         }
         _ => None,

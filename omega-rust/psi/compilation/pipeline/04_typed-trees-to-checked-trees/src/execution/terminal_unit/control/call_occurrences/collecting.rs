@@ -219,12 +219,20 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     call: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+    trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<()> {
+    let statement_ordinal = u32::try_from(call.statement_index).ok()?;
+    let phase = |name| {
+        trace.phase(name);
+        trace.statement(Some(statement_ordinal));
+    };
+    phase("state graph: terminal operand call identity");
     if facts.flow.control.is_retired(state, call)
         || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
     {
         return None;
     }
+    phase("state graph: terminal operand call site");
     let site = validation::find_call_site(
         program,
         machine,
@@ -288,6 +296,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     let statement = program
         .statement_table
         .statement_at(source_state, call.statement_index)?;
+    phase("state graph: terminal operand constructor dependencies");
     collect_constructor_calls(
         program,
         facts,
@@ -310,6 +319,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             &mut consumed,
         )?;
     }
+    phase("state graph: terminal operand structural dependencies");
     for nested in structural_operands::for_call(program, facts, owner, source_state, call)? {
         if !calls.iter().any(|source| std::ptr::eq(source, nested)) {
             return None;
@@ -341,6 +351,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             &mut consumed,
         )?;
     }
+    phase("state graph: terminal operand scalar argument dependencies");
     collect_argument_calls(
         program,
         facts,
@@ -351,6 +362,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
+    phase("state graph: terminal operand predecessor ownership");
     let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
         scheduled_dispatch_subject(
             program,
@@ -371,6 +383,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     {
         return None;
     }
+    phase("state graph: terminal operand unaccounted invocation");
     calls
         .iter()
         .filter(|candidate| candidate.statement_index == call.statement_index)
@@ -843,6 +856,28 @@ pub(super) fn collect(
             )
         };
     }
+    // Both observations retain the completed receiver as a value dependency.
+    // Its captured invocation belongs to this operand graph even when the
+    // observation itself only reads a tag. Reuse the ordinary graph's exact
+    // occurrence ledger, including its single-evaluation and state checks.
+    if let ComputationKind::CaseMembership { receiver_value, .. }
+    | ComputationKind::StructuralField { receiver_value, .. } = &plans.nodes.get(handle).kind
+        && receiver_value.is_valid()
+    {
+        let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
+        super::structural_values::collect(
+            program,
+            facts,
+            machine,
+            state,
+            statement,
+            *receiver_value,
+            calls,
+            minimum_call_ordinal,
+            consumed,
+            &mut Vec::new(),
+        )?;
+    }
     match &plans.nodes.get(handle).kind {
         ComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -879,27 +914,8 @@ pub(super) fn collect(
             }
         }
         ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => {}
-        ComputationKind::StructuralField {
-            subject,
-            receiver_value,
-            ..
-        } => {
+        ComputationKind::StructuralField { subject, .. } => {
             collect_subject!(subject)?;
-            if receiver_value.is_valid() {
-                let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
-                super::structural_values::collect(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    statement,
-                    *receiver_value,
-                    calls,
-                    minimum_call_ordinal,
-                    consumed,
-                    &mut Vec::new(),
-                )?;
-            }
         }
         ComputationKind::ByteSequencePredicate {
             predicate,

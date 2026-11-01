@@ -1,0 +1,16 @@
+// Expected exit: 0
+data Command { command_id: u64; case GetUser(user_id: u64); case CountUsers; }
+machine select(command: &Command) -> u64 {
+    let (common, operation) = command;
+    match operation {
+        Command::GetUser { user_id } -> user_id
+        Command::CountUsers -> common
+    }
+}
+machine main() crashes Trap {
+    let first: Command = Command::GetUser { command_id: 17, user_id: 23 };
+    let second: Command = Command::CountUsers { command_id: 41 };
+    transition select(&first) == 23 && select(&second) == 41 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -10,7 +10,6 @@
 //! suspension while the provider still retains its mutable original pointer.
 use super::aggregate_loans::borrow_carrying_data_loans;
 use super::aggregate_loans::result_source_loans;
-use super::call_views::CallViewReturnContract;
 use super::is_reference_type;
 use super::owner_paths::owner_path_from_place_segments;
 use super::owner_paths::owner_place_segments as place_segments;
@@ -829,8 +828,9 @@ pub(super) fn argument_loans(
             // result_owner_path rebases its leaves only after source selection.
             // Using an outer Envelope here would erase a Held argument's
             // target leaf before an owned forwarding call could transport it.
-            let argument_owner = TableLocalData {
-                type_reference: CallViewReturnContract::carrier_reference(
+            let argument_owner = checked_trees::statement::TableLocalData {
+                pattern: None,
+                type_reference: super::call_views::CallViewReturnContract::carrier_reference(
                     program,
                     field.source_type,
                     substitutions,

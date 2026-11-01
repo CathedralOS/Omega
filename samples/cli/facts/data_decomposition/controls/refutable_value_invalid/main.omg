@@ -1,0 +1,11 @@
+// A data binding's value test is irrefutable under the checked input's live equality.
+// Expected exit: 0
+data Pair [copy] { lower: u64; upper: u64; }
+machine inspect(pair: Pair) -> bool {
+    let Pair { lower: 17, upper as high } = pair;
+    high == 23
+}
+machine main() crashes Trap {
+    transition inspect(Pair { lower: 17, upper: 23 }) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

@@ -99,6 +99,7 @@ fn captured_window_storage(
     path: &[StructuralPathSegment],
     field: Option<terminal_psi::TerminalIdentityIndex>,
     operations: &OperationBuffer,
+    ledger: &BorrowedWindowLedger,
 ) -> (
     PlaceId,
     Vec<StructuralPathSegment>,
@@ -114,7 +115,48 @@ fn captured_window_storage(
             .iter()
             .filter(|capture| capture.carrier == source);
         let Some(capture) = captures.next() else {
-            break;
+            if let Some((_, transferred)) = ledger
+                .transports
+                .iter()
+                .find(|(destination, _)| *destination == source)
+            {
+                // Only a single incoming value establishes a stable origin.
+                // Distinct predecessor storage must not become equal by join.
+                if ledger
+                    .transports
+                    .iter()
+                    .any(|(destination, other)| *destination == source && other != transferred)
+                {
+                    break;
+                }
+                source = transferred.place;
+                let mut incoming = transferred.path.clone();
+                incoming.extend(path);
+                path = incoming;
+                continue;
+            }
+            // An owned descriptor transfer changes its carrier home, not the
+            // identity of its referent. Follow only an emitted exact transfer;
+            // equal types or projected source spelling establish no alias.
+            let moved = operations.iter().find_map(|operation| {
+                (operation
+                    .result
+                    .structural()
+                    .is_some_and(|result| result.place == source))
+                .then_some(&operation.kind)
+                .and_then(|kind| match kind {
+                    OperationKind::MoveStructuralValue { source } => Some(source),
+                    _ => None,
+                })
+            });
+            let Some(moved) = moved else {
+                break;
+            };
+            source = moved.place;
+            let mut transferred = moved.path.clone();
+            transferred.extend(path);
+            path = transferred;
+            continue;
         };
         // Several checked loans may share one formation, but ambiguity never
         // establishes that two different storage roots are the same debt.
@@ -168,6 +210,7 @@ pub(crate) struct BorrowedWindowRepairValue {
 pub(crate) struct BorrowedWindowLedger {
     open: Vec<OpenBorrowedWindow>,
     assignment: Option<CapturedAssignmentDestination>,
+    transports: Vec<(PlaceId, StructuralArgument)>,
 }
 
 /// The current assignment's operands, evaluated before its RHS. The source
@@ -284,6 +327,15 @@ impl ResolvedStorageAddress {
 }
 
 impl BorrowedWindowLedger {
+    /// Retain an actual completed owned edge's source coordinate for descriptor
+    /// identity. This grants no access, custody or new checked loan.
+    pub(crate) fn retain_transport(&mut self, destination: PlaceId, source: StructuralArgument) {
+        if destination != source.place && !self.transports.contains(&(destination, source.clone()))
+        {
+            self.transports.push((destination, source));
+        }
+    }
+
     pub(crate) fn capture_assignment_destination(
         environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -726,6 +778,7 @@ impl BorrowedWindowLedger {
             &evaluated.original_path,
             place.field.as_ref().map(|field| field.identity),
             operations,
+            &environment.windows,
         );
         let (qualifications, projected_qualifications) =
             place.selected_memberships(identities, &evaluated.original_path)?;
@@ -913,6 +966,7 @@ impl BorrowedWindowLedger {
             &evaluated.original_path,
             place.field.as_ref().map(|field| field.identity),
             operations,
+            &environment.windows,
         );
         let index = opening.and_then(|opening| {
             environment

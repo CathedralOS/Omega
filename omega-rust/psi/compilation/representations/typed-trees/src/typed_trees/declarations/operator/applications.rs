@@ -412,6 +412,7 @@ fn closed_boundary_application_type(
         return false;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => lifetime.is_none() && closed_boundary_application_type(program, *referee),

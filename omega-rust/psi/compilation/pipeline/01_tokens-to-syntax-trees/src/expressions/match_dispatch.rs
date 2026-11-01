@@ -45,6 +45,7 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
                         return None;
                     };
                     Some(DestructureBinding {
+                        selector: field.selector,
                         binding: binding.clone(),
                         member: field.member.clone(),
                         case_variant: None,
@@ -121,16 +122,25 @@ fn parse_pattern<'tokens, 'source>(
     if input.at_contextual("_") {
         return Ok((MatchPattern::Wildcard, input.take_contextual("_")?));
     }
-    let (head, rest) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-    if !rest.at_punctuation(PunctuationKind::LeftBrace)
-        || !matches!(
-            exprs_of(syntax_trees).expression(head),
-            ExpressionNode::Name(_)
-        )
-    {
-        return Ok((MatchPattern::Value(head), rest));
-    }
-    let (fields, rest) = crate::patterns::parse_destructure_fields(syntax_trees, rest)?;
+    let positional = input
+        .at_punctuation(PunctuationKind::LeftParen)
+        .then(|| crate::patterns::parse_positional_fields(syntax_trees, input).ok())
+        .flatten();
+    let (head, fields, rest) = if let Some((fields, rest)) = positional {
+        (ExpressionHandle::invalid(), fields, rest)
+    } else {
+        let (head, rest) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+        if !rest.at_punctuation(PunctuationKind::LeftBrace)
+            || !matches!(
+                exprs_of(syntax_trees).expression(head),
+                ExpressionNode::Name(_)
+            )
+        {
+            return Ok((MatchPattern::Value(head), rest));
+        }
+        let (fields, rest) = crate::patterns::parse_destructure_fields(syntax_trees, rest)?;
+        (head, fields, rest)
+    };
     let fields_span = exprs(syntax_trees).insert_match_fields(fields.fields);
     let proof_selectors = syntax_trees
         .statements

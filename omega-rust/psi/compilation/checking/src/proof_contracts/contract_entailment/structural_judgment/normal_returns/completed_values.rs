@@ -32,7 +32,12 @@ impl<'program> StructuralJudge<'program> {
             // Project that captured value without replaying its former
             // source home. Reference descriptors still cannot supply
             // observations of their referent's fields.
-            if crate::reference_shell(program, receiver_type).is_none() {
+            if member.selector == language_core::DataComponentSelector::Case {
+                inputs
+                    .iter()
+                    .find(|(source, _)| *source == member.receiver)
+                    .and_then(|(_, value)| value.observed_value().cloned())
+            } else if crate::reference_shell(program, receiver_type).is_none() {
                 inputs
                     .iter()
                     .find(|(source, _)| *source == member.receiver)

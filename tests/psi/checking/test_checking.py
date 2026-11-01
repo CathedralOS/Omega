@@ -17,7 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
-    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven",
+    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven", "RefutablePattern",
 )
 
 
@@ -173,6 +173,15 @@ def rejected(program: str, name: str, source: bytes, diagnostic: str, spelling: 
     )
 
 
+def rejected_custody(program: str, name: str, source: bytes) -> None:
+    status, payload = run(program, source)
+    assert status == 247, (name, status)
+    observation = decode(payload)
+    assert not observation.accepted and observation.diagnostic == "LinearUnconsumed", (name, observation)
+    unit, start, end = observation.diagnostic_span
+    assert unit == 0 and source.index(b"let ") <= start < end <= len(source), (name, observation.diagnostic_span)
+
+
 def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     actual, payload = run(program, source)
     assert actual == status and payload == b"", f"{name}: status {actual}, {len(payload)} bytes"
@@ -259,10 +268,132 @@ def invocation_component_cases(program: str) -> None:
             assert status == 247 and not observation.accepted, f"{name}: status {status}"
             assert any(code == diagnostic for code, span in observation.rejections), f"{name}: {observation}"
 
+
+def data_decomposition_cases(program: str) -> None:
+    prefix = b"data T [copy] { common: u8; case Ready(payload: u8); case Empty; } "
+    for name, body in (
+        ("named-let", b"let T { common as low, case as operation } = t; match operation { T::Ready { payload as high } -> high T::Empty -> low }"),
+        ("positional-let", b"let (low, operation) = t; match operation { T::Ready { payload as high } -> high T::Empty -> low }"),
+        ("named-expression", b"match t { T { common as low, case as operation } -> match operation { T::Ready { payload as high } -> high T::Empty -> low } }"),
+        ("positional-expression", b"match t { (low, operation) -> match operation { T::Ready { payload as high } -> high T::Empty -> low } }"),
+        ("positional-transition", b"transition t { (low, operation) -> (match operation { T::Ready { payload as high } -> high T::Empty -> low }) }"),
+        ("renamed-rest", b"let T { common as low, .. } = t; low"),
+        ("nested-shadow", b"match t { T { common as value, case as operation } -> match operation { T::Ready { payload as value } -> value T::Empty -> value } }"),
+    ):
+        accepted(program, "data-decomposition-" + name, prefix + b"machine f(t: &T) -> u8 { " + body + b" }")
+    accepted(program, "data-decomposition-constructed-case-let", prefix + b"machine f() -> u8 { let t: T = T::Ready { common: 3, payload: 7 }; let T::Ready { payload as result } = t; result }")
+    accepted(program, "data-decomposition-qualified-case-let", prefix + b"machine f(t: &T in T::Ready) -> u8 { let T::Ready { payload as result } = t; result }")
+    source = prefix + b"machine f(t: &T) -> u8 { let T::Ready { payload as result } = t; result }"
+    rejected(program, "data-decomposition-refutable-case-let", source, "RefutablePattern", b"let T::Ready { payload as result } = t;")
+    accepted(program, "data-decomposition-proved-field-value-let", b"data Pair [copy] { left: u8; right: u8; } machine f() -> u8 { let p: Pair = Pair { left: 7, right: 3 }; let Pair { left: 7, right as result } = p; result }")
+    source = b"data Pair [copy] { left: u8; right: u8; } machine f(p: &Pair) -> u8 { let Pair { left: 7, right as result } = p; result }"
+    rejected(program, "data-decomposition-unproved-field-value-let", source, "RefutablePattern", b"left: 7")
+    prefix = b"data Bound [copy] requires self.common <= 8, !(self in Bound::Ready) || self.payload <= 8 { common: u8; case Ready(payload: u8); case Empty; } "
+    accepted(program, "data-decomposition-default-predicate-after-selected-case", prefix + b"machine f(t: &Bound) -> u8 { let Bound { common as low, case as operation } = t; match operation { Bound::Ready { payload as high } -> (low + high) Bound::Empty -> low } }")
+
+
+def data_decomposition_owned_cases(program: str) -> None:
+    prefix = (
+        b"data Receipt [linear] { code: i32; } machine settle(receipt: Receipt) -> i32; "
+        b"data Packet [linear] { common: Receipt; case Ready(payload: Receipt); case Empty; } "
+    )
+    for name, pattern in (
+        ("named", b"Packet { common as common, case as operation }"),
+        ("positional", b"(common, operation)"),
+    ):
+        body = (
+            b"machine f(packet: Packet) -> i32 { let " + pattern + b" = packet; "
+            b"let code: i32 = settle(common); match operation { "
+            b"Packet::Ready { payload } -> settle(payload) Packet::Empty -> code } }"
+        )
+        accepted(program, "data-decomposition-owned-partition-" + name, prefix + body)
+        duplicate = body.replace(b"settle(payload)", b"settle(common)")
+        duplicate_source = prefix + duplicate
+        duplicate_use = b"common!" + str(duplicate_source.count(b"common")).encode()
+        rejected(program, "data-decomposition-owned-duplicate-" + name, duplicate_source, "UseAfterMove", duplicate_use)
+        abandoned = body.replace(b"let code: i32 = settle(common);", b"let code: i32 = 0;")
+        tail = abandoned[abandoned.index(b"match operation"):].removesuffix(b" }")
+        rejected(program, "data-decomposition-owned-abandoned-" + name, prefix + abandoned, "LinearUnconsumed", tail)
+
+
+def data_decomposition_rest_cases(program: str) -> None:
+    prefix = (
+        b"data Receipt [linear] { code: i32; } machine settle(receipt: Receipt) -> i32; "
+        b"data Packet [linear] { stamp: u8; common: Receipt; case Ready(payload: Receipt); case Empty; } "
+    )
+    for name, pattern in (("named", b"Packet { common as common, case as operation, .. }"), ("positional", b"(_, common, operation, ..)")):
+        body = b"machine f(packet: Packet) -> i32 { let " + pattern + b" = packet; let code: i32 = settle(common); match operation { Packet::Ready { payload } -> settle(payload) Packet::Empty -> code } }"
+        accepted(program, "data-decomposition-linear-rest-" + name, prefix + body)
+    for name, declaration, pattern in (
+        ("common", b"data Packet { common: Receipt; case Ready(payload: Receipt); case Empty; } ", b"Packet { case as operation, .. }"),
+        ("payload", b"data Packet { common: i32; case Ready(payload: Receipt); case Empty; } ", b"Packet { common as code, .. }"),
+    ):
+        source = b"data Receipt [linear] { code: i32; } " + declaration + b"machine f(packet: Packet) { let " + pattern + b" = packet; }"
+        rejected_custody(program, "data-decomposition-rest-omits-linear-" + name, source)
+    tag_only = (b"data Receipt [linear] { code: i32; } data Packet { stamp: u8; case Ready(payload: Receipt); case Empty; } "
+                b"machine f(packet: Packet) -> bool { let Packet { stamp as _, case as operation } = packet; match operation { Packet::Ready -> true Packet::Empty -> false } }")
+    rejected_custody(program, "data-decomposition-tag-only-linear-payload", tag_only)
+
+
+def data_decomposition_named_type_cases(program: str) -> None:
+    prefix = (
+        b"data Value<T> [copy] { stamp: u8; case Integer(number: i32); case Boolean(flag: bool); } "
+        b"domain<T> Value<T>::Typed requires "
+        b"(self in Value::Integer && T == i32) || (self in Value::Boolean && T == bool); "
+    )
+    body = (
+        b"machine choose<T>(value: &Value<T> in Typed) -> T { "
+        b"let (_, operation) = value; "
+        b"match operation { Value::Integer { number } -> number Value::Boolean { flag } -> flag } }"
+    )
+    accepted(program, "data-decomposition-named-type-equation", prefix + body)
+    missing = prefix.replace(b"T == i32", b"true") + body
+    rejected(program, "data-decomposition-named-type-equation-missing", missing, "DomainUnproven", b"number!3")
+
+
+def data_decomposition_static_cases(program: str) -> None:
+    prefix = (
+        b"data Value<T> [copy] requires "
+        b"(self in Value::Integer && T == i32) || (self in Value::Boolean && T == bool) "
+        b"{ stamp: u8; case Integer(number: i32); case Boolean(flag: bool); } "
+    )
+    for name, pattern in (
+        ("named", b"Value { stamp as _, case as operation }"),
+        ("positional", b"(_, operation)"),
+    ):
+        body = (
+            b"machine choose<T>(value: Value<T>) -> T { let " + pattern + b" = value; "
+            b"match operation { Value::Integer { number } -> number Value::Boolean { flag } -> flag } }"
+        )
+        accepted(program, "data-decomposition-static-result-" + name, prefix + body)
+        missing = prefix.replace(b"T == i32", b"true") + body
+        rejected(program, "data-decomposition-static-result-unproved-" + name, missing, "DomainUnproven", b"number!3")
+    nominal = (
+        b"data Token [copy] { code: u8; } "
+        b"data Value<T> [copy] requires (self in Value::Integer && T == i32) || (self in Value::Token && T == Token) "
+        b"{ stamp: u8; case Integer(number: i32); case Token(value: Token); } "
+        b"machine choose<T>(value: Value<T>) -> T { let (_, operation) = value; "
+        b"match operation { Value::Integer { number } -> number Value::Token { value as token } -> token } }"
+    )
+    accepted(program, "data-decomposition-nominal-static-result", nominal)
+    missing_nominal = nominal.replace(b"T == Token", b"true")
+    rejected(program, "data-decomposition-nominal-static-result-missing", missing_nominal, "DomainUnproven", b"token!2")
+    accepted(program, "data-decomposition-static-construction", prefix + b"machine make() -> Value<i32> { Value::Integer { stamp: 7, number: 9 } }")
+    wrong = prefix + b"machine make() -> Value<bool> { Value::Integer { stamp: 7, number: 9 } }"
+    rejected(program, "data-decomposition-static-construction-wrong-argument", wrong, "DomainUnproven", b"Value::Integer { stamp: 7, number: 9 }")
+    accepted(program, "static-type-equation", b"machine f<T>(value: i32) -> T requires T == i32 { value }")
+    rejected(program, "static-type-equation-missing", b"machine f<T>(value: i32) -> T { value }", "DomainUnproven", b"value!2")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_checking.py <checking-harness-executable>")
     program = sys.argv[1]
+    data_decomposition_cases(program)
+    data_decomposition_static_cases(program)
+    data_decomposition_named_type_cases(program)
+    data_decomposition_owned_cases(program)
+    data_decomposition_rest_cases(program)
 
     # Indexing: a guard's fact reaches the machine it selects.
     accepted(
@@ -1189,11 +1320,15 @@ def main() -> None:
     # proved where a value meets a qualified destination, unless it already
     # carries the qualification; a routed domain or a byte predicate is
     # established only by carrying it.
-    small = b"domain u64::Small(value)\nrequires value < 4;\nmachine take(index: u64 in Small) -> u64 { index }\n"
+    small = (b'domain u64::Small\n'
+            b'requires self < 4;\n'
+            b'machine take(index: u64 in Small) -> u64 { index }\n')
     accepted(
         program,
         "qualified-parameter-assumes-its-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }",
+        (b'domain u64::Small\n'
+        b'requires self < 4;\n'
+        b'machine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }'),
     )
     rejected(
         program,
@@ -1246,14 +1381,18 @@ def main() -> None:
     rejected(
         program,
         "qualified-result-proves-the-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(count: u64) -> u64 in Small { count }",
+        (b'domain u64::Small\n'
+        b'requires self < 4;\n'
+        b'machine f(count: u64) -> u64 in Small { count }'),
         "DomainUnproven",
         b"count!2",
     )
     rejected(
         program,
         "qualifying-cast-proves-the-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(i: u64) -> u64 { let s: u64 in Small = i as u64 in Small; s }",
+        (b'domain u64::Small\n'
+        b'requires self < 4;\n'
+        b'machine f(i: u64) -> u64 { let s: u64 in Small = i as u64 in Small; s }'),
         "DomainUnproven",
         b"i as u64 in Small",
     )
@@ -1265,7 +1404,9 @@ def main() -> None:
         "DomainUnproven",
         b"1",
     )
-    text = b"domain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\nmachine show(text: &[u8] in Text) {}\n"
+    text = (b'domain [u8]::Text\n'
+           b'requires valid_utf8(self);\n'
+           b'machine show(text: &[u8] in Text) {}\n')
     rejected(program, "byte-predicate-domain-needs-carried-evidence", text + b"machine f(raw: &[u8]) { show(raw); }",
              "DomainUnproven", b"raw!2")
     accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: &[u8] in Text) { show(view); }")
@@ -1359,7 +1500,8 @@ def main() -> None:
     # ranges and its own `requires` facts.
     # A whole membership fact is its domain's predicates of the value; a
     # case membership must hold only where checking keeps case knowledge.
-    member = b"domain u64::Small(value)\nrequires value < 4;\n"
+    member = (b'domain u64::Small\n'
+             b'requires self < 4;\n')
     accepted(
         program,
         "membership-requires-assumes-its-domain",
@@ -1414,7 +1556,9 @@ def main() -> None:
     rejected(
         program,
         "array-literal-element-proves-its-domain",
-        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8 in Small; 2] = [1, 9]; 0 }",
+        (b'domain u8::Small\n'
+        b'requires self < 4;\n'
+        b'machine f() -> u8 { let a: [u8 in Small; 2] = [1, 9]; 0 }'),
         "DomainUnproven",
         b"9",
     )
@@ -1481,11 +1625,15 @@ def main() -> None:
     # Qualification keeps the exact fixed-array width. Literal predicates
     # are still checked independently of geometry and length.
     fixed_bytes = (
-        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"data M { line: [u8; 2] in Utf8; }\n"
-        b"machine two(n: u64) requires n == 2 {}\n"
-        b"machine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n"
-        b"machine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}"
+        (b'domain [u8; 2]::Utf8 requires valid_utf8(self);\n'
+        b'data M { line: [u8; 2] in Utf8; }\n'
+        b'machine two(n: u64) requires n == 2 {}\n'
+        b'machine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n'
+        b'machine f(m: &mut M) {\n'
+        b'    m.line = LITERAL;\n'
+        b'    two(m.line.len);\n'
+        b'    text(&m.line);\n'
+        b'}')
     )
     accepted(program, "quoted-copy-retains-fixed-byte-length", fixed_bytes.replace(b"LITERAL", b"\"ok\""))
     rejected(
@@ -1503,13 +1651,16 @@ def main() -> None:
         b"two(m.line.len)",
     )
     geometry = (
-        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"machine eight(n: u64) requires n == 8 {}\n"
-        b"machine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\n"
-        b"machine owned(bytes: [u8; 8] in Utf8) {\n"
-        b"    let plain: [u8; 8] = bytes;\n    eight(bytes.len);\n    eight(plain.len);\n}\n"
-        b"machine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\n"
-        b"machine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }"
+        (b'domain [u8; 8]::Utf8 requires valid_utf8(self);\n'
+        b'machine eight(n: u64) requires n == 8 {}\n'
+        b'machine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\n'
+        b'machine owned(bytes: [u8; 8] in Utf8) {\n'
+        b'    let plain: [u8; 8] = bytes;\n'
+        b'    eight(bytes.len);\n'
+        b'    eight(plain.len);\n'
+        b'}\n'
+        b'machine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\n'
+        b'machine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }')
     )
     accepted(program, "fixed-qualified-owned-borrowed-erased-lengths-and-last-index", geometry)
     rejected(program, "fixed-qualified-index-at-extent", geometry.replace(b"bytes[7]", b"bytes[8]"),
@@ -1999,20 +2150,20 @@ def main() -> None:
         b"    machine empty() -> Range { Range { lo: 0, hi: 0 } }\n"
         b"}",
     )
-    # A case's own `where` facts: construction proves the selected case's,
+    # Guarded default predicates: construction proves the selected case's,
     # over the payload values it writes; a chosen arm assumes them over its
     # binders and the subject's fields; a store to a field one names is not
     # proved, since the active case is unknown there.
     accepted(
         program,
         "case-construction-proves-its-facts",
-        b"data Size { case Some(v: u64) where v < 9; case None; }\n"
+        b"data Size requires !(self in Size::Some) || self.v < 9 { case Some(v: u64); case None; }\n"
         b"machine make() -> Size { Size::Some { v: 1 } }",
     )
     rejected(
         program,
         "case-construction-breaks-its-facts",
-        b"data Size { case Some(v: u64) where v < 9; case None; }\n"
+        b"data Size requires !(self in Size::Some) || self.v < 9 { case Some(v: u64); case None; }\n"
         b"machine make() -> Size { Size::Some { v: 9 } }",
         "DomainUnproven",
         b"Size::Some { v: 9 }",
@@ -2020,7 +2171,7 @@ def main() -> None:
     rejected(
         program,
         "case-construction-omits-a-payload",
-        b"data Pair { case Both(a: u64, b: u64) where b > 0; case None; }\n"
+        b"data Pair requires !(self in Pair::Both) || self.b > 0 { case Both(a: u64, b: u64); case None; }\n"
         b"machine make() -> Pair { Pair::Both { a: 1 } }",
         "DomainUnproven",
         b"Pair::Both { a: 1 }",
@@ -2028,7 +2179,7 @@ def main() -> None:
     accepted(
         program,
         "case-arm-assumes-its-facts",
-        b"data Interval { case Empty; case Range(lo: u64, hi: u64) where lo <= hi; }\n"
+        b"data Interval requires !(self in Interval::Range) || self.lo <= self.hi { case Empty; case Range(lo: u64, hi: u64); }\n"
         b"machine width(i: Interval) -> u64 {\n"
         b"    transition i {\n"
         b"        Interval::Range { lo, hi } -> (hi - lo)\n"
@@ -2052,7 +2203,7 @@ def main() -> None:
     accepted(
         program,
         "case-arm-assumes-common-field-facts",
-        b"data Tally { n: u64; case Some(v: u64) where v < n; case None; }\n"
+        b"data Tally requires !(self in Tally::Some) || self.v < self.n { n: u64; case Some(v: u64); case None; }\n"
         b"machine room(t: &Tally) -> u64 {\n"
         b"    transition t {\n"
         b"        Tally::Some { v, .. } -> (t.n - v)\n"
@@ -2071,15 +2222,15 @@ def main() -> None:
     rejected(
         program,
         "store-to-a-field-a-case-fact-names",
-        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
+        b"data Tally requires !(self in Tally::Some) || self.v < self.n { n: u64; m: u64; case Some(v: u64); case None; }\n"
         b"machine reset(t: &mut Tally) { t.n = 0; }",
         "DomainUnproven",
         b"t.n = 0;",
     )
     accepted(
         program,
-        "store-to-a-field-no-case-fact-names",
-        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
+        "store-to-a-field-no-guarded-fact-names",
+        b"data Tally requires !(self in Tally::Some) || self.v < self.n { n: u64; m: u64; case Some(v: u64); case None; }\n"
         b"machine reset(t: &mut Tally) { t.m = 0; }",
     )
     # A proposition application states what no zone fact expresses:
@@ -2738,13 +2889,18 @@ def main() -> None:
     accepted(
         program,
         "record-copy-keeps-its-fields",
-        b"data Player [copy] { health: i32; }\n"
-        b"domain Player::Alive(player)\nrequires player.health > 0;\n"
-        b"machine inspect(player: Player)\nrequires player in Player::Alive\n{}\n"
-        b"machine run(player: Player)\nrequires player in Player::Alive\n{\n"
-        b"    let copy: Player = player;\n"
-        b"    inspect(copy);\n"
-        b"}",
+        (b'data Player [copy] { health: i32; }\n'
+        b'domain Player::Alive\n'
+        b'requires self.health > 0;\n'
+        b'machine inspect(player: Player)\n'
+        b'requires player in Player::Alive\n'
+        b'{}\n'
+        b'machine run(player: Player)\n'
+        b'requires player in Player::Alive\n'
+        b'{\n'
+        b'    let copy: Player = player;\n'
+        b'    inspect(copy);\n'
+        b'}'),
     )
 
     # An operand evaluated before a later call writes what it read keeps
@@ -3081,20 +3237,20 @@ def main() -> None:
     rejected(
         program,
         'selector-writes-before-the-value-reads',
-        b'data Token { value: u64; }\n'
+        (b'data Token { value: u64; }\n'
         b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
-        b'domain u64::One(value) requires value == 1;\n'
-        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'domain u64::One requires self == 1;\n'
+        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }'),
         "DomainUnproven",
         b"items[mutate(&mut token)] = token.value;",
     )
     accepted(
         program,
         'value-reads-the-selector-write',
-        b'data Token { value: u64; }\n'
+        (b'data Token { value: u64; }\n'
         b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
-        b'domain u64::Nine(value) requires value == 9;\n'
-        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'domain u64::Nine requires self == 9;\n'
+        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }'),
     )
 
     # Borrowed locals keep the captured storage identity through reborrows
@@ -3414,14 +3570,16 @@ def main() -> None:
     accepted(
         program,
         "a-qualified-source-views-shared",
-        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &P) { let signed: &i8 = &p.v as &i8; }",
+        (b'domain u8::Small requires self < 8;\n'
+        b'data P { v: u8 in Small; }\n'
+        b'machine f(p: &P) { let signed: &i8 = &p.v as &i8; }'),
     )
     rejected(
         program,
         "a-qualified-source-never-views-mutably",
-        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }",
+        (b'domain u8::Small requires self < 8;\n'
+        b'data P { v: u8 in Small; }\n'
+        b'machine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }'),
         "RepresentationUnproven",
         b"&mut p.v as &mut i8",
     )
@@ -3492,10 +3650,10 @@ def main() -> None:
     slot = accepted(
         program,
         "public-slot-records-qualified-return",
-        b"domain [u8]::Utf8(bytes);\n"
-        b"public trait Window {\n"
-        b"    machine view(packet: &[u8] in Utf8) -> &[u8] in Utf8;\n"
-        b"}\n",
+        (b'domain [u8]::Utf8;\n'
+        b'public trait Window {\n'
+        b'    machine view(packet: &[u8] in Utf8) -> &[u8] in Utf8;\n'
+        b'}\n'),
     )
     assert slot.slot_review_admits, "package review rejected the public slot records"
     assert slot.slot_origins == ((1, 0),), slot.slot_origins

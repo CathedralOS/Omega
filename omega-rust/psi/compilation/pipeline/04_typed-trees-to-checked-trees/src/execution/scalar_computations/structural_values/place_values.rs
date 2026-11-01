@@ -36,6 +36,57 @@ use validation::value_preserving_cast_operand;
 use validation::zeroed_structural_parts;
 
 impl Builder<'_, '_> {
+    /// A case component retains the exact completed carrier, including a saved
+    /// reference descriptor. Copyable descriptors receive a distinct value home;
+    /// an inner match cannot retire an outer match's saved descriptor.
+    pub(super) fn case_component_view(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<ValueKind> {
+        let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if member.selector != language_core::DataComponentSelector::Case {
+            return None;
+        }
+        let receiver = member.receiver;
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let actual =
+            validation::expression_result_type_reference(self.program, machine, state, receiver)?;
+        let subject = self
+            .program
+            .type_reference_table
+            .case_view_subject(expected)?;
+        if self.program.normalized_type_identity(actual)
+            != self.program.normalized_type_identity(subject)
+        {
+            return None;
+        }
+        let source = self.structural_value(receiver, actual)?;
+        Some(ValueKind::Projection {
+            source,
+            logical_root_type_identity: Default::default(),
+            path: Vec::new(),
+            projection_evaluations: Default::default(),
+            copies_selected_value: validation::reference_shell(self.program, actual).map_or_else(
+                || {
+                    self.program.type_multiplicity(actual)
+                        == language_semantics::Multiplicity::Unrestricted
+                },
+                |shell| shell.access == language_semantics::ReferenceAccess::Shared,
+            ),
+            type_identity: validation::stored_structural_type_identity(
+                self.program,
+                expected,
+                &[],
+                &[],
+            ),
+        })
+    }
+
     /// A shared reference with the same unrestricted carrier retains
     /// its descriptor on reborrow. It does not reconstruct a view from the
     /// loan's backing: that would lose the producer's actual range and effects.

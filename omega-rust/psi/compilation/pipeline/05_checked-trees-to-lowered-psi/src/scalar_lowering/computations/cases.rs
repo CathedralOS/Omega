@@ -130,7 +130,7 @@ pub(crate) fn reserve(
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
     let identity =
-        validation::stored_structural_type_identity(checked, source.type_reference, &[], &[]);
+        crate::terminal_identities::stored_structural_identity(checked, source.type_reference);
     let declaration = crate::terminal_identities::structural_declaration_by_identity(
         types,
         identities,
@@ -270,18 +270,18 @@ pub(crate) fn type_roots(
             && receiver_value.is_valid()
         {
             let root = observed_values::unique_root(checked, *receiver_value)?;
-            let identity =
-                validation::stored_structural_type_identity(checked, root.type_reference, &[], &[]);
+            let identity = crate::terminal_identities::stored_structural_identity(
+                checked,
+                root.type_reference,
+            );
             if !types.contains(&identity) {
                 types.push(identity);
             }
         }
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            let identity = validation::stored_structural_type_identity(
+            let identity = crate::terminal_identities::stored_structural_identity(
                 checked,
                 subject.type_reference,
-                &[],
-                &[],
             );
             if !types.contains(&identity) {
                 types.push(identity);

@@ -177,6 +177,7 @@ fn evidence_argument_is_resolved(
         return false;
     }
     match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::CaseView { subject } => evidence_argument_is_resolved(program, *subject),
         TypeReferenceNode::Named { symbol, .. } => symbol.is_valid(),
         TypeReferenceNode::Reference { referee, .. } => {
             evidence_argument_is_resolved(program, *referee)

@@ -80,6 +80,18 @@ impl StructuralJudge<'_> {
                 None
             }
             ExpressionNode::Member(member) => {
+                if member.selector == language_core::DataComponentSelector::Case {
+                    return self.bound_contract_term(
+                        member.receiver,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        result,
+                        depth + 1,
+                    );
+                }
                 // A formal/result substitutes an exact completed value. Only
                 // its live authenticated scalar cell may observe a returned
                 // reference; the ordinary projection walker stays descriptor-only.

@@ -128,6 +128,10 @@ impl CarrierClosure<'_> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            TypeReferenceNode::CaseView { .. } => Err(self.reject(
+                path,
+                "contains a case-only component without an independent carrier",
+            )),
             TypeReferenceNode::Constrained { base_type, .. } => {
                 self.validate_type(*base_type, scope, path)
             }

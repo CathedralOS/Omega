@@ -245,8 +245,26 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
     }
 
+    // Prepare exact routes once for this immutable invocation batch. Pairwise
+    // conflict checks do not replay the occurrence inventory.
+    let access_routes = accesses
+        .iter()
+        .map(|access| {
+            boundary
+                .as_ref()
+                .and_then(|boundary| boundary.completed_access_route(access.expression))
+        })
+        .collect::<Vec<_>>();
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            if access_routes[index]
+                .zip(access_routes[other_index])
+                .is_some_and(|(first, second)| {
+                    !crate::checks::ownership_occurrences::routes_compatible(first, second)
+                })
+            {
+                continue;
+            }
             // A completed actual does not compete with the inputs that
             // produced it. Keep those inputs in the roster: a later sibling
             // must respect even an unselected declared lifetime dependency.

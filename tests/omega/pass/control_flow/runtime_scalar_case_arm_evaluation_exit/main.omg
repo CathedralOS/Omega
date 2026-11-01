@@ -12,7 +12,7 @@ data Envelope<'input> { message: Message<'input>; }
 machine read(message: &Message) -> u64 {
     transition message {
         Message::Missing -> 0
-        Message::Received { stamp as _, cell } -> cell.value
+        Message::Received { cell } -> cell.value
         Message::Number { value, .. } -> value
     }
 }
@@ -103,10 +103,11 @@ machine once(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
     }
 }
 machine once_common(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
-    transition produced(cell, trace) {
-        Message::Missing { stamp, .. } -> stamp
-        Message::Received { stamp, .. } -> stamp
-        Message::Number { stamp, .. } -> stamp
+    let Message { stamp, case as operation } = produced(cell, trace);
+    transition operation {
+        Message::Missing { .. } -> stamp
+        Message::Received { .. } -> stamp
+        Message::Number { .. } -> stamp
     }
 }
 // An independently authored call is not another parser copy of the subject.
@@ -118,8 +119,9 @@ machine twice(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
     }
 }
 machine common_pattern(message: &Message) -> bool {
-    transition message {
-        Message::Received { stamp: 73, cell as _ } -> true
+    let Message { stamp as selected_stamp, case as operation } = message;
+    transition operation {
+        Message::Received { cell as _ } if selected_stamp == 73 -> true
         _ -> false
     }
 }

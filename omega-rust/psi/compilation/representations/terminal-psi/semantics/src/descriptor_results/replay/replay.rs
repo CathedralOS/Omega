@@ -15,7 +15,8 @@ pub(super) enum Origin {
     Storage(DescriptorLocation),
 }
 pub(super) type Value = Option<BTreeSet<Origin>>;
-pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
+pub(super) type Slots = super::origin_maps::OriginMap<DescriptorLocation>;
+pub(super) type Contents = super::origin_maps::OriginMap<DescriptorContentsQuery>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) cases: Arc<super::case_flow::CurrentCases>,
@@ -25,7 +26,7 @@ pub(super) struct State {
     pub(super) slots: Arc<Slots>,
     // Keys name incoming backing families, not addresses in local carriers.
     // Values are captured origins; reading them never replays a later write.
-    pub(super) contents: Arc<BTreeMap<DescriptorContentsQuery, Value>>,
+    pub(super) contents: Arc<Contents>,
     // Captured values remain valid; only later reads of untracked backing
     // contents become unavailable. The flag joins monotonically across edges.
     pub(super) contents_invalidated: bool,
@@ -106,6 +107,13 @@ impl<'a> Replay<'a> {
             snapshots: BTreeMap::new(),
             arrival_snapshots: BTreeMap::new(),
         }
+    }
+    /// Position maps belong to a completed read sweep, not to the module's
+    /// lifetime. Keep compact call summaries and unavailable/in-flight fences;
+    /// a later sweep can reconstruct successful maps from the same graph.
+    pub(super) fn release_completed_snapshots(&mut self) {
+        self.snapshots.retain(|_, states| states.is_none());
+        self.arrival_snapshots.retain(|_, states| states.is_none());
     }
     pub(super) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
         let mut rows = self
@@ -1650,7 +1658,7 @@ impl State {
         Arc::make_mut(&mut self.slots)
     }
 
-    pub(super) fn contents_mut(&mut self) -> &mut BTreeMap<DescriptorContentsQuery, Value> {
+    pub(super) fn contents_mut(&mut self) -> &mut Contents {
         Arc::make_mut(&mut self.contents)
     }
 
@@ -1808,11 +1816,30 @@ mod snapshot_tests {
             Some(&original)
         );
         assert_eq!(edited.slots.get(&parameter), Some(&None));
+        replay.release_completed_snapshots();
+        assert!(!replay.snapshots.contains_key(&id));
+        assert!(!replay.arrival_snapshots.contains_key(&id));
+        let reconstructed = replay.states(id, 0).unwrap();
+        assert!(!Arc::ptr_eq(&completed, &reconstructed));
+        assert!(*completed == *reconstructed);
+        // An outstanding reader still owns its exact earlier cut.
+        assert_eq!(
+            completed[&positions[0]].slots.get(&parameter),
+            Some(&original)
+        );
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
         assert!(limited.states(id, 128).is_none());
         assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+        limited.release_completed_snapshots();
+        assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+        assert!(
+            limited
+                .arrival_snapshots
+                .get(&id)
+                .is_some_and(Option::is_none)
+        );
         assert!(limited.states(id, 0).is_none());
         drop(limited);
         // A new query cannot borrow a completed map from another body/context.

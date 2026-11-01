@@ -45,6 +45,7 @@ pub fn structural_identity_type(
     // A walk longer than the table has nodes has revisited one.
     for _ in 0..=program.type_reference_table.type_reference_count() {
         match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => reference = *subject,
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Constrained { constraints, .. }
                 if program
@@ -209,6 +210,14 @@ pub fn stored_structural_type_identity(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
+    // Case decomposition qualifies access and custody to the selected payload;
+    // it does not introduce a schema field or change the original storage.
+    if let Some(subject) = program
+        .type_reference_table
+        .case_view_subject(type_reference)
+    {
+        return stored_structural_type_identity(program, subject, binders, substitutions);
+    }
     if !structural_storage_type(program, type_reference, substitutions).is_valid() {
         return Default::default();
     }

@@ -295,6 +295,7 @@ fn field_type_reference(
         .map(|field| field.type_reference);
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => None,
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

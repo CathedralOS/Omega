@@ -74,6 +74,7 @@ impl<'program> CarryDerivation<'program> {
             .type_reference(type_reference)
             .clone()
         {
+            TypeReferenceNode::CaseView { subject } => self.derive(subject),
             TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, _, argument)) =
                     self.substitutions

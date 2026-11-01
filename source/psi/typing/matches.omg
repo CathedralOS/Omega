@@ -7,6 +7,7 @@ use psi::typing::joins;
 use psi::typing::landing;
 use psi::typing::statements;
 use psi::typing::typer;
+use psi::typing::expectations;
 
 // A value-position match (wiki/spec/language/patterns.md): `match subject {
 // pattern -> value, ... }` produces the value of its first arm whose pattern
@@ -67,7 +68,8 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let named: u64 in Trapping = Typer::pattern_head(typer, syntax, resolution, arm, subject_type);
+        Typer::type_pattern(typer, sources, syntax, resolution, arm, subject_type, expression.left);
+        Typer::type_guard_clause(typer, sources, syntax, resolution, arm);
         transition { _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset + 1) }
     }
 
@@ -101,7 +103,8 @@ crashes Trap
 
     machine values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         let values: JoinedValues = SyntaxTrees::joined_values(expression);
-        let result_type: u64 in Trapping = Typer::fixed_join(typer, syntax, values);
+        let expected: u64 in Trapping = Typer::expected_type(typer, index);
+        let result_type: u64 in Trapping = match expected > 0 { true -> expected false -> Typer::fixed_join(typer, syntax, values) };
         transition result_type > 0 {
             true -> fixed(typer, syntax, index, values, result_type)
             _ -> unfixed(typer, syntax, index, values)

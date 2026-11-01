@@ -376,6 +376,9 @@ fn type_satisfies_structural_property(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_satisfies_structural_property(program, type_parameters, *subject, property)
+        }
         TypeReferenceNode::Named { symbol, name } => {
             if let Some(parameter) =
                 type_parameter_for_reference(type_parameters, *symbol, name.as_str())

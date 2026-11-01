@@ -210,6 +210,7 @@ fn callable_receiver_type_name(
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => None,
         TypeReferenceNode::Reference { referee, .. } => {
             callable_receiver_type_name(program, *referee)
         }

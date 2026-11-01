@@ -175,6 +175,39 @@ impl TypedTreeTables {
                         .start()
                     });
                     StatementNode::LocalData(TableLocalData {
+                        pattern: local.pattern.map(|pattern| {
+                            let source_fields = source_tables
+                                .expression_table
+                                .match_fields(pattern.fields)
+                                .to_vec();
+                            let head = if pattern.head.is_valid() {
+                                self.expression_table
+                                    .copy_from(&source_tables.expression_table, pattern.head)
+                            } else {
+                                crate::expression::ExpressionHandle::invalid()
+                            };
+                            let fields = source_fields
+                                .into_iter()
+                                .map(|mut field| {
+                                    if let crate::expression::MatchFieldAction::Equal(value) =
+                                        field.action
+                                    {
+                                        field.action = crate::expression::MatchFieldAction::Equal(
+                                            self.expression_table
+                                                .copy_from(&source_tables.expression_table, value),
+                                        );
+                                    }
+                                    field
+                                })
+                                .collect::<Vec<_>>();
+                            let fields = self.expression_table.insert_match_fields(fields);
+                            super::TableLocalPattern {
+                                head,
+                                fields,
+                                has_rest: pattern.has_rest,
+                                positional: pattern.positional,
+                            }
+                        }),
                         role: local.role,
                         symbol: local.symbol,
                         name: local.name.clone(),
@@ -338,12 +371,28 @@ impl TypedTreeTables {
                     );
                     self.expression_table
                         .remap_symbols_in(local.initial_value, symbols);
+                    let pattern = local.pattern.map(|mut pattern| {
+                        self.expression_table
+                            .remap_symbols_in(pattern.head, symbols);
+                        let mut fields =
+                            self.expression_table.match_fields(pattern.fields).to_vec();
+                        for field in &mut fields {
+                            field.field_symbol = remapped(field.field_symbol, symbols);
+                            if let crate::expression::MatchFieldAction::Equal(value) = field.action
+                            {
+                                self.expression_table.remap_symbols_in(value, symbols);
+                            }
+                        }
+                        pattern.fields = self.expression_table.insert_match_fields(fields);
+                        pattern
+                    });
                     let StatementNode::LocalData(current) =
                         self.statement_table.statements.get_mut(handle)
                     else {
                         unreachable!();
                     };
                     current.symbol = remapped(current.symbol, symbols);
+                    current.pattern = pattern;
                 }
                 StatementNode::Transition(transition) => {
                     self.statement_table.remap_transition_target_symbols(

@@ -1,0 +1,11 @@
+// A case-only component cannot expose an outer common field.
+// Expected rejection: case-view common field
+data Command [copy] { request: u64; case Ready(payload: u64); }
+machine misuse(command: Command) -> u64 {
+    let Command { request as _, case as operation } = command;
+    operation.request
+}
+machine main() crashes Trap {
+    transition misuse(Command::Ready { request: 17, payload: 23 }) == 17 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

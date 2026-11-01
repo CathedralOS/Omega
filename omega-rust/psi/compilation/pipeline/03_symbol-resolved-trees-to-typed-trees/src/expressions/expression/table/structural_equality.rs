@@ -926,6 +926,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         self.target()
             .insert(typed::expression::ExpressionNode::Member(
                 typed::expression::TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver: place,
                     member_symbol: field.symbol,
                     member: lower_name(&field.name),

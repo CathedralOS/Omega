@@ -31,8 +31,8 @@ mod indexed;
 pub(super) use indexed::indexed_term_in_scope;
 mod owned_observations;
 pub(super) use owned_observations::{
-    owned_observation_type, owned_projection_observation, shared_inline_observation,
-    shared_inline_observation_type,
+    observed_carriers_match, owned_observation_type, owned_projection_observation,
+    shared_inline_observation, shared_inline_observation_type,
 };
 mod scalar_operands;
 mod scalar_representation;
@@ -823,6 +823,11 @@ pub(super) fn structural_term(
             fields: Vec::new(),
         }),
         ExpressionNode::Member(member) => {
+            if member.selector == language_core::DataComponentSelector::Case {
+                // The anonymous case component has no stored member. Keep the
+                // exact captured carrier term and its static arguments/facts.
+                return structural_term(program, scope, frame, member.receiver, bindings);
+            }
             // Contract projections can retain an unresolved member handle even
             // when the receiver's declared record fixes the field. Rejoin that
             // declaration rather than turning the projection into opaque source

@@ -220,7 +220,9 @@ pub enum DescriptorPayloadTarget {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PayloadMembershipContract {
     pub scalar_observations: Vec<super::PayloadScalarObservation>,
-    pub scalar_requirements: Vec<semantic_vocabulary::Proposition>,
+    /// Immutable disposable theory shared by selections and earlier replay cuts.
+    /// Writers explicitly detach; durable declarations still own their vectors.
+    pub scalar_requirements: super::PayloadScalarRequirements,
     pub carrier: StructuralTypeId,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub projected_qualifications: Vec<StructuralPathQualification>,
@@ -331,6 +333,7 @@ pub fn payload_memberships(
             }
             common
                 .scalar_requirements
+                .make_mut()
                 .retain(|premise| selected.scalar_requirements.contains(premise));
             super::PayloadScalarObservation::intersect(
                 &mut common.scalar_observations,
@@ -837,7 +840,7 @@ pub fn terminal_payload_contract(
     if let Some(parameter) = crate::arrival_parameter(machine, place) {
         return Some(PayloadMembershipContract {
             scalar_observations: Vec::new(),
-            scalar_requirements: Vec::new(),
+            scalar_requirements: Vec::new().into(),
             carrier: parameter.structural_type,
             qualifications: parameter.qualifications.clone(),
             projected_qualifications: parameter.projected_qualifications.clone(),
@@ -849,7 +852,7 @@ pub fn terminal_payload_contract(
         {
             return Some(PayloadMembershipContract {
                 scalar_observations: Vec::new(),
-                scalar_requirements: Vec::new(),
+                scalar_requirements: Vec::new().into(),
                 carrier: result.structural_type,
                 qualifications: result.qualifications.clone(),
                 projected_qualifications: result.projected_qualifications.clone(),
@@ -864,7 +867,7 @@ pub fn terminal_payload_contract(
         {
             return Some(PayloadMembershipContract {
                 scalar_observations: Vec::new(),
-                scalar_requirements: Vec::new(),
+                scalar_requirements: Vec::new().into(),
                 carrier: machine
                     .structural_place(place)?
                     .kind

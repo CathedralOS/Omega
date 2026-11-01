@@ -69,6 +69,8 @@ public data CheckDiagnosticCode [copy] {
     // arrival's rank is not proved within, or whose endpoints a cyclic
     // arrival changes (wiki/spec/language/termination.md#ranking).
     case RankRangeUnproven;
+    // A local data pattern is not proved to match every admitted value.
+    case RefutablePattern;
 }
 
 public data CheckDiagnostic [copy] {

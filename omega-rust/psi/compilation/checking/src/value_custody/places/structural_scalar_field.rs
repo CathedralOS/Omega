@@ -456,6 +456,7 @@ fn readable_projection_carrier(
             .type_reference_table
             .type_reference(crate::peel_declared_constraints(program, carrier))
         {
+            TypeReferenceNode::CaseView { subject } => carrier = *subject,
             TypeReferenceNode::Reference {
                 referee,
                 access: ReferenceAccess::Shared | ReferenceAccess::Mutable,

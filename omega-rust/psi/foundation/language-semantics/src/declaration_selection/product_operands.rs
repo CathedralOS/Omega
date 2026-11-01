@@ -59,6 +59,7 @@ pub struct ProductStaticApplication {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductOperandType {
+    CaseView(Handle<ProductOperandType>),
     /// Already evaluated, typed const actual from a checked specialization.
     /// Ordinary const replay validates its independent receiving carrier.
     CanonicalConst(crate::const_value::CanonicalConstValue),
@@ -202,6 +203,7 @@ pub enum ProductExpressionKind {
         acknowledgement: crate::CallOperationalAcknowledgement,
     },
     Member {
+        selector: language_core::DataComponentSelector,
         receiver: Handle<ProductOperandExpression>,
         member: Handle<ProductOperandName>,
     },
@@ -281,6 +283,7 @@ pub enum ProductMatchPattern {
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductMatchField {
+    pub selector: language_core::DataComponentSelector,
     pub member: Handle<ProductOperandName>,
     pub action: ProductMatchFieldAction,
 }

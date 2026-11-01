@@ -1219,12 +1219,20 @@ fn expression_candidates(
                 ),
             });
         }
-        ExpressionNode::Member(member) => candidates.push(Candidate {
-            expression,
-            source_span: member.member.source_span(),
-            kind: Kind::MemberAccess,
-            target: resolved_or_late(member.member_symbol, LateBinding::CheckedMember),
-        }),
+        // Pattern component selectors are not authored `.field` accesses:
+        // ordinal/case meaning is retained in the explicit pattern and checked
+        // against the receiver declaration. The anonymous case has no member
+        // declaration that could satisfy a MemberAccess occurrence.
+        ExpressionNode::Member(member)
+            if member.selector == language_core::DataComponentSelector::Named =>
+        {
+            candidates.push(Candidate {
+                expression,
+                source_span: member.member.source_span(),
+                kind: Kind::MemberAccess,
+                target: resolved_or_late(member.member_symbol, LateBinding::CheckedMember),
+            })
+        }
         ExpressionNode::Membership(membership) => {
             let members = expressions.name_path_members(membership.domain);
             if !membership.domain_symbol.is_valid() && !membership.case_type_symbol.is_valid() {

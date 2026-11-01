@@ -205,6 +205,7 @@ impl ExpressionTable {
             Expression::Member(member) => {
                 let receiver = self.insert_tree(&member.receiver);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: member.selector,
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),

@@ -1,0 +1,21 @@
+// A data binding retains the producer's equality between two u64 fields so subtracting the lower binding from the upper binding is exact.
+// Expected exit: 0
+data Pair [copy]
+requires (self in Pair::Ready) || (self in Pair::Empty)
+{ lower: u64; case Ready(upper: u64); case Empty; }
+domain Pair::Equal requires (self in Pair::Ready && self.lower == self.upper) || (self in Pair::Empty && self.lower == 0);
+machine produce(value: u64) -> Pair in Equal { match value == 0 { true -> Pair::Empty { lower: 0 } false -> Pair::Ready { lower: value, upper: value } } }
+machine forward(pair: Pair in Equal) -> Pair in Equal { pair }
+machine consume(pair: Pair in Equal, expected: u64) -> bool {
+    let Pair { lower as low, case as operation } = pair;
+    match operation {
+        Pair::Ready { upper as high } -> (high - low) == 0 && low == expected && high == expected
+        Pair::Empty -> false
+    }
+}
+machine exercise(expected: u64) -> bool { consume(forward(produce(expected)), expected) }
+machine main() crashes Trap {
+    transition exercise(17) && exercise(23) && !exercise(0) { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

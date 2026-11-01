@@ -283,6 +283,24 @@ impl SyntaxCopy<'_> {
                 StatementNode::Expression(self.copy_expression_handle(other, *value))
             }
             StatementNode::LocalData(local_data) => StatementNode::LocalData(TableLocalData {
+                pattern: local_data.pattern.map(|pattern| {
+                    let copied = self.copy_destructure_pattern(
+                        other,
+                        crate::expression::TableDestructurePattern {
+                            head: pattern.head,
+                            fields: pattern.fields,
+                            has_rest: pattern.has_rest,
+                            guard: ExpressionHandle::invalid(),
+                            proof_selectors: HandleSpan::empty(),
+                        },
+                    );
+                    crate::statement::TableLocalPattern {
+                        head: copied.head,
+                        fields: copied.fields,
+                        has_rest: copied.has_rest,
+                        positional: pattern.positional,
+                    }
+                }),
                 role: local_data.role,
                 name: local_data.name.clone(),
                 type_reference: self.copy_type_reference_handle(other, local_data.type_reference),
@@ -628,6 +646,7 @@ impl SyntaxCopy<'_> {
             .match_fields(pattern.fields)
             .iter()
             .map(|field| TableMatchField {
+                selector: field.selector,
                 member: field.member.clone(),
                 action: match &field.action {
                     MatchFieldAction::Bind(binding) => MatchFieldAction::Bind(binding.clone()),
@@ -772,6 +791,7 @@ impl SyntaxCopy<'_> {
                 })
             }
             ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
+                selector: member.selector,
                 receiver: self.copy_expression_handle(other, member.receiver),
                 access_source_span: member.access_source_span,
                 member: member.member.clone(),

@@ -1637,6 +1637,66 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             }
             ExpressionNode::Member(member) => {
                 let receiver = self.evaluated_place(member.receiver, contexts, constraints);
+                if member.selector == language_core::DataComponentSelector::Case {
+                    // The case component keeps its already evaluated backing,
+                    // observations and descriptor custody. It performs no field
+                    // load and contributes no new storage or discriminator.
+                    let source = self.context.control.operands.insert(receiver.capture);
+                    *backing = source;
+                    *value_source = source;
+                    *formed_type = validation::expression_result_type_reference(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        expression,
+                    )
+                    .unwrap_or(destination);
+                    *completion = receiver.capture.completion;
+                    *case_access = receiver.capture.case_access;
+                    *referents = Some(receiver.capture.referents);
+                    if validation::reference_shell(self.program, *formed_type).is_some() {
+                        *retention = Some(receiver.capture.retention);
+                        *reference_leaves = Some(receiver.capture.reference_leaves);
+                    } else {
+                        *retention = Some(
+                            self.capture_case_component_retention(*formed_type, &receiver.capture),
+                        );
+                        let leaves = self
+                            .context
+                            .control
+                            .captured_reference_leaves
+                            .span_or_empty(receiver.capture.reference_leaves)
+                            .iter()
+                            .copied()
+                            .filter(|leaf| {
+                                let path = self
+                                    .context
+                                    .control
+                                    .operand_child_paths
+                                    .span_or_empty(leaf.path);
+                                path.is_empty()
+                                    || matches!(
+                                        path.first(),
+                                        Some(facts::PlaceSegment::Case { .. })
+                                    )
+                            })
+                            .collect::<Vec<_>>();
+                        *reference_leaves = Some(
+                            self.context
+                                .control
+                                .captured_reference_leaves
+                                .insert_many(leaves),
+                        );
+                    }
+                    self.retain_value_observation(
+                        expression,
+                        source,
+                        receiver.capture.referents,
+                        *contexts,
+                        *constraints,
+                    );
+                    return self.live_boolean(expression, *contexts);
+                }
                 *backing = self.context.control.operands.insert(receiver.capture);
                 *referents = Some(self.capture_member_referents(
                     expression,

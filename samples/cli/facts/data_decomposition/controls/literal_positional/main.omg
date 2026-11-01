@@ -1,0 +1,7 @@
+// Expected exit: 0
+data Pair [copy] { left: u64; right: u64; }
+machine main() crashes Trap {
+ let (first, second) = Pair { left: 17, right: 23 };
+ transition first == 17 && second == 23 { true -> done() _ -> bad() }
+ machine done() {} machine bad() { crash Trap; }
+}

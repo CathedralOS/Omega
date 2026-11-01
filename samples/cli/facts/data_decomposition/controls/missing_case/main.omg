@@ -1,0 +1,1 @@
+data Command { common: u64; case First; case Second; } machine main() { let Command { common as _ } = Command::First { common: 17 }; }

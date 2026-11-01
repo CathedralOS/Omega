@@ -9,6 +9,7 @@ use psi::checking::facts;
 use psi::checking::obligations;
 use psi::checking::references;
 use psi::checking::zone;
+use psi::checking::static_types;
 use psi::checks::checks;
 use psi::integers::integers;
 use psi::resolution::resolution;
@@ -42,6 +43,14 @@ public data PlaceKind [copy] {
     case Snapshot;
     // Immutable invocation-entry ranking coordinates and range endpoints.
     case RankEntry;
+    // Payload selectors have their own declaration table and identity.
+    case Payload;
+    case CaseTag;
+    case CapturedTag;
+    // Unadmitted construction facts, never default-domain evidence.
+    case Formation;
+    // Immutable proof vocabulary, outside every runtime storage footprint.
+    case StaticType;
 }
 
 public data Place [copy] {
@@ -273,7 +282,7 @@ crashes Trap
 public machine Checker::place_carrier(typing: &Typing, kind: PlaceKind, type_handle: u64 in Trapping) -> BuiltinType
 crashes Trap
 {
-    transition kind == PlaceKind::Length || kind == PlaceKind::RankEntry {
+    transition kind == PlaceKind::Length || kind == PlaceKind::RankEntry || kind == PlaceKind::CaseTag || kind == PlaceKind::CapturedTag {
         true -> length()
         _ -> typed(typing, type_handle)
     }
@@ -505,7 +514,7 @@ crashes Trap
 
     machine stored(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping {
         let entry: Place = Checker::place_at(checker, place - 1);
-        transition entry.kind == PlaceKind::Field && entry.parent > 0 {
+        transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Payload) && entry.parent > 0 {
             true -> parent(checker, syntax, typing, entry.parent)
             _ -> none()
         }
@@ -551,7 +560,7 @@ crashes Trap
 
     machine parent(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let place: Place = Checker::place_at(checker, current - 1);
-        transition place.kind == PlaceKind::Field || place.kind == PlaceKind::Length || place.kind == PlaceKind::Referent {
+        transition place.kind == PlaceKind::Field || place.kind == PlaceKind::Payload || place.kind == PlaceKind::CaseTag || place.kind == PlaceKind::Length || place.kind == PlaceKind::Referent {
             true -> step(checker, place.parent, outer, depth + 1)
             _ -> no()
         }
@@ -580,14 +589,15 @@ crashes Trap
 {
     let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
     transition binding {
+        ValueBinding::TypeOperand { binding as _ } -> Checker::static_type_value(checker, syntax, typing, Typing::static_operand_type(typing, handle))
         ValueBinding::Constant { constant } -> constant_value(syntax, typing, constant, type_handle)
         ValueBinding::Local { statement } -> rooted(checker, typing, PlaceKind::Local, statement, type_handle)
         ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle)
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
-        ValueBinding::PayloadField { field } -> payload_name(checker, field)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
         ValueBinding::DomainSubject { domain } -> subject(checker)
+        ValueBinding::DataSubject { item as _ } -> subject(checker)
         _ -> unbounded()
     }
 
@@ -629,15 +639,6 @@ crashes Trap
         transition checker.field_values && field >= checker.field_first {
             true -> written(checker, field - checker.field_first)
             _ -> installed(checker, typing, field, type_handle)
-        }
-    }
-
-    // A case fact's payload name: what the construction writes there, or the
-    // arm's binder for it, while the case's facts are decided or assumed.
-    machine payload_name(checker: &Checker, field: u64 in Trapping) -> Value {
-        transition checker.payload_values && field >= checker.payload_first {
-            true -> written(checker, checker.payload_slot + (field - checker.payload_first))
-            _ -> unbounded()
         }
     }
 
@@ -748,6 +749,7 @@ crashes Trap
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     transition selection {
         Selection::Field { field } -> member(checker, typing, PlaceKind::Field, field, base.place, type_handle, row)
+        Selection::PayloadField { data_case as _, field } -> member(checker, typing, PlaceKind::Payload, field, base.place, type_handle, row)
         Selection::Length -> length(checker, typing, expression, base.place, type_handle, row)
         _ -> unbounded()
     }

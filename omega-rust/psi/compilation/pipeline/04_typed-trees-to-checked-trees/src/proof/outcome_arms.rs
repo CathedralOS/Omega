@@ -287,6 +287,9 @@ fn append_evidence_interface_reference_regions(
     }
     use typed_trees::types::TypeReferenceNode;
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            append_evidence_interface_reference_regions(program, *subject, regions)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             regions.push(type_reference);
             append_evidence_interface_reference_regions(program, *referee, regions);

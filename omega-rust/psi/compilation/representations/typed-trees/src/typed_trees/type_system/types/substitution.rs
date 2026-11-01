@@ -260,6 +260,10 @@ impl TypeReferenceTable {
             return Ok(handle);
         }
         let rebuilt = match self.type_reference(handle).clone() {
+            TypeReferenceNode::CaseView { subject } => {
+                let applied = self.instantiate(subject, substitutions)?;
+                (applied != subject).then_some(TypeReferenceNode::CaseView { subject: applied })
+            }
             TypeReferenceNode::Named { symbol, .. } => {
                 return Ok(substitutions
                     .iter()
@@ -382,6 +386,9 @@ impl TypeReferenceTable {
             return false;
         }
         match self.type_reference(handle) {
+            TypeReferenceNode::CaseView { subject } => {
+                self.names_any_binder(*subject, substitutions)
+            }
             TypeReferenceNode::Named { symbol, .. } => {
                 substitutions.iter().any(|(binder, _)| binder == symbol)
             }

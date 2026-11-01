@@ -99,6 +99,9 @@ impl CallableApplication {
         let mut applied_lifetimes = Vec::new();
         let mut supplied_origins = Vec::new();
         let node = match program.type_reference_node(original).clone() {
+            types::TypeReferenceNode::CaseView { subject } => types::TypeReferenceNode::CaseView {
+                subject: self.type_reference(program, subject)?,
+            },
             types::TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, argument)) = self
                     .static_arguments

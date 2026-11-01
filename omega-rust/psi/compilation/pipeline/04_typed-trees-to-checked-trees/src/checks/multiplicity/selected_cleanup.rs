@@ -616,11 +616,16 @@ impl SelectedCleanup {
         Ok(())
     }
 
+    pub(super) fn forget_completed(&mut self, root: PlaceRoot) {
+        self.owners.retain(|owner| owner.root != root);
+    }
+
     pub(super) fn finish(
         &self,
         program: &dyn validation::CheckingInput,
         state: &typed_trees::state::State,
         exit: FlowClaimJoinExit,
+        scope: Option<(PlaceRoot, usize)>,
         ordinary: &[FlowPermissionEventFact],
         remaining: &mut RemainingCustody,
         ownership: &mut FlowOwnershipFacts,
@@ -643,6 +648,9 @@ impl SelectedCleanup {
             }
         }
         for (index, owner) in self.owners.iter().enumerate() {
+            if scope.is_some_and(|(root, _)| root != owner.root) {
+                continue;
+            }
             let captured_home = owner.selection.is_valid()
                 && program.type_multiplicity(
                     ownership
@@ -654,9 +662,16 @@ impl SelectedCleanup {
                 continue;
             }
             let mut template = owner.origin.clone();
-            template.source = PermissionEventSource::StateExit;
+            template.source = scope
+                .map_or(PermissionEventSource::StateExit, |(_, statement_index)| {
+                    PermissionEventSource::Statement { statement_index }
+                });
             template.expression = Default::default();
-            template.evaluation = super::linear_validation::exit_evaluation(program, state, exit);
+            template.evaluation = if scope.is_some() {
+                checked_trees::FlowPermissionEvaluation::Statement
+            } else {
+                super::linear_validation::exit_evaluation(program, state, exit)
+            };
             for candidate in owner.events(program, template, ownership)? {
                 ownership
                     .selected_cleanup_permissions
@@ -678,6 +693,9 @@ impl SelectedCleanup {
                         .map(|local| PlaceRoot::Symbol(local.symbol))
                 }),
         );
+        if let Some((root, _)) = scope {
+            roots.retain(|candidate| *candidate == root);
+        }
         // Resolve the ordinary remainder before ordering it beside retained
         // candidates: an incomplete root's empty path is a storage boundary,
         // not the establishment coordinate of every subtree it still owns.
@@ -757,7 +775,10 @@ impl SelectedCleanup {
                                 && write.state == owner.origin.state_symbol
                                 && write.destination.root == **root
                                 && execution_order.at_or_before(captured_at, statement)
-                                && execution_order.at_or_before(statement, exit.statement_index)
+                                && execution_order.at_or_before(
+                                    statement,
+                                    scope.map_or(exit.statement_index, |(_, statement)| statement),
+                                )
                                 && remaining.is_present(**root, path)
                             {
                                 Some(path.to_vec())

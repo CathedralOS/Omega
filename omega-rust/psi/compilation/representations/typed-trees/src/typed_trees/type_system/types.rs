@@ -175,6 +175,37 @@ impl TypeReferenceTable {
             .wrapping_add(self.type_alias_applications.revision())
     }
 
+    pub fn case_view_reference(&self, subject: TypeReferenceHandle) -> Option<TypeReferenceHandle> {
+        self.type_references.iter().find_map(|(handle, node)| {
+            matches!(node, TypeReferenceNode::CaseView { subject: actual } if *actual == subject)
+                .then_some(handle)
+        })
+    }
+
+    pub fn retain_case_view(&mut self, subject: TypeReferenceHandle) -> TypeReferenceHandle {
+        self.case_view_reference(subject)
+            .unwrap_or_else(|| self.insert(TypeReferenceNode::CaseView { subject }))
+    }
+
+    pub fn has_case_view(&self, mut reference: TypeReferenceHandle) -> bool {
+        for _ in 0..=self.type_reference_count() {
+            match self.type_reference(reference) {
+                TypeReferenceNode::CaseView { .. } => return true,
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                _ => return false,
+            }
+        }
+        false
+    }
+
+    pub fn case_view_subject(&self, reference: TypeReferenceHandle) -> Option<TypeReferenceHandle> {
+        match self.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => Some(*subject),
+            _ => None,
+        }
+    }
+
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.arithmetic_rows.0.take();
         let named = match &type_reference {
@@ -515,6 +546,7 @@ impl TypeReferenceTable {
     /// removed — the declared carrier underneath both wrappers.
     pub fn peeled_type_reference(&self, mut handle: TypeReferenceHandle) -> TypeReferenceHandle {
         while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::CaseView { subject: referee }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
         } = self.type_reference(handle)
@@ -1120,6 +1152,13 @@ impl Default for TypeReferenceTable {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TypeReferenceNode {
+    /// The anonymous case component of an exact mixed-data subject. This
+    /// qualifier changes available components and custody, never the original
+    /// carrier's physical placement or the subject's static arguments/loans.
+    /// It is compiler-formed; no authored schema member or new sum is created.
+    CaseView {
+        subject: TypeReferenceHandle,
+    },
     Reference {
         referee: TypeReferenceHandle,
         access: language_core::ReferenceAccess,
@@ -1233,6 +1272,7 @@ impl fmt::Display for FixedArrayLength {
 impl TypeReferenceNode {
     pub fn primitive_type(&self, table: &TypeReferenceTable) -> Option<PrimitiveType> {
         match self {
+            TypeReferenceNode::CaseView { .. } => None,
             TypeReferenceNode::Reference { .. } => None,
             TypeReferenceNode::Constrained { base_type, .. } => table.primitive_type(*base_type),
             TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name),
@@ -1268,6 +1308,7 @@ impl TypeReferenceNode {
 
     pub fn type_symbol(&self, table: &TypeReferenceTable) -> SymbolHandle {
         match self {
+            TypeReferenceNode::CaseView { subject } => table.type_symbol(*subject),
             TypeReferenceNode::Reference { referee, .. } => table.type_symbol(*referee),
             TypeReferenceNode::Constrained { base_type, .. } => table.type_symbol(*base_type),
             TypeReferenceNode::FixedArray { element_type, .. } => table.type_symbol(*element_type),

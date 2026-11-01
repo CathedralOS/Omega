@@ -679,14 +679,7 @@ def main() -> None:
         b"x",
         2,
     )
-    rejected(
-        program,
-        "field-after-case",
-        b"data A { case x; x: u8; }",
-        DUPLICATE_DATA_MEMBER,
-        b"x",
-        2,
-    )
+    # A field after the case tail is a parser rejection, retained in the parser gate.
     rejected(
         program,
         "duplicate-payload-field",

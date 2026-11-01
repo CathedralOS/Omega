@@ -697,6 +697,10 @@ pub(crate) fn normalize_type_reference(
         }
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => compound(
+            "case-view",
+            [normalize_type_reference(program, *subject, context)],
+        ),
         TypeReferenceNode::Reference {
             referee,
             access,

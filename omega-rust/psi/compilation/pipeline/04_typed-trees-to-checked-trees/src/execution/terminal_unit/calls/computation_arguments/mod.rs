@@ -706,36 +706,59 @@ pub(crate) fn owned_argument(
     // Source admission and the exact call roster own the move; the owned
     // storage/type/path checks below still exclude every borrowed referent.
     let parameters = program.state_parameters(state);
-    let source_symbol = place.root.as_symbol()?;
-    let (source, source_type) = if let Some(position) = parameters
-        .iter()
-        .position(|source| source.symbol == source_symbol)
-    {
-        let parameter = &parameters[position];
-        if parameter.is_const {
+    let (source, source_type) = if let facts::PlaceRoot::Expression(root) = place.root {
+        // A dispatch's saved subject is an already completed owner. Its exact
+        // capture anchor names that value; the authored initializer is never
+        // replayed, and no other expression-root shape manufactures a home.
+        let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(root) else {
             return None;
-        }
+        };
+        let original = program.saved_value_source(saved)?;
+        let owner = program.machine_by_symbol(machine)?;
+        let reference =
+            validation::expression_result_type_reference(program, owner, state, original)?;
+        let anchor = program
+            .expression_table
+            .value_capture(saved.capture)
+            .value_anchor;
         (
-            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: dense_structural_parameter_index(program, parameters, position)?,
-            },
-            parameter.type_reference,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: anchor },
+            reference,
         )
     } else {
-        // A declared local is a structural home whether its declaration
-        // carried an initializer or its fields were established by later
-        // stores; the statement route admits both the same way, and the
-        // ownership events, not the declaration's syntax, prove the operand
-        // is established at this call.
-        let (_, local) = program
-            .state_local_declaration(state, source_symbol)
-            .filter(|&(ordinal, _)| ordinal < statement_index)?;
-        (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: source_symbol,
-            },
-            local.type_reference,
-        )
+        let source_symbol = place.root.as_symbol()?;
+        if let Some(position) = parameters
+            .iter()
+            .position(|source| source.symbol == source_symbol)
+        {
+            let parameter = &parameters[position];
+            if parameter.is_const {
+                return None;
+            }
+            (
+                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: dense_structural_parameter_index(
+                        program, parameters, position,
+                    )?,
+                },
+                parameter.type_reference,
+            )
+        } else {
+            // A declared local is a structural home whether its declaration
+            // carried an initializer or its fields were established by later
+            // stores; the statement route admits both the same way, and the
+            // ownership events, not the declaration's syntax, prove the operand
+            // is established at this call.
+            let (_, local) = program
+                .state_local_declaration(state, source_symbol)
+                .filter(|&(ordinal, _)| ordinal < statement_index)?;
+            (
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: source_symbol,
+                },
+                local.type_reference,
+            )
+        }
     };
     // Owned projection cannot cross a reference to acquire someone else's
     // referent. The root and endpoint both retain owned storage contracts.

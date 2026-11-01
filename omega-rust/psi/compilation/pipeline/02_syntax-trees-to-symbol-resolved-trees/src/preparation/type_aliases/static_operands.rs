@@ -335,6 +335,7 @@ fn argument_reference(
         syntax.expressions.set_source_span(receiver, term_span);
         let expression = syntax.expressions.insert(ExpressionNode::Member(
             syntax_trees::expression::TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver,
                 access_source_span: source::SourceSpan::new(
                     term_span.source_id,

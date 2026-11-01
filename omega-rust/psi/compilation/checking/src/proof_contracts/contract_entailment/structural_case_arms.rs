@@ -2062,6 +2062,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
                         continue;
                     }
+                    let original_subject_type = subject_type;
                     if let Some((definition, variant)) =
                         super::structural_terms::case_guard_classifier(
                             program,
@@ -2084,6 +2085,10 @@ fn recognize_structural_state_leaves_from<'a>(
                             subject_expression,
                             &subject,
                             subject_type,
+                            program
+                                .type_reference_table
+                                .case_view_subject(original_subject_type)
+                                .unwrap_or(original_subject_type),
                             invocation,
                             state,
                             &environment,

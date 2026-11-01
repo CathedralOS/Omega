@@ -25,6 +25,20 @@ pub(in crate::checks::borrows) struct InvocationBoundary {
 }
 
 impl InvocationBoundary {
+    /// Retain one exact completed formation's route for batch comparisons.
+    /// Repeated or unknown occurrences grant no branch exclusion.
+    pub(super) fn completed_access_route(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<&[crate::checks::ownership_occurrences::EvaluationBranch]> {
+        use crate::checks::ownership_occurrences::StatementStep;
+        let mut rows = self.occurrences[..self.completion].iter().filter(
+            |row| matches!(row.step, StatementStep::Complete(completed) if completed == expression),
+        );
+        let route = rows.next()?.route.as_slice();
+        rows.next().is_none().then_some(route)
+    }
+
     pub(in crate::checks::borrows) fn at(
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,

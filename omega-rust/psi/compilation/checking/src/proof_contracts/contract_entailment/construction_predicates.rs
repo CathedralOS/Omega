@@ -339,6 +339,12 @@ impl ConstructionPredicates<'_> {
                 },
             );
             let Some(value) = value else {
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT constructor-subject-missing machine={} expression={:?} fields={completed_fields:?}",
+                        machine.name, self.expression
+                    );
+                }
                 return vec![StructuralJudgment::Unknown; self.predicates.len()];
             };
             parameters.push(subject.clone());

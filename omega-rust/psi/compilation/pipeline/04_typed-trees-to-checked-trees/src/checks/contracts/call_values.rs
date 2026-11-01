@@ -388,6 +388,7 @@ pub(crate) fn captured_arithmetic_observation(
 
 #[derive(Default)]
 pub(super) struct MembershipCase {
+    pub retained_result: bool,
     pub contexts: Vec<FactContextHandle>,
     pub referents: Option<Vec<CanonicalPlace>>,
 }
@@ -415,12 +416,14 @@ impl Default for MembershipEvidence {
 /// its source; borrowed arguments retain the ordinary invocation-live rules.
 /// The declaration's subject and its substituted place must agree with the
 /// same argument occurrence. A missing capture supplies no evidence.
-pub(super) fn membership_evidence(
+pub(super) fn membership_evidence<'facts>(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &'facts CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirement: &facts::Fact,
+    result_memberships: &mut crate::flow::CapturedResultMemberships<'facts>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<MembershipEvidence> {
     let facts::FactPayload::ContractDomainMembership {
         value,
@@ -438,7 +441,7 @@ pub(super) fn membership_evidence(
         call.statement_index,
         call.call_ordinal,
     )) else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let mut position = None;
     for reference in facts
@@ -459,28 +462,30 @@ pub(super) fn membership_evidence(
         ) {
             Ok(Some(bound)) => bound,
             Ok(None) => return None,
-            Err(()) => return Some(MembershipEvidence::default()),
+            Err(()) => {
+                return Some({ MembershipEvidence::default() });
+            }
         };
         if position.is_some_and(|position| position != bound) {
-            return Some(MembershipEvidence::default());
+            return Some({ MembershipEvidence::default() });
         }
         position = Some(bound);
     }
     let Some(position) = position else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let Some(actual) = actual_at(program, state, call, position, declared.segments) else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let Some(place) = requirement.place.as_place() else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,
         &facts.semantic,
         facts.semantic.places.get(place),
     ) else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let Some(expected) = actual.argument.and_then(|argument| {
         crate::semantic::facts::projected_argument_place(
@@ -492,7 +497,7 @@ pub(super) fn membership_evidence(
             &actual.path,
         )
     }) else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     if required.root != expected.root
         || required.segments.len() != expected.segments.len()
@@ -504,10 +509,10 @@ pub(super) fn membership_evidence(
                 crate::flow::canonical_place_segments_equal(program, *left, *right)
             })
     {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     }
     let Some(values) = captured_values(program, facts, state, call, &actual) else {
-        return Some(MembershipEvidence::default());
+        return Some({ MembershipEvidence::default() });
     };
     let mut cases = values
         .iter()
@@ -534,7 +539,35 @@ pub(super) fn membership_evidence(
                         .map(|place| place.projected)
                         .collect()
                 });
+            // The exact normal-result promise belongs to this completed
+            // alternative, not the expression naming the whole selection.
+            // Its shared owner checks projection, domain instance and every
+            // intervening contents write against the invocation observation.
+            let retained_result =
+                requirement
+                    .payload
+                    .domain_membership()
+                    .is_some_and(|(_, _, domain, instance)| {
+                        facts
+                            .flow
+                            .control
+                            .operands
+                            .span_or_empty(call.operands)
+                            .last()
+                            .is_some_and(|invocation| {
+                                invocation.storage_snapshot == call.invocation_storage
+                                    && result_memberships.contains(
+                                        program,
+                                        captured,
+                                        invocation,
+                                        domain,
+                                        instance,
+                                        call_frames,
+                                    )
+                            })
+                    });
             MembershipCase {
+                retained_result,
                 contexts,
                 referents,
             }

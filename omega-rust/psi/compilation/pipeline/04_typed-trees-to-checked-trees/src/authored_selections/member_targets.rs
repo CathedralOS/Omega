@@ -171,6 +171,7 @@ fn member_symbol_from_type_reference(
     use typed_trees::types::TypeReferenceNode;
 
     let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => return None,
         TypeReferenceNode::Reference { referee, .. } => {
             return member_symbol_from_type_reference(program, *referee, member_name);
         }

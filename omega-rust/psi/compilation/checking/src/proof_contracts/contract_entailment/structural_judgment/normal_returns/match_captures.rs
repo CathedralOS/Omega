@@ -48,12 +48,25 @@ impl StructuralJudge<'_> {
         let anchor = expression_table(self.program)
             .value_capture(saved.capture)
             .value_anchor;
-        let identity = self.program.normalized_type_identity(reference);
+        // The receipt proves nominal validity of the exact subject snapshot.
+        // A case-only qualifier retains that subject's application; removing
+        // it here grants neither a source field nor an ownership capability.
+        let nominal = |reference| {
+            self.program
+                .type_reference_table
+                .case_view_subject(reference)
+                .unwrap_or(reference)
+        };
+        let identity = self.program.normalized_type_identity(nominal(reference));
+
         identity.is_valid()
             && self.completed_nominal_captures.iter().any(|row| {
                 row.anchor == anchor
                     && row.value.observation_identity_key().as_ref() == Some(&key)
-                    && self.program.normalized_type_identity(row.reference) == identity
+                    && self
+                        .program
+                        .normalized_type_identity(nominal(row.reference))
+                        == identity
             })
     }
 

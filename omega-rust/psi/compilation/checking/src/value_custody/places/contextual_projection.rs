@@ -95,6 +95,11 @@ pub fn contextual_canonical_place_from_expression(
                 statement_index,
                 member.receiver,
             )?;
+            // The anonymous case view observes the same backing. It is not
+            // an extra stored field or a second discriminator.
+            if member.selector == language_core::DataComponentSelector::Case {
+                return Some(place);
+            }
             let symbol = {
                 let symbol = member_resolution::effective_member_symbol_from_position(
                     program,

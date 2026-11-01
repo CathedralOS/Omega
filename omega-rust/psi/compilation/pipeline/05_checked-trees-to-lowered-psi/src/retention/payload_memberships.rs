@@ -104,7 +104,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 ordinal,
                                 PayloadMembershipContract {
                                     scalar_observations: Vec::new(),
-                                    scalar_requirements: Vec::new(),
+                                    scalar_requirements: Vec::new().into(),
                                     carrier: result.structural_type,
                                     qualifications: Vec::new(),
                                     projected_qualifications,
@@ -170,7 +170,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                     ordinal,
                                     PayloadMembershipContract {
                                         scalar_observations: Vec::new(),
-                                        scalar_requirements: Vec::new(),
+                                        scalar_requirements: Vec::new().into(),
                                         carrier: result.structural_type,
                                         qualifications,
                                         projected_qualifications,
@@ -235,6 +235,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                 break;
             }
         }
+        // This machine has no remaining payload readers. Module-wide reuse
+        // needs call summaries, not every completed per-position replay map.
+        analysis.release_completed_snapshots();
     }
     Ok(())
 }

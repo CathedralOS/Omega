@@ -78,8 +78,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR18"
-    assert reader.u64() == 18
+    assert reader.bytes(8) == b"OMGPAR19"
+    assert reader.u64() == 19
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -125,7 +125,7 @@ def decode(payload: bytes) -> Observation:
     )
     # Field rows: name span, stable-identity flag and literal span, type
     # handle, span. Case rows: name span, identity flag and span, span,
-    # payload-field range, clause range.
+    # payload-field range.
     fields = tuple(
         (
             reader.u64(),
@@ -164,8 +164,6 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.byte() == 1,
-            reader.u64(),
-            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -725,7 +723,7 @@ def accepted(
         data_members,
         with_identity(fields, 11),
         with_identity(payload_fields, 11),
-        with_identity(tuple(row + (0, 0) if len(row) == 8 else row for row in cases), 14),
+        with_identity(cases, 12),
         type_rows(type_references),
         generic_parameters,
         machine_rows(machines),
@@ -1999,9 +1997,9 @@ def nested_machine_cases(program: str) -> None:
 def complete_nested_machine_cases(program: str) -> None:
     source = (
         b"machine outer<T>(x: u64) -> u64 requires x > 0 ensures result > 0 "
-        b"reaches blocks; suspends; crashes Trap { x "
+        b"reaches blocks suspends crashes Trap { x "
         b"machine left(y: u64) -> u64 requires y > 1 ensures result > 1 "
-        b"reaches blocks; suspends; crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
+        b"reaches blocks suspends crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
         b"machine right(y: u64) -> u64 { y machine leaf(z: u64) -> u64 { z } } }"
     )
     status, payload = run(program, source)
@@ -2028,9 +2026,9 @@ def complete_nested_machine_cases(program: str) -> None:
     )
     contracted = (
         b"machine outer<machine F>(x: u8) -> u8 "
-        b"where machine F(value: u8) -> u8; { x "
+        b"requires machine F(value: u8) -> u8; { x "
         b"machine inner<machine G>(y: u8) -> u8 "
-        b"where machine G(value: u8) -> u8; "
+        b"requires machine G(value: u8) -> u8; "
         b"requires y > 0 ensures result > 0 { y } }"
     )
     status, payload = run(program, contracted)
@@ -2067,6 +2065,9 @@ def complete_nested_machine_cases(program: str) -> None:
              (resumed.index(b"7"), resumed.index(b"7") + 1), machine_count=2)
 
 
+
+
+migration_span = span
 
 def main() -> None:
     if len(sys.argv) != 2:
@@ -2215,32 +2216,29 @@ def main() -> None:
             (1, 1, 110, 116, 1, 110, 116, 0, 0, 0, 0),
         ),
     )
+    source = b'public data Shape [copy] { case: Marker; value: Value; case Empty; case Full; }'
     accepted(
         program,
         "copy-sum-and-mixed-member-order",
-        b'public data Shape [copy] { case Empty; case: Marker; value: Value; case Full; }',
-        ((2, 0, 1, 0, 79),),
-        (),
-        (),
-        ((1, 12, 17, 0, 4, 0, 2, 0, 2, 1, True, 1, 0, 79, 0, 0),),
+        source,
+        ((2, 0, 1, 0, len(source)),), (), (),
+        ((1, 12, 17, 0, 4, 0, 2, 0, 2, 1, True, 1, 0, len(source), 0, 0),),
         (
-            (2, 0, 1, 27, 38),
-            (1, 0, 1, 39, 52),
-            (1, 1, 1, 53, 66),
-            (2, 1, 1, 67, 77),
+            (1, 0, *migration_span(source, b"case: Marker;")),
+            (1, 1, *migration_span(source, b"value: Value;")),
+            (2, 0, *migration_span(source, b"case Empty;")),
+            (2, 1, *migration_span(source, b"case Full;")),
         ),
         (
-            (1, 39, 43, 0, 1, 39, 52),
-            (1, 53, 58, 1, 1, 53, 66),
+            (*migration_span(source, b"case"), 0, *migration_span(source, b"case: Marker;")),
+            (*migration_span(source, b"value"), 1, *migration_span(source, b"value: Value;")),
         ),
         (
-            (1, 32, 37, 1, 27, 38, 0, 0),
-            (1, 72, 76, 1, 67, 77, 0, 0),
+            (*migration_span(source, b"Empty"), *migration_span(source, b"case Empty;"), 0, 0),
+            (*migration_span(source, b"Full"), *migration_span(source, b"case Full;"), 0, 0),
         ),
-        (
-            (1, 1, 45, 51, 1, 45, 51, 0, 0, 0, 0),
-            (1, 1, 60, 65, 1, 60, 65, 0, 0, 0, 0),
-        ),
+        tuple((1, 1, *migration_span(source, name)[1:], *migration_span(source, name), 0, 0, 0, 0)
+              for name in (b"Marker", b"Value")),
     )
     accepted(
         program,
@@ -2302,35 +2300,37 @@ def main() -> None:
         ((1, 1, 33, 34, 1, 33, 34, 0, 0, 0, 0),),
         payload_fields=((1, 26, 31, 0, 1, 26, 35),),
     )
+    source = b"data Mixed { common: C; tail: T; case None; case Some(value: V); }"
     accepted(
         program,
         "mixed-direct-and-case-payload-fields",
-        b"data Mixed { common: C; case None; case Some(value: V); tail: T; }",
-        ((2, 0, 1, 0, 66),),
-        (),
-        (),
-        ((1, 5, 10, 0, 4, 0, 2, 0, 2, 0, False, 1, 0, 66, 0, 0),),
+        source,
+        ((2, 0, 1, 0, len(source)),), (), (),
+        ((1, 5, 10, 0, 4, 0, 2, 0, 2, 0, False, 1, 0, len(source), 0, 0),),
         (
-            (1, 0, 1, 13, 23),
-            (2, 0, 1, 24, 34),
-            (2, 1, 1, 35, 55),
-            (1, 1, 1, 56, 64),
+            (1, 0, *migration_span(source, b"common: C;")),
+            (1, 1, *migration_span(source, b"tail: T;")),
+            (2, 0, *migration_span(source, b"case None;")),
+            (2, 1, *migration_span(source, b"case Some(value: V);")),
         ),
         (
-            (1, 13, 19, 0, 1, 13, 23),
-            (1, 56, 60, 2, 1, 56, 64),
+            (*migration_span(source, b"common"), 0, *migration_span(source, b"common: C;")),
+            (*migration_span(source, b"tail"), 1, *migration_span(source, b"tail: T;")),
         ),
         (
-            (1, 29, 33, 1, 24, 34, 0, 0),
-            (1, 40, 44, 1, 35, 55, 0, 1),
+            (*migration_span(source, b"None"), *migration_span(source, b"case None;"), 0, 0),
+            (*migration_span(source, b"Some"), *migration_span(source, b"case Some(value: V);"), 0, 1),
         ),
-        (
-            (1, 1, 21, 22, 1, 21, 22, 0, 0, 0, 0),
-            (1, 1, 52, 53, 1, 52, 53, 0, 0, 0, 0),
-            (1, 1, 62, 63, 1, 62, 63, 0, 0, 0, 0),
-        ),
-        payload_fields=((1, 45, 50, 1, 1, 45, 53),),
+        tuple((1, 1, *migration_span(source, name)[1:], *migration_span(source, name), 0, 0, 0, 0)
+              for name in (b"C", b"T", b"V")),
+        payload_fields=((*migration_span(source, b"value"), 2, *migration_span(source, b"value: V")),),
     )
+    source = b"data Mixed { common: C; case None; tail: T; }"
+    rejected(program, "field-after-case-tail", source, 204, migration_span(source, b"tail")[1:],
+             data_member_count=2, field_count=1, case_count=1, type_reference_count=1)
+    source = b"data A { case x; x: u8; }"
+    rejected(program, "field-after-case-before-duplicate-resolution", source, 204,
+             migration_span(source, b"x", 2)[1:], data_member_count=1, case_count=1)
     accepted(
         program,
         "qualified-field-type",
@@ -2747,9 +2747,10 @@ def main() -> None:
 
     # The shared member table, 2,048 rows, fills before the field and case
     # tables do: 1,024 fields and 1,024 cases, then one more case.
-    exact_mixed = b"data Mixed { " + b"".join(
-        f"f{index}: T; case C{index}; ".encode() for index in range(1024)
-    ) + b"}"
+    exact_mixed = (b"data Mixed { "
+                   + b"".join(f"f{index}: T; ".encode() for index in range(1024))
+                   + b"".join(f"case C{index}; ".encode() for index in range(1024))
+                   + b"}")
     exact_mixed_status, exact_mixed_payload = run(program, exact_mixed)
     assert exact_mixed_status == 0
     exact_mixed_observation = decode(exact_mixed_payload)
@@ -3437,7 +3438,7 @@ def main() -> None:
     actual = decode(payload)
     assert [row[0] for row in actual.clauses] == [8, 8], f"data-where:\n{actual.clauses}"
     assert actual.data_items[0][16:18] == (0, 2), f"data-where:\n{actual.data_items}"
-    assert actual.cases[0][12:14] == (2, 0), f"data-where:\n{actual.cases}"
+    assert len(actual.cases[0]) == 12, f"data-where:\n{actual.cases}"
     for name, word in (("retired-case-where", b"where"), ("retired-case-requires", b"requires")):
         source = b"data D { case C(x: u8) " + word + b" x < 9; }"
         start = source.index(word)

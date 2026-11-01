@@ -20,7 +20,7 @@ machine make() -> Reply crashes Trap {
 }
 machine observe(reply: Reply) -> bool crashes Trap {
     transition reply {
-        Reply::Message { sequence as _, content } -> (reply.sequence == 17 && TextBuffer::equal(&content.bytes, "Gate"))
+        Reply::Message { content } -> (reply.sequence == 17 && TextBuffer::equal(&content.bytes, "Gate"))
         Reply::Empty -> (false)
     }
 }
@@ -29,7 +29,7 @@ machine make_direct() -> DirectReply crashes Trap {
 }
 machine observe_direct(reply: DirectReply) -> bool crashes Trap {
     transition reply {
-        DirectReply::Message { header as _, sequence as _, content } -> (reply.sequence == 29 && TextBuffer::equal(&reply.header, "Common") && TextBuffer::equal(&content, "Next"))
+        DirectReply::Message { content } -> (reply.sequence == 29 && TextBuffer::equal(&reply.header, "Common") && TextBuffer::equal(&content, "Next"))
         DirectReply::Empty -> (false)
     }
 }
@@ -37,14 +37,14 @@ machine size(bytes: &[u8]) -> u64 { bytes.len }
 machine observe_borrowed(reply: &DirectReply, header_size: u64, content_size: u64) -> bool crashes Trap {
     let common: u64 = size(TextBuffer::view(&reply.header));
     transition reply {
-        DirectReply::Message { header as _, sequence as _, content } -> (common == header_size && size(TextBuffer::view(&content)) == content_size && content.used == content_size)
+        DirectReply::Message { content } -> (common == header_size && size(TextBuffer::view(&content)) == content_size && content.used == content_size)
         DirectReply::Empty -> (common == header_size && content_size == 0)
     }
 }
 machine replace(bytes: &mut TextBuffer) -> bool crashes Trap { bytes = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }; true }
 machine edit(reply: &mut DirectReply) -> bool crashes Trap {
     transition reply {
-        DirectReply::Message { header as _, sequence as _, content } -> (replace(&mut content))
+        DirectReply::Message { content } -> (replace(&mut content))
         DirectReply::Empty -> true
     }
 }
