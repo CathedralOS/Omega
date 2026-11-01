@@ -50,6 +50,23 @@ ownership checks already rejected the call-result, match-join and state-transfer
 retained controls are not claimed as newly repaired behavior. The state-transfer
 probe's initial syntax was corrected before its baseline and candidate replay.
 
+## Zero image and static application
+
+A zero image is judged against its own application. `let value: Gate<0>;` keeps
+its zero image only when the default domain holds of zero fields and the exact
+static actuals the application supplies, the same tuple an explicit constructor
+reads. Before this reading the template's binder `Number` stayed open, the
+judgment was unknown, and the local lost its zero image: native execution still
+read a zeroed slot while the Terminal interpreter found no field cell.
+
+Three controls keep the mechanism exact. [Field bound](controls/field_bound/main.omg)
+combines a zero field with a static actual (`used >= Minimum`, `Floor<0>`); its
+[twin](controls/field_bound/invalid/main.omg) changes only that actual to 5 and
+rejects. The [open application](controls/open_application/main.omg) names
+`Gate<Open>` inside a generic machine, where nothing supplies the actual, and
+still rejects. They are pinned as `applied_zero_establishment_field_bound_{exit,unestablished}`
+and `applied_zero_establishment_open_application_unestablished`.
+
 This row establishes ordinary initialization validity. The companion
 [installed-entry storage row](../installed_entry_storage/README.md) establishes
 static-backed exclusive state and exact installed handoff with actual original
