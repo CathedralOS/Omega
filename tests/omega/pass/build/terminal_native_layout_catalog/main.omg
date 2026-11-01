@@ -1,0 +1,56 @@
+// Expected exit: 0
+// The same artifact retains invariant and target-member private-slot layouts
+// beneath an ordinary record; runtime fields and target size remain distinct.
+use omega::language::core::layout;
+
+data Payload [copy] { value: u64; }
+boundary trait Callback { machine call(value: u64) -> u64 reaches; }
+FixedSlot satisfies PrivateCallbackSlot<Payload, Fixed, Callback::call> { }
+VariableSlot satisfies PrivateCallbackSlot<Payload, Variable, Callback::call> { }
+
+Fixed satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
+        LayoutPlan::place_private<FixedSlot>(plan, 8)
+    }
+}
+Variable satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let facts: LayoutTargetFacts = layout_target_facts(&target);
+        transition facts.profile == "windows_x86_64" {
+            true -> place(schema, 24)
+            _ -> place(schema, 16)
+        }
+        machine place(schema: Schema, bytes: u64) -> LayoutPlan reaches terminates {
+            let mut entries: [FieldEntry; 64];
+            entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+            let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: bytes, size_is_dynamic: false, align: 8 };
+            LayoutPlan::place_private<VariableSlot>(plan, 8)
+        }
+    }
+}
+data Envelope {
+    first: LayoutStorage<Payload, Fixed>;
+    second: LayoutStorage<Payload, Variable>;
+    tail: u64;
+}
+boundary trait ExpectedSize { machine bytes() -> u64 reaches; }
+HostedSize satisfies ExpectedSize { machine bytes() -> u64 { 16 } }
+WindowsSize satisfies ExpectedSize { machine bytes() -> u64 { 24 } }
+
+machine main() crashes Trap {
+    let mut first: LayoutStorage<Payload, Fixed>;
+    first.value = 11;
+    let mut second: LayoutStorage<Payload, Variable>;
+    second.value = 37;
+    let value: Envelope = Envelope { first: first, second: second, tail: 99 };
+    transition value.first.value == 11 && value.second.value == 37 && value.tail == 99
+        && size_of<LayoutStorage<Payload, Variable>>() == ExpectedSize::bytes() {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
