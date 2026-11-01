@@ -222,7 +222,7 @@ pub struct PayloadMembershipContract {
     pub scalar_observations: Vec<super::PayloadScalarObservation>,
     /// Immutable disposable theory shared by selections and earlier replay cuts.
     /// Writers explicitly detach; durable declarations still own their vectors.
-    pub scalar_requirements: std::sync::Arc<Vec<semantic_vocabulary::Proposition>>,
+    pub scalar_requirements: super::PayloadScalarRequirements,
     pub carrier: StructuralTypeId,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub projected_qualifications: Vec<StructuralPathQualification>,
@@ -331,7 +331,9 @@ pub fn payload_memberships(
             if common.carrier != carrier {
                 return None;
             }
-            std::sync::Arc::make_mut(&mut common.scalar_requirements)
+            common
+                .scalar_requirements
+                .make_mut()
                 .retain(|premise| selected.scalar_requirements.contains(premise));
             super::PayloadScalarObservation::intersect(
                 &mut common.scalar_observations,

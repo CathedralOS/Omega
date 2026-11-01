@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, PropositionContext, ScalarTerm, ScalarType,
     StructuralPlaceKind,
 };
-use std::borrow::{Borrow, Cow};
+use std::borrow::Borrow;
 use terminal_psi::{StructuralDomainDeclaration, StructuralTypeDeclaration};
 
 #[cfg(test)]
@@ -145,9 +145,9 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
         };
         let requirements = requirements.get_or_insert_with(|| {
             if shared.is_empty() && edge_predicate.is_none() {
-                Cow::Borrowed(contract.scalar_requirements.as_slice())
+                contract.scalar_requirements.to_vec()
             } else {
-                let mut premises = contract.scalar_requirements.as_ref().clone();
+                let mut premises = contract.scalar_requirements.to_vec();
                 super::payload_history::extend_canonical_premises(&mut premises, shared);
                 // Preserve the pre-normalization proof input of predicate edges:
                 // ordered local/shared union, then the whole predicate if new.
@@ -156,7 +156,7 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
                 {
                     premises.push(predicate.clone());
                 }
-                Cow::Owned(premises)
+                premises
             }
         });
         let mut value_types = Vec::new();
