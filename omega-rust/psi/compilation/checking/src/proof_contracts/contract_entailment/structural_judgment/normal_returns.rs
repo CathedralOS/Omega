@@ -1728,6 +1728,19 @@ impl<'program> StructuralJudge<'program> {
                         None => return None,
                     };
                 }
+                if let ExpressionNode::Cast(cast) = node {
+                    let [(_, operand)] = inputs.as_slice() else {
+                        return None;
+                    };
+                    let source = crate::expression_result_type_reference(
+                        program, scope.0, scope.1, cast.value,
+                    )?;
+                    // The operand has completed once. Carry its exact observed
+                    // value through the conversion, never reread its old home.
+                    value = super::super::structural_terms::conversion_term(
+                        program, cast, source, operand.observed_value()?.clone(),
+                    )?;
+                }
                 if let ExpressionNode::ArrayLiteral(elements) = node {
                     judge.intake_completed_array_elements(&value, elements.count(), &inputs);
                 }

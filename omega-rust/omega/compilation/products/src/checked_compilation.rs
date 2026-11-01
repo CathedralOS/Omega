@@ -219,10 +219,18 @@ impl CheckedCompilation {
     /// Resolve every root grant to its exact claim or provider plan; a grant
     /// that names nothing the program selects rejects.
     pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
+        let grants = self.build().config.root_grant_selectors();
+        // No trust subjects are selected in this case. Do not prepare the
+        // dormant declaration census merely to reconstruct an empty set.
+        if grants.is_empty() {
+            return Ok(());
+        }
         trust_model::reconstruct_trust_obligations(
-            &self.typed,
-            self,
-            &self.build().config.root_grant_selectors(),
+            self.execution()
+                .provider_source
+                .inventory()
+                .trust_declarations(),
+            &grants,
             &self
                 .providers()
                 .provider_candidates
@@ -230,7 +238,6 @@ impl CheckedCompilation {
                 .map(provider_planning::ProviderPlanCandidate::plan)
                 .collect::<Vec<_>>(),
             self.execution().provider_source.plans(),
-            &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
         )
         .map(drop)

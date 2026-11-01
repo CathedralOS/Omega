@@ -323,12 +323,9 @@ fn re_decide_in_mathematical_core(
         proof,
         &mut Budget::default(),
     ) {
-        // Admission reserved the stack before the bounded traversal. Kernel
-        // recursion has returned; collect the exact closure on that same
-        // stack instead of spawning a second worker per accepted certificate.
-        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(
-            denoted.receipt_on_current_thread(),
-        )),
+        // Kernel recursion has returned. The exact closure uses its ordinary
+        // arena-handle walk, including when admission already owns a worker.
+        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(denoted.receipt())),
         Err(BoundedDenotationError::Unsupported(family)) => {
             Ok(MathematicalCoreDecision::Refused(family))
         }

@@ -1,83 +1,71 @@
-//! Discharge retained scalar obligations before executing a pure calling policy.
-//!
-//! Publishing the policy's exact application roots retains their conditions in
-//! Terminal Psi. Being compiler-run code does not discharge those conditions.
-//! Use Psi's normal completion engine with this exact entry's demand and empty
-//! provider authority; asking provider settlement to supply itself would cycle.
+//! Complete retained policy debts before ordinary activation, without source.
 
-use std::sync::Arc;
-
-use build_time_evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
-use evaluation_accounting::EvaluationInvocationAccount;
-use target::TargetProfile;
+use semantic_vocabulary::ScalarApplicationId;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_installation::AdmittedScalarApplications;
-use terminal_interpreter::{TerminalProgram, TerminalRuntimeSupplies};
+use terminal_fuel::TerminalFuelMeter;
+use terminal_installation::{
+    AdmittedProviderSelections, AdmittedScalarApplications, ScalarAddressModel,
+    ScalarApplicationClosure, ScalarApplicationObservations,
+};
 
-pub(super) fn complete(
-    artifact: &Arc<CanonicalTerminalArtifact>,
-    program: &TerminalProgram<'_>,
-    installation: &TerminalRuntimeSupplies,
-    target: TargetProfile,
-    account: &EvaluationInvocationAccount,
+/// All work uses the invocation's existing meter. Neither a selected entry nor
+/// a target layout supplies the retained predicates that must be re-decided.
+/// Policies have the exact empty provider selection used by their activation;
+/// completion cannot install a host import or borrow another Product's grants.
+pub(super) fn complete_policy_scalar_inputs(
+    artifact: &CanonicalTerminalArtifact,
+    primary: target::TargetProfile,
+    entry: terminal_psi::TargetMachineCallable,
+    requested: &[ScalarApplicationId],
+    providers: &AdmittedProviderSelections,
+    meter: &mut TerminalFuelMeter,
 ) -> Result<AdmittedScalarApplications, String> {
-    let requirements = program
-        .execution_requirements(Some(installation))
-        .map_err(|error| format!("calling policy scalar demands: {error:?}"))?;
-    let entry = program
-        .entry_installed(installation)
-        .map_err(|error| format!("calling policy scalar entry: {error:?}"))?;
     let root = artifact
         .view()
         .module()
         .scalar_applications
         .proof_scope
-        .callable_declaration(terminal_psi::TargetMachineCallable::Machine(entry.machine))
+        .callable_declaration(entry)
         .ok_or("calling policy entry has no exact checked proof declaration")?;
-    let mut demanded = requirements.scalar_applications;
-    for application in requirements.scalar_entry_conditions {
-        if !demanded.contains(&application) {
-            demanded.push(application);
-        }
+    let mut closure =
+        ScalarApplicationClosure::for_invocation(artifact.view(), primary.target_name(), &[root]);
+    let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
+    for scope in scopes {
+        let profile = target::TargetProfile::from_canonical_target_name(&scope)
+            .map_err(|error| error.message)?;
+        let selected =
+            terminal_installation::admit_target_machine_selections(artifact.view(), &scope);
+        let facts = profile
+            .layout_target_facts()
+            .ok_or("calling policy scalar target has no immutable layout catalogue")?;
+        let mut observations =
+            ScalarApplicationObservations::new(artifact.view(), &selected, providers, &facts)?
+                .with_target_carriers(
+                    profile
+                        .native_realization()
+                        .map(runtime_abi::target_carrier_layout),
+                )
+                .with_invocation_roots(&[root])?;
+        let demand = if scope == primary.target_name() {
+            requested
+        } else {
+            &[]
+        };
+        let conditions = build_time_evaluation::evaluate_scalar_applications(
+            &mut observations,
+            primary.target_name(),
+            demand,
+            meter,
+        )
+        .map_err(|error| format!("calling policy scalar conditions: {error}"))?;
+        let address_model =
+            target::TargetSemantics::close_address_model(profile).map(|model| ScalarAddressModel {
+                target: scope,
+                carrier: model.carrier(),
+                semantics_version: model.semantics_version(),
+                commitment: model.commitment(),
+            });
+        closure.close_scope(observations, conditions, Ok(address_model))?;
     }
-    let providers = terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
-        .map_err(|error| format!("calling policy scalar providers: {error:?}"))?;
-    // The same activation sponsors completion and execution, so scalar jobs
-    // consume its actual fuel/storage allowance rather than running for free.
-    let mut accounting = SourceCompletionAccounting::default();
-    build_time_evaluation::complete_scalar_invocation(
-        artifact,
-        target.target_name(),
-        &[root],
-        &demanded,
-        Some(account),
-        &mut accounting,
-        |scope| {
-            let profile = TargetProfile::from_canonical_target_name(scope)
-                .map_err(|diagnostic| diagnostic.message)?;
-            Ok(ScalarScopeEvaluation {
-                application_roots: None,
-                targets: terminal_installation::admit_target_machine_selections(
-                    artifact.view(),
-                    scope,
-                ),
-                providers: providers.clone(),
-                layout_target: profile
-                    .layout_target_facts()
-                    .ok_or("calling policy scalar target has no layout facts")?,
-                address_model: Ok(target::TargetSemantics::close_address_model(profile).map(
-                    |model| terminal_installation::ScalarAddressModel {
-                        target: scope.to_owned(),
-                        carrier: model.carrier(),
-                        semantics_version: model.semantics_version(),
-                        commitment: model.commitment(),
-                    },
-                )),
-                carrier_layout: profile
-                    .native_realization()
-                    .map(runtime_abi::target_carrier_layout),
-            })
-        },
-    )
-    .map_err(|reason| format!("calling policy scalar completion: {reason}"))
+    closure.finish()
 }

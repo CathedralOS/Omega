@@ -131,7 +131,8 @@ fn fixture() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
             ..Default::default()
         }],
         1,
-    );
+    )
+    .into();
     program.roots.machines = span(1, 1, 1);
     (program, u64_type, i64_type)
 }
@@ -333,7 +334,7 @@ fn token_rosters_match_original_discovery_across_owned_mutations_and_recovery() 
     let mut machine = program.machines()[0].clone();
     machine.name = Identifier::from("DifferentBodyOwner");
     machine.spelling = Some(OperatorSpelling::Divide);
-    program.tables.machines = rows(vec![machine], 1);
+    program.tables.machines = rows(vec![machine], 1).into();
     compare(&program, unsigned, signed);
     assert!(Arc::ptr_eq(
         &first,

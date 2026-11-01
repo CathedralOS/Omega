@@ -184,6 +184,58 @@ pub(super) fn observe(
         if usage.total_units() == 0 {
             return Err("calling fixture recorded no execution fuel".into());
         }
+        // Envelope ingress retains obligations, not producer authority. Even
+        // otherwise valid calling code must refuse a false module predicate.
+        let mut false_module = module.clone();
+        let mut nodes = arena::Arena::new();
+        let root = nodes.insert(terminal_psi::ScalarPredicateNode(
+            numerics::scalar_predicates::PredicateNode::Value(
+                numerics::scalar_predicates::ScalarValue::Boolean(false),
+            ),
+        ));
+        let control = "calling policy false condition ingress control";
+        false_module
+            .scalar_applications
+            .conditions
+            .retain_predicate(
+                terminal_psi::ScalarConditionSubject::Module,
+                control.into(),
+                nodes,
+                root,
+            )?;
+        let optimization =
+            terminal_codec::build_identity_optimization_execution_record(&false_module)
+                .map_err(|error| format!("false calling optimization: {error:?}"))?;
+        let false_artifact =
+            CanonicalTerminalArtifact::from_parts(false_module, optimization, None)
+                .map_err(|error| format!("false calling artifact: {error:?}"))?;
+        let false_artifact = CanonicalTerminalArtifact::from_bytes(&false_artifact.to_bytes())
+            .map_err(|error| format!("false calling transport: {error:?}"))?;
+        let false_signature = CallingPolicySignature::from_terminal(
+            false_artifact.semantic_module(),
+            description,
+            target,
+        )?;
+        let account = sponsor
+            .begin_invocation(measurement, 1_000_000)
+            .map_err(|error| error.to_string())?;
+        let error = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+            artifact: &false_artifact,
+            entry: false_artifact
+                .semantic_module()
+                .entry
+                .ok_or("false calling fixture has no policy entry")?,
+            target,
+            signature: &false_signature,
+            account,
+        })
+        .err()
+        .ok_or("calling policy accepted a false retained scalar predicate")?;
+        if !error.contains("predicate is false") || !error.contains(control) {
+            return Err(format!(
+                "false calling predicate reached an unrelated refusal: {error}"
+            ));
+        }
         // Change only the detached canonical graph. The authored policy still
         // returns an integer placement, which cannot classify a float input.
         let mut wrong_class = signature.geometry.clone();

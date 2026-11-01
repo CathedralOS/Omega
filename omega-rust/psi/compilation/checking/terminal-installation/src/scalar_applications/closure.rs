@@ -80,6 +80,7 @@ impl ScalarScopeInputs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedScalarApplications {
     terminal: TerminalPsiIdentity,
+    product_formation: bool,
     primary: CompletedScalarScope,
     supplemental: Vec<ScalarScopeInputs>,
 }
@@ -92,6 +93,13 @@ struct CompletedScalarScope {
 }
 
 impl AdmittedScalarApplications {
+    /// An exact activation receipt cannot certify whole-Product formation.
+    pub fn require_product_formation(&self) -> Result<(), String> {
+        self.product_formation.then_some(()).ok_or_else(|| {
+            "entry scalar admission does not establish Product declaration formation".into()
+        })
+    }
+
     pub fn terminal(&self) -> TerminalPsiIdentity {
         self.terminal
     }
@@ -436,6 +444,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             .ok_or("scalar closure has no primary value scope")?;
         Ok(AdmittedScalarApplications {
             terminal: self.artifact.identity(),
+            product_formation: !matches!(self.kind, ScalarClosureKind::Invocation(_)),
             primary,
             supplemental: self.supplemental,
         })

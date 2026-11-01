@@ -7,8 +7,8 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use crate::calling_policy_plans::policy_signature::validate_fresh_native_parameter_report_identity;
 use crate::provider_planning::type_reference_node;
+use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
@@ -386,7 +386,7 @@ pub(crate) fn materialize_prepared_signature(
         let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
-        validate_fresh_native_parameter_report_identity(
+        validate_fresh_native_parameter_identity(
             native_parameters.iter().map(|parameter| parameter.identity),
             formal.identity,
             formal.native_ordinal,

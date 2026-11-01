@@ -384,7 +384,6 @@ fn select_checked_providers(
         providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;
     let execution = prepare_selected_execution(
         Arc::clone(&source.program),
-        source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
             provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),

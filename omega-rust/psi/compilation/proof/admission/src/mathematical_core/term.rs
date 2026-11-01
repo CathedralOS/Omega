@@ -4,7 +4,7 @@
 //! two-element type, relevant identity type, and W-type of well-founded
 //! trees.
 
-use std::collections::BTreeMap;
+use std::collections::HashSet;
 
 use arena::Arena;
 
@@ -22,7 +22,7 @@ use arena::Arena;
 /// `Level` is syntax, not a normal form: `Maximum(v, u)` and `Maximum(u, v)`
 /// are different levels that convert. Semantic equality is decided by
 /// `levels_equal` through the `max`-normal form, never by `==`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, compiler_storage::Record)]
+#[derive(compiler_storage::Record)]
 pub enum Level {
     /// A closed natural level `k`.
     Constant(u32),
@@ -34,134 +34,8 @@ pub enum Level {
     Maximum(Box<Level>, Box<Level>),
 }
 
-impl Level {
-    /// `u + 1`, or `None` when `u` is the largest representable constant —
-    /// typing maps `None` to `CoreError::LevelOverflow`. Constants fold at
-    /// construction so closed levels keep their collapsed syntax.
-    pub fn successor(self) -> Option<Level> {
-        match self {
-            Level::Constant(value) => value.checked_add(1).map(Level::Constant),
-            _ => Some(Level::Successor(Box::new(self))),
-        }
-    }
-
-    /// `max(u, v)`. Constants fold at construction so closed levels keep
-    /// their collapsed syntax; anything involving a parameter stays
-    /// `Maximum` syntax and is normalized only for comparison.
-    pub fn maximum(self, other: Level) -> Level {
-        match (self, other) {
-            (Level::Constant(left), Level::Constant(right)) => Level::Constant(left.max(right)),
-            (left, right) => Level::Maximum(Box::new(left), Box::new(right)),
-        }
-    }
-}
-
-/// The `max`-normal form of a level: `max(k, p₀+o₀, p₁+o₁, …)` kept as a
-/// constant floor plus the maximum successor offset per parameter. This is
-/// the free algebra of `max` (associative, commutative, idempotent) with
-/// `succ` distributing over `max`, plus the one absorption the semantics
-/// forces: a constant floor never exceeds some variable's offset is
-/// redundant, since `max(k, p+o) = p+o` for all `p` whenever `o >= k`.
-/// Equality of normal forms is then exactly equality of the induced
-/// functions over the naturals, so conversion is decidable and complete —
-/// no level solving: distinct parameters never convert.
-#[derive(Debug, PartialEq, Eq)]
-struct NormalLevel {
-    constant: u64,
-    offsets: BTreeMap<u32, u64>,
-}
-
-impl NormalLevel {
-    /// Absorb the constant floor when a variable offset already reaches it:
-    /// at the all-zero instantiation `max(k, pᵢ+oᵢ)` contributes `oᵢ >= k`
-    /// anyway, so `k` can never decide the value.
-    fn absorb_constant(&mut self) {
-        if self
-            .offsets
-            .values()
-            .max()
-            .is_some_and(|offset| *offset >= self.constant)
-        {
-            self.constant = 0;
-        }
-    }
-}
-
-fn normal_form(level: &Level) -> NormalLevel {
-    let mut form = raw_normal_form(level);
-    form.absorb_constant();
-    form
-}
-
-fn raw_normal_form(level: &Level) -> NormalLevel {
-    match level {
-        Level::Constant(value) => NormalLevel {
-            constant: u64::from(*value),
-            offsets: BTreeMap::new(),
-        },
-        Level::Parameter(index) => {
-            let mut offsets = BTreeMap::new();
-            offsets.insert(*index, 0);
-            NormalLevel {
-                constant: 0,
-                offsets,
-            }
-        }
-        Level::Successor(inner) => {
-            let mut form = raw_normal_form(inner);
-            form.constant += 1;
-            for offset in form.offsets.values_mut() {
-                *offset += 1;
-            }
-            form
-        }
-        Level::Maximum(left, right) => {
-            let mut form = raw_normal_form(left);
-            let other = raw_normal_form(right);
-            form.constant = form.constant.max(other.constant);
-            for (parameter, offset) in other.offsets {
-                form.offsets
-                    .entry(parameter)
-                    .and_modify(|existing| *existing = (*existing).max(offset))
-                    .or_insert(offset);
-            }
-            form
-        }
-    }
-}
-
-/// Semantic level equality: the `max`-normal forms agree. `==` on `Level`
-/// is syntactic and only answers whether the two expressions are the same
-/// syntax; conversion must use this instead so `max(u, v)` converts with
-/// `max(v, u)` and `succ` distributes over `max`.
-pub(crate) fn levels_equal(left: &Level, right: &Level) -> bool {
-    normal_form(left) == normal_form(right)
-}
-
-/// The instantiation rule for level parameters: replace every
-/// `Parameter(i)` in `level` by `arguments[i]`. Level parameters are
-/// judgment scope, not de Bruijn-bound, so substitution needs no binder
-/// arithmetic — it is the universe-polymorphic analog of instantiation in
-/// the declaration rule. An out-of-range parameter is a malformed
-/// declaration instantiation: typing scope-checks every level argument
-/// before this runs, so `Err(index)` reports the defecting parameter of
-/// an unchecked or malformed input rather than a judgment failure.
-pub(crate) fn instantiate_level(level: &Level, arguments: &[Level]) -> Result<Level, u32> {
-    match level {
-        Level::Constant(_) => Ok(level.clone()),
-        Level::Parameter(index) => arguments
-            .get(usize::try_from(*index).unwrap_or(usize::MAX))
-            .cloned()
-            .ok_or(*index),
-        Level::Successor(inner) => Ok(Level::Successor(Box::new(instantiate_level(
-            inner, arguments,
-        )?))),
-        Level::Maximum(left, right) => Ok(Level::Maximum(
-            Box::new(instantiate_level(left, arguments)?),
-            Box::new(instantiate_level(right, arguments)?),
-        )),
-    }
-}
+mod levels;
+pub(crate) use levels::{instantiate_level, levels_equal};
 
 /// Semantic sort equality: the layers agree (`Type` never converts to
 /// `Strict` — there is no cumulativity and no layer collapse) and the
@@ -442,8 +316,12 @@ impl Subterms {
         self.count
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = (TermHandle, u32)> + '_ {
-        self.slots[..self.count].iter().flatten().copied()
+    pub(super) fn iter(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (TermHandle, u32)> + ExactSizeIterator + '_ {
+        self.slots[..self.count]
+            .iter()
+            .map(|slot| slot.expect("one initialized term slot"))
     }
 }
 
@@ -478,6 +356,26 @@ macro_rules! term_layout {
                     | Term::Constant { .. } => {}
                 }
                 slots
+            }
+
+            /// Structural payload equality, separate from the child walk.
+            /// This deliberately keeps universe syntax equality distinct from
+            /// semantic level conversion and never treats Dummy as evidence.
+            fn payloads_equal(&self, other: &Term) -> bool {
+                match (self, other) {
+                    $((Term::$variant { .. }, Term::$variant { .. }) => true,)+
+                    (Term::Variable(left), Term::Variable(right)) => left == right,
+                    (Term::Sort(left), Term::Sort(right)) => left == right,
+                    (Term::Constant { declaration: left, levels: left_levels },
+                     Term::Constant { declaration: right, levels: right_levels }) => {
+                        left == right && left_levels == right_levels
+                    }
+                    (Term::Two, Term::Two)
+                    | (Term::TwoZero, Term::TwoZero)
+                    | (Term::TwoOne, Term::TwoOne)
+                    | (Term::Empty, Term::Empty) => true,
+                    _ => false,
+                }
             }
 
             /// The inverse of [`Term::subterms`]: this node with `children` in
@@ -577,44 +475,12 @@ impl TermArena {
     }
 
     pub fn get(&self, handle: TermHandle) -> Term {
-        self.terms.get(handle).clone()
+        self.node(handle).clone()
     }
 
-    /// Rebuild `term` with `transform` applied to each immediate subterm.
-    ///
-    /// The layout lives in [`Term::subterms`], so `shift`, `substitute` and
-    /// `instantiate_levels` differ only in what they do at a leaf; the walk
-    /// itself is here, and a new `Term` variant is one compile error instead
-    /// of three silent gaps.
-    ///
-    /// `Ok(None)` means the node carries its work in a payload (`Variable`,
-    /// `Sort`, `Constant`) or holds nothing, so the caller's own leaf rule
-    /// applies. `Ok(Some(handle))` is the rebuilt node — or `term` itself
-    /// when every transformed subterm came back unchanged, which is what
-    /// keeps an unchanged subtree in its original storage.
-    pub(super) fn rebuild_subterms<E>(
-        &mut self,
-        term: TermHandle,
-        transform: &mut impl FnMut(&mut Self, TermHandle, u32) -> Result<TermHandle, E>,
-    ) -> Result<Option<TermHandle>, E> {
-        let node = self.get(term);
-        let slots = node.subterms();
-        if slots.is_empty() {
-            return Ok(None);
-        }
-        let mut children = [term; MAX_SUBTERMS];
-        let mut changed = false;
-        for (index, (child, binders)) in slots.iter().enumerate() {
-            let rebuilt = transform(self, child, binders)?;
-            changed |= rebuilt != child;
-            children[index] = rebuilt;
-        }
-        if !changed {
-            return Ok(Some(term));
-        }
-        Ok(Some(
-            self.insert(node.with_children(&children[..slots.len()])),
-        ))
+    /// Read-only handle walks borrow payloads instead of cloning level syntax.
+    pub(super) fn node(&self, handle: TermHandle) -> &Term {
+        self.terms.get(handle)
     }
 
     pub fn len(&self) -> usize {
@@ -629,277 +495,38 @@ impl TermArena {
     /// Bruijn indices, so this is also the neutral-head comparison used by
     /// conversion and the tests.
     pub fn structurally_equal(&self, left: TermHandle, right: TermHandle) -> bool {
-        match (self.get(left), self.get(right)) {
-            (Term::Variable(left_index), Term::Variable(right_index)) => left_index == right_index,
-            (Term::Sort(left_sort), Term::Sort(right_sort)) => left_sort == right_sort,
-            (
-                Term::Pi {
-                    domain: left_domain,
-                    codomain: left_codomain,
-                },
-                Term::Pi {
-                    domain: right_domain,
-                    codomain: right_codomain,
-                },
-            )
-            | (
-                Term::Lambda {
-                    domain: left_domain,
-                    body: left_codomain,
-                },
-                Term::Lambda {
-                    domain: right_domain,
-                    body: right_codomain,
-                },
-            )
-            | (
-                Term::Apply {
-                    function: left_domain,
-                    argument: left_codomain,
-                },
-                Term::Apply {
-                    function: right_domain,
-                    argument: right_codomain,
-                },
-            )
-            | (
-                Term::Sigma {
-                    domain: left_domain,
-                    codomain: left_codomain,
-                },
-                Term::Sigma {
-                    domain: right_domain,
-                    codomain: right_codomain,
-                },
-            ) => {
-                self.structurally_equal(left_domain, right_domain)
-                    && self.structurally_equal(left_codomain, right_codomain)
+        let mut pending = vec![(false, (left, right))];
+        let mut active = HashSet::new();
+        let mut complete = HashSet::new();
+        while let Some((finish, pair)) = pending.pop() {
+            if finish {
+                active.remove(&pair);
+                complete.insert(pair);
+                continue;
             }
-            (
-                Term::Pair {
-                    first: left_first,
-                    second: left_second,
-                },
-                Term::Pair {
-                    first: right_first,
-                    second: right_second,
-                },
-            ) => {
-                self.structurally_equal(left_first, right_first)
-                    && self.structurally_equal(left_second, right_second)
+            if complete.contains(&pair) {
+                continue;
             }
-            (Term::Fst { pair: left }, Term::Fst { pair: right })
-            | (Term::Snd { pair: left }, Term::Snd { pair: right }) => {
-                self.structurally_equal(left, right)
+            // A finite term DAG shares completed subgraphs. A back edge is
+            // not a completed equality judgment and supplies no evidence.
+            if !active.insert(pair) {
+                return false;
             }
-            (Term::Two, Term::Two)
-            | (Term::TwoZero, Term::TwoZero)
-            | (Term::TwoOne, Term::TwoOne) => true,
-            (
-                Term::CaseTwo {
-                    motive: left_motive,
-                    zero_branch: left_zero_branch,
-                    one_branch: left_one_branch,
-                    scrutinee: left_scrutinee,
-                },
-                Term::CaseTwo {
-                    motive: right_motive,
-                    zero_branch: right_zero_branch,
-                    one_branch: right_one_branch,
-                    scrutinee: right_scrutinee,
-                },
-            ) => {
-                self.structurally_equal(left_motive, right_motive)
-                    && self.structurally_equal(left_zero_branch, right_zero_branch)
-                    && self.structurally_equal(left_one_branch, right_one_branch)
-                    && self.structurally_equal(left_scrutinee, right_scrutinee)
+            let left = self.node(pair.0);
+            let right = self.node(pair.1);
+            if !left.payloads_equal(right) {
+                return false;
             }
-            (
-                Term::Id {
-                    ty: left_ty,
-                    left: left_left,
-                    right: left_right,
-                },
-                Term::Id {
-                    ty: right_ty,
-                    left: right_left,
-                    right: right_right,
-                },
-            ) => {
-                self.structurally_equal(left_ty, right_ty)
-                    && self.structurally_equal(left_left, right_left)
-                    && self.structurally_equal(left_right, right_right)
-            }
-            (
-                Term::Refl {
-                    ty: left_ty,
-                    value: left_value,
-                },
-                Term::Refl {
-                    ty: right_ty,
-                    value: right_value,
-                },
-            ) => {
-                self.structurally_equal(left_ty, right_ty)
-                    && self.structurally_equal(left_value, right_value)
-            }
-            (
-                Term::IdElim {
-                    motive: left_motive,
-                    base: left_base,
-                    endpoint: left_endpoint,
-                    proof: left_proof,
-                },
-                Term::IdElim {
-                    motive: right_motive,
-                    base: right_base,
-                    endpoint: right_endpoint,
-                    proof: right_proof,
-                },
-            ) => {
-                self.structurally_equal(left_motive, right_motive)
-                    && self.structurally_equal(left_base, right_base)
-                    && self.structurally_equal(left_endpoint, right_endpoint)
-                    && self.structurally_equal(left_proof, right_proof)
-            }
-            (
-                Term::W {
-                    carrier: left_carrier,
-                    children: left_children,
-                },
-                Term::W {
-                    carrier: right_carrier,
-                    children: right_children,
-                },
-            ) => {
-                self.structurally_equal(left_carrier, right_carrier)
-                    && self.structurally_equal(left_children, right_children)
-            }
-            (
-                Term::Sup {
-                    carrier: left_carrier,
-                    children: left_children,
-                    label: left_label,
-                    function: left_function,
-                },
-                Term::Sup {
-                    carrier: right_carrier,
-                    children: right_children,
-                    label: right_label,
-                    function: right_function,
-                },
-            ) => {
-                self.structurally_equal(left_carrier, right_carrier)
-                    && self.structurally_equal(left_children, right_children)
-                    && self.structurally_equal(left_label, right_label)
-                    && self.structurally_equal(left_function, right_function)
-            }
-            (
-                Term::IndW {
-                    motive: left_motive,
-                    step: left_step,
-                    tree: left_tree,
-                },
-                Term::IndW {
-                    motive: right_motive,
-                    step: right_step,
-                    tree: right_tree,
-                },
-            ) => {
-                self.structurally_equal(left_motive, right_motive)
-                    && self.structurally_equal(left_step, right_step)
-                    && self.structurally_equal(left_tree, right_tree)
-            }
-            (Term::Empty, Term::Empty) => true,
-            (
-                Term::EmptyElim {
-                    ty: left_ty,
-                    scrutinee: left_scrutinee,
-                },
-                Term::EmptyElim {
-                    ty: right_ty,
-                    scrutinee: right_scrutinee,
-                },
-            ) => {
-                self.structurally_equal(left_ty, right_ty)
-                    && self.structurally_equal(left_scrutinee, right_scrutinee)
-            }
-            (Term::Squash { ty: left_ty }, Term::Squash { ty: right_ty }) => {
-                self.structurally_equal(left_ty, right_ty)
-            }
-            (
-                Term::SquashIntro {
-                    ty: left_ty,
-                    value: left_value,
-                },
-                Term::SquashIntro {
-                    ty: right_ty,
-                    value: right_value,
-                },
-            ) => {
-                self.structurally_equal(left_ty, right_ty)
-                    && self.structurally_equal(left_value, right_value)
-            }
-            (
-                Term::SquashElim {
-                    proposition: left_proposition,
-                    function: left_function,
-                    scrutinee: left_scrutinee,
-                },
-                Term::SquashElim {
-                    proposition: right_proposition,
-                    function: right_function,
-                    scrutinee: right_scrutinee,
-                },
-            ) => {
-                self.structurally_equal(left_proposition, right_proposition)
-                    && self.structurally_equal(left_function, right_function)
-                    && self.structurally_equal(left_scrutinee, right_scrutinee)
-            }
-            (Term::Box { ty: left_ty }, Term::Box { ty: right_ty }) => {
-                self.structurally_equal(left_ty, right_ty)
-            }
-            (
-                Term::BoxIntro {
-                    ty: left_ty,
-                    value: left_value,
-                },
-                Term::BoxIntro {
-                    ty: right_ty,
-                    value: right_value,
-                },
-            ) => {
-                self.structurally_equal(left_ty, right_ty)
-                    && self.structurally_equal(left_value, right_value)
-            }
-            (
-                Term::BoxElim {
-                    motive: left_motive,
-                    body: left_body,
-                    scrutinee: left_scrutinee,
-                },
-                Term::BoxElim {
-                    motive: right_motive,
-                    body: right_body,
-                    scrutinee: right_scrutinee,
-                },
-            ) => {
-                self.structurally_equal(left_motive, right_motive)
-                    && self.structurally_equal(left_body, right_body)
-                    && self.structurally_equal(left_scrutinee, right_scrutinee)
-            }
-            (
-                Term::Constant {
-                    declaration: left_declaration,
-                    levels: left_levels,
-                },
-                Term::Constant {
-                    declaration: right_declaration,
-                    levels: right_levels,
-                },
-            ) => left_declaration == right_declaration && left_levels == right_levels,
-            _ => false,
+            pending.push((true, pair));
+            pending.extend(
+                left.subterms()
+                    .iter()
+                    .zip(right.subterms().iter())
+                    .rev()
+                    .map(|((left, _), (right, _))| (false, (left, right))),
+            );
         }
+        true
     }
 }
 

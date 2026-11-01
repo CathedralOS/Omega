@@ -2125,7 +2125,6 @@ dependencies = [
  "terminal-psi",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2690,14 +2689,12 @@ dependencies = [
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
  "diagnostics",
  "effects",
  "language-semantics",
  "optimization-core",
  "source",
  "symbols",
- "typed-trees",
 ]
 
 [[package]]

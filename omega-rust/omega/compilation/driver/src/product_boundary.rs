@@ -595,6 +595,37 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
 }
 
 #[test]
+fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    let replay = include_str!(
+        "../../backend/calling-conventions/src/boundary_application/terminal_telescope.rs"
+    );
+    let projection = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
+    );
+    for consumer in [source, replay, projection] {
+        assert_eq!(
+            consumer.matches("NativeParameterTelescope::close(").count(),
+            1
+        );
+        assert_absent(
+            &[consumer],
+            "native telescope construction duplicated in a consumer:",
+            &["sort_unstable_by_key(|parameter| parameter.native_ordinal)"],
+        );
+    }
+    // Slot geometry has not been published yet. A direct callback does not
+    // prove that a nested field destination is absent, so retain this refusal.
+    assert!(
+        projection.contains(
+            "Terminal calling signature still requires private callback geometry closure"
+        )
+    );
+}
+
+#[test]
 fn provider_derivation_consumes_the_prepared_service_census() {
     let derivation = include_str!(
         "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"
@@ -972,6 +1003,79 @@ fn target_body_policy_consumes_psi_direct_call_declarations() {
             "fn called_machine(",
         ],
     );
+}
+
+#[test]
+fn selected_callback_custody_carries_declarations_not_source_symbols() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    assert!(selection.contains("pub callback_roots: terminal_psi::PreparedTerminalRoots"));
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
+    );
+    assert!(!preparation.contains("symbols::SymbolHandle"));
+    assert!(preparation.contains("declaration.same_identity_as("));
+    assert!(preparation.contains("pub fn new("));
+    let compact_preparation = preparation
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",)", ")");
+    for owner in [
+        "declaration.machine.identity()",
+        "declaration.state.identity()",
+        "declaration.semantic_declaration",
+        "specialization.template.identity()",
+        "specialization.template_semantic_declaration",
+    ] {
+        assert!(compact_preparation.contains(&format!("identities.is_invocation_local({owner})")));
+    }
+    assert!(preparation.contains("selected root has multiple exact retained declarations"));
+    assert_absent(
+        &[preparation],
+        "Terminal root preparation reopens source",
+        &["checked_trees", "typed_trees", "psi_terminal_production"],
+    );
+    let declarations = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+    );
+    assert!(declarations.contains("checked.callback_declaration(usage)"));
+    assert!(declarations.contains("declarations::identity("));
+    assert!(declarations.contains("TerminalRootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("PreparedTerminalRoots::new(identities, requests)"));
+    assert!(declarations.contains("usage.published_requirement_envelope"));
+    assert!(declarations.contains("usage.selected_actual_envelope"));
+    assert!(declarations.contains("usage.callback_entry.map("));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
+    );
+    assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
+    assert!(admission.contains("callbacks.retained_roots(module)"));
+}
+
+#[test]
+fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() {
+    let surface =
+        include_str!("../../../../psi/foundation/language-semantics/src/service_surface.rs");
+    assert!(!surface.contains("BoundaryCallingPlanCommitment"));
+    assert!(!surface.contains("calling_plan_report_fingerprint"));
+    let projection = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/projection.rs"
+    );
+    assert!(projection.contains("requirements.push(ServiceRequirementSource"));
+    assert!(projection.contains("scope.type_identity("));
+    assert!(!projection.contains("BoundaryCallingPlanRealization"));
+    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
+    assert!(attachment.contains("application.argument_owner() == argument_owner"));
+    assert!(attachment.contains("application.boundary_arguments == boundary_arguments"));
+    assert!(attachment.contains("prepared.argument_owner,"));
+    assert!(attachment.contains("prepared.boundary_arguments,"));
+    assert!(!attachment.contains("ServiceMethod {"));
+    assert!(!attachment.contains("fn collect_service_methods("));
+    let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
+    assert!(catalog.contains("projected.exact_requirements()?"));
+    assert!(!catalog.contains("trait_requirements("));
 }
 
 #[test]

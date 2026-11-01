@@ -3,6 +3,7 @@
 use super::CallingPolicySignature;
 use super::build_time_decoding::decode_boundary_plan_result;
 use super::policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
+use super::scalar_completion::complete_policy_scalar_inputs;
 use super::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -18,7 +19,7 @@ use terminal_psi::TargetMachineCallable;
 /// invocation admission precedes this request; neither entry selection nor
 /// successful interpretation grants provider, callback or native authority.
 pub struct TerminalCallingPolicyInvocation<'input> {
-    pub artifact: &'input std::sync::Arc<CanonicalTerminalArtifact>,
+    pub artifact: &'input CanonicalTerminalArtifact,
     pub entry: TargetMachineCallable,
     pub target: target::TargetProfile,
     pub signature: &'input CallingPolicySignature,
@@ -30,8 +31,6 @@ pub struct TerminalCallingPolicyInvocation<'input> {
 /// Multiple activations borrow the same immutable code. No source elaboration,
 /// policy compilation, unchecked storage copying or alternative engine exists
 /// in this operation; envelope-loaded artifacts use the identical route.
-/// Returned fuel describes the policy invocation; scalar completion also
-/// charges the shared account, using its own evaluation meters.
 pub fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
 ) -> Result<(ValidatedBoundaryEntryPlan, TerminalFuelUsage), String> {
@@ -54,34 +53,44 @@ pub fn evaluate_terminal_calling_policy(
         .ok_or("calling policy target has no layout facts")?;
     let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
+    let providers = terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
+        .map_err(|error| format!("calling policy providers: {error:?}"))?;
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: None,
+            installation: Some(&providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
             target_layouts: Some(&layouts),
         })
         .map_err(|error| format!("calling policy selection: {error:?}"))?;
-    let completed =
-        super::scalar_completion::complete(artifact, &program, &installation, target, &account)?;
-    // Completion may resolve scalar-dependent layout geometry. Execution must
-    // consume its exact providers, target rows and layouts, including the
-    // explicitly admitted empty provider selection of this pure activation.
+    let requirements = program
+        .execution_requirements(Some(&installation))
+        .map_err(|error| format!("calling policy demands: {error:?}"))?;
+    let mut demanded = requirements.scalar_applications;
+    for application in requirements.scalar_entry_conditions {
+        if !demanded.contains(&application) {
+            demanded.push(application);
+        }
+    }
+    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
+        .map_err(|error| format!("calling policy fuel: {error:?}"))?;
+    let scalars =
+        complete_policy_scalar_inputs(artifact, target, entry, &demanded, &providers, &mut meter)?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: Some(completed.primary().providers()),
+            installation: Some(&providers),
             host_imports: &[],
             entry: Some(entry),
-            target_machines: Some(completed.primary().targets()),
-            target_layouts: Some(completed.primary().layouts()),
+            target_machines: Some(&selected),
+            target_layouts: Some(scalars.primary().layouts()),
         })
-        .map_err(|error| format!("calling policy completed selection: {error:?}"))?;
+        .map_err(|error| format!("calling policy scalar installation: {error:?}"))?;
     let entry = program
         .entry_installed(&installation)
         .map_err(|error| format!("calling policy entry: {error:?}"))?;
@@ -115,13 +124,11 @@ pub fn evaluate_terminal_calling_policy(
                 ..Default::default()
             },
             installation: Some(&installation),
-            scalar_admission: Some(&completed),
             account: Some(&account),
+            scalar_admission: Some(&scalars),
             ..Default::default()
         })
         .map_err(|error| format!("calling policy arguments: {error:?}"))?;
-    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
-        .map_err(|error| format!("calling policy fuel: {error:?}"))?;
     let result = instance
         .invoke(&mut meter)
         .map_err(|error| format!("calling policy execution: {error:?}"))?;

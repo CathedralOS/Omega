@@ -35,7 +35,7 @@
 //! final proof term never unfolds it. Unused declarations and discarded
 //! proof-search attempts are not roots and never enter a closure.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::rc::Rc;
 
 use super::conversion::Budget;
@@ -202,116 +202,42 @@ pub fn check_signature_with_attribution(
     Ok(signature)
 }
 
-/// Every `Constant` declaration index `term` names. A `Constant` node's
-/// level arguments are levels, which name no declarations — so the
-/// traversal only descends into term children.
-fn collect_references(arena: &TermArena, term: TermHandle, out: &mut BTreeSet<u32>) {
-    match arena.get(term) {
-        Term::Dummy
-        | Term::Variable(_)
-        | Term::Sort(_)
-        | Term::Two
-        | Term::TwoZero
-        | Term::TwoOne
-        | Term::Empty => {}
-        Term::Constant { declaration, .. } => {
-            out.insert(declaration);
+/// One immutable arena's constant references, shared across judgment roots,
+/// declaration statements and declaration bodies. Constant identities do not
+/// depend on local de Bruijn binders or universe instantiation, so a shared
+/// term needs visiting only once within this complete closure query.
+struct TermReferenceWalk<'arena> {
+    arena: &'arena TermArena,
+    seen: HashSet<TermHandle>,
+    pending: Vec<TermHandle>,
+}
+
+impl<'arena> TermReferenceWalk<'arena> {
+    fn new(arena: &'arena TermArena) -> Self {
+        Self {
+            arena,
+            seen: HashSet::new(),
+            pending: Vec::new(),
         }
-        Term::Pi { domain, codomain }
-        | Term::Lambda {
-            domain,
-            body: codomain,
-        }
-        | Term::Apply {
-            function: domain,
-            argument: codomain,
-        }
-        | Term::Sigma { domain, codomain } => {
-            collect_references(arena, domain, out);
-            collect_references(arena, codomain, out);
-        }
-        Term::Pair { first, second } => {
-            collect_references(arena, first, out);
-            collect_references(arena, second, out);
-        }
-        Term::Fst { pair } | Term::Snd { pair } => {
-            collect_references(arena, pair, out);
-        }
-        Term::CaseTwo {
-            motive,
-            zero_branch,
-            one_branch,
-            scrutinee,
-        } => {
-            collect_references(arena, motive, out);
-            collect_references(arena, zero_branch, out);
-            collect_references(arena, one_branch, out);
-            collect_references(arena, scrutinee, out);
-        }
-        Term::Id { ty, left, right } => {
-            collect_references(arena, ty, out);
-            collect_references(arena, left, out);
-            collect_references(arena, right, out);
-        }
-        Term::Refl { ty, value } => {
-            collect_references(arena, ty, out);
-            collect_references(arena, value, out);
-        }
-        Term::IdElim {
-            motive,
-            base,
-            endpoint,
-            proof,
-        } => {
-            collect_references(arena, motive, out);
-            collect_references(arena, base, out);
-            collect_references(arena, endpoint, out);
-            collect_references(arena, proof, out);
-        }
-        Term::W { carrier, children } => {
-            collect_references(arena, carrier, out);
-            collect_references(arena, children, out);
-        }
-        Term::Sup {
-            carrier,
-            children,
-            label,
-            function,
-        } => {
-            collect_references(arena, carrier, out);
-            collect_references(arena, children, out);
-            collect_references(arena, label, out);
-            collect_references(arena, function, out);
-        }
-        Term::IndW { motive, step, tree } => {
-            collect_references(arena, motive, out);
-            collect_references(arena, step, out);
-            collect_references(arena, tree, out);
-        }
-        Term::EmptyElim { ty, scrutinee } => {
-            collect_references(arena, ty, out);
-            collect_references(arena, scrutinee, out);
-        }
-        Term::Squash { ty } | Term::Box { ty } => {
-            collect_references(arena, ty, out);
-        }
-        Term::SquashIntro { ty, value } | Term::BoxIntro { ty, value } => {
-            collect_references(arena, ty, out);
-            collect_references(arena, value, out);
-        }
-        Term::SquashElim {
-            proposition,
-            function,
-            scrutinee,
-        }
-        | Term::BoxElim {
-            motive: proposition,
-            body: function,
-            scrutinee,
-        } => {
-            collect_references(arena, proposition, out);
-            collect_references(arena, function, out);
-            collect_references(arena, scrutinee, out);
+    }
+
+    fn collect(&mut self, term: TermHandle, out: &mut BTreeSet<u32>) {
+        self.pending.push(term);
+        while let Some(term) = self.pending.pop() {
+            if !self.seen.insert(term) {
+                continue;
+            }
+            // Borrow payloads: level syntax cannot name a declaration and must
+            // not be recursively cloned just to inspect its enclosing node.
+            let node = self.arena.node(term);
+            if let Term::Constant { declaration, .. } = node {
+                out.insert(*declaration);
+            } else {
+                // The term layout is the sole owner of child slots. Reverse
+                // push order preserves the previous left-to-right traversal.
+                self.pending
+                    .extend(node.subterms().iter().rev().map(|(child, _)| child));
+            }
         }
     }
 }
@@ -323,7 +249,11 @@ fn collect_references(arena: &TermArena, term: TermHandle, out: &mut BTreeSet<u3
 /// body (when present) to the worklist. Out-of-range indices are ignored
 /// here: reachability over malformed references is typing's rejection,
 /// already decided before a receiver reads a closure.
-fn closure_over(arena: &TermArena, signature: &Signature, seeds: BTreeSet<u32>) -> BTreeSet<u32> {
+fn closure_over(
+    references: &mut TermReferenceWalk<'_>,
+    signature: &Signature,
+    seeds: BTreeSet<u32>,
+) -> BTreeSet<u32> {
     let mut assumptions = BTreeSet::new();
     let mut visited = BTreeSet::new();
     let mut worklist: Vec<u32> = seeds.into_iter().collect();
@@ -338,9 +268,9 @@ fn closure_over(arena: &TermArena, signature: &Signature, seeds: BTreeSet<u32>) 
             assumptions.insert(index);
         }
         let mut referenced = BTreeSet::new();
-        collect_references(arena, declaration.ty, &mut referenced);
+        references.collect(declaration.ty, &mut referenced);
         if let Some(body) = declaration.body {
-            collect_references(arena, body, &mut referenced);
+            references.collect(body, &mut referenced);
         }
         worklist.extend(referenced);
     }
@@ -359,7 +289,8 @@ pub fn assumption_closure(
     signature: &Signature,
     roots: &[u32],
 ) -> BTreeSet<u32> {
-    closure_over(arena, signature, roots.iter().copied().collect())
+    let mut references = TermReferenceWalk::new(arena);
+    closure_over(&mut references, signature, roots.iter().copied().collect())
 }
 
 /// The exact assumption closure of a checked judgment whose evidence is
@@ -373,9 +304,10 @@ pub fn judgment_assumption_closure(
     signature: &Signature,
     terms: &[TermHandle],
 ) -> BTreeSet<u32> {
+    let mut references = TermReferenceWalk::new(arena);
     let mut seeds = BTreeSet::new();
     for &term in terms {
-        collect_references(arena, term, &mut seeds);
+        references.collect(term, &mut seeds);
     }
-    closure_over(arena, signature, seeds)
+    closure_over(&mut references, signature, seeds)
 }

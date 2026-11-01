@@ -17,6 +17,7 @@
 mod application;
 mod compiler;
 mod components;
+mod observations;
 mod pipeline;
 mod preparation;
 mod realization;
@@ -29,6 +30,7 @@ mod pipeline_boundary;
 pub use application::{TerminalApplication, admit_package_permissions};
 pub use compiler::compile;
 pub use components::ComponentCompilation;
+pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use preparation::{PreparedNativeCompilation, prepare};
 pub use realization::RealizedNativeProduct;
 pub use request::NativeCompileRequest;

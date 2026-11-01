@@ -1,1 +1,1 @@
-its requires facts are not a conservative refinement
+requires `index < second.len`, which the requirement does not imply

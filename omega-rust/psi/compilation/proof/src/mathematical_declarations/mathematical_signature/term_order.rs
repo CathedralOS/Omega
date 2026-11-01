@@ -147,23 +147,26 @@ impl Elaborator<'_> {
     }
 
     pub(super) fn write_level_key(&self, level: Level, out: &mut Vec<u8>) {
-        match level {
-            Level::Constant(value) => {
-                out.push(0);
-                out.extend_from_slice(&value.to_le_bytes());
-            }
-            Level::Parameter(index) => {
-                out.push(1);
-                out.extend_from_slice(&index.to_le_bytes());
-            }
-            Level::Successor(inner) => {
-                out.push(2);
-                self.write_level_key(*inner, out);
-            }
-            Level::Maximum(left, right) => {
-                out.push(3);
-                self.write_level_key(*left, out);
-                self.write_level_key(*right, out);
+        let mut pending = vec![&level];
+        while let Some(level) = pending.pop() {
+            match level {
+                Level::Constant(value) => {
+                    out.push(0);
+                    out.extend_from_slice(&value.to_le_bytes());
+                }
+                Level::Parameter(index) => {
+                    out.push(1);
+                    out.extend_from_slice(&index.to_le_bytes());
+                }
+                Level::Successor(inner) => {
+                    out.push(2);
+                    pending.push(inner);
+                }
+                Level::Maximum(left, right) => {
+                    out.push(3);
+                    pending.push(right);
+                    pending.push(left);
+                }
             }
         }
     }

@@ -322,8 +322,8 @@ pub use declarations::definition_facts::build_definition_fact_plan;
 pub use declarations::operators::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
     ValidatedBoundaryOperatorApplicationUseSite, canonical_closed_operator_realization_bytes,
-    checked_operator_application_matches_realization, landed_integer_literal_type_reference,
-    validate_closed_operator_application, validate_named_operator_application,
+    landed_integer_literal_type_reference, validate_closed_operator_application,
+    validate_named_operator_application,
 };
 pub use declarations::operators::{
     build_operator_uses, checked_operator_candidate,

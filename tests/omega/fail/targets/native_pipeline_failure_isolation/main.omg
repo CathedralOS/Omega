@@ -1,0 +1,16 @@
+// Linux must return normally; the same request rejects the AArch64 target
+// when its x86-only optimization enters the post-allocation stage.
+// The run traps if the valid target miscompiles zero materialization.
+
+machine zero() -> i64 { 0i64 }
+
+machine main() crashes Trap {
+    let observed: i64 = zero();
+    transition observed == 0i64 {
+        true -> done()
+        _ -> bad()
+    }
+
+    machine done() { }
+    machine bad() { crash Trap; }
+}

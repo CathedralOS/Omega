@@ -80,41 +80,42 @@ pub(crate) fn denotation_preserving_conversion(
                     == program.arithmetic_domain_for_type_reference(cast.target_type)))
 }
 
-/// An exact integer conversion denotes its operand, and that operand keeps
-/// the bounds of the carrier it was read from: a `u8` widened into `i32`
-/// still lies in `0..=255`. A symbolic operand carries no type of its own,
-/// so the conversion records the source carrier as an embedding, which the
-/// integer owner bounds by that carrier. A literal already denotes itself, a
-/// same-carrier conversion changes no bounds, and an embedding already names
-/// its carrier. This conveys no new value and no storage authority.
-pub(in crate::proof_contracts::contract_entailment) fn exact_conversion_term(
+/// Retain both the receiving carrier and the mathematical value observed by
+/// an admitted conversion. Integer formation remains with the original cast;
+/// its source observation supplies bounds instead of a destination annotation.
+/// Descriptors still need independent content observation before conversion.
+pub(super) fn conversion_term(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
     source: typed_trees::types::TypeReferenceHandle,
     value: StructuralTerm,
-) -> StructuralTerm {
-    let fixed_integer = |reference| {
+) -> Option<StructuralTerm> {
+    if !denotation_preserving_conversion(program, cast, source) {
+        return scalar_representation_term(program, cast, source, value);
+    }
+    let integer = |reference| {
         program
             .primitive_type_reference(reference)
-            .filter(|primitive| primitive.is_fixed_integer())
+            .is_some_and(|primitive| {
+                primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Addr
+            })
     };
-    let (Some(source_primitive), Some(target_primitive)) =
-        (fixed_integer(source), fixed_integer(cast.target_type))
-    else {
-        return value;
-    };
-    if source_primitive == target_primitive
-        || matches!(
-            value.semantic_value(),
-            StructuralTerm::Integer(_) | StructuralTerm::IntegerEmbedding { .. }
-        )
-    {
-        return value;
+    if integer(source) && integer(cast.target_type) {
+        if !scalar_operand_is_observed(program, source, &value) {
+            return None;
+        }
+        return Some(StructuralTerm::ObservedValue {
+            observed_type: crate::value_custody::expression_types::cast_result_type_reference(
+                program, cast,
+            )?,
+            descriptor: None,
+            value: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: source,
+                value: Box::new(value),
+            }),
+        });
     }
-    StructuralTerm::IntegerEmbedding {
-        reference: source,
-        value: Box::new(value),
-    }
+    Some(value)
 }
 
 /// The builtin embedding observes the authenticated payload, not the source
@@ -714,11 +715,7 @@ pub(super) fn structural_term(
                 })
             }?;
             let value = structural_term(program, scope, frame, cast.value, bindings)?;
-            if denotation_preserving_conversion(program, cast, source) {
-                Some(exact_conversion_term(program, cast, source, value))
-            } else {
-                scalar_representation_term(program, cast, source, value)
-            }
+            conversion_term(program, cast, source, value)
         }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays

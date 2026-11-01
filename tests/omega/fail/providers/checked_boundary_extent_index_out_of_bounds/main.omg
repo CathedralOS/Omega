@@ -2,11 +2,13 @@
 // This retains the positive provider-dispatch fixture's store and calling shape.
 use omega_language_std::console;
 
-public data CheckedMath {}
 
-public boundary requirement CheckedMath::offset_zero(value: i32) -> i32
-requires value == value
-ensures result == value + 0 && value == value;
+public boundary trait CheckedMath {
+    machine offset_zero(value: i32) -> i32
+    reaches
+    requires value == value
+    ensures result == value + 0 && value == value;
+}
 
 data CheckedMathProvider {}
 

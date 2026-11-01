@@ -35,7 +35,7 @@ pub use boundary_application::{
     BoundaryCallingApplicationCandidate, BoundaryNativeParameterGeometry,
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
     CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
-    TerminalCallingTelescope,
+    NativeParameterTelescope, TerminalCallingTelescope, validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

@@ -421,3 +421,48 @@ acceptance. Intended-invalid fixtures do not execute inspection provisions.
 The source-backed target/provider custody check runs with the existing SDK suite:
 `mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`.
 It checks canonical transport, exact target/provider inputs and Windows Terminal execution without running a foreign native image.
+
+## Shared multi-target pipeline observations
+
+The standalone measurement process isolates invocation counts from parallel
+corpus traffic. It uses the ordinary reviewed fixture inputs and source-to-native
+compilation entrance. For the byte-conversion fact's named target implementation:
+
+```bash
+OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
+  --assert-native-stage-counts --compare-single-targets --run \
+  tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_target_body_exit/main.omg \
+  linux_x86_64 windows_x86_64
+```
+
+Each target must have one completed application invocation, with every Omega
+00–09 entry count equal to one and one fragment/image emission attempt. Each
+image must equal its independently compiled single-target image. The host
+product executes natively and through a serialized/reloaded Terminal artifact.
+The shared request also requires one source completion, one Build execution,
+one Terminal production, and the same Terminal allocation for both targets.
+Its `checks=2` is the existing request counter, not a numbered Psi-stage count.
+Full numbered source/Psi invocation acceptance remains open.
+
+The command prints `native_pipeline_evidence` and retains the canonical
+`program.oterm`, invocation records, each `<target>-shared.image`, and each
+`<target>-single.image` in that process's directory. Counter collection is
+optional observation data and never an input to checking, admission or reuse.
+Failed invocations retain their entered prefix. Independent callable body
+pipelines are visible as separate units; the fixture refuses to silently count
+those as one application pipeline.
+
+The existing target-local refusal control uses the same entrance:
+
+```bash
+OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
+  --assert-native-stage-counts --compare-single-targets --run \
+  --reject macos_arm64 --reason 'behavior exclusion violated: crash cause Trap' \
+  tests/omega/fail/targets/distinct_roots_exclusion_selected_body/main.omg \
+  linux_x86_64 macos_arm64
+```
+
+The Linux product still completes its full pipeline, agrees with independent
+compilation, and runs in both engines. macOS retains its intended rejection;
+this particular control rejects before entering native production, so its native
+invocation count is zero.

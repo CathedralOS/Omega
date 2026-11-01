@@ -65,7 +65,6 @@ pub(super) fn validate_operand_formation(
                 symbols,
                 diagnostics,
                 owner.generic_argument(),
-                false,
                 scope,
                 obligations,
             ),

@@ -4,8 +4,9 @@
 // The unrealized bodies also keep their conformance to an uncalled boundary.
 data Helper { seed: u32; }
 trait Value<T> { machine unrealized(helper: &T) -> u32; }
-data Unused {}
-boundary requirement Unused::read(helper: &Helper) -> u32;
+boundary trait Unused {
+    machine read(helper: &Helper) -> u32 reaches;
+}
 
 linux_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
     transition { _ -> 63 }

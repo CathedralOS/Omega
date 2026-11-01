@@ -26,6 +26,7 @@ impl<'request> NativeScalarApplications<'request> {
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<&'request AdmittedScalarApplications, String> {
         let completed = self.completed;
+        completed.require_product_formation()?;
         let primary = completed.primary();
         if completed.terminal() != artifact.view().identity()
             || primary.targets() != targets

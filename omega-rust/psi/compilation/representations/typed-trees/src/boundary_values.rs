@@ -358,7 +358,6 @@ pub fn foreign_reference_uses_descriptor(
     }
     match typed.type_reference_table.type_reference(referent) {
         TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
-        TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
         _ => false,
     }
 }

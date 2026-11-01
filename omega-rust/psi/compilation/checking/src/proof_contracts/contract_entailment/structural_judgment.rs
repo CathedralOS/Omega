@@ -2976,16 +2976,7 @@ impl<'program> StructuralJudge<'program> {
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
                 let value = child_term!(cast.value)?;
-                if super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                {
-                    Some(super::structural_terms::exact_conversion_term(
-                        program, cast, source, value,
-                    ))
-                } else {
-                    super::structural_terms::scalar_representation_term(
-                        program, cast, source, value,
-                    )
-                }
+                super::structural_terms::conversion_term(program, cast, source, value)
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {

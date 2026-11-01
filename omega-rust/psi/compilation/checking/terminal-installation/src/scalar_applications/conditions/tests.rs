@@ -244,3 +244,48 @@ fn scalar_condition_scope_selects_family_members_without_rooting_other_targets()
     assert_eq!(unavailable.predicates(), [5]);
     assert_eq!(unavailable.ranges(), [5]);
 }
+
+#[test]
+fn entry_admission_retains_module_and_reached_debts_without_certifying_product_formation() {
+    let (scope, mut conditions) = fixture();
+    for owner in [2, 4, 5] {
+        conditions.retain_completion(
+            ScalarConditionSubject::Declaration(ProofDeclarationId(owner)),
+            ScalarApplicationId::new(u64::from(owner)).unwrap(),
+        );
+    }
+    let roots = [ProofDeclarationId(2)];
+    let select = |scope_kind| {
+        ScalarConditionSelection::select(
+            &scope,
+            &conditions,
+            "windows_x86_64",
+            true,
+            [],
+            &[],
+            &scope_kind,
+        )
+        .unwrap()
+    };
+    let mut entry = select(ScalarConditionScope::Invocation(roots.to_vec()));
+    // Entry 2 reaches declaration 4. Unrelated ground declaration 5 remains
+    // owed by the Product and the Module predicate stays owed by both.
+    assert_eq!(entry.ranges(), [1, 3, 5]);
+    assert_eq!(entry.predicates(), [1, 5]);
+    assert_eq!(entry.completions(), [0, 1]);
+    let product = select(ScalarConditionScope::SourceRoots(roots.to_vec()));
+    assert!(product.ranges().contains(&4));
+    assert_eq!(product.completions(), [0, 1, 2]);
+
+    // A discovered scalar job is an actual new entry. Its ordinary helper debt
+    // joins the same ledger without admitting unrelated Product declarations.
+    entry
+        .include_evaluation_entry(MachineId::new(3).unwrap())
+        .unwrap();
+    assert_eq!(entry.predicates(), [1, 2, 5]);
+    assert!(!entry.ranges().contains(&4));
+    assert_eq!(
+        entry.scope(),
+        &ScalarConditionScope::Invocation(roots.to_vec())
+    );
+}

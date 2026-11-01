@@ -12,7 +12,7 @@
 // provider's activation crossing requalifies that same carrier `Installed`;
 // only an installed mapping may be unmapped. `unmap` returns reusable
 // `Granted` custody for both ranges plus the owed cross-core shootdown
-// token -- TLB debt that must be discharged through `Shootdown::discharge`
+// token -- TLB debt that must be discharged through `ShootdownDischarge::discharge`
 // before the teardown is complete. Equal-length ranges are the contract's
 // structural precondition, matching the conservation model's check.
 //
@@ -87,6 +87,7 @@ use translation::Mapping::Installed;
 use translation::Reclaimed;
 use translation::Shootdown;
 use translation::Shootdown::Owed;
+use translation::ShootdownDischarge;
 use translation::TranslationActivationFact;
 use translation::TranslationAuthority;
 use translation::TranslationCompletionFact;
@@ -144,7 +145,7 @@ reaches TranslationAuthority + MachineControl
     observe_release(&installed.release);
     let unmapped: Unmapped = TranslationAuthority::unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    Shootdown::discharge(owed);
+    ShootdownDischarge::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     Reclaimed { destination: released_destination, source: released_source }
@@ -182,7 +183,7 @@ reaches TranslationAuthority + MachineControl
     observe_release(&installed.release);
     let unmapped: UnmappedBorrowed = TranslationAuthority::unmap_borrowed(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    Shootdown::discharge(owed);
+    ShootdownDischarge::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = source;
     Reclaimed { destination: released_destination, source: released_source }
@@ -226,7 +227,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         CathedralPageTables::remove(walked.tables, installed);
     let unmapped: Unmapped = TranslationAuthority::unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    Shootdown::discharge(owed);
+    ShootdownDischarge::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     CathedralReclaimed {
@@ -271,7 +272,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         CathedralPageTables::remove_huge(walked.tables, installed);
     let unmapped: Unmapped = TranslationAuthority::unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    Shootdown::discharge(owed);
+    ShootdownDischarge::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     CathedralReclaimed {
