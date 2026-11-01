@@ -106,7 +106,7 @@ machine require_round_trip<Frame,
     Encode satisfies ValueConversion<Pair, Frame, Failure>,
     Decode satisfies ValueConversion<Frame, Pair, Failure>>
     (value: Pair, frame: Frame)
-requires Decode::try_from(frame) == Result::Ok { value: value }
+requires Decode::try_from(frame) == (Result::Ok { value: value })
 { }
 
 machine use_agreement<Frame,
@@ -115,7 +115,7 @@ machine use_agreement<Frame,
     Validity satisfies FrameValidity<Frame>,
     Agreement satisfies PairAgreement<Frame, Encode, Decode, Validity>>
     (value: Pair, frame: Frame, malformed: Frame)
-requires Encode::try_from(value) == Result::Ok { value: frame }
+requires Encode::try_from(value) == (Result::Ok { value: frame })
 requires !Validity::valid(malformed)
 {
     Agreement::encode_covers(value);
