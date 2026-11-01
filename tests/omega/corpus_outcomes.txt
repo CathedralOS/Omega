@@ -23269,8 +23269,8 @@ fail/facts/generic_calling_policy/distinct_applications_exit rejected 19651ms ex
 	calling policy accepted an invalid plan: value 0 placement exceeds its declared shape
 fail/facts/generic_calling_policy/inline_const_exit rejected 13225ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/literal_range_exit rejected 14001ms expected @ccdb99ca2214
-	conformance `GenericPolicy` parameter `Width` has an invalid literal value: integer node `u64(-1)` does not fit exact carrier `u64`
+fail/facts/generic_calling_policy/literal_range_exit rejected 6251ms expected @5200323ba1d0+wt
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "integer node `u64(-1)` does not fit exact carrier `u64`", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/facts/generic_calling_policy/missing_argument rejected 8861ms expected @ccdb99ca2214
 	generic conformance `GenericPolicy` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
 fail/facts/generic_calling_policy/nested_argument_exit rejected 9443ms expected @ccdb99ca2214
