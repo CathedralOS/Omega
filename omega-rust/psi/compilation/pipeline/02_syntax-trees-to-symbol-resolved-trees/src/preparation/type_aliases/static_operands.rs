@@ -7,8 +7,10 @@ use crate::preparation::generic_data::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
 };
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use std::collections::{HashMap, HashSet};
+use syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
@@ -27,6 +29,37 @@ impl Expansion<'_, '_> {
         }
         let mut expressions = HashSet::new();
         collect_statement_expression_handles(syntax, statement, &mut expressions);
+        if let StatementNode::Transition(transition) = syntax.statements.statement(statement) {
+            let selectors = syntax
+                .statements
+                .outcome_proof_selectors(transition.proof_selectors);
+            if !selectors.is_empty() {
+                let mut target_expressions = HashSet::new();
+                let mut target_bound = bound.to_vec();
+                target_bound.extend(
+                    selectors
+                        .iter()
+                        .map(|selector| selector.binding.as_str(syntax).to_owned()),
+                );
+                for target in transition.targets() {
+                    match syntax.statements.transition_target(target) {
+                        syntax_trees::statement::TransitionTargetNode::Value(value) => {
+                            collect_expression_handles(syntax, *value, &mut target_expressions)
+                        }
+                        syntax_trees::statement::TransitionTargetNode::Named {
+                            arguments, ..
+                        } => {
+                            for value in syntax.statements.expression_handles(*arguments) {
+                                collect_expression_handles(syntax, *value, &mut target_expressions);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                expressions.retain(|expression| !target_expressions.contains(expression));
+                self.static_expression_inputs(syntax, target_expressions, &target_bound)?;
+            }
+        }
         self.static_expression_inputs(syntax, expressions, bound)
     }
 
@@ -47,10 +80,56 @@ impl Expansion<'_, '_> {
         expressions: HashSet<ExpressionHandle>,
         bound: &[String],
     ) -> Result<(), Diagnostic> {
+        // Runtime pattern aliases have already become saved-subject member
+        // reads in the parser. Erased arm proofs remain lexical names: retain
+        // their exact guard/body scope instead of selecting a global alias.
+        let mut proof_scopes: HashMap<ExpressionHandle, Vec<String>> = HashMap::new();
+        for &expression in &expressions {
+            if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
+                for arm in syntax.expressions.match_arms(dispatch.arms) {
+                    let syntax_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
+                    else {
+                        continue;
+                    };
+                    let selectors = syntax
+                        .statements
+                        .outcome_proof_selectors(pattern.proof_selectors);
+                    if selectors.is_empty() {
+                        continue;
+                    }
+                    let mut scoped = HashSet::new();
+                    collect_expression_handles(syntax, arm.value, &mut scoped);
+                    collect_expression_handles(syntax, pattern.guard, &mut scoped);
+                    for expression in scoped {
+                        proof_scopes.entry(expression).or_default().extend(
+                            selectors
+                                .iter()
+                                .map(|selector| selector.binding.as_str(syntax).to_owned()),
+                        );
+                    }
+                }
+            }
+        }
         let mut expressions = expressions.into_iter().collect::<Vec<_>>();
         expressions
             .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
         for expression in expressions {
+            let scoped_bound = proof_scopes.get(&expression).map(|proofs| {
+                let mut scoped = bound.to_vec();
+                scoped.extend(proofs.iter().cloned());
+                scoped
+            });
+            let bound = scoped_bound.as_deref().unwrap_or(bound);
+            if let ExpressionNode::Binary(binary) =
+                syntax.expressions.expression(expression).clone()
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                )
+            {
+                self.predicate_type_operand(syntax, binary.left, bound)?;
+                self.predicate_type_operand(syntax, binary.right, bound)?;
+            }
             if let ExpressionNode::Call(mut call) =
                 syntax.expressions.expression(expression).clone()
             {
@@ -65,6 +144,124 @@ impl Expansion<'_, '_> {
             });
             for reference in references {
                 self.reference(syntax, reference, bound)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// A selected alias in a type comparison takes the ordinary source-use
+    /// expansion, retaining its original application and formation obligations.
+    /// Lexical binders remain values/types in their own scope, never aliases
+    /// selected merely because a declaration has the same spelling.
+    fn predicate_type_operand(
+        &mut self,
+        syntax: &mut SyntaxTrees,
+        expression: ExpressionHandle,
+        bound: &[String],
+    ) -> Result<(), Diagnostic> {
+        match syntax.expressions.expression(expression).clone() {
+            ExpressionNode::Name(path) => {
+                let path = syntax.expressions.identifier_path_members(path).to_vec();
+                let Some(first) = path.first() else {
+                    return Ok(());
+                };
+                let argument = StaticMachineArgument {
+                    path: path.clone().into_boxed_slice(),
+                    ..Default::default()
+                };
+                let name = argument_name(syntax, &argument, first)?;
+                if bound
+                    .iter()
+                    .any(|parameter| parameter == name.as_str(syntax))
+                    || self.selection.type_alias_source(syntax, &name).is_none()
+                {
+                    return Ok(());
+                }
+                let reference = argument_reference(syntax, &argument)?;
+                self.reference(syntax, reference, bound)?;
+                syntax
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::TypeExpression(reference));
+            }
+            ExpressionNode::Borrow(borrow) => {
+                self.predicate_type_operand(syntax, borrow.target, bound)?
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                if let [element] = syntax.expressions.expression_handles(elements) {
+                    let element = *element;
+                    self.predicate_type_operand(syntax, element, bound)?;
+                }
+            }
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    syntax.expressions.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                self.predicate_type_operand(syntax, indexed.collection, bound)?
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub(super) fn retain_contract_bindings(
+        syntax: &SyntaxTrees,
+        contracts: arena::HandleSpan<syntax_trees::item::CapabilityContract>,
+        bound: &mut Vec<String>,
+    ) {
+        bound.extend(
+            syntax
+                .items
+                .capability_contracts(contracts)
+                .iter()
+                .filter_map(|contract| contract.binding.as_ref())
+                .map(|binding| binding.as_str(syntax).to_owned()),
+        );
+    }
+
+    pub(super) fn retain_statement_bindings(
+        syntax: &SyntaxTrees,
+        statement: StatementHandle,
+        bound: &mut Vec<String>,
+    ) {
+        match syntax.statements.statement(statement) {
+            StatementNode::LocalData(local) => bound.push(local.name.as_str(syntax).to_owned()),
+            StatementNode::ProofOutputBindingStatement(output) => bound.extend(
+                output
+                    .bindings
+                    .iter()
+                    .map(|selector| selector.binding.as_str(syntax).to_owned()),
+            ),
+            _ => {}
+        }
+    }
+
+    pub(super) fn contract_static_operands(
+        &mut self,
+        syntax: &mut SyntaxTrees,
+        contracts: arena::HandleSpan<syntax_trees::item::CapabilityContract>,
+        bound: &[String],
+    ) -> Result<(), Diagnostic> {
+        let contracts = syntax.items.capability_contracts(contracts).to_vec();
+        for contract in contracts {
+            let facts = syntax.items.proof_facts(contract.facts).to_vec();
+            for fact in facts {
+                match fact {
+                    syntax_trees::item::ProofFact::Expression(expression) => {
+                        self.expression_static_operands(syntax, expression, bound)?
+                    }
+                    syntax_trees::item::ProofFact::Membership(membership) => {
+                        self.expression_static_operands(syntax, membership.value, bound)?;
+                        let arguments = syntax
+                            .type_references
+                            .type_reference_handles(membership.domain_arguments)
+                            .to_vec();
+                        for reference in arguments {
+                            self.reference(syntax, reference, bound)?;
+                        }
+                    }
+                }
             }
         }
         Ok(())
