@@ -23,7 +23,7 @@ reconstructing every detail of the old eager producer.
 Carrier/mapping/path/extent/origin checks, receiver masking, normal completion,
 all-origin intersections and the graph-supplied public API remain intact. There
 is no cross-sweep cache, source recognizer or new authority rule. The exact
-[diagnostic patch](diagnostic.patch) is preserved; the working compiler source
+[diagnostic patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/diagnostic.patch) is preserved; the working compiler source
 was restored before measurement. No runtime mode switch is retained in source.
 
 Separate counter runs confirm actual demand in this binary:
@@ -94,8 +94,8 @@ Twelve identical-mode cold repeats have median symmetric absolute differences
 of 14.96% wall, 9.02% CPU, 11.26% checking and 12.99% lowering. Wall variation
 reaches 31.67%; checking variation reaches 48.61%. The symmetric measure is
 `100 * abs(second - first) / mean(first, second)`, not a confidence interval for
-the block effect. Raw individual runs and every repeat are in [summary.json](summary.json)
-and [raw](raw/).
+the block effect. Raw individual runs and every repeat are in [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/summary.json)
+and [raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/raw).
 
 For example, unchanged lazy runs take 26.49 and 19.25 seconds, with checking at
 9.93 and 6.04 seconds. Checking precedes the selector. The same executable and
@@ -143,8 +143,8 @@ There is exactly one CLI digest,
 and one accepted-lock digest,
 `ec7b832157f461d51da0c7b8c94b867610573bfab546a0be18ce1050f7435cfb`.
 Both CLI and corpus profiles report `opt_level=1`.
-[Producer identity](producer.json), [source identity](source.json) and
-[patch replay checks](patch-checks.json) bind the build to base
+[Producer identity](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/producer.json), [source identity](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/source.json) and
+[patch replay checks](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/same_binary_graph/patch-checks.json) bind the build to base
 `1c358b5fd09bb57a45081cc707c052fbe6c2dad3`, semantic base
 `456c5e984452a45d977295e254b3ca9ae3cc7750` and the exact diagnostic patch.
 Normal offline `omega update` prepared the accepted lock. The input manifest's

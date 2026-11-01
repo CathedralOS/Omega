@@ -22,7 +22,7 @@ much grows with the program? Three programs of increasing size, compiled with
 Three interleaved rounds. Each round compiles every program once with a fresh
 private `LOCALAPPDATA` cache (cold), then twice more on that cache (warm). Wall
 time is external; the compiler's own `total elapsed` agrees within 0.2 s on every
-run. Raw rows are in [runs.txt](runs.txt).
+run. Raw rows are in [runs.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compile_scaling_2026_10_31/runs.txt).
 
 | Program | Cold wall, median of 3 | Warm wall, median of 6 | Cold Stage 05 (checking), median |
 | --- | ---: | ---: | ---: |
@@ -103,7 +103,7 @@ Before timing, `omega run` on the Dungeon copy exited 0 with the authored
 `A bottomless dark room near the dungeon heart.` line, and `hello` printed
 `hello` with exit 0. All 27 timed compiles exited 0.
 
-The probes are in [probes/](probes/); place them at `build/pscale/<name>/` to
-reuse their std path, as [run.sh](run.sh) expects. On main `1aa92f8aae6`, std
+The probes are in [probes/](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compile_scaling_2026_10_31/probes); place them at `build/pscale/<name>/` to
+reuse their std path, as [run.sh](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compile_scaling_2026_10_31/run.sh) expects. On main `1aa92f8aae6`, std
 did not check for Windows (`Clock` had four covering provider plans); #1065
 resolved that before this measurement.

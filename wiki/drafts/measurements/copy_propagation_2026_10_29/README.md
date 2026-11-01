@@ -83,16 +83,16 @@ loaded their graph and recorded a prepared hit. Native image difference is
 an optimization outcome, not evidence reuse across policies.
 
 **Ten native/Terminal agreements** passed: nine existing affected facts plus
-[the scalar ordering control](scalar-order/main.omg), which checks zero/one/two
+[the scalar ordering control](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/copy_propagation_2026_10_29/scalar-order/main.omg), which checks zero/one/two
 rotations, duplicate arguments and both distinct branch arrivals. **Nine authored
 fact-sensitive rejects** retained their expected diagnostics. The earlier
 source-grounded empty-middle capture shortcut was rejected before compilation:
 mandatory edge homes can make scalar swap backedges infeasible. Its exact
-[prototype and unbuilt test](unexecuted-edge-capture-prototype.json.gz) are
+[prototype and unbuilt test](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/copy_propagation_2026_10_29/unexecuted-edge-capture-prototype.json.gz) are
 archived without a test/runtime claim. [Research](research.md) records the
 local contracts and pinned LLVM precedent; no such shortcut remains in Rust.
 
-[Unrounded summary](summary.json) and [674 exact source/build/receipt/raw records](evidence.json.gz)
+[Unrounded summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/copy_propagation_2026_10_29/summary.json) and [674 exact source/build/receipt/raw records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/copy_propagation_2026_10_29/evidence.json.gz)
 bind 552 generated output records. The initial receipt-spacing failure and
 later missing-private-reject-metadata failure remain in the archive. Neither
 supplies a successful invalid-control result or an excluded timing sample.

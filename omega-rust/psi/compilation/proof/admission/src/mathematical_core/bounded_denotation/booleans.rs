@@ -26,6 +26,8 @@ use super::{
 };
 use crate::mathematical_core::substitution::{shift, substitute};
 
+pub(super) mod scalar_denotation;
+
 macro_rules! id {
     ($ty:expr => $left:expr => $right:expr) => {
         Term::Id {
@@ -75,30 +77,6 @@ fn equality_function(
 }
 
 impl Denotation {
-    pub(super) fn boolean_term(
-        &mut self,
-        term: &ScalarTerm,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        Ok(Some(match term {
-            ScalarTerm::Boolean(false) => self.two_zero,
-            ScalarTerm::Boolean(true) => self.two_one,
-            ScalarTerm::BooleanNot { operand } => {
-                let operand = self.scalar_term(operand)?;
-                self.boolean_case(operand, self.two_one, self.two_zero)
-            }
-            ScalarTerm::BooleanEqual { left, right } => {
-                let left = self.scalar_term(left)?;
-                let right = self.scalar_term(right)?;
-                if !self.boolean_equality.is_valid() {
-                    self.boolean_equality =
-                        equality_function(&mut self.arena, self.two, self.two_zero, self.two_one);
-                }
-                self.arena.apply_binary(self.boolean_equality, left, right)
-            }
-            _ => return Ok(None),
-        }))
-    }
-
     fn boolean_case(
         &mut self,
         scrutinee: TermHandle,

@@ -111,7 +111,7 @@ proof soundness or acceptance of invalid programs.
 
 The source/oracle is the unchanged Dungeon program, with stdin EOF and expected
 stdout containing `A bottomless dark room near the dungeon heart.` Its existing
-203-file source manifest is in the [parent record](../input-manifest.json).
+203-file source manifest is in the [parent record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json).
 The source base is `456c5e984452a45d977295e254b3ca9ae3cc7750`; the patches apply
 at measurement-only commit `2ee0da1dc171fd966c11a457bb5997a72add37c3`.
 No main synchronization, source rewrites, or shared-checkout edits were done.
@@ -120,12 +120,12 @@ Every timed compile used a new private `LOCALAPPDATA` cache, an explicit library
 root, general phase profiling off, and the accepted lock belonging to the exact
 frozen compiler. Locks were prepared through ordinary offline package update;
 policy fingerprint and source comparison were unchanged. Producer digests,
-accepted-lock digests and optimized build profiles are in [identities.json](identities.json).
+accepted-lock digests and optimized build profiles are in [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/identities.json).
 The smaller diagnostic flags do not enable the general global profiler mutex.
 
-[measure.py](measure.py) extends the existing runner only to record process peak
+[measure.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/measure.py) extends the existing runner only to record process peak
 working set. The 64 MiB child-allocation sanity check returned a plausible
-79,622,144-byte peak; [memory-calibration.json](memory-calibration.json).
+79,622,144-byte peak; [memory-calibration.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/memory-calibration.json).
 Use frozen producers in `build/proof-profile/producers/<name>/`, each with its
 accepted `omega.lock`; the runner refuses existing result folders. Examples:
 
@@ -142,15 +142,15 @@ absent for ordinary timings. Detail events are correlated by thread between
 the same kernel. Event writing and extra clocks make these attribution builds,
 not primary A/B speed measurements.
 
-[Instrumented outer patch](instrumentation.patch),
-[core patch](core-instrumentation.patch) and
-[transfer patch](transfer-instrumentation.patch) are separate alternatives
+[Instrumented outer patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/instrumentation.patch),
+[core patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/core-instrumentation.patch) and
+[transfer patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/transfer-instrumentation.patch) are separate alternatives
 against the recorded base. Apply exactly one. The rejected carrier patch applies
 with the outer patch; the rejected roster replay patch applies after it. Its one caller hunk was normalized to the outer patch's line wrapping; the original captured patch is retained separately. All temporary
 compiler hooks and both candidates are removed from the final working source.
 [Research](research.md) records the API source, applicability and safety arguments.
 
-Raw streams, run records and executed-child outcomes are under [raw](raw/).
+Raw streams, run records and executed-child outcomes are under [raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/raw).
 Large stderr streams and build logs use lossless gzip. The manifest binds
 retained bytes; binaries and accepted locks remain local ignored artifacts.
 The source fixture, lock policy, runtime oracle and binary identities are
@@ -160,4 +160,4 @@ No full corpus, other targets, invalid-source acceptance gate or interactive
 Dungeon route was run. These limitations prevent promotion of an optimization;
 they do not invalidate the observed timing of this unchanged EOF program.
 
-Run `python wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/analyze.py` to verify the retained manifest and paired results. Five patch configurations were independently applied to scratch indices; see [patch-checks.json](patch-checks.json).
+Run `python wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/analyze.py` to verify the retained manifest and paired results. Five patch configurations were independently applied to scratch indices; see [patch-checks.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/patch-checks.json).

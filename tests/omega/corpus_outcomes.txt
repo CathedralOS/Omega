@@ -1361,6 +1361,28 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/recast_parent_restoration_changed_end_rejected rejected 884ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 1431ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 1418ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_field_rejected rejected 1366ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_local_rejected rejected 1603ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 1570ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 1563ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 1643ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 1402ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1396ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_unrestored_rejected rejected 789ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -8301,6 +8323,16 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/recast_parent_restoration_preserved_end_exit checked 5325ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_call_result_exit checked 7773ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_const_name_exit checked 8368ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_field_exit checked 6590ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_local_exit checked 6578ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_match_join_exit checked 6548ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 7772ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_other_state_exit checked 5314ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_parameter_exit checked 4487ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_target_body_exit checked 7852ms check-target:macos_arm64 @b32b6171a411
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
@@ -8673,15 +8705,15 @@ pass/facts/scalar_array_row_construction_through_other_machine_exit checked 3192
 pass/facts/scalar_array_row_construction_through_other_state_exit checked 3314ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_array_row_construction_through_parameter_exit checked 3214ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_array_row_construction_through_target_body_exit checked 2990ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_call_result_exit checked 3592ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_const_name_exit checked 4032ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_field_exit checked 3549ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_local_exit checked 3511ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_match_join_exit checked 3620ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_other_machine_exit checked 3677ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_other_state_exit checked 3733ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_parameter_exit checked 3459ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_boundary_parameter_through_target_body_exit checked 3697ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/scalar_boundary_parameter_through_call_result_exit checked 2276ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_const_name_exit checked 2175ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_field_exit checked 2234ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_local_exit checked 2195ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_match_join_exit checked 2157ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_other_machine_exit checked 2150ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_other_state_exit checked 2161ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_parameter_exit checked 2327ms check-target:macos_arm64 @644c2d31cb51
+pass/facts/scalar_boundary_parameter_through_target_body_exit checked 2166ms check-target:macos_arm64 @644c2d31cb51
 pass/facts/scalar_domain_call_guarantee_through_call_result_exit checked 4339ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_domain_call_guarantee_through_const_name_exit checked 3707ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_domain_call_guarantee_through_field_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
@@ -27319,50 +27351,23 @@ fail/facts/scalar_array_row_construction_through_target_body_rejected rejected 1
 	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
-fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 1181ms expected @ccdb99ca2214
+fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 508ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter_through_const_name_rejected rejected 522ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter_through_field_rejected rejected 549ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter_through_local_rejected rejected 500ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_const_name_rejected rejected 1033ms expected @ccdb99ca2214
+fail/facts/scalar_boundary_parameter_through_match_join_rejected rejected 476ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_field_rejected rejected 1638ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_local_rejected rejected 1671ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_match_join_rejected rejected 1687ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_other_machine_rejected rejected 1367ms expected @ccdb99ca2214
+fail/facts/scalar_boundary_parameter_through_other_machine_rejected rejected 478ms expected @644c2d31cb51
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_other_state_rejected rejected 1155ms expected @ccdb99ca2214
+fail/facts/scalar_boundary_parameter_through_other_state_rejected rejected 484ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter_through_parameter_rejected rejected 473ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_parameter_rejected rejected 2706ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter_through_target_body_rejected rejected 1565ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter_through_target_body_rejected rejected 489ms expected @644c2d31cb51
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 fail/facts/scalar_domain_call_guarantee_through_call_result_rejected rejected 2757ms expected @ccdb99ca2214
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative

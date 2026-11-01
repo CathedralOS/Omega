@@ -13,6 +13,74 @@ Rust types; if Cathedral cannot express something, name the missing general
 Omega primitive or mark the slice blocked. `StateGraph` and `ControlFlowPlan`
 predate the Terminal Psi cut and are **not** the public portable format.
 
+## Compositional lowering
+
+Reinforcing required source-shape admission is prohibited, not a cleanup
+preference. Clean the touched mechanism as you go: generalize its operation or
+explicit data relationship and delete the superseded path in the same change.
+Another task promising later consolidation is not an exception. If the general
+repair is blocked, identify that dependency rather than publishing another
+required special case. This does not require an unrelated whole-pipeline rewrite.
+
+Supported assignment, call, branch,
+and transfer operations must compose under their actual type, effect, ownership,
+and control-flow rules. Do not add another required producer family for an
+incidental arrangement such as "locals before calls", "call immediately followed
+by case dispatch", or "the same body with an extra statement". Replace the
+restrictive recognizer or duplicated planner with ordinary operation sequencing
+and explicit value/storage/control relationships. Clean X-to-Y crate names do
+not make a pattern-specific implementation compositional.
+
+Semantic distinctions, ABI constraints, missing proof obligations, and explicit
+implementation limits remain real. Never remove their rejection checks merely
+to admit more shapes. Specialized pattern matching is appropriate for optional
+optimizations with a correct general path, not as the only way to compile an
+ordinary combination.
+
+When a customer exposes this pattern, identify the general operation or join that
+is missing and remove the superseded special path as that repair lands. When the
+missing relationship is a requirement the producer dropped, record the
+requirements still open on the value that layer emits and have the next layer
+read that list. Saved scalars, write sets, crash routes, domain facts, and the
+selected body are entries on that list. A recognizer that rebuilds one of them
+for one production is the superseded path. Before
+propagating a new representation or lowering mechanism across stages, choose a
+small valid variation that challenges its assumptions and a relevant invalid
+control. Check that the design supports the valid case and rejects the invalid
+one through independent checking. Implement and exercise them early, not only
+after the original fixture passes.
+For a borrowed call, surrounding computations and conflicting-access rejection
+can expose a bad design without a Cartesian matrix of source permutations.
+
+Parallel implementation of additional variants should follow one working,
+independently checked route through the new mechanism. Do not replicate an
+unproven representation across several implementations first. Independent review,
+tests, and work using established contracts can still proceed in parallel.
+
+Keep the actual customer's command as the outer acceptance check; a passing
+isolated helper does not close an unchanged application failure. Do not expand
+the task board with one item per permutation, or treat this rule as permission
+for an unrelated whole-IR rewrite.
+
+## Verification placement
+
+Verification runs at trust boundaries:
+
+- a new or changed foreign package is verified when it is reviewed;
+- an untrusted build script is confined and checked while it executes.
+
+Proof-carrying code is removed; see [PCC removal](../TASKS.md#pcc-removal).
+
+A stage does not re-validate, replay or rebuild output that the same compile
+just produced. The producer and its checker would be the same code running in
+the same process on the same input, so the second pass cannot find anything
+the first missed, and every such pass costs compile time and a second copy of
+the stage's rules. A plan that violates its contract is a bug in the stage
+that produced it, for the corpus and the tests to find.
+
+The verifiers themselves stay. The corpus runner and the tests exercise them;
+the default compile path does not call them.
+
 ## Connected program route
 
 Each link below enters an actual transform owner. Private analyses and target
@@ -63,9 +131,8 @@ product requirement and ordinary typed locator data with inferred byte lengths.
 It does not execute product code or install Build-host supply. The compiler
 derives native candidates/plans and retains requirement, target, supplier,
 calling policy and authored provenance through review and realization. Source
-`via` clauses and per-symbol forwarding realizers are retired; remaining parser,
-source and review carriers are work under `BUILD-OWNED-NATIVE-BINDINGS` in
-[the task board](../TASKS.md#pipeline-route), not a parallel supply route.
+`via` clauses and per-symbol forwarding realizers are retired and are not a
+parallel supply route.
 
 The two drivers are the production dependency boundary around the stages. A
 consumer needing source semantics calls the Psi driver with explicit source,
@@ -102,8 +169,7 @@ directly or ask the Psi driver to compile source to one. The application depends
 on those facades and shared request/artifact contracts, never their internal
 stages, representations, backend or package-compilation helpers.
 
-The current Rust implementation does not meet this yet. Source preparation and
-checked/Terminal coordination still sit outside the numbered stages. One
+One
 `CompileRequest` assembles sources, executes Build and completes authored/generated
 typing and checks Product before its target loop. Targets borrow the same checked
 arenas and sealed source custody, and settle providers without rewriting source
@@ -143,7 +209,7 @@ does not maintain another call traversal or trust an earlier source check.
 Psi also owns exact provider-selection declarations and the shared decoder for
 static defaults and executed Build choices. Checked Product selection returns
 all authored defaults before root pruning; Omega only selects retained rows.
-Resolver/typing continuation now lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
+Resolver/typing continuation lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
 one owner pairs the deferred resolver, typing arenas and evaluation obligations
 across Build and generated-source resumption. Product records cannot rearrange
 those stages or replace one half of the continuation. The same facade owns
@@ -189,9 +255,7 @@ attempts, including the entered prefix of a failed invocation. Independently
 admitted callable bodies remain separate observed units. Collection uses the
 existing optional phase profiler and supplies no semantic or admission input.
 The fixture also checks shared Terminal allocation, single-target byte equality,
-and native/reloaded-Terminal execution. Its source/Build/publication counters
-remain coarse observations; full numbered source/Psi invocation acceptance is
-still open.
+and native/reloaded-Terminal execution.
 Composition admission runs once per application, after canonical publication.
 Psi projects ordered entry, callback and physical-adapter roots with deferred
 source diagnostics, and retains their pre-optimization semantic operations in
@@ -244,10 +308,8 @@ target's locator before narrowing realization; neither catalog presence nor a
 Product row supplies Build-host authority. Entry-role nomination, physical-entry
 planning and deferred Build adapter lookup use those prepared declarations too;
 their existing source-shape, source-custody and checked-body admission remain
-explicit. Reference dispatch no longer carries retired `Binding<R>` receiver
-applications or calling-plan inputs used only by them. Other source-schema
-consumers, default ABI signature materialization and canonical Terminal publication
-of the full catalog remain unfinished source dependencies.
+explicit. Reference dispatch carries no retired `Binding<R>` receiver
+applications or calling-plan inputs used only by them.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -329,18 +391,19 @@ none is a separate implementation handoff. Native receiving admission remains
 source-free. Check and declaration review must still work without executable
 publication, and reviewed candidates never replace original compiler custody.
 
-Boundary-value layout now takes a source-free storage recipe graph. Psi's
+The owner approved this implementation plan on 2026-10-24 as the acceptance
+for **PIPELINE-ARCHITECTURE-ENFORCEMENT**. Build suspension and helper
+compilation also retain the acceptance of **TERMINAL-BUILD-SEED**.
+
+Boundary-value layout takes a source-free storage recipe graph. Psi's
 `typed-trees::boundary_values` closes applications, reference descriptors,
 runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
 Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
 target without reading typed source. Ordinary calling signatures, entry storage
 and table dispatch all use this one route. The graph carries storage meaning,
-not type/contract authority or a representation grant. It currently remains an
-invocation-owned projection: canonical Terminal signature publication, exact
-callback/policy capture, and Terminal-first target orchestration are still open.
-In particular, this split does not establish source-discard/reload acceptance.
+not type/contract authority or a representation grant.
 
-The same source catalog now retains native parameter/callback telescopes before
+The same source catalog retains native parameter/callback telescopes before
 target choice. Psi owns nominal parameter identities, static-machine ordinal
 gaps, callback requirements, synchronous-invocation flags and declared native
 positions. Default ABI lookup uses its Product-eligible declaration subset;
@@ -349,7 +412,7 @@ Build copies. Omega consumes those records instead of rewalking signatures.
 Projection refusals remain deferred until an ABI request, and runtime type
 recipes still materialize one parameter at a time. These telescopes and their
 separate source correspondence originate in the invocation-owned catalog.
-Canonical Terminal now retains the emitted boundaries' calling telescopes;
+Canonical Terminal retains the emitted boundaries' calling telescopes;
 native callback placement reads those exact declaration rows, including
 native-only function-pointer arguments, instead of taking their identity and
 order from the source-prepared ABI application. The proposed application must
@@ -360,9 +423,7 @@ those retained or decoded records. Canonical signature projection also closes
 the native-only callback arguments, binder requirements and private inline-record
 paths against borrowed selected field storage. Completed scalar extent inputs
 are explicit; missing backing and unfinished extents refuse rather than imply
-empty callback demand. The production calling-application census, opaque
-selection and source-qualified review still need migration before target
-planning can discard its source-side signature preparation.
+empty callback demand.
 
 Psi's same immutable catalog also retains the complete explicit calling-policy
 application census: the owning vocabulary, concrete boundary arguments, exact
@@ -377,16 +438,7 @@ preparation closes the complete native telescope and callback geometry before
 the policy's single activation. That activation executes the shared catalog in
 Terminal with finite fuel and metered storage/results, not the checked-source
 interpreter. There is no preliminary incomplete-signature evaluation or later
-plan replacement. Shared code
-publication does not yet make Product provider settlement Terminal-only.
-Publishing these applications and their closed storage/contract inputs in
-Terminal, rather than retaining source coordinates,
-remains the next connected migration.
-
-The owner approved this implementation plan on 2026-10-24. It is the acceptance
-for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
-implementation already has these boundaries. Build suspension and helper
-compilation also retain the acceptance of **TERMINAL-BUILD-SEED**.
+plan replacement.
 
 ### Destination
 
@@ -467,13 +519,13 @@ review owns audit projection, Psi checking owns wire compatibility, and Omega
 owns runtime provider compatibility. Uncalled legacy checked-expression
 collectors are not alternative admission routes.
 
-The post-join source continuation now admits the complete root Product policy
+The post-join source continuation admits the complete root Product policy
 in one ordered operation: provider applications, representation choices, native
 intent, root grants, audit/assumption/wire declarations, then exclusions.
 The Product coordinator authenticates package providers first, invokes that
 operation, resolves captured dependency native intent through Psi, attaches
 evaluation receipts and publishes the returned choices. It never borrows typed
-trees to drive individual source judgments. Source formation now finishes before
+trees to drive individual source judgments. Source formation finishes before
 native receipt attachment and dependency-intent resolution; when both fail, the
 root source error reports first. Neither independent failure becomes admissible.
 
@@ -498,12 +550,11 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
-Callback and physical-entry adapters now join their exact selected declarations
+Callback and physical-entry adapters join their exact selected declarations
 to canonical Terminal bodies. Each body retains its combined scalar/structural
 runtime order, so native preparation derives the formal correspondence from
 the artifact itself, including after reload. There is no late Psi signature query
-for these adapters. Other checked-source inputs to product coordination remain
-part of the migration; this does not claim the entire driver is source-free.
+for these adapters.
 
 Entry custody retains declared arguments and physical/semantic calling contracts,
 not synthesized service fields on an application record. Provider roots come from
@@ -543,7 +594,7 @@ review request their checked-source projection explicitly. Review derives it
 from original compiler custody, never from the supplied semantic candidate.
 The selected plans, Import application custody and exact owner identities stay
 unchanged; each completed instance roster recomputes its aggregate commitment.
-That source projection now has a declaration producer and a source-free policy
+That source projection has a declaration producer and a source-free policy
 consumer. Psi records exact inherited receiving-application candidates and
 generic specialization identities, preserving individual failures inside their
 candidate groups. `provider-planning/src/provider_instances.rs` supplies original
@@ -553,7 +604,7 @@ candidate cardinality, template-row agreement, complete closed-instance coverage
 and attachment to the selected plans. Review still prepares from the original
 compiler program, not the candidate under review. These are invocation-local
 declarations, not another portable format or permission to execute a provider.
-`SelectedProviderSource` now owns the immutable checked program and complete
+`SelectedProviderSource` owns the immutable checked program and complete
 selected-plan roster together. It prepares that declaration payload lazily once;
 callback, Check, review and reference consumers borrow it and run source-free
 selection at their original admission points. Empty callback rosters do not
@@ -569,9 +620,7 @@ with complete provider publication. Publication does not discard undemanded
 candidates. The inventory also retains authored Product target origins from the
 same typed-source query used during early Build preparation. Omega selects target
 defaults from these declarations without rescanning machine bodies. These
-process-local coordinates are not another portable boundary; candidate derivation,
-calling plans and source-side policy must still migrate before the driver can
-settle the full target product after Terminal production.
+process-local coordinates are not another portable boundary.
 
 That owner also retains direct-call declarations in machine/state/first-encounter
 order. Psi resolves exact machine and state aliases and records authored target,
@@ -590,7 +639,7 @@ supplied candidate independently, then joins nominal requirement, realization
 and selecting-owner identities against immutable custody. A library needs no
 ProgramEntry or executable lowering to review its uncalled supplied declarations.
 Private checking-only coordinates remain invocation-local, never portable owners.
-The selected row no longer duplicates numeric execution identity: review and
+The selected row does not duplicate numeric execution identity: review and
 native settlement consume the checked meaning through the shared source-free
 external-satisfaction join. Host/access authority remains independent.
 Psi also retains the requirement's exact schema, method and owner coordinates.
@@ -606,7 +655,7 @@ mutation pass or per-leaf source-plan copy. The projected callable contract stay
 distinct from the original satisfied schema and accepted public-plan identity;
 native demand and receiving authority still decide which supplies may execute.
 Source-dependent grants, callbacks, selected review, host roles and direct-call
-supplies now close together in `selected-dispatch/src/provider_binding.rs`.
+supplies close together in `selected-dispatch/src/provider_binding.rs`.
 The returned `SelectedExecution` owns its provenance and target custody before
 Terminal production borrows it. There is no intermediate checked-provider
 result or post-Terminal source installation phase: that old operation consumed
@@ -615,8 +664,6 @@ custody. Checking-only task validation remains separate from artifact-based
 native task demand. Source/role failures can therefore precede Terminal or task
 diagnostics; native source failures remain deferred, and receiving permission,
 trust admission and actual native demand stay at their existing boundaries.
-This consolidates the source preparation owner, not the intended future
-Terminal-only provider selection.
 Installation-reach preparation reads the selected provider's exact retained
 requirement and realization rows, including inherited and dormant declarations.
 It projects checked bounds and dependency identities once; source-free
@@ -634,8 +681,7 @@ consume it without rebuilding typed schemas. Independent package review projects
 the supplied program into its own catalog, compares complete records against
 immutable custody and uses only its own source correspondence for remaining
 contract capture. Unsupported or unowned unused declarations retain deferred
-projection refusals. Host classification still uses a catalog-local source join;
-this does not claim all accepted-service preparation is portable Psi.
+projection refusals.
 Original provider rows retain declaration facts shared by selected review and
 direct-call completion. Each row owns its optional direct-call input; bodyful
 checked completion adapters keep their host-role facts without acquiring a
@@ -654,11 +700,8 @@ only after source-owned row declaration preparation consumes their original
 ownership and derives these facts from the shared checked program. Product scalar
 completion follows canonical publication; it does not rewrite those declarations
 or substitute a target-specific checked snapshot.
-Earlier typed constant/comparison evaluation, general review call coordinates
-and source-dependent direct-call preparation remain migration work; this does not claim
-that selected dispatch as a whole is source-free. Retaining current declarations
-does not reinstate retired standalone boundary requirements or source `via`
-bindings; their language migration remains separately owned.
+Retained declarations do not reinstate retired standalone boundary requirements
+or source `via` bindings.
 
 The source-producing operation returns each Terminal application with its exact
 Build provider companion. It closes those proposals against the emitted demand
@@ -688,9 +731,7 @@ The native compiler owns this source-free preparation in `application.rs`, plus
 admission of the independently supplied package-permission rows. Product
 coordination supplies those inputs and requests preparation; it has no direct
 dependency on numbered Omega stages. Artifact-only and component publication use
-the same preparation without emitting an image. This does not yet remove source
-provider selection from product coordination or stage vocabulary from shared
-product representations.
+the same preparation without emitting an image.
 
 Product scalar completion consumes canonical Terminal applications, declaration
 conditions and exact lexical identities, not a private checked-tree rewrite.
@@ -759,13 +800,9 @@ declarations, authored target membership, package identities and structural bind
 of target selection. Native retention omits the duplicate numeric execution
 sidecar; host and access authority judgments remain separate. Portable
 decoding validates declaration coordinates and the complete numeric signature.
-This meaning does not select or authorize a provider. Review-only
-products still use checked source custody: moving their complete conformance
-evidence to Terminal remains part of provider-settlement migration.
-Provider selection and target geometry still originate outside Psi. Product
-scalar publication is target-neutral; source-dependent provider preparation,
-review projection remain migration work. This is
-not yet a completed Terminal-only provider pipeline.
+This meaning does not select or authorize a provider.
+Provider selection and target geometry originate outside Psi. Product
+scalar publication is target-neutral.
 
 Independent component emission belongs to the same source-free native compiler
 entrance as root emission. Product preparation supplies each verified component,
@@ -880,13 +917,11 @@ catalogs also use application-owned pending work. Each paused Build retains its
 original invocation, interpreter activation and exact host adapters. Immutable
 Terminal code and source-issued call tables share their existing owners without
 encoding, decoding or rebuilding code. Host issuance and activation start remain
-once-only even when caller handles are cloned or dropped. Checking still retains
-recursive walks; this work does not remove the large compiler stack reservation.
+once-only even when caller handles are cloned or dropped.
 The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
-catalog execution custody separately from Product routing. Applied/inherited
-multi-slot readiness remains open. Corpus consumers use this same executed
+catalog execution custody separately from Product routing. Corpus consumers use this same executed
 discovery and retain settled Builds through target selection and Product
 admission. Their explicit fixture consent does not construct a second source
 graph or grant late execution inputs; named inspection consumes retained
@@ -1018,8 +1053,6 @@ selections separately; source declarations have no target modifier or implicit
 same-path body family. Provider planning joins exact checked requirement and
 implementation identities, never a source-name roster or a target-selected
 source body. Build helpers use their separately admitted execution profile.
-The remaining target-sibling and portable-family-head machinery is legacy work
-under `BUILD-OWNED-TARGET-SELECTION` in [the task board](../TASKS.md#pipeline-route).
 
 Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
@@ -1051,8 +1084,7 @@ contains no source-IR helpers: source-to-evidence conversion stays with the
 source-aware producer, while lifetime partition normalization belongs to shared
 language semantics. The native compiler's transitive production dependencies
 are enforced by `python tools/check_native_boundary.py`, including optional,
-build and target-specific edges. This boundary is implemented; the common Psi
-prefix and package/application facade boundaries above remain unfinished.
+build and target-specific edges.
 [`omega/compilation/build-evaluation/`](omega/compilation/build-evaluation/README.md)
 owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler
@@ -1074,8 +1106,8 @@ alternatives. Native proposal construction joins those demands to exact selected
 runtime plans and target geometry without reopening source. Checking-only stops
 request that same portable projection without executable body lowering and use
 the same source-free join. Instruction lowering and task storage share the
-backend calling-conventions geometry owner. This closes static activation
-planning; it does not implement a task executor.
+backend calling-conventions geometry owner. Static activation planning is not
+a task executor.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
 It imports no Psi transform: the source coordinator owns stage requests and
@@ -1092,16 +1124,15 @@ Normal Product operator/requirement admission
 borrows the checked external catalog and its exact source-to-nominal correspondence;
 it does not rescan typed numeric meaning or satisfaction edges. That catalog is
 prepared before selected plan binding, so malformed declarations may precede plan
-or qualification diagnostics; both remain pre-execution refusals. Early Build's
-typed-only comparison path remains separate until it owns checked declarations.
+or qualification diagnostics; both remain pre-execution refusals.
 Product boundary-provider admission also consumes Psi's complete requirement
 inventory and occurrence applicability. Checking records slot/package identity,
 the distinct dormant-operator versus direct-call eligibility, and whether a use
-belongs to a generic machine; admission no longer reconstructs those facts from
+belongs to a generic machine; admission does not reconstruct those facts from
 typed declarations. Requirement rows exist without implementations or uses.
 Product root pruning projects direct-call rows and template applicability with
 the machine roster while preserving independent operator declarations. The
-prepared Psi declaration owner now projects that complete inventory into a
+prepared Psi declaration owner projects that complete inventory into a
 borrowed, source-free review view. The complete dormant/operator/direct-call
 admission sequence and plan cardinality belong to `provider-selection`.
 Unavailable application or numeric evidence remains data until the selected
@@ -1117,7 +1148,7 @@ satisfaction and callable/package/target selection; source eligibility additiona
 checks Product, provider application and lifetime coordinates, while canonical
 admission checks nominal requirement and closed application. Neither fabricates
 the other's metadata. Unused invocation-local declarations are not forced into
-portable publication. Complete selected-plan binding now belongs to
+portable publication. Complete selected-plan binding belongs to
 `provider-selection/selected_binding.rs`: grants, qualification, boundary
 admission, reach resolution, physical-leaf aliases and Import application
 attachment run in their original order without typed trees or check facts.
@@ -1159,11 +1190,7 @@ remain deferred so checking-only products need no emitted callback body. Diagnos
 names and spans remain payload; Psi still projects ordinary callee/provider names
 and root-specific caller chains. This transient companion changes no portable
 schema and does not replace dormant admission with emitted reachability. These
-producer-owned records are not independently admitted decoded evidence; complete
-portable dormant-use and checked-instance publication remain unfinished.
-The surrounding selected-execution coordinator still consumes this source
-preparation and service declarations; shared checked-instance/adapter projection
-and the complete source-to-Terminal facade migration remain unfinished.
+producer-owned records are not independently admitted decoded evidence.
 Early/reference source adapters remain distinct from Product policy.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
@@ -1176,9 +1203,7 @@ production and backing allocation, including in retained native images. Each
 target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
-These remain checked-tree realization seams with package-input custody;
-moving them out of the coordinator does not establish the intended Terminal-only
-handoff. Executable callback placement belongs to Omega stage 00: canonical
+Executable callback placement belongs to Omega stage 00: canonical
 callback applications name their registrar operation, exact body, requirement
 and checked entry admission; target calling applications retain exact static
 binder ordinals, requirement identities and synchronous invocation membership.
@@ -1217,8 +1242,7 @@ evaluator's typed handles, source spans or policy execution state. Their contrac
 joins do not rerun calling-plan validation. Entry signatures and Psi entry
 receipts join by exact package/toolchain declaration identity, not source-arena
 handles. Source coordinates and Extent layout capture stay with provider planning;
-backend entry plans and image emission consume the completed signature. The
-initial source-aware selection and planning remain migration work.
+backend entry plans and image emission consume the completed signature.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
 owns trust obligation reconstruction and admission over source-free Psi
@@ -1227,8 +1251,7 @@ publishes every eligible accepted-machine declaration with exact template and
 contract commitments; absent or duplicate evidence remains deferred until the
 corresponding grant needs it. Package admission and final reconstruction borrow
 that same roster. The workspace dependency guard rejects typed/checked source
-reachability from this owner. The roster remains invocation-owned; complete
-canonical publication and source-discard replay are still required. Host file
+reachability from this owner. Host file
 writing and timing have no dependency on these semantics.
 
 `omega/packages/package-manager/` owns package operations. Independent
@@ -1252,14 +1275,12 @@ Shared process and filesystem utilities remain under `omega/foundation/`.
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/compilation/build-evaluation/`; there is no
-checked-tree Build execution entrypoint. Remaining pure compile-time value and
-policy jobs, plus the explicitly selected reference corpus leg, still use the
-checked interpreter and remain the interpreter-consolidation frontier.
+checked-tree Build execution entrypoint.
 `psi/compilation/driver/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
-call this operation directly with their policy and reporting observer; no Omega
-production wrapper remains. Stage 05 owns input-ledger validation;
+call this operation directly with their policy and reporting observer; there
+is no Omega production wrapper. Stage 05 owns input-ledger validation;
 stage 07 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
@@ -1353,15 +1374,7 @@ provider requirements and checked adapters use ordinary explicit bindings.
 
 A provider carries no value or state ([machines](../wiki/spec/language/machines.md#static-declarations-and-explicit-state)):
 the installation adapter calls the selected satisfier machine with exactly the
-requirement's arguments, and the checked interpreter does the same. After
-normal package review, the executable regression is:
-
-```sh
-omega run --both tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg
-```
-
-On Linux x86_64 it returns native and interpreter exit 70, preserving the array
-argument between scalar arguments.
+requirement's arguments, and the checked interpreter does the same.
 
 ### Portable materialization and consumer ownership
 
@@ -1459,8 +1472,7 @@ Compilation-cost investigation is also implementation work. A historical
 slowdown does not establish an accepted performance envelope or require an owner
 decision before profiling. Measure a current baseline, preserve custody and
 source behavior, and remove avoidable recomputation. The named
-`custody-join-build-cost` report is tracked by `REFERENCE-CUSTODY-JOIN-SCALING`
-on the execution board; it is not a pending architecture approval.
+`custody-join-build-cost` report is not a pending architecture approval.
 
 This defers human design review, not compiler checking or required evidence.
 Keep the verifiers that run at [trust boundaries](#verification-placement),
@@ -1584,72 +1596,3 @@ assignment. When moves change module-qualified test names or reader paths, updat
 their documented commands, filters, and source-reading checks and verify that the
 intended tests are still selected. Do not expand into unrelated cleanup merely to
 produce another organization commit.
-
-
-## Compositional lowering
-
-Reinforcing required source-shape admission is prohibited, not a cleanup
-preference. Clean the touched mechanism as you go: generalize its operation or
-explicit data relationship and delete the superseded path in the same change.
-Another task promising later consolidation is not an exception. If the general
-repair is blocked, identify that dependency rather than publishing another
-required special case. This does not require an unrelated whole-pipeline rewrite.
-
-Supported assignment, call, branch,
-and transfer operations must compose under their actual type, effect, ownership,
-and control-flow rules. Do not add another required producer family for an
-incidental arrangement such as "locals before calls", "call immediately followed
-by case dispatch", or "the same body with an extra statement". Replace the
-restrictive recognizer or duplicated planner with ordinary operation sequencing
-and explicit value/storage/control relationships. Clean X-to-Y crate names do
-not make a pattern-specific implementation compositional.
-
-Semantic distinctions, ABI constraints, missing proof obligations, and explicit
-implementation limits remain real. Never remove their rejection checks merely
-to admit more shapes. Specialized pattern matching is appropriate for optional
-optimizations with a correct general path, not as the only way to compile an
-ordinary combination.
-
-When a customer exposes this pattern, identify the general operation or join that
-is missing and remove the superseded special path as that repair lands. When the
-missing relationship is a requirement the producer dropped, record the
-requirements still open on the value that layer emits and have the next layer
-read that list. Saved scalars, write sets, crash routes, domain facts, and the
-selected body are entries on that list. A recognizer that rebuilds one of them
-for one production is the superseded path. Before
-propagating a new representation or lowering mechanism across stages, choose a
-small valid variation that challenges its assumptions and a relevant invalid
-control. Check that the design supports the valid case and rejects the invalid
-one through independent checking. Implement and exercise them early, not only
-after the original fixture passes.
-For a borrowed call, surrounding computations and conflicting-access rejection
-can expose a bad design without a Cartesian matrix of source permutations.
-
-Parallel implementation of additional variants should follow one working,
-independently checked route through the new mechanism. Do not replicate an
-unproven representation across several implementations first. Independent review,
-tests, and work using established contracts can still proceed in parallel.
-
-Keep the actual customer's command as the outer acceptance check; a passing
-isolated helper does not close an unchanged application failure. Do not expand
-the task board with one item per permutation, or treat this rule as permission
-for an unrelated whole-IR rewrite.
-
-## Verification placement
-
-Verification runs at trust boundaries:
-
-- a new or changed foreign package is verified when it is reviewed;
-- an untrusted build script is confined and checked while it executes.
-
-Proof-carrying code is removed; see [PCC removal](../TASKS.md#pcc-removal).
-
-A stage does not re-validate, replay or rebuild output that the same compile
-just produced. The producer and its checker would be the same code running in
-the same process on the same input, so the second pass cannot find anything
-the first missed, and every such pass costs compile time and a second copy of
-the stage's rules. A plan that violates its contract is a bug in the stage
-that produced it, for the corpus and the tests to find.
-
-The verifiers themselves stay. The corpus runner and the tests exercise them;
-the default compile path does not call them.

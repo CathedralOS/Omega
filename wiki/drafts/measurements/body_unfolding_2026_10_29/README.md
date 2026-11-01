@@ -12,7 +12,7 @@ production compiler source is unchanged from the fixed base.
 Fixed base: `c38d69bb14f8773414312e15388f7776ef966379`. Its compiler/library/toolchain
 inputs match the preceding published operand-resolution producer; the intervening
 commit contains only experiment records. Optimized dev producers and patch hashes
-are recorded in [identity.json](identity.json). The candidate build took 3m30s.
+are recorded in [identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/identity.json). The candidate build took 3m30s.
 
 | Order | Producer | Fresh first update (seconds) |
 | --- | --- | ---: |
@@ -25,7 +25,7 @@ A mean: 116.823114 s. B mean: 106.001575 s. Reduction: 9.2632%.
 No valid trial was excluded. Each trial uses fresh independent project/cache
 roots, unchanged root/Build inputs and ordinary package review/resume. Profiling
 is disabled for this comparison. All 106 std inputs and the workload are pinned
-in `timing-inputs.json`; timing and status observations are in `timings.json`.
+in [`timing-inputs.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/timing-inputs.json); timing and status observations are in [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/timings.json).
 The host was shared with other compiler work. These four trials do not establish
 a universal percentage, tail-latency bound or warm-cache improvement.
 
@@ -52,7 +52,7 @@ judge, so repeated operands could reuse completed depth-zero resolutions. Each
 occurrence still registers its own atoms, carrier facts and operation formation
 obligations. Nested queries own separate observation records. No conclusions,
 cross-query answers or altered recursion limits were introduced. The exact
-five-added/two-removed-line patch is retained in `candidate.patch` for inspection.
+five-added/two-removed-line patch is retained in [`candidate.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/candidate.patch) for inspection.
 
 ## Correctness and stopping point
 
@@ -90,8 +90,8 @@ timings. Producers report optimized `opt_level=1` bound to their binary digests.
 
 At the fixed base, apply the selected recorded patch and use the corresponding
 build/profile script with fresh output roots. Scripts retain the original Windows
-paths, so relocate them consistently when replaying elsewhere. `quality.py`
+paths, so relocate them consistently when replaying elsewhere. [`quality.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/quality.py)
 records its conditional suite explicitly: only the two controls listed above ran
-because `performance-screen.json` is false. Correctness cases reuse the candidate
+because [`performance-screen.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/body_unfolding_2026_10_29/performance-screen.json) is false. Correctness cases reuse the candidate
 trial's package cache; those durations are not performance evidence. The prior
 rejected empty-equation shortcut is absent from every producer in this iteration.

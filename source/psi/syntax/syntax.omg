@@ -551,7 +551,7 @@ public data Contract [copy] {
 
 // A `::`-separated name path, `a::b::c`, as a contiguous range of
 // `SyntaxTrees::members`: a domain's establishment routes and alias
-// constituents, and both sides of a conformance's reference rows.
+// constituents, and a membership test's domain.
 public data NamePath [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
@@ -587,11 +587,11 @@ public data TraitItem [copy] {
     source_span: SourceSpan;
 }
 
-// A named implementation `Name<binders> satisfies Trait<arguments> { rows }`.
-// The satisfied trait application is one type reference. Checked members are
-// a physical range of `SyntaxTrees::machines`; direct members have
-// parent == 0 and their container is
-// `Conformance`; reference rows bind a requirement to an existing machine.
+// A named implementation `Name<binders> satisfies Trait<arguments> { members }`.
+// The satisfied trait application is one type reference. Every member is a
+// checked machine: a physical range of `SyntaxTrees::machines`; direct members
+// have parent == 0 and their container is `Conformance`. Reuse of an existing
+// machine is an ordinary call from a member's body, never a reference row.
 // Its generic parameters are the header's own, as for a trait.
 public data ConformanceItem [copy] {
     name: IdentifierSpan;
@@ -600,17 +600,7 @@ public data ConformanceItem [copy] {
     trait_type: u64 in Trapping;
     first_machine: u64 in Trapping;
     machine_count: u64 in Trapping;
-    first_row: u64 in Trapping;
-    row_count: u64 in Trapping;
     is_public: bool;
-    source_span: SourceSpan;
-}
-
-// One reference row `Trait::requirement = Path;`: both sides are name-path
-// handles.
-public data ConformanceRow [copy] {
-    requirement: u64 in Trapping;
-    target: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -842,11 +832,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedConformanceTrait;
     case ExpectedConformanceBody;
     case ExpectedConformanceMember;
-    case ExpectedConformanceRowEquals;
-    case ExpectedConformanceRowTarget;
-    case ExpectedConformanceRowEnd;
     case ConformanceCapacityExceeded;
-    case ConformanceRowCapacityExceeded;
     case ExpectedDomainCarrier;
     case ExpectedDomainSeparator;
     case ExpectedDomainName;
@@ -950,7 +936,6 @@ where
     trait_count <= 256,
     trait_parent_count <= 512,
     conformance_count <= 256,
-    conformance_row_count <= 512,
     domain_count <= 256,
     constant_count <= 512,
     proposition_count <= 256,
@@ -1013,8 +998,6 @@ where
     trait_parent_count: u64;
     conformances: [ConformanceItem; 256] in Trapping;
     conformance_count: u64;
-    conformance_rows: [ConformanceRow; 512] in Trapping;
-    conformance_row_count: u64;
     domains: [DomainItem; 256] in Trapping;
     domain_count: u64;
     constants: [ConstantItem; 512] in Trapping;
@@ -1059,7 +1042,6 @@ public machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: Source
     syntax_trees.trait_count = 0;
     syntax_trees.trait_parent_count = 0;
     syntax_trees.conformance_count = 0;
-    syntax_trees.conformance_row_count = 0;
     syntax_trees.domain_count = 0;
     syntax_trees.constant_count = 0;
     syntax_trees.proposition_count = 0;
@@ -1599,23 +1581,6 @@ crashes Trap
     }
 
     machine invalid() -> ConformanceItem {
-        crash Trap;
-    }
-}
-
-public machine SyntaxTrees::conformance_row(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceRow
-crashes Trap
-{
-    transition handle < syntax_trees.conformance_row_count {
-        true -> read(syntax_trees, handle)
-        _ -> invalid()
-    }
-
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceRow {
-        syntax_trees.conformance_rows[handle]
-    }
-
-    machine invalid() -> ConformanceRow {
         crash Trap;
     }
 }

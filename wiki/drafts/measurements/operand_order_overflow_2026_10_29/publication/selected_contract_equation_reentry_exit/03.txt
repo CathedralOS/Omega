@@ -1,2 +1,0 @@
-compiled for target `windows_x86_64` OK (C:\Users\User\AppData\Local\Temp\omega-probe-900048-0)
-build dir kept: C:\Users\User\AppData\Local\Temp\omega-probe-900048-0

@@ -1,2 +1,0 @@
-
-thread 'omega-check-11' (887004) has overflowed its stack

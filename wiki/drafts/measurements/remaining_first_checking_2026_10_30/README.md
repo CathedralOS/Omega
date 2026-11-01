@@ -15,7 +15,7 @@ optimized producers with profiling disabled for A/B. All four trials are retaine
 | Order | Producer | First update (seconds) |
 | --- | --- | ---: |
 | 1 | A, published operand-resolution baseline | 133.178849 |
-| 2 | B, baseline plus candidate.patch | 130.567961 |
+| 2 | B, baseline plus [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/candidate.patch) | 130.567961 |
 | 3 | B | 122.301691 |
 | 4 | A | 141.946432 |
 
@@ -56,10 +56,10 @@ with actual native/Terminal exit 0 and rejected the negative with
 
 The original quality harness ran the candidate positive, then failed creating
 the negative's input directory because pass and fail fixtures shared a basename.
-This was a harness failure, not a compiler rejection. `quality.json` records only
-the completed positive. `formation-replay.py` corrected directory identity to
+This was a harness failure, not a compiler rejection. [`quality.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/quality.json) records only
+the completed positive. [`formation-replay.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/formation-replay.py) corrected directory identity to
 include variant and pass/fail, then ran the candidate negative, baseline positive
-and baseline negative; all assertions passed. See `formation-replay.json` and
+and baseline negative; all assertions passed. See [`formation-replay.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/formation-replay.json) and
 the corresponding raw transcripts. The positive's unnecessary `update --resume`
 returned 1 because no pending review existed; compilation and both engines then
 succeeded. Do not count that resume status as a semantic failure.
@@ -72,21 +72,21 @@ unrelated permanent coverage change.
 
 ## Replay inputs
 
-`identity.json` binds the fixed source, producer digests/build profiles, candidate
-and diagnostic patch hashes, and focused-control inputs. `timing-inputs.json`
-pins the unchanged workload and library inputs. `timings.json` retains every
-trial; `performance-screen.json` records the decision. Phase profiles and raw
+[`identity.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/identity.json) binds the fixed source, producer digests/build profiles, candidate
+and diagnostic patch hashes, and focused-control inputs. [`timing-inputs.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/timing-inputs.json)
+pins the unchanged workload and library inputs. [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/timings.json) retains every
+trial; [`performance-screen.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/performance-screen.json) records the decision. Phase profiles and raw
 case transcripts are retained separately from uninstrumented timing evidence.
 Optimized executables and caches remain locally under `build/` and are not
 committed.
 
 To repeat at the fixed checkpoint, restore `inputs/pass/*` and `inputs/fail/*`
-into their paths recorded in `identity.json`. The retained scripts record the
+into their paths recorded in [`identity.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/identity.json). The retained scripts record the
 original Windows worktree/build paths and require equivalent fresh output roots.
-Use the recorded patches to reproduce producers; `diagnostic.patch` is
-authoritative, because `instrument.py` predates the final non-Boolean split.
-`formation-baseline.py` was generated but never executed; use the corrected
-`formation-replay.py` for the boundary replay. Build/test chains use the shared
+Use the recorded patches to reproduce producers; [`diagnostic.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/diagnostic.patch) is
+authoritative, because [`instrument.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/instrument.py) predates the final non-Boolean split.
+[`formation-baseline.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/formation-baseline.py) was generated but never executed; use the corrected
+[`formation-replay.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/remaining_first_checking_2026_10_30/formation-replay.py) for the boundary replay. Build/test chains use the shared
 build-slot hold and this worktree's own Cargo target directory.
 
 ## Publication of the preceding retained optimization

@@ -3,7 +3,7 @@
 2026-10-28, Windows x86_64. **Inconclusive:** keeping candidate events in one
 contiguous buffer preserved every observed native image, but did not establish
 a whole-compile improvement. The compiler changes and new tests were removed
-from the working source; the exact [candidate patch](candidate.patch) preserves
+from the working source; the exact [candidate patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/candidate.patch) preserves
 both for replay. No new optimization is promoted by this result commit.
 
 ## Hypothesis and scope
@@ -28,14 +28,14 @@ the retained producer. All work stayed in `.agents/worktree/pass-ablation`.
 | B | `468778c2f73375d43c0cc5e35b735a34eae8ef04cfb22fc6750bb8d0c84079ac` | Fixed base plus candidate patch |
 
 Both report optimized dev `opt-level=1`. Toolchain, CPU, exact input hashes and
-producer profiles are in [metadata.json](metadata.json). Executables remain in
+producer profiles are in [metadata.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/metadata.json). Executables remain in
 `build/spill-loop/baseline/omega.exe` and `build/spill-summary/candidate/omega.exe`.
 The warm `build/pass-producer` target still contains the parked binary; rebuild
 after restoration before treating it as the current source's compiler.
 
 ## Unprofiled comparison
 
-Reused the existing `checking_simplification_2026_10_28/compare.py` unchanged.
+Reused the existing [`checking_simplification_2026_10_28/compare.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py) unchanged.
 Each subject has an A/B warmup, eight measured observations in ABBAABBA order,
 then a separate A/B diagnostic profile. Every observation uses a new project,
 build directory and process-local Windows source cache; ordinary package review
@@ -51,16 +51,16 @@ Stack32 changes by only -0.15% at the median; the controls move in opposite
 directions. These data do not establish either a useful overall speedup or a
 causal regression. Peak compiler job memory medians for stack32 were
 1,343,574,016 bytes for A and 1,352,196,096 bytes for B, also not a demonstrated
-memory saving. [All 36 observations](runs.json).
+memory saving. [All 36 observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/runs.json).
 
 ## Bounded attribution follow-up
 
 The initial stack32 profile pair showed derivation at 320.681 ms versus
 264.243 ms. Since one pair is weak evidence, a single additional six-run ABBAAB
 profile comparison tested whether that result held. It reused
-`spill_loop_2026_10_28/ablate.py` as an unchanged two-producer driver: despite its
+[`spill_loop_2026_10_28/ablate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py) as an unchanged two-producer driver: despite its
 historical name, B here is the contiguous-summary candidate, not private-slot
-spilling. [All six follow-up observations](phase-runs.json).
+spilling. [All six follow-up observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/phase-runs.json).
 
 | Profile scope | A median [min, max], ms | B median [min, max], ms |
 | --- | ---: | ---: |
@@ -72,8 +72,8 @@ uncertain: unchanged spill mutation also falls from 257.915 to 211.486 ms at
 the median, reanalysis from 527.438 to 449.954 ms, and home probing from 330.512
 to 284.829 ms. Checking also varies. Cache/allocator effects are possible, but
 this experiment does not distinguish them from shared-host variation. Other
-project tests were present in the [process snapshot](processes.json); no owner
-process was interrupted. [Memory snapshot](memory.json). Nested scope times
+project tests were present in the [process snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/processes.json); no owner
+process was interrupted. [Memory snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/memory.json). Nested scope times
 overlap and must not be added as disjoint costs.
 
 **Decision:** park the candidate, preserve its patch and restore the compiler.
@@ -85,7 +85,7 @@ favorable sample.
 
 ## Correctness and execution evidence
 
-- Two focused Rust tests passed ([receipt](tests.txt)): summary construction
+- Two focused Rust tests passed ([receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/tests.txt)): summary construction
   agrees with a last-event map across empty, sparse and duplicate positions,
   terminal loads and invalidated candidates; slot sharing accepts disjoint
   windows and refuses a destructive overlap.
@@ -94,7 +94,7 @@ favorable sample.
   encoded stack layout as well as the authored exit. The six follow-up images
   also equal the stack32 baseline. This is observed equivalence on these
   witnesses, not a proof for every program.
-- The first Rust test build failed with [LNK1181](linker-retry.txt). The named
+- The first Rust test build failed with [LNK1181](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/linker-retry.txt). The named
   object existed at a 268-character path. A local `build/p` junction to
   `build/pass-producer` shortened the test target path; the retry passed in
   12.80 seconds. No source workaround or global system setting was used.
@@ -108,7 +108,7 @@ favorable sample.
 
 The shared claim registration failed on push timeout, then temporary-file
 locking errors. Read-back after retries and on completion confirmed ticket
-`e63a8b414650400a804c7d61e67a0093` absent ([status](claim-status.json)); no active
+`e63a8b414650400a804c7d61e67a0093` absent ([status](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_summary_2026_10_28/claim-status.json)); no active
 claim was left to release. Failure receipts remain under `build/claims-pending`.
 
 ## Next question

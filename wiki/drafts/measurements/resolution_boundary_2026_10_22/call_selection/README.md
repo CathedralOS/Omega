@@ -40,7 +40,7 @@ not masquerade as authored bodyless factories.
 
 Both diagnostic producers start from
 `b1493daf54dddd0257cac96412eda8df0b5b669f`, with their exact patches and effective
-optimized profiles retained. The [summary](summary.json) links the counts to the
+optimized profiles retained. The [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/summary.json) links the counts to the
 raw observations.
 
 | Representative input | Full expression rows | Projected rows |
@@ -51,7 +51,7 @@ raw observations.
 | returned placed view | 5,613 | 1,097 |
 | forwarded placed view | 5,615 | 1,098 |
 
-The [initial diagnostic](initial/instrumentation.patch.gz) compares complete ordered
+The [initial diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/initial/instrumentation.patch.gz) compares complete ordered
 selected-argument records: selected declaration source identity and generated
 syntax, including use spans, closed policy/schema identities, template identity
 and multiplicity. Both outputs begin from clones of the same syntax forest, so
@@ -59,7 +59,7 @@ generated child spans are comparable. All 14 comparisons match. This producer
 always returns the full resolver's selections downstream and cannot establish
 candidate runtime acceptance.
 
-The [routed diagnostic](routed/instrumentation.patch.gz) additionally carries call
+The [routed diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/routed/instrumentation.patch.gz) additionally carries call
 owners through final routing and compares the exact selected machine/state
 source identity for every contributing call. Its `project` mode returns the
 projected placement selections downstream. All 17 reached comparisons match;
@@ -112,7 +112,7 @@ full-corpus acceptance is asserted.
 ## Replay and research
 
 `initial/` and `routed/` retain producer profiles, exact patches, capture/build
-scripts and compressed raw records. `runtime.py` retains the actual compilation,
+scripts and compressed raw records. [`runtime.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/runtime.py) retains the actual compilation,
 standalone execution and dual-engine commands. `witnesses/` preserves all
 exploratory sources, including failed drafts. Replaying a diagnostic requires an
 isolated checkout of its recorded base, decompressing and applying that directory's patch, copying
@@ -134,14 +134,14 @@ for nested/local inputs, target siblings and owned/inherited conformances while
 asserting that unrelated implementation bodies remain deferred. All four resolver tests pass (three new comparison cases and the retained
 namespace case); scoped Clippy exits zero with warnings.
 
-The [integrated comparison](integrated/observations.json.gz) repeats all 17 exact
+The [integrated comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/integrated/observations.json.gz) repeats all 17 exact
 placement/call-identity comparisons after integrating `ec7f75640e2e`; all 18
 checking outcomes and diagnostics match. Full and projected execution produce
 the same eight native images, each with standalone native exit zero and
 native/Terminal agreement. The clean production binary on that same tree also
 preserves those images and outcomes.
 
-The [final production record](production/summary.json) integrates `ed491c85f11e`,
+The [final production record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/production/summary.json) integrates `ed491c85f11e`,
 including its later write-frame checking changes and separate collection
 iteration library module. Its [integration rationale](production/integration.md)
 distinguishes retained demand-comparison evidence from fresh production runs.
@@ -151,7 +151,7 @@ execution, and all 18 checking outcomes. Every image hash and diagnostic matches
 the frozen full-resolver baseline. Its complete compiler/library/configuration
 closure and raw observation receipt are retained under `production/`.
 
-`integrated/implementation.patch.gz` and `production/implementation.patch.gz`
+[`integrated/implementation.patch.gz`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/integrated/implementation.patch.gz) and [`production/implementation.patch.gz`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/call_selection/production/implementation.patch.gz)
 reconstruct their compiler changes from each directory's stable `main-base.txt`,
 including after branch rebases. For the diagnostic, apply the implementation patch
 first, then `instrumentation.patch.gz`. The recorded binary hashes remain the

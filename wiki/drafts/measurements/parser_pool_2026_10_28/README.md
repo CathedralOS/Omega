@@ -74,7 +74,7 @@ Each regime retains a labelled warmup pair per subject. OS caches remain warm;
 process/pool startup remains included. The host stays shared and every slow valid
 observation remains in the record.
 
-The [comparison](compare.py) reuses the first study's validated profile, timing,
+The [comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/parser_pool_2026_10_28/compare.py) reuses the first study's validated profile, timing,
 native-image, CPU and Windows job-memory instruments. Memory means private
 committed job bytes, not RSS or reserved stack space. Root CPU and aggregate host
 busy CPU are recorded separately. Binary and source/oracle digests are checked at
@@ -89,7 +89,7 @@ these experiment files, use fresh evidence/output directories:
 python tools/build_slot.py --timeout 600 -- python wiki/drafts/measurements/parser_pool_2026_10_28/build_and_compare.py
 ```
 
-The [build chain](build_and_compare.py) builds and freezes the candidate, runs
+The [build chain](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/parser_pool_2026_10_28/build_and_compare.py) builds and freezes the candidate, runs
 the affected parser tests and scoped Clippy, then invokes the observer and
 comparison. A repaired measurement harness can resume directly against the
 same verified binaries without rebuilding:
@@ -188,9 +188,9 @@ alone does not justify promoting this candidate for the observed workload.
 - This is Windows x86-64 evidence on one shared host. No full corpus, other-host
   acceptance, peak RSS, stack reservation or batch throughput is claimed.
 
-[Compressed evidence](evidence.json.gz) contains unrounded samples, logs, probe
+[Compressed evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/parser_pool_2026_10_28/evidence.json.gz) contains unrounded samples, logs, probe
 profiles, build receipts, source hashes, the excluded attempts, executed
-measurement sources and the follow-up source. The [rejected patch](rejected.patch)
+measurement sources and the follow-up source. The [rejected patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/parser_pool_2026_10_28/rejected.patch)
 uses zero context (`git apply --unidiff-zero` against the starting source) and
 also survives at candidate commit `14b77bf71e9`. Both frozen executables and PDBs
 remain under `build/parser-pool-experiment/{baseline,candidate}`.

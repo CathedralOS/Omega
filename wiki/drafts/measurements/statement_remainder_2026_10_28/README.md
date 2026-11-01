@@ -9,8 +9,8 @@ modest candidate, not the requested substantial win or a broad performance claim
 
 ## Mechanism and scope
 
-The [first profile](profile.json) finds subtraction down to 15.87 ms; it no
-longer justifies the next optimization. The [detail profile](detail-profile.json)
+The [first profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/profile.json) finds subtraction down to 15.87 ms; it no
+longer justifies the next optimization. The [detail profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/detail-profile.json)
 finds equality seeding at 186.58 ms versus 5.81 ms collecting terms and 10.73 ms
 propagating closure. Each endpoint pair looked up the same symbolic operands in
 the immutable graph. Resolve every endpoint once and read the existing indexed
@@ -22,7 +22,7 @@ behavior. Numeric indices are private and belong to this exact borrowed graph.
 
 The source trace and reused primary research are in [research](research.md).
 Temporary diagnostic patches were removed before building the candidate;
-[candidate.patch](candidate.patch) contains implementation and test changes.
+[candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/candidate.patch) contains implementation and test changes.
 Diagnostic patches are zero-context; replay with `git apply --unidiff-zero`.
 Use LF patch files on Windows. Reverse application was checked after normalizing
 line endings; no diagnostic scopes remain in production.
@@ -45,14 +45,14 @@ not disjoint wall costs; host variability prevents assigning all that delta to
 endpoint indexing. Do not multiply this iteration's median change by an earlier
 experiment and call it a measured cumulative gain. No valid timing was discarded.
 
-[All 36 runs](runs.json), [summary](summary.json), and [exact metadata](metadata.json)
+[All 36 runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/runs.json), [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/summary.json), and [exact metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/metadata.json)
 retain timings, source/build hashes and optimized producer profiles. All compiles
 and native executions succeeded, with byte-identical images per subject. Stack32
 remains 114176 bytes with SHA256
 `55adb749405f33a9dcefcadb5a0c3f165452d1a8f05993f11f30ce8114aeb8b8`.
 Its peak job commitment median increased 1.335 to 1.362 GB; no memory win is claimed.
-The [host snapshot](host-memory.json) had about 25 GB free RAM; the simultaneous
-[Rust process snapshot](competing-builds.json) was empty. These are snapshots,
+The [host snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/host-memory.json) had about 25 GB free RAM; the simultaneous
+[Rust process snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/competing-builds.json) was empty. These are snapshots,
 not proof of exclusive CPU access throughout the run.
 
 ## Validation and replay
@@ -61,17 +61,17 @@ not proof of exclusive CPU access throughout the run.
 - Five focused graph tests passed, including comparison of indexed and symbolic
   mutual queries with an independent reference walk over cycles and overflow,
   constructor/generation identities, fresh environments and finite limits.
-  [Full output](tests.txt), nextest run `e3b253b6-ae6b-4f4f-ba9a-96e1df52f215`.
-- All [68 source observations](validation.json) passed: both producers on the
+  [Full output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/tests.txt), nextest run `e3b253b6-ae6b-4f4f-ba9a-96e1df52f215`.
+- All [68 source observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/validation.json) passed: both producers on the
   nine positive stack32 places (`run --both`), nine reject twins, and sixteen
   arithmetic, effect, mutation and subtraction controls. A/B reject diagnostics
   agree and additional subtraction controls match their authored fragments.
-  [Output](validation.txt), [producer hashes](validation-producers.json).
+  [Output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/validation.txt), [producer hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_remainder_2026_10_28/validation-producers.json).
 - Scoped rustfmt and whitespace checks pass. No full corpus/workspace sweep,
   Clippy, promotion review, other-host native execution or publication was run.
 
-Replay with the existing `../statement_validation_2026_10_28/validate.py` and
-`../checking_simplification_2026_10_28/compare.py`, passing baseline and candidate
+Replay with the existing [`../statement_validation_2026_10_28/validate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/validate.py) and
+[`../checking_simplification_2026_10_28/compare.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py), passing baseline and candidate
 executables followed by fresh output directories. Hold one build slot for each
 local chain. Baseline A is the prior retained difference-constraint producer;
 candidate B SHA256 is

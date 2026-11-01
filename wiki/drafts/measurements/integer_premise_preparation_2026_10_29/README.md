@@ -12,8 +12,8 @@ Base `88a0a52d5ea0a7d86df92724e31299ce7e4ccf5f`, Windows x86_64, retained
 project copy and independent package cache. The optimized dev producer has
 `opt_level=1`; its SHA256 is
 `939cd33c33f9b88082e478f81c5e9df97c06f8df023a3947d0a649486c267ff0`.
-[Identity](identity.json) binds the producer and diagnostic patch;
-[inputs](diagnostic-inputs.json) pin the workload and standard-library sources.
+[Identity](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/identity.json) binds the producer and diagnostic patch;
+[inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic-inputs.json) pin the workload and standard-library sources.
 The build/profile chain checked the exact compiler patch before and after running.
 
 The [predeclared research and acceptance](research.md) called for attribution
@@ -54,14 +54,14 @@ Query-local counters summed 670,349 projected comparisons and 122,341 registered
 operations. Across all installation consumers, there were 117,326 fixed-point
 rounds and 375,014 operation visits. These populations differ: they are work
 counts, not distinct premises, cache misses, or a cross-query cache hit rate.
-See [scope totals](diagnostic-scopes.json), [counters](diagnostic-counters.json),
-and the [raw first update](cases/diagnostic-runtime_numeric_operand_order_exit/00.txt).
+See [scope totals](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic-scopes.json), [counters](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic-counters.json),
+and the [raw first update](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/cases/diagnostic-runtime_numeric_operand_order_exit/00.txt).
 
 ## Correctness and reuse boundary
 
 The actual command was `omega run --both --keep main.omg`, without `--target`.
 It observed native exit 0 and Terminal interpreter exit 0 in 9.18 s;
-[the raw transcript](cases/diagnostic-runtime_numeric_operand_order_exit/02.txt)
+[the raw transcript](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/cases/diagnostic-runtime_numeric_operand_order_exit/02.txt)
 contains both engine results. The emitted native image SHA256 is
 `7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66`, matching the
 prior fixed-source iteration's images. This establishes this diagnostic witness,
@@ -91,8 +91,8 @@ Only a substantial measured hit opportunity justifies implementing shared reuse
 and running the predeclared uninstrumented A/B and formation/storage/refusal gates.
 If exact-context reuse is rare, investigate installation/admission instead.
 
-Replay: apply [diagnostic.patch](diagnostic.patch) to the fixed base, copy
-`diagnostic-chain.py` and `diagnostic-profile.py` into
+Replay: apply [diagnostic.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic.patch) to the fixed base, copy
+[`diagnostic-chain.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic-chain.py) and [`diagnostic-profile.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/integer_premise_preparation_2026_10_29/diagnostic-profile.py) into
 `build/integer-premise-preparation/`, then run the chain under one build-slot hold.
 The case directory must be absent so the cache is fresh. The recorded shared mbx
 cache path is host-local; the Cargo target belongs to this worktree. Binaries and

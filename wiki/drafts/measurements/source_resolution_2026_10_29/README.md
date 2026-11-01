@@ -124,12 +124,12 @@ the remaining controls. This was a harness failure, not a compiler regression.
 Both optimized producers report opt-level 1, using rustc 1.100.0-nightly
 (a69a63265 2026-09-03) on Windows x86_64. Candidate SHA-256:
 `7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c`.
-The exact compiler change is [candidate.patch](candidate.patch); source, Build,
-producer and host identities are in [metadata](comparison/metadata.json).
+The exact compiler change is [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/candidate.patch); source, Build,
+producer and host identities are in [metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/comparison/metadata.json).
 
 First compile means a fresh project and private source cache, **after ordinary
 package review**, with review outside the timed interval. It is not total
-review-plus-compile latency. The unchanged [existing comparison runner](../checking_simplification_2026_10_28/compare.py)
+review-plus-compile latency. The unchanged [existing comparison runner](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py)
 uses ABABBAABBAAB per workload: two warmups, eight unprofiled observations (four
 per variant), and two diagnostic profiles. Reported wall time includes the full
 compiler process. Each observation requires successful compilation, an actual
@@ -141,7 +141,7 @@ native image, native exit 0 and identical output bytes across A/B.
 | length | 2214.4 [2154.6, 2389.7] | 1875.9 [1795.7, 2060.3] | 15.3% |
 | dispatch | 2766.7 [2356.8, 3587.6] | 2096.2 [1902.9, 2278.2] | 24.2% |
 
-[Warm comparison](warm.py) reuses those 24 measured projects, each with exactly
+[Warm comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/warm.py) reuses those 24 measured projects, each with exactly
 one preceding successful compile, in the same interleaved order. It uses a new
 output directory, leaves phase profiling off, verifies retained record hashes,
 and requires the same image as that project's first compile.
@@ -152,8 +152,8 @@ and requires the same image as that project's first compile.
 | length | 772.3 [751.5, 842.8] | 586.2 [567.8, 669.4] | 24.1% |
 | dispatch | 823.1 [758.1, 873.9] | 666.5 [624.0, 752.0] | 19.0% |
 
-The complete vectors and peak job memory are in [summary.json](summary.json),
-with raw [first-compile](comparison/runs.json) and [warm](warm/runs.json) records
+The complete vectors and peak job memory are in [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/summary.json),
+with raw [first-compile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/comparison/runs.json) and [warm](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/warm/runs.json) records
 and their compiler transcripts. Every measured candidate peak job memory is
 below every baseline observation of the same workload and cache regime. These
 are process-job memory observations, not system-wide memory savings.
@@ -168,7 +168,7 @@ initial entry matches, rather than globally disabling retention.
 
 ## Correctness and scope
 
-[quality.py](quality.py) and [its records](quality/runs.json) cover A/B first and
+[quality.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/quality.py) and [its records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/quality/runs.json) cover A/B first and
 warm native execution on all three fixed programs; four malformed record types
 per producer (truncated, foreign compiler, bad digest, oversized); an edited
 source at the same live path; and an invalid contract at that path. All eight
@@ -181,7 +181,7 @@ There are **95 successful compile/native observations plus two static rejects**:
 six attribution, six cache ablation, one identity diagnosis, 22 native quality,
 36 first-compile comparison and 24 warm comparison observations. Eight malformed
 record recoveries are included in the 22, not additional observations. Package
-review's internal compilations are not counted. [collect.py](collect.py) checks
+review's internal compilations are not counted. [collect.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_2026_10_29/collect.py) checks
 these totals, producer and input hashes, output equivalence and the unchanged
 candidate patch before collecting evidence. Diagnostic scripts and patches are
 retained; all temporary instrumentation was removed from production.
