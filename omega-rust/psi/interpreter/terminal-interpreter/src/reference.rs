@@ -666,18 +666,24 @@ impl TerminalExecution<'_> {
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
                     None => {
-                        let projected = self.resolve_live_storage_projection(
-                            source.place,
-                            &source.path,
-                            source.access,
-                        )?;
-                        if collection_loan.is_none() {
+                        if let Some((backing, _)) = &collection_loan {
+                            // Packed arrays have a staged captured home, not a
+                            // structural-value row to rediscover. The loan above
+                            // already checked this exact source projection and
+                            // retained its original collection and access.
+                            (backing.clone(), None)
+                        } else {
+                            let projected = self.resolve_live_storage_projection(
+                                source.place,
+                                &source.path,
+                                source.access,
+                            )?;
                             collection_loan = projected
                                 .array_loan
                                 .clone()
                                 .map(|loan| (projected.value.clone(), loan));
+                            (projected.value, projected.view_tip)
                         }
-                        (projected.value, projected.view_tip)
                     }
                 };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
