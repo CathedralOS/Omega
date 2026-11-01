@@ -416,14 +416,3 @@ scoped installation authority and reach; ordinary bytes cannot supply them.
 writers, consumer validation and publication. The instruction catalog owns `lidt`
 requirements, not an OS's table carrier or lifecycle. Current catalog coverage
 and source realization limits live [beside the catalog](../../../omega-rust/psi/foundation/language-core/inline_assembly.md).
-
-## Implementation status
-
-The machine-body, adjacency-transition, entry-register and raw-memory forms above
-are the accepted language contract, not claims of complete implementation.
-Both producers, retained representations, interpretation, native realization
-and final-artifact checks must migrate together. Existing colon-label parsing,
-implicit conditional fall-through and rejection of general returns describe
-the current subset, not an alternate supported language. The owning task in
-[TASKS.md](../../../TASKS.md#checked-assembly-control-flow) retains that migration
-and its positive execution and invalid-control acceptance.

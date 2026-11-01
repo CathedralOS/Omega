@@ -58,5 +58,4 @@ semantics merely because bump allocation is the first customer.
 
 The [bump allocator task](../../../TASKS.md#p5---cathedral-over-general-omega-primitives)
 owns implementation and its coexisting-allocation, cleanup, failed-live-reset,
-recomposition, and backing-return controls. The contract does not claim that
-the complete source substrate or package implementation already works.
+recomposition, and backing-return controls.

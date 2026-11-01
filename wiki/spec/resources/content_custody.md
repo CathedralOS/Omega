@@ -38,8 +38,7 @@ external issuance merely because several inputs become one output. Any genuinely
 new backing or external authority still needs its authorized boundary evidence.
 
 This boundary introduces no new lineage predicate, runtime token or content
-algebra. It does not assert that every library contract is already expressible
-or implemented by the current compiler.
+algebra.
 
 ## Content terms
 

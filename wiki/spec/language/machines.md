@@ -168,8 +168,8 @@ closure, coverage, dependencies, reach, and admission inputs. Programs cannot
 assemble provider-plan rows or reauthor inherited ceilings in a binding.
 
 `BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks the
-reference compiler and source migration; current `via` parsing is legacy debt,
-not an alternate accepted binding form.
+reference compiler and source migration; `via` parsing is not an accepted
+binding form.
 
 ### Target-scoped families
 
@@ -191,11 +191,8 @@ it realizes and validates the selected closure's ABI, imports, layout, and ISA
 applicability. Missing or incompatible selected supply rejects that realization;
 selection never hides an unchecked body or grants authority. See
 [multi-target compilation](../build/configuration.md#multi-target-compilation).
-
-The reference compiler still accepts the retired syntax and retains its family
-machinery. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
-tracks removal and migration; this specification does not claim that repair has
-already landed.
+`BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md) tracks
+removal of the retired syntax and its family machinery.
 
 ## Substitution
 

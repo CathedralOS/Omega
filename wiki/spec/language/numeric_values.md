@@ -62,10 +62,8 @@ mechanisms, not add one compiler-recognized name per width.
 The integer query surface is supplied by ordinary checked declarations in
 `core::integer`, including exact carrier refinement and static evaluation.
 [The endpoint fact](../../../samples/cli/facts/core_integer_endpoint/README.md)
-records its transport witnesses. The complete floating surface remains open:
-`CORE-INTEGER-FLOAT-APIS` in [the task board](../../../TASKS.md) retains floating
-representation, metadata and migration acceptance. The floating contracts below
-are ratified requirements, not a claim that the entire surface currently runs.
+records its transport witnesses. The floating contracts below are ratified
+requirements.
 
 ### Integer carrier queries
 
@@ -598,7 +596,5 @@ Trapping float result adapters are checked against the published `Trap`
 ceiling at their exact operation site, including nonentry states. Raw-result
 finiteness proofs retain the selected operation and original operands.
 
-Remaining matching-host numeric qualification is tracked under
-`ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
 The `core/numeric_*` and `core/qualified_integer_cast_*` corpus fixtures pin
 named conversion behavior and exact coercion formation separately.

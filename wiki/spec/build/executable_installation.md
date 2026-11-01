@@ -103,26 +103,8 @@ Decode/structural validation yields only an immutable candidate. Admission is
 separate. Exact content and normalized semantic promises define identity;
 presentation order and informational sections do not. Backend translation takes
 the validated carrier and rejects target or relocation mismatch atomically.
-This does not imply a completed byte-format specification; the owning artifact
-work remains on [TASKS.md](../../../TASKS.md).
 
 The boot base case keeps the same boundary: trusted build validates and signs an
 admitted identity; secure boot authenticates and gates entry; measured boot
 records the entered identity; the boot-admitted installer admits later artifacts.
 Measurement alone never establishes admission.
-
-## Status
-
-The reference compiler implements the linear lifecycle model in
-`omega-rust/omega/compilation/backend/runtime/executable-installation/`: admit, materialize,
-freeze, validate, install, retire and quarantine, with every failed transition
-returning its inputs. Install and retirement receipts carry the demanded
-provider-canonical fact digests; the replacement join patches declared entries
-with bound admitted fragments before the superseded custody drains.
-`OwnedImageProvider` performs convention-controlled resident-buffer operations,
-and its driver composes the lifecycle gates. A sealed entry reference hands the
-executor a resident-byte borrow that blocks retirement or patching until release;
-it does not perform a physical control transfer or target-specific execute/cache
-operations. The authored provider route and matching-host installation/invocation
-remain necessary for an end-to-end program. Those joins are tracked under
-`WIRE-RUNTIME-AND-INSTALLATION` on [TASKS.md](../../../TASKS.md).
