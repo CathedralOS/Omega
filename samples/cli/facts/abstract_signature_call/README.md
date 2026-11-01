@@ -148,6 +148,29 @@ emits that exact callable entry too, so recipe and body copies retain one
 consistent authored selection. Deferred body demand still grants no call
 admission.
 
+#### Terminal-arm call occurrence
+
+The two positives above and `terminal_callback` later regressed: the checked-leg
+golden records all three as `regressed-from:checked`. At clean `88aae78d8e3`
+(optimized producer sha256
+`6392eabaed29b422eb2b0fbb9fbaef8ad8b10fbffca2dae531589c5e28c7fd79`, Windows
+x86-64) each refuses with `constant initializer: constant call lost its exact
+authored target selection`. The call it names is the terminal arm's invocation
+(`_ -> premise(kept)`, `_ -> Observe(kept)`, `false -> unexecuted(kept)`); the
+plain-body places of the same row pass. Checking rewrites a named terminal
+invocation into an ordinary call expression. It attached the source-owned Call
+occurrence to that expression but left the call's own `authored_call_selection`
+empty, and constant call custody joins that field to the table row. The rewrite
+now sets both, as stage 03 and the result-overload rewrite do for every other
+authored expression call.
+
+A producer built from the repaired source observes the three frozen positives
+with native exit 0 and Terminal exit 0, and their premise-false twins reject
+`structurally false` and `premise(kept)`. The 109 pinned `abstract_signature_call`
+fixtures run 50 of 51 positives and reject 57 of 58 controls; the exceptions are
+the [`applied_callback/forwarded_applied`](constant_initializer/applied_callback/forwarded_applied/main.omg)
+pair, which refuses `applied callable lost its original machine declaration`.
+
 ### Requirement accounting for this production
 
 - **Establishment:** the closed invocation evaluates only after ordinary checked
