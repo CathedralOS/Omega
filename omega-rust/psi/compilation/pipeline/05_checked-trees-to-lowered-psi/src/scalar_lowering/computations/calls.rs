@@ -14,6 +14,7 @@ use crate::checked_facts::{flow_facts, value_facts};
 use crate::declarations::target_signature;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding;
+use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
@@ -203,27 +204,34 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed structural arguments have a stale span",
                 ))?;
-        let mut structural_arguments = if let Some(source_call) = source_call {
-            structural_arguments::lower(
-                identities,
-                self.checked,
-                source_call,
-                target_machine,
-                target_state,
-                site.state,
-                structural,
-                site.bindings,
-                &self.produced_values,
-                &self.subslices,
-                &self.literals,
-                self.structural_types,
-            )?
-        } else {
-            if !structural.is_empty() {
-                return unsupported("declaration call has no structural operand custody");
+        if source_call.is_none() && !structural.is_empty() {
+            let (formation, _) = origin
+                .declaration(
+                    &self.checked.facts.termination.rank_arrivals,
+                    self.machine,
+                    site.state,
+                )
+                .map_err(LoweringError::Unsupported)?;
+            if formation.owned_copy.is_none() {
+                return unsupported(
+                    "declaration structural call has no retained whole-input copy receipt",
+                );
             }
-            Vec::new()
-        };
+        }
+        let mut structural_arguments = structural_arguments::lower(
+            identities,
+            self.checked,
+            source_call,
+            target_machine,
+            target_state,
+            site.state,
+            structural,
+            site.bindings,
+            &self.produced_values,
+            &self.subslices,
+            &self.literals,
+            self.structural_types,
+        )?;
         let scalars = plans
             .operands
             .span(arguments)
@@ -487,11 +495,8 @@ impl Expansion<'_> {
         if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
             return unsupported("computed call formal roster is incomplete");
         }
-        // A direct callee's scalar formals as its body receives them. A formal
-        // may carry a predicate-free, route-free tag the actual lacks: such a
-        // tag "adds no membership obligation" (domains.md, declaration and
-        // membership), so checking admitted the call, and the actual arrives
-        // through a qualification edge exactly as an explicit `as` would.
+        // A direct callee's scalar formals as its body receives them; each
+        // actual arrives as `received_scalar_type` says.
         let arrival_types = match callee.static_target() {
             Some(_) if !signature.boundary => Some(
                 self.qualifications
@@ -515,14 +520,13 @@ impl Expansion<'_> {
             match operand {
                 Operand::Scalar(argument) => {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
-                    // Only membership may change on arrival; a carrier
-                    // disagreement stays for the call binding to refuse.
-                    let arrival_type = arrival_types
-                        .as_ref()
-                        .and_then(|types| types.get(scalar_actuals.len()))
-                        .copied()
-                        .filter(|arrival_type| arrival_type.scalar_type == value_type.scalar_type)
-                        .unwrap_or(value_type);
+                    let arrival_type = received_scalar_type(
+                        arrival_types
+                            .as_ref()
+                            .and_then(|types| types.get(scalar_actuals.len()))
+                            .copied(),
+                        value_type,
+                    );
                     if arrival_type != value_type {
                         arrival = Some(value_type);
                     }

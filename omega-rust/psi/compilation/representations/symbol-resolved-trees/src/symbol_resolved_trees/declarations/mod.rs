@@ -7,3 +7,5 @@ pub mod measure;
 pub mod operator;
 pub mod trait_definition;
 pub mod wire;
+
+pub mod type_aliases;

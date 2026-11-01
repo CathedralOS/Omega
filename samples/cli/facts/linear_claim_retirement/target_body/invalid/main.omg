@@ -11,29 +11,54 @@ machine retire(token: Token) -> u64 {
     v
 }
 
-linux_x86_64 machine consume(token: Token) -> u64 {
-    let first: u64 = retire(token);
-    retire(token)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine consume(token: Token) -> u64 {
-    let first: u64 = retire(token);
-    retire(token)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine consume(token: Token) -> u64 {
-    let first: u64 = retire(token);
-    retire(token)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine consume(token: Token) -> u64 {
-    let first: u64 = retire(token);
-    retire(token)
+boundary trait SelectedConsume {
+    machine consume(token: Token) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(token: Token) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let first: u64 = retire(token);
+        retire(token)
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(token: Token) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let first: u64 = retire(token);
+        retire(token)
+    }
 }
 
 machine probe() -> u64 {
     let token: Token = Token { value: 42 };
-    consume(token)
+    SelectedConsume::consume(token)
 }
 
 machine main() crashes Trap {
@@ -43,4 +68,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

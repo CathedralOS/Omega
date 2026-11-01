@@ -30,7 +30,6 @@ use symbol_resolved_trees::trait_definition::ConformanceRowSource;
 use syntax::expression::ExpressionNode;
 use syntax::item::Item;
 use syntax::types::TypeReferenceNode;
-use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_item(
@@ -65,7 +64,15 @@ fn lower_item_with_exposure(
     item: &Item,
 ) -> Result<(), Diagnostic> {
     match item {
-        Item::Data(data_definition) => {
+        syntax::item::Item::TypeAlias(alias) => {
+            let alias = crate::lowering::type_aliases::lower_type_alias_definition(
+                lowerer,
+                syntax_trees,
+                alias,
+            )?;
+            lowerer.symbol_resolved_trees.type_aliases.push(alias);
+        }
+        syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             crate::lowering::wire::derive_wire_schema(lowerer, &lowered);
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
@@ -115,6 +122,14 @@ fn lower_item_with_exposure(
             for member in syntax_trees.items.conformance_members(conformance.members) {
                 match member {
                     syntax::item::ConformanceMember::Machine(machine) => {
+                        // The exact edge names the declaring trait when inherited
+                        // requirements share this member's name. The member then
+                        // fills that slot as its own realization; the clause is
+                        // row identity, not a second satisfaction edge.
+                        let edge_trait = syntax_items(&syntax_trees)
+                            .satisfies_clauses(machine.satisfies)
+                            .first()
+                            .map(|clause| clause.trait_name.clone());
                         rows.push(lower_closed_machine_row(
                             lowerer,
                             syntax_trees,
@@ -122,7 +137,7 @@ fn lower_item_with_exposure(
                             &conformance.trait_name,
                             conformance.trait_lifetime_arguments.as_slice(),
                             conformance.trait_arguments,
-                            None,
+                            edge_trait.as_ref(),
                             None,
                             machine,
                             ConformanceRowSource::Inline,
@@ -159,44 +174,6 @@ fn lower_item_with_exposure(
                             machine,
                             ConformanceRowSource::TraitDefault,
                         )?);
-                    }
-                    syntax::item::ConformanceMember::Reference {
-                        declaring_trait,
-                        requirement,
-                        target,
-                    } => {
-                        let realization_name = syntax_items(&syntax_trees)
-                            .identifier_path_members(*target)
-                            .joined_path_in(syntax_trees);
-                        let target_members = syntax_trees.items.identifier_path_members(*target);
-                        let authored_realization_source_span = target_members
-                            .first()
-                            .zip(target_members.last())
-                            .and_then(|(first, last)| {
-                                (first.source_span().source_id == last.source_span().source_id)
-                                    .then(|| {
-                                        source::SourceSpan::new(
-                                            first.source_span().source_id,
-                                            source::Span::new(
-                                                first.source_span().span.start,
-                                                last.source_span().span.end,
-                                            ),
-                                        )
-                                    })
-                            });
-                        rows.push(symbol_resolved_trees::trait_definition::ConformanceRow {
-                            declaring_trait: symbols::SymbolHandle::invalid(),
-                            declaring_trait_name: lower_name(syntax_trees, declaring_trait),
-                            requirement: symbols::SymbolHandle::invalid(),
-                            requirement_name: lower_name(syntax_trees, requirement),
-                            provisional_requirement_ordinal: None,
-                            realization_machine: symbols::SymbolHandle::invalid(),
-                            realization_state: symbols::SymbolHandle::invalid(),
-                            realization_name: DiagnosticName::generated(realization_name),
-                            authored_realization_source_span,
-                            provisional_realization_ordinal: None,
-                            source: ConformanceRowSource::Reference,
-                        });
                     }
                 }
             }
@@ -357,13 +334,22 @@ fn item_expression_exposure(item: &Item) -> AuthoredDeclarationSelectionExposure
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
 
     match item {
-        Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Conformance(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Proposition(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Machine(machine) => crate::lowering::machine::machine_interface_exposure(machine),
-        Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
-        Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::TypeAlias(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Conformance(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Proposition(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Machine(machine) => {
+            crate::lowering::machine::machine_interface_exposure(machine)
+        }
+        syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
         _ => Exposure::PrivateImplementation,
     }
 }
@@ -437,6 +423,9 @@ fn lower_closed_machine_row(
     // A member belongs to the implementation's map, not to any data
     // declaration; its parameters name every data type explicitly.
     realization.attached_data = None;
+    // An authored exact edge only selected the row above. The enclosing
+    // conformance already binds this member, so it declares no second edge.
+    realization.satisfies = arena::HandleSpan::empty();
     lower_machine_into(lowerer, syntax_trees, &realization)?;
     Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
         declaring_trait: symbols::SymbolHandle::invalid(),
@@ -468,6 +457,7 @@ fn sealed_requirement_call(
 ) -> Option<(String, source::SourceSpan)> {
     let (callee_path, callee_span) = sole_static_call(syntax_trees, machine)?;
     let mut matched = None;
+    let mut matched_targets = Vec::new();
     for item in syntax_trees.root_items() {
         let Item::Machine(candidate) = item else {
             continue;
@@ -486,10 +476,19 @@ fn sealed_requirement_call(
         if !satisfies {
             continue;
         }
-        if matched.is_some() {
+        // One path names several satisfying bodies only as the per-target
+        // members of a product family; two bodies for the same target are
+        // competing overloads. BUILD-OWNED-TARGET-SELECTION deletes the
+        // target-prefixed members and with them this distinction.
+        let target = candidate
+            .authored_target
+            .as_ref()
+            .map(|target| target.as_str(syntax_trees));
+        if matched_targets.contains(&target) {
             return None;
         }
-        matched = Some((callee_path.clone(), callee_span));
+        matched_targets.push(target);
+        matched.get_or_insert((callee_path.clone(), callee_span));
     }
     matched
 }

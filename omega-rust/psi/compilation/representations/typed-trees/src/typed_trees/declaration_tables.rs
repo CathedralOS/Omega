@@ -792,6 +792,7 @@ impl TypedTrees {
     super::typed_tree_table! {
         const_declarations => const_declarations(crate::constant::ConstDeclaration) [push_const_declaration];
         data_definitions => data_definitions(data::DataDefinition) [push_data_definition], inline;
+        type_aliases => type_aliases(crate::type_aliases::TypeAliasDefinition) [push_type_alias_definition], inline;
         domain_definitions => domain_definitions(domain::DomainDefinition) [push_domain_definition];
         propositions => propositions(proposition::PropositionDefinition) [push_proposition];
         mathematical_definitions => mathematical_definitions(MathematicalDefinition);

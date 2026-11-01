@@ -129,3 +129,15 @@ fixture is a byte-for-byte copy of its place, and every golden row is stamped `@
 - The nine reject twins exit 1 at checking with the exact-arithmetic decision-17 diagnostic (`may overflow \`u64\``); `git diff` positive vs twin shows only the construct's own bound moved (`a32 <= 80u64` to `a32 <= 81u64`, or `C32: u64 = 60` to `81` at `const_name`).
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
 - What remains open: multi-argument calls exceeding 33+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

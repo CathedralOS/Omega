@@ -63,6 +63,7 @@ use crate::declarations::operator::lower_operator_definition;
 use crate::declarations::proposition::lower_proposition_definition;
 use crate::declarations::provider_defaults::finalize_provider_default_calls;
 use crate::declarations::trait_definition::lower_trait_definition;
+use crate::declarations::type_aliases::lower_type_alias_definition;
 use crate::expressions::equatable::validate_equatable_conformances_in;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
@@ -170,6 +171,7 @@ pub fn lower_symbol_resolved_trees(
 pub(crate) struct TypingCohort<'completed> {
     pub(crate) const_declarations: usize,
     pub(crate) data_definitions: usize,
+    pub(crate) type_aliases: usize,
     pub(crate) domain_definitions: usize,
     pub(crate) propositions: usize,
     pub(crate) mathematical_definitions: usize,
@@ -198,6 +200,7 @@ impl<'completed> TypingCohort<'completed> {
         Self {
             const_declarations: resolved.const_declarations.len(),
             data_definitions: resolved.data_definitions.len(),
+            type_aliases: resolved.type_aliases.len(),
             domain_definitions: resolved.domain_definitions.len(),
             propositions: resolved.propositions.len(),
             mathematical_definitions: resolved.mathematical_definitions.len(),
@@ -244,6 +247,9 @@ pub(crate) fn type_resolved_cohort(
     }
     for data_definition in source.data_definitions.iter().skip(cohort.data_definitions) {
         lowerer.lower_data_declaration(data_definition)?;
+    }
+    for alias in source.type_aliases.iter().skip(cohort.type_aliases) {
+        lowerer.lower_type_alias_declaration(alias)?;
     }
     for domain_definition in source
         .domain_definitions
@@ -553,7 +559,22 @@ impl Lowerer<'_> {
         Ok(())
     }
 
-    fn lower_machine_declaration(&mut self, machine: &Machine) -> Result<(), Diagnostic> {
+    fn lower_type_alias_declaration(
+        &mut self,
+        alias: &symbol_resolved_trees::type_aliases::TypeAliasDefinition,
+    ) -> Result<(), Diagnostic> {
+        let alias = self
+            .with_type_reference_exposure(declaration_exposure(alias.is_public), |lowerer| {
+                lower_type_alias_definition(lowerer, alias)
+            })?;
+        self.typed_trees.push_type_alias_definition(alias);
+        Ok(())
+    }
+
+    fn lower_machine_declaration(
+        &mut self,
+        machine: &symbol_resolved_trees::machine::Machine,
+    ) -> Result<(), Diagnostic> {
         let typed_machine = self
             .with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
                 lower_machine(lowerer, machine)

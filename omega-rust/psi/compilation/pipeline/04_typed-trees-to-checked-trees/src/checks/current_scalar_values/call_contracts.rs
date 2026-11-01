@@ -14,6 +14,7 @@ use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceNode;
+use validation::BigIntInterval;
 use validation::{
     CallSite, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
@@ -109,8 +110,10 @@ impl CurrentScalarValues<'_> {
                 if let Some((minimum, maximum)) = bounds.get(argument) {
                     binding.value = ScopedArithmeticValue::BoundedInteger {
                         value: Box::new(binding.value),
-                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                        interval: BigIntInterval {
+                            low: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                            high: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                        },
                     };
                 }
                 binding

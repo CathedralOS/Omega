@@ -1,42 +1,67 @@
 // A view of at least 1024 bytes retains its extent after an indexed byte write through a helper.
 // Expected exit: 0
 machine write_first(first: &mut u8) { first = 41; }
-linux_x86_64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024
-{
-    let saved: u8 = bytes[bytes.len - 4];
-    write_first(&mut bytes[0]);
-    bytes[bytes.len - 4] = saved;
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024
-{
-    let saved: u8 = bytes[bytes.len - 4];
-    write_first(&mut bytes[0]);
-    bytes[bytes.len - 4] = saved;
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024
-{
-    let saved: u8 = bytes[bytes.len - 4];
-    write_first(&mut bytes[0]);
-    bytes[bytes.len - 4] = saved;
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024
-{
-    let saved: u8 = bytes[bytes.len - 4];
-    write_first(&mut bytes[0]);
-    bytes[bytes.len - 4] = saved;
+boundary trait SelectedPreserveSuffix {
+    machine preserve_suffix(bytes: &mut [u8])
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1024;
 }
+
+X86PreserveSuffix satisfies SelectedPreserveSuffix {
+    machine preserve_suffix(bytes: &mut [u8])
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1024
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let saved: u8 = bytes[bytes.len - 4];
+        write_first(&mut bytes[0]);
+        bytes[bytes.len - 4] = saved;
+    }
+}
+
+ArmPreserveSuffix satisfies SelectedPreserveSuffix {
+    machine preserve_suffix(bytes: &mut [u8])
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires bytes.len >= 1024
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let saved: u8 = bytes[bytes.len - 4];
+        write_first(&mut bytes[0]);
+        bytes[bytes.len - 4] = saved;
+    }
+}
+
+
 machine main() crashes Trap {
     let mut bytes: [u8; 1024];
     bytes[1020] = 73;
-    preserve_suffix(&mut bytes[..]);
+    SelectedPreserveSuffix::preserve_suffix(&mut bytes[..]);
     transition bytes[0] == 41 && bytes[1020] == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

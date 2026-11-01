@@ -4,6 +4,7 @@ use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use package_evidence::SemanticBindingProjectionError;
+use provider_admission::{filesystem_host_permission_rows, time_host_permission_rows};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi_to_abstract_operations::provider_admission;
 
@@ -155,19 +156,17 @@ pub(super) fn candidate_semantic_binding_inputs(
                     terminal_psi::TerminalIdentityTableBuilder::default();
                 let settled_permission_rows = match role {
                     AcceptedSemanticBindingRole::FilesystemHostService => {
-                        provider_admission::filesystem_host_permission_rows(
+                        filesystem_host_permission_rows(
                             candidate.service_schema(),
                             &mut permission_identities,
                         )
                         .ok()
                     }
-                    AcceptedSemanticBindingRole::TimeHostService => {
-                        provider_admission::time_host_permission_rows(
-                            candidate.service_schema(),
-                            &mut permission_identities,
-                        )
-                        .ok()
-                    }
+                    AcceptedSemanticBindingRole::TimeHostService => time_host_permission_rows(
+                        candidate.service_schema(),
+                        &mut permission_identities,
+                    )
+                    .ok(),
                     _ => None,
                 };
                 if matches!(

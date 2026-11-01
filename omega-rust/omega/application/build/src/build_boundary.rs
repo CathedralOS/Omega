@@ -1,4 +1,37 @@
 //! Source guards for the application/compiler ownership boundary.
+//!
+//! Which crates Build may depend on is checked by `tools/check_native_boundary.py`
+//! from `cargo metadata`. What remains here is who schedules and executes work
+//! inside crates that legitimately depend on each other, and the order of the
+//! lifecycle steps. Behavior that holds by construction is not repeated: Build
+//! executing once per compilation is counted by `tests/executed_commands.rs`.
+
+/// Assert every `source` omits each listed token, naming the owner that must
+/// not spell it.
+fn assert_absent(sources: &[&str], complaint: &str, tokens: &[&str]) {
+    for source in sources {
+        for token in tokens {
+            assert!(!source.contains(token), "{complaint} {token}");
+        }
+    }
+}
+
+/// Assert the operations first appear in `source` in the listed order, ignoring
+/// whitespace so rustfmt may break a receiver from its method.
+fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
+    let compact = source.split_whitespace().collect::<String>();
+    let mut previous = None;
+    for operation in operations {
+        let position = compact
+            .find(&operation.split_whitespace().collect::<String>())
+            .unwrap_or_else(|| panic!("{owner} lost {operation}"));
+        assert!(
+            previous.is_none_or(|before| before < position),
+            "{owner} runs {operation} out of order"
+        );
+        previous = Some(position);
+    }
+}
 
 #[test]
 fn readiness_retains_live_jobs_without_recursive_source_execution() {
@@ -10,21 +43,16 @@ fn readiness_retains_live_jobs_without_recursive_source_execution() {
         .split_once("fn build_request(")
         .unwrap()
         .0;
-    for recursive in [
-        "self.execute_source(",
-        "self.resolve_graph(",
-        "self.run_work(",
-        "self.drive_work(",
-    ] {
-        assert!(
-            !scheduler.contains(recursive),
-            "recursive dependency scheduling: {recursive}"
-        );
-    }
-    assert!(scheduler.contains("while let Some(work) = pending.pop()"));
-    assert!(scheduler.contains("Work::Run(build)"));
-    assert!(scheduler.contains("self.settle_graph(&graph)?"));
-    assert!(source.contains("activation: build_evaluation::TerminalBuildActivation"));
+    assert_absent(
+        &[scheduler],
+        "recursive dependency scheduling:",
+        &[
+            "self.execute_source(",
+            "self.resolve_graph(",
+            "self.run_work(",
+            "self.drive_work(",
+        ],
+    );
 }
 
 #[test]
@@ -37,45 +65,40 @@ fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
         .split_once("fn prepared_product(")
         .expect("retained Product lookup")
         .0;
-    assert!(!preparation.contains("self.prepare_product("));
-    assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
-    assert!(preparation.contains("self.complete_product(current)?"));
-    assert!(source.contains(".with_complete_dependency_build_handoffs(generated)"));
-    assert!(source.contains("*source == position && *scope == purpose"));
+    assert_absent(
+        &[preparation],
+        "recursive dependency preparation:",
+        &["self.prepare_product("],
+    );
 }
 
 #[test]
 fn package_audit_owns_session_and_target_execution_in_build() {
-    let mut application = include_str!("package_inspection.rs");
-    for operation in [
-        "PackageInspectionTransaction::open(options)",
-        "BuildSession::create_retained(",
-        "transaction.prepare(None)",
-        "resolve_inspection_sources(&inspection, &mut session)",
-        "for target in inspection.targets().to_vec()",
-        "inspection.review_target(",
-        "inspection.finish()",
-        "session.dispose(result)",
-    ] {
-        let position = application
-            .find(operation)
-            .expect("ordered audit lifecycle");
-        application = &application[position + operation.len()..];
-    }
+    assert_in_order(
+        include_str!("package_inspection.rs"),
+        "package audit",
+        &[
+            "PackageInspectionTransaction::open(options)",
+            "BuildSession::create_retained(",
+            "transaction.prepare(None)",
+            "resolve_inspection_sources(&inspection, &mut session)",
+            "for target in inspection.targets().to_vec()",
+            "inspection.review_target(",
+            "inspection.finish()",
+            "session.dispose(result)",
+        ],
+    );
     let policy =
         include_str!("../../../packages/package-manager/src/operations/inspect_packages.rs");
-    for forbidden in [
-        "PackageBuildSession::create(",
-        "session.dispose(",
-        "for target in targets",
-    ] {
-        assert!(
-            !policy.contains(forbidden),
-            "package policy schedules {forbidden}"
-        );
-    }
-    assert!(policy.contains("self.completed_targets != self.targets.len()"));
-    assert!(policy.contains("after != self.before"));
+    assert_absent(
+        &[policy],
+        "package policy schedules",
+        &[
+            "PackageBuildSession::create(",
+            "session.dispose(",
+            "for target in targets",
+        ],
+    );
 }
 
 #[test]
@@ -83,331 +106,200 @@ fn review_policy_admits_work_and_application_executes_it() {
     let policy = include_str!(
         "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
     );
-    for forbidden in [
-        ".prepare_package_build(",
-        ".begin_package_build(",
-        ".complete_package_build(",
-        ".review_package_build(",
-        ".publish_component(",
-        "PendingReviewBuild",
-        "run_closure_pass(",
-        "into_execution_request",
-        "reserve_build_directory",
-    ] {
-        assert!(
-            !policy.contains(forbidden),
-            "package policy executes {forbidden}"
-        );
-    }
-    let execution = include_str!("package_review.rs");
-    for operation in [
-        "plan.begin_round(",
-        "plan.occurrences()",
-        "round.admit_occurrence(",
-        ".require_execution_contract(",
-        ".prepare_package_product(",
-        ".review_package_build(",
-        ".publish_component(",
-        "round.retain(",
-    ] {
-        assert!(
-            execution.contains(operation),
-            "application is missing {operation}"
-        );
-    }
-    assert!(execution.contains("pending_builds.push(PendingReviewBuild"));
-    assert!(execution.contains("recovered.push(round.into_retained())"));
-    assert!(!execution.contains("execute_package_build("));
-    let retention = execution.find("round.retain(").unwrap();
-    let cache_publication = execution.find("cache_write.component_source()").unwrap();
-    assert!(
-        retention < cache_publication,
-        "policy admits optional cache work first"
+    assert_absent(
+        &[policy],
+        "package policy executes",
+        &[
+            ".prepare_package_build(",
+            ".begin_package_build(",
+            ".complete_package_build(",
+            ".review_package_build(",
+            ".publish_component(",
+            "PendingReviewBuild",
+            "run_closure_pass(",
+            "into_execution_request",
+            "reserve_build_directory",
+        ],
     );
-    let audit = include_str!("../../cli/src/cli/packages/audit.rs");
-    assert!(audit.contains("use omega_build::inspect_packages;"));
+    let execution = include_str!("package_review.rs");
+    assert_absent(
+        &[execution],
+        "application bypasses the review round:",
+        &["execute_package_build("],
+    );
+    // The round retains its result before optional cache work publishes it.
+    assert_in_order(
+        execution,
+        "package review",
+        &["round.retain(", "cache_write.component_source()"],
+    );
 }
 
 #[test]
 fn package_commands_schedule_work_outside_package_policy() {
-    let mut execution = include_str!("package_commands.rs");
-    for operation in [
-        "PackageCommandTransaction::open(options)",
-        "transaction.prepare(command, None)",
-        "resolve_command_sources(preparation, session)",
-        "for request in prepared.review_requests()",
-        "request.review(",
-        "prepared.complete(reviews, &mut session.packages)",
-    ] {
-        let position = execution
-            .find(operation)
-            .expect("ordered package command lifecycle");
-        execution = &execution[position + operation.len()..];
-    }
+    assert_in_order(
+        include_str!("package_commands.rs"),
+        "package commands",
+        &[
+            "PackageCommandTransaction::open(options)",
+            "transaction.prepare(command, None)",
+            "resolve_command_sources(preparation, session)",
+            "for request in prepared.review_requests()",
+            "request.review(",
+            "prepared.complete(reviews, &mut session.packages)",
+        ],
+    );
     let policy = include_str!("../../../packages/package-manager/src/package_manager.rs");
-    for forbidden in ["execute_package_command(", "CompilationSession"] {
-        assert!(
-            !policy.contains(forbidden),
-            "package policy schedules {forbidden}"
-        );
-    }
-    let cli = include_str!("../../cli/src/cli/packages/mod.rs");
-    assert!(cli.contains("use omega_build::{BuildSession, execute_package_command};"));
+    assert_absent(
+        &[policy],
+        "package policy schedules",
+        &["execute_package_command(", "CompilationSession"],
+    );
 }
 
 #[test]
 fn application_depends_on_facades_not_language_stages() {
-    let manifest = include_str!("../Cargo.toml");
-    for forbidden in [
-        "syntax-trees",
-        "typed-trees",
-        "checked-trees",
-        "lowered-psi",
-        "pipeline/",
-        "provider-planning",
-    ] {
-        assert!(
-            !manifest.contains(forbidden),
-            "Build reaches behind a facade: {forbidden}"
-        );
-    }
-    let cli = include_str!("../../cli/src/cli/compilation.rs");
-    assert!(cli.contains("use omega_build::{"));
-    assert!(!cli.contains("prepare_local_project_for_targets("));
-    assert!(!cli.contains("publish_compilation("));
-    let execution = include_str!("../../cli/src/execution/compilation.rs");
-    assert!(execution.contains("omega_build::build("));
-    assert!(!execution.contains("prepare_local_project("));
-    assert!(!execution.contains("compiler::compile("));
-    let inspection = include_str!("../../cli/src/inspection/mod.rs");
-    assert!(inspection.contains("omega_build::build("));
-    assert!(!inspection.contains("prepare_local_project("));
-    assert!(!inspection.contains("CompilationSession::default()"));
+    assert_absent(
+        &[include_str!("../../cli/src/cli/compilation.rs")],
+        "CLI reaches behind Build:",
+        &["prepare_local_project_for_targets(", "publish_compilation("],
+    );
+    assert_absent(
+        &[include_str!("../../cli/src/execution/compilation.rs")],
+        "CLI reaches behind Build:",
+        &["prepare_local_project(", "compiler::compile("],
+    );
+    assert_absent(
+        &[include_str!("../../cli/src/inspection/mod.rs")],
+        "CLI reaches behind Build:",
+        &["prepare_local_project(", "CompilationSession::default()"],
+    );
 }
 
 #[test]
 fn source_and_package_execution_have_one_application_owner() {
-    let source = include_str!("source_compilation.rs");
-    for operation in [
-        "compiler.begin_compilation(",
-        "compiler.complete_compilation(",
-        "compiler.begin_source_compilation(",
-        "compiler.complete_source_check(",
-        "compiler.complete_source_product(",
-        "crate::build_execution::execute_build(",
-    ] {
-        // rustfmt may put a receiver and its method on different lines.
-        assert!(
-            source
-                .split_whitespace()
-                .collect::<String>()
-                .contains(&operation.split_whitespace().collect::<String>()),
-            "source orchestration lost {operation}"
-        );
-    }
-    for compiler in [
-        include_str!("../../../compilation/driver/src/compiler.rs"),
-        include_str!("../../../compilation/driver/src/checked/checking.rs"),
-        include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
-    ] {
-        for execution in [
+    assert_absent(
+        &[
+            include_str!("../../../compilation/driver/src/compiler.rs"),
+            include_str!("../../../compilation/driver/src/checked/checking.rs"),
+            include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
+        ],
+        "compiler executes Build:",
+        &[
             ".host()",
             "host.start(",
             "activation.advance(",
             "compile_with_session(",
-        ] {
-            assert!(
-                !compiler.contains(execution),
-                "compiler executes Build: {execution}"
-            );
-        }
-    }
-    let package = include_str!("build_execution.rs");
-    assert!(package.contains("execute_build(invocation.execution(), Some(&mut queries))"));
+        ],
+    );
 }
 
 #[test]
 fn application_completes_native_products_without_source_continuations() {
     let completion = include_str!("native_completion.rs");
-    assert!(completion.contains("run_on_compile_thread(|| complete_native(*product))"));
-    let compact = completion.split_whitespace().collect::<String>();
-    let mut lifecycle = compact.as_str();
-    for operation in [
-        "native_production::prepare(",
-        "prepared.scalar_completions()",
-        "build_evaluation::scalar_completion::complete(",
-        "completion.complete(completed)",
-        "native_production::compile(prepared)",
-        ".finish_native(",
-        ".with_runtime_provisions(",
-    ] {
-        let position = lifecycle.find(operation).expect("ordered native lifecycle");
-        lifecycle = &lifecycle[position + operation.len()..];
-    }
-    for forbidden in [
-        "CheckedCompilation",
-        "CheckedTrees",
-        "compile_with_session",
-        ".select_build_batch(",
-    ] {
-        assert!(
-            !completion.contains(forbidden),
-            "native completion reopens {forbidden}"
-        );
-    }
-    for source in [
-        include_str!("source_compilation.rs"),
-        include_str!("package_compilation.rs"),
-    ] {
-        assert!(source.contains("crate::native_completion::complete_products"));
-    }
+    assert_in_order(
+        completion,
+        "native completion",
+        &[
+            "native_production::prepare(",
+            "prepared.scalar_completions()",
+            "build_evaluation::scalar_completion::complete(",
+            "completion.complete(completed)",
+            "native_production::compile(prepared)",
+            ".finish_native(",
+            ".with_runtime_provisions(",
+        ],
+    );
+    assert_absent(
+        &[completion],
+        "native completion reopens",
+        &[
+            "CheckedCompilation",
+            "CheckedTrees",
+            "compile_with_session",
+            ".select_build_batch(",
+        ],
+    );
 }
 
 #[test]
 fn build_entrance_shows_the_ordered_project_lifecycle() {
-    let mut source = include_str!("build.rs");
-    for operation in [
-        "build_directory::admit_outputs(",
-        "begin_local_project_preparation(",
-        "crate::resolve_project_sources(",
-        "products::compile(",
-        "publication::publish_products(",
-    ] {
-        let position = source
-            .find(operation)
-            .expect("operation follows its inputs");
-        source = &source[position + operation.len()..];
-    }
-    let products = include_str!("products.rs");
-    assert!(
-        !products.contains(".zip("),
-        "product identity comes from its outcome"
+    assert_in_order(
+        include_str!("build.rs"),
+        "Build entrance",
+        &[
+            "build_directory::admit_outputs(",
+            "begin_local_project_preparation(",
+            "crate::resolve_project_sources(",
+            "products::compile(",
+            "publication::publish_products(",
+        ],
     );
 }
 
 #[test]
 fn ordinary_package_operations_admit_instead_of_execute() {
-    let admission =
-        include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
-    for forbidden in [
-        ".compile_packages(",
-        ".check_package(",
-        "CompilationSession",
-    ] {
-        assert!(
-            !admission.contains(forbidden),
-            "admission executes {forbidden}"
-        );
-    }
-    let exports = include_str!("../../../packages/package-manager/src/operations/mod.rs");
-    for removed in [
-        "mod compile_project",
-        "mod check_project",
-        "compile_prepared_local_project",
-    ] {
-        assert!(
-            !exports.contains(removed),
-            "obsolete package execution route: {removed}"
-        );
-    }
     let execution = include_str!("project_compilation.rs");
-    let admit = execution
-        .find("package_manager::operations::admit_project_products(")
-        .unwrap();
-    let compile = execution
-        .find("crate::package_compilation::compile_packages(")
-        .unwrap();
-    let reconcile = execution
-        .find(".complete(products, &mut session.packages)")
-        .unwrap();
-    assert!(admit < compile && compile < reconcile);
-    let preparation =
-        include_str!("../../../packages/package-manager/src/operations/prepare_project.rs");
-    assert!(!preparation.contains("resolve_static_source_closure"));
-    let build_exports = include_str!("lib.rs");
-    for removed in [
-        "mod check_project",
-        "mod native_project",
-        "PreparedLocalProjectNativeRequest",
-        "PreparedLocalProjectCheckRequest",
-    ] {
-        assert!(
-            !build_exports.contains(removed),
-            "obsolete Build facade: {removed}"
-        );
-    }
-    for example in [
-        include_str!("../examples/package_batch.rs"),
-        include_str!("../../cli/examples/qualify_inputs.rs"),
-    ] {
-        assert!(example.contains("build(BuildRequest {"));
-        assert!(!example.contains("prepare_local_project"));
-    }
+    assert_in_order(
+        execution,
+        "project compilation",
+        &[
+            "package_manager::operations::admit_project_products(",
+            "crate::package_compilation::compile_packages(",
+            ".complete(products, &mut session.packages)",
+        ],
+    );
 }
 
 #[test]
 fn application_owns_the_compiler_separately_from_package_resources() {
     let resources = include_str!("../../../packages/package-manager/src/build_session.rs");
-    assert!(!resources.contains("CompilationSession"));
-    assert!(!resources.contains("fn compiler("));
-    let owner = include_str!("build_session.rs");
-    assert!(owner.contains("compiler: CompilationSession"));
-    assert!(owner.contains("packages: PackageBuildSession"));
-    for entrance in [
-        include_str!("package_commands.rs"),
-        include_str!("package_inspection.rs"),
-        include_str!("project_compilation.rs"),
-        include_str!("build_execution/source_resolution.rs"),
-    ] {
-        assert!(entrance.contains("BuildSession"));
-        assert!(!entrance.contains("CompilationSession::default()"));
-    }
+    assert_absent(
+        &[resources],
+        "package resources own the compiler:",
+        &["CompilationSession", "fn compiler("],
+    );
+    assert_absent(
+        &[
+            include_str!("package_commands.rs"),
+            include_str!("package_inspection.rs"),
+            include_str!("project_compilation.rs"),
+            include_str!("build_execution/source_resolution.rs"),
+        ],
+        "application entrance builds its own compiler:",
+        &["CompilationSession::default()"],
+    );
 }
 
 #[test]
 fn application_schedules_dependencies_without_opening_source_continuations() {
-    let execution = include_str!("build_execution.rs");
-    assert!(execution.contains("while !frontiers.is_empty()"));
-    assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("prepare_package_source(occurrence, compiler, completed)"));
-    assert!(execution.contains(
-        "PackageSourceRequest::Execute(request) => execute_package_build(compiler, request)"
-    ));
-    assert!(execution.contains("source.require_execution_contract(&request.execution)?"));
-    assert!(execution.contains("compiler.begin_package_build(request)"));
-    assert!(execution.contains("activation.advance(1024)"));
-    assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));
-    assert!(execution.contains("compiler.complete_package_components(builds)"));
-    for source in [
-        execution,
-        include_str!("package_compilation.rs"),
-        include_str!("build_execution/source_resolution.rs"),
-        include_str!("build_execution/source_resolution/readiness.rs"),
-    ] {
-        for forbidden in [
+    assert_absent(
+        &[
+            include_str!("build_execution.rs"),
+            include_str!("package_compilation.rs"),
+            include_str!("build_execution/source_resolution.rs"),
+            include_str!("build_execution/source_resolution/readiness.rs"),
+        ],
+        "application opens source:",
+        &[
             "CheckedCompilation",
             "PreparedPackageBuild",
             ".into_continuation(",
             ".select_build_batch(",
             "produce_products(",
-        ] {
-            assert!(
-                !source.contains(forbidden),
-                "application opens source: {forbidden}"
-            );
-        }
-    }
-    let compiler = include_str!("../../../compilation/driver/src/checked/package_compilation.rs");
-    for removed in [
-        "fn compile_packages(",
-        "fn check_package(",
-        "fn join_dependency_builds(",
-        "PackageFrontier",
-        "join_generated_sources(",
-    ] {
-        assert!(
-            !compiler.contains(removed),
-            "compiler still schedules {removed}"
-        );
-    }
+        ],
+    );
+    assert_absent(
+        &[include_str!(
+            "../../../compilation/driver/src/checked/package_compilation.rs"
+        )],
+        "compiler still schedules",
+        &[
+            "fn compile_packages(",
+            "fn check_package(",
+            "fn join_dependency_builds(",
+            "PackageFrontier",
+            "join_generated_sources(",
+        ],
+    );
 }

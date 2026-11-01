@@ -148,6 +148,7 @@ fn validate_type(
         CheckedUnitStructuralTypeShape::Reference {
             referent_identity,
             access,
+            ..
         } if *access != checked_trees::CheckedStructuralAccess::Owned
             && referent_identity.is_valid() => {}
         CheckedUnitStructuralTypeShape::ByteSequence(carrier)

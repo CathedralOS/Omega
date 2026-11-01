@@ -1324,42 +1324,15 @@ pub(super) fn expression_any(
     root: ExpressionHandle,
     mut predicate: impl FnMut(ExpressionHandle) -> bool,
 ) -> bool {
-    let mut pending = vec![root];
-    while let Some(expression) = pending.pop() {
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::VALUES
+    };
+    crate::executable_subtree_any(program, root, edges, |expression, _| {
         if predicate(expression) {
-            return true;
+            typed_trees::SubtreeVisit::Found
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        match expression_table(program).expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                pending.extend(expression_table(program).match_pending(dispatch));
-            }
-            ExpressionNode::Atomic(atomic) => pending.extend(
-                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic),
-            ),
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Call(call) => {
-                pending.push(call.receiver);
-                pending.extend(expression_table(program).expression_handles(call.arguments));
-            }
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::ArrayLiteral(elements) => {
-                pending.extend(expression_table(program).expression_handles(*elements))
-            }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                expression_table(program)
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::TypeExpression(_)
-            | ExpressionNode::SavedSubject(_)
-            | typed_trees::literal_expression_pattern!() => {}
-        }
-    }
-    false
+    })
 }

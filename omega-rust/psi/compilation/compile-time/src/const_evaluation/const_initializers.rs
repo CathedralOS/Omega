@@ -511,6 +511,10 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings,
             context.retained_base(),
+            [
+                context.declaration_syntax,
+                context.retained_declaration_syntax,
+            ],
             &probe_declarations,
         )?;
         let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;

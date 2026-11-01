@@ -8,74 +8,69 @@ data Packet [copy]
     case Bounded(payload: u64);
 }
 
-linux_x86_64 machine eval(packet: Packet) -> u64
-    ensures result <= 64u64
-{
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
-    let geometry_diff: u64 = (s + a) - 24u64;
-    transition geometry_diff == 0 {
-        true -> inspect(packet)
-        _ -> 0u64
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine inspect(p: Packet) -> u64 {
-        transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
-            Packet::Empty {} -> 0u64
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedEval {
+    machine eval(packet: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 64u64;
+}
+
+X86Eval satisfies SelectedEval {
+    machine eval(packet: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 64u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let s: u64 = size_of<Packet>();
+        let a: u64 = align_of<Packet>();
+        let geometry_diff: u64 = (s + a) - 24u64;
+        transition geometry_diff == 0 {
+            true -> inspect(packet)
+            _ -> 0u64
+        }
+        machine inspect(p: Packet) -> u64 {
+            transition p {
+                Packet::Bounded { payload } -> (64u64 - payload)
+                Packet::Empty {} -> 0u64
+            }
         }
     }
 }
 
-linux_arm64 machine eval(packet: Packet) -> u64
-    ensures result <= 64u64
-{
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
-    let geometry_diff: u64 = (s + a) - 24u64;
-    transition geometry_diff == 0 {
-        true -> inspect(packet)
-        _ -> 0u64
-    }
-    machine inspect(p: Packet) -> u64 {
-        transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
-            Packet::Empty {} -> 0u64
+ArmEval satisfies SelectedEval {
+    machine eval(packet: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 64u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let s: u64 = size_of<Packet>();
+        let a: u64 = align_of<Packet>();
+        let geometry_diff: u64 = (s + a) - 24u64;
+        transition geometry_diff == 0 {
+            true -> inspect(packet)
+            _ -> 0u64
         }
-    }
-}
-
-macos_arm64 machine eval(packet: Packet) -> u64
-    ensures result <= 64u64
-{
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
-    let geometry_diff: u64 = (s + a) - 24u64;
-    transition geometry_diff == 0 {
-        true -> inspect(packet)
-        _ -> 0u64
-    }
-    machine inspect(p: Packet) -> u64 {
-        transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
-            Packet::Empty {} -> 0u64
-        }
-    }
-}
-
-windows_x86_64 machine eval(packet: Packet) -> u64
-    ensures result <= 64u64
-{
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
-    let geometry_diff: u64 = (s + a) - 24u64;
-    transition geometry_diff == 0 {
-        true -> inspect(packet)
-        _ -> 0u64
-    }
-    machine inspect(p: Packet) -> u64 {
-        transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
-            Packet::Empty {} -> 0u64
+        machine inspect(p: Packet) -> u64 {
+            transition p {
+                Packet::Bounded { payload } -> (64u64 - payload)
+                Packet::Empty {} -> 0u64
+            }
         }
     }
 }
@@ -83,10 +78,18 @@ windows_x86_64 machine eval(packet: Packet) -> u64
 machine main() crashes Trap {
     let a: Packet = Packet::Bounded { payload: 24u64 };
     let b: Packet = Packet::Empty {};
-    transition eval(a) == 40u64 && eval(b) == 0u64 {
+    transition SelectedEval::eval(a) == 40u64 && SelectedEval::eval(b) == 0u64 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

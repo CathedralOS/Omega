@@ -553,38 +553,35 @@ pub(super) fn expression_is_stable_predicate(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| expression_is_stable_predicate(program, field.value)),
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_stable_predicate(program, *value)),
-        ExpressionNode::Member(member) => expression_is_stable_predicate(program, member.receiver),
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_stable_predicate(program, indexed.collection)
-                && expression_is_stable_predicate(program, indexed.index)
-        }
-        ExpressionNode::Unary(unary) => expression_is_stable_predicate(program, unary.operand),
-        ExpressionNode::Binary(binary) => {
-            expression_is_stable_predicate(program, binary.left)
-                && expression_is_stable_predicate(program, binary.right)
-        }
-        ExpressionNode::Borrow(borrow) => expression_is_stable_predicate(program, borrow.target),
-        // A selected primitive observation is repeatable while its operand
-        // storage is preserved. Observation contexts retain those operand
-        // places, so ordinary alias-aware invalidation owns both polarities.
-        ExpressionNode::Call(_) => byte_predicate_call(program, expression)
-            .is_some_and(|(_, operand)| expression_is_stable_predicate(program, operand)),
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    !program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |handle, node| {
+            match node {
+                ExpressionNode::Name(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::ZeroValue(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Binary(_)
+                | ExpressionNode::Borrow(_) => SubtreeVisit::Descend,
+                // A selected primitive observation is repeatable while its operand
+                // storage is preserved. Observation contexts retain those operand
+                // places, so ordinary alias-aware invalidation owns both polarities.
+                ExpressionNode::Call(_) => byte_predicate_call(program, handle)
+                    .map_or(SubtreeVisit::Found, |(_, operand)| {
+                        SubtreeVisit::Instead(operand)
+                    }),
+                _ => SubtreeVisit::Found,
+            }
+        },
+    )
 }

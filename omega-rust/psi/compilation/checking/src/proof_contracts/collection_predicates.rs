@@ -35,10 +35,9 @@
 
 mod exploration;
 mod implication;
-pub(crate) mod integer_sets;
 
+pub(crate) use super::arithmetic_domains::IntegerSet;
 use exploration::{Binding, ValueShape, integer_carrier, value_shape};
-pub(crate) use integer_sets::IntegerSet;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -445,16 +444,7 @@ pub(crate) fn argument_element_consequences(
     consequences
 }
 
-/// One interval observation of an exact actual argument. Consumers separately
-/// establish whether it is a consequence or a complete public envelope.
-/// Descriptor extents describe metadata only, never collection contents.
-#[derive(Debug, Clone)]
-pub struct PredicateInterval {
-    pub argument: ExpressionHandle,
-    pub extent: bool,
-    pub low: i128,
-    pub high: i128,
-}
+pub use super::arithmetic_domains::PredicateInterval;
 
 /// Describe an admitted application using the existing explorer, in both
 /// directions. True outcomes imply these hulls; re-exploration of their full
@@ -829,8 +819,8 @@ pub(crate) fn standing_field_elements(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ConsequenceShape {
     /// One inclusive interval per element of a fixed integer array.
-    Array(Vec<(i128, i128)>),
-    Integer((i128, i128)),
+    Array(Vec<IntegerSet>),
+    Integer(IntegerSet),
 }
 
 /// The consequence one data fact grants one of its argument fields.
@@ -890,29 +880,22 @@ pub(crate) fn data_fact_element_consequences(
     for (field, elements, is_array) in &consequences {
         let intervals = elements
             .iter()
-            .map(IntegerSet::bounds)
+            .map(IntegerSet::interval_hull)
             .collect::<Option<Vec<_>>>()?;
         rows.push(FieldConsequence {
             field: *field,
             elements: if *is_array {
                 ConsequenceShape::Array(intervals)
             } else {
-                ConsequenceShape::Integer(*intervals.first()?)
+                ConsequenceShape::Integer(intervals.first()?.clone())
             },
         });
     }
     let exact = data_fact_decided(program, definition, fact, &mut |field| {
         let row = rows.iter().find(|row| row.field == field.symbol)?;
         Some(match &row.elements {
-            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(
-                intervals
-                    .iter()
-                    .map(|(low, high)| IntegerSet::range(*low, *high))
-                    .collect(),
-            ),
-            ConsequenceShape::Integer((low, high)) => {
-                ArgumentKnowledge::Integer(IntegerSet::range(*low, *high))
-            }
+            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(intervals.clone()),
+            ConsequenceShape::Integer(interval) => ArgumentKnowledge::Integer(interval.clone()),
         })
     }) == Some(true);
     Some(FactConsequence {

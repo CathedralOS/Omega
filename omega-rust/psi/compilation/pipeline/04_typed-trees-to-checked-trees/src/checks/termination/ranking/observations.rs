@@ -41,23 +41,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     };
     let subject = *subjects.first()?;
     let input = coordinate(subject)?;
-    let mut entry = input.clone();
-    if let RankingOrder::CustomStructView {
-        path, field_symbol, ..
-    } = &order
-    {
-        entry
-            .path
-            .extend(path.iter().map(|step| facts::PlaceSegment::Field {
-                symbol: step.field_symbol,
-            }));
-        entry.path.push(facts::PlaceSegment::Field {
-            symbol: *field_symbol,
-        });
-        // The resolved measure owns the declaration path; the ordinary typed
-        // coordinate query authenticates its composition with this subject.
-        validation::ranking_coordinate_type(program, root, &entry)?;
-    }
+    let entry = input.clone();
     let mut observations = Vec::new();
     for state in states
         .iter()
@@ -89,19 +73,33 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         let measure = match (&order, subjects.as_slice()) {
             (
                 RankingOrder::CustomNatDescending { measure }
-                | RankingOrder::CustomScalarView { measure, .. }
-                | RankingOrder::CustomStructView { measure, .. },
+                | RankingOrder::CustomScalarView { measure, .. },
                 [_],
             ) => {
                 let declaration = program
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
-                let formal = declaration.parameter.as_ref()?;
-                let inputs = selected.declaration_bindings(formal.symbol, &input);
-                if inputs.is_empty() {
-                    return None;
-                }
+                let shape = validation::declared_input_shape(program, declaration)?;
+                let inputs = shape
+                    .reads
+                    .iter()
+                    .map(|read| {
+                        let entry = validation::RankSubjectCoordinate {
+                            parameter: input.parameter,
+                            path: input
+                                .path
+                                .iter()
+                                .chain(&read.coordinate.path)
+                                .cloned()
+                                .collect(),
+                        };
+                        Some(validation::RankCoordinateBinding {
+                            entry: read.coordinate.clone(),
+                            destination: selected.destination(&entry)?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
@@ -144,6 +142,16 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     {
                         return None;
                     }
+                    let whole_input = retain_coordinate(admitted, destination.clone(), Vec::new());
+                    let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::owned_copy(
+                            program,
+                            admitted,
+                            state,
+                            formal.symbol,
+                            whole_input,
+                        )
+                    });
                     admitted.application_formations.insert(
                         checked_trees::CheckedRankApplicationFormation {
                             machine: machine.symbol,
@@ -151,6 +159,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
+                            owned_copy,
                         },
                     )
                 } else {

@@ -35,3 +35,15 @@ The row is pinned under `tests/omega/pass/facts/signed_16bit_division_remainder_
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00-02`):** Signed 16-bit integers (`i16`) settle into 2-byte layouts (`size_of = 2`, `align_of = 2`). Standard calling conventions place parameters in 16-bit register lanes (`CX`/`DX` on Windows `x86_64`, `DI`/`SI` on Linux `x86_64`, `W0`/`W1` on `arm64`) and return remainders in `AX` / `W0`.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03-06`):** On `x86_64`, backend lowering sign-extends `ax` into `dx:ax` using `cwd` and executes 16-bit signed division `idiv r16`, taking the remainder from `dx`. On `arm64`, backend lowering sign-extends 16-bit operands via `sxth`, executes 32-bit signed division `sdiv w2, w0, w1`, and computes remainder via multiply-subtract `msub w0, w2, w1, w0` (`W` registers).
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07-09` + emission):** Direct PE/ELF/Mach-O image emission resolves all displacements, emits valid native machine code, and executes with exit code 0 matching Terminal Psi simulation across all hosted targets.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

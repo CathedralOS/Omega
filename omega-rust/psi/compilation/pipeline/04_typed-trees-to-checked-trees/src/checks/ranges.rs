@@ -62,7 +62,6 @@ pub(crate) mod types;
 
 // Tests.
 
-use crate::flow::expressions;
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
@@ -269,23 +268,21 @@ fn statement_contains_indexed_expression(
     match statement {
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
-            expression_contains_indexed(program, assignment.target, 0)
-                || expression_contains_indexed(program, assignment.value, 0)
+            expression_contains_indexed(program, assignment.target)
+                || expression_contains_indexed(program, assignment.value)
         }
         StatementNode::Call(call) => program
             .statement_table
             .expression_handles(call.arguments)
             .iter()
-            .any(|argument| expression_contains_indexed(program, *argument, 0)),
-        StatementNode::Expression(expression) => {
-            expression_contains_indexed(program, *expression, 0)
-        }
+            .any(|argument| expression_contains_indexed(program, *argument)),
+        StatementNode::Expression(expression) => expression_contains_indexed(program, *expression),
         StatementNode::LocalData(local) => {
-            expression_contains_indexed(program, local.initial_value, 0)
+            expression_contains_indexed(program, local.initial_value)
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard
-                && expression_contains_indexed(program, guard, 0)
+                && expression_contains_indexed(program, guard)
             {
                 return true;
             }
@@ -299,13 +296,13 @@ fn statement_contains_indexed_expression(
                             .statement_table
                             .expression_handles(*arguments)
                             .iter()
-                            .any(|argument| expression_contains_indexed(program, *argument, 0))
+                            .any(|argument| expression_contains_indexed(program, *argument))
                         {
                             return true;
                         }
                     }
                     TransitionTargetNode::Value(value) => {
-                        if expression_contains_indexed(program, *value, 0) {
+                        if expression_contains_indexed(program, *value) {
                             return true;
                         }
                     }
@@ -320,73 +317,12 @@ fn statement_contains_indexed_expression(
 fn expression_contains_indexed(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
-    depth: usize,
 ) -> bool {
-    use typed_trees::expression::{ExpressionNode, MatchPattern};
-    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
-        return false;
-    };
-    let next = depth + 1;
-    match node {
-        ExpressionNode::SavedSubject(_) => false,
-        ExpressionNode::Indexed(_) => true,
-        ExpressionNode::Match(dispatch) => {
-            expression_contains_indexed(program, dispatch.subject, next)
-                || expressions(program)
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        (match arm.pattern {
-                            MatchPattern::Destructure(_) => expressions(program)
-                                .match_pattern_operands(arm.pattern)
-                                .any(|operand| expression_contains_indexed(program, operand, next)),
-                            MatchPattern::Value(pattern) => {
-                                expression_contains_indexed(program, pattern, next)
-                            }
-                            MatchPattern::Wildcard => false,
-                        }) || expression_contains_indexed(program, arm.value, next)
-                    })
+    program.subtree_any(expression, typed_trees::SubtreeEdges::VALUES, |_, node| {
+        if matches!(node, typed_trees::expression::ExpressionNode::Indexed(_)) {
+            typed_trees::SubtreeVisit::Found
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        ExpressionNode::Binary(binary) => {
-            expression_contains_indexed(program, binary.left, next)
-                || expression_contains_indexed(program, binary.right, next)
-        }
-        ExpressionNode::Call(call) => {
-            expression_contains_indexed(program, call.receiver, next)
-                || expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_contains_indexed(program, *argument, next))
-        }
-        ExpressionNode::Cast(cast) => expression_contains_indexed(program, cast.value, next),
-        ExpressionNode::Atomic(atomic) => {
-            if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
-                expression_contains_indexed(program, carrier.place, next)
-                    || carrier
-                        .operands
-                        .into_iter()
-                        .any(|operand| expression_contains_indexed(program, operand, next))
-            } else {
-                expression_contains_indexed(program, atomic.value, next)
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_contains_indexed(program, *value, next)),
-        ExpressionNode::Member(member) => {
-            expression_contains_indexed(program, member.receiver, next)
-        }
-        ExpressionNode::Borrow(borrow) => expression_contains_indexed(program, borrow.target, next),
-        ExpressionNode::Unary(unary) => expression_contains_indexed(program, unary.operand, next),
-        ExpressionNode::Range(range) => {
-            expression_contains_indexed(program, range.start, next)
-                || expression_contains_indexed(program, range.end, next)
-        }
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_contains_indexed(program, field.value, next)),
-        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
-    }
+    })
 }

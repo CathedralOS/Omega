@@ -314,6 +314,30 @@ pub(crate) fn executable_children(
     }
 }
 
+/// `TypedTrees::subtree_any` over executable edges: a compare-exchange-once
+/// carrier evaluates only its place and operands, never its retained call node.
+pub fn executable_subtree_any(
+    program: &dyn crate::CheckingInput,
+    root: ExpressionHandle,
+    edges: typed_trees::SubtreeEdges,
+    mut visit: impl FnMut(ExpressionHandle, &ExpressionNode) -> typed_trees::SubtreeVisit,
+) -> bool {
+    program.subtree_any(root, edges, |expression, node| {
+        match (visit(expression, node), node) {
+            (typed_trees::SubtreeVisit::Descend, ExpressionNode::Atomic(atomic)) => {
+                match crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                {
+                    Some(once) => typed_trees::SubtreeVisit::InsteadEach(
+                        std::iter::once(once.place).chain(once.operands).collect(),
+                    ),
+                    None => typed_trees::SubtreeVisit::Descend,
+                }
+            }
+            (visit, _) => visit,
+        }
+    })
+}
+
 /// Preserve occurrence identity for checks that consume selected declarations
 /// or result types. This is the same postorder as the node-only convenience API.
 pub fn visit_post_order(

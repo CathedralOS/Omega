@@ -5,18 +5,33 @@
 //! application still forms independently at the completed operand frontier.
 
 use super::{BigInt, IntegerObservations, Polynomial, StructuralJudge, StructuralTerm, atom_name};
-use crate::proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
+use crate::proof_contracts::contract_entailment::arithmetic_judgment::{
+    IntegerApplicationInput, IntegerDenotation,
+};
 use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use typed_trees::{expression::BinaryOperator, types::PrimitiveType};
 
 pub(in crate::proof_contracts::contract_entailment) struct CapturedIntegerRank {
-    pub input: StructuralTerm,
-    pub primitive: PrimitiveType,
+    pub input: CapturedIntegerInput,
     /// The selected relation's floor is a goal, not an input assumption.
     /// The independently formed word still supplies its own carrier bounds.
     pub minimum: BigInt,
     pub measure: SymbolHandle,
+}
+
+#[derive(Debug)]
+pub(in crate::proof_contracts::contract_entailment) enum CapturedIntegerInput {
+    Scalar {
+        value: StructuralTerm,
+        primitive: PrimitiveType,
+    },
+    Record {
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        snapshot: Option<crate::CapturedOwnedSnapshot>,
+        reads: Vec<(crate::RankSubjectCoordinate, StructuralTerm, PrimitiveType)>,
+    },
 }
 
 /// Only `form_captured_integer_rank` constructs this record. The polynomial
@@ -27,8 +42,7 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
         Option<crate::IntegerApplicationFormation>,
     value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
-    minimum: BigInt,
-    maximum: BigInt,
+    interval: BigIntInterval,
 }
 
 impl StructuralJudge<'_> {
@@ -39,9 +53,7 @@ impl StructuralJudge<'_> {
         let mut observations = IntegerObservations::empty(self.program);
         observations.engine =
             super::Engine::strict_for_declaration(self.program, self.machine_symbol);
-        let input = self
-            .integer_value(&rank.input, rank.primitive, &mut observations, 0)
-            .ok_or("the entry rank input has no exact integer observation")?;
+        let input = self.observed_rank_input(&rank.input, &mut observations)?;
         let required = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut premises) || !observations.admitted(required) {
@@ -69,7 +81,13 @@ impl StructuralJudge<'_> {
                 })?;
             (value.value, primitive, value.formation)
         } else {
-            (input, rank.primitive, None)
+            let CapturedIntegerInput::Scalar { primitive, .. } = &rank.input else {
+                return Err("a builtin integer rank needs a scalar input");
+            };
+            let IntegerApplicationInput::Scalar(input) = input else {
+                return Err("a builtin rank cannot consume a record");
+            };
+            (input, *primitive, None)
         };
         let value = engine.substituted(&value);
         if !engine.integer_value_lands(primitive, &value) {
@@ -114,8 +132,10 @@ impl StructuralJudge<'_> {
             application,
             value,
             atoms,
-            minimum,
-            maximum: BigInt::from_i128(maximum),
+            interval: BigIntInterval {
+                low: Some(minimum),
+                high: Some(BigInt::from_i128(maximum)),
+            },
         })
     }
 
@@ -147,15 +167,7 @@ impl StructuralJudge<'_> {
         }
         let mut inputs = Vec::with_capacity(destinations.len());
         for destination in destinations {
-            inputs.push(
-                self.integer_value(
-                    &destination.input,
-                    destination.primitive,
-                    &mut observations,
-                    0,
-                )
-                .ok_or("the arriving rank input has no exact integer observation")?,
-            );
+            inputs.push(self.observed_rank_input(&destination.input, &mut observations)?);
         }
         let required = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
@@ -168,6 +180,10 @@ impl StructuralJudge<'_> {
             let value = engine
                 .instantiate_integer_denotation(&source.value, bindings)
                 .ok_or("the saved rank lost its complete observed dependency roster")?;
+            let (Some(minimum), Some(maximum)) = (&source.interval.low, &source.interval.high)
+            else {
+                return Err("the saved rank lost its independently formed finite bounds");
+            };
             // These facts belong to the earlier produced value, not the next
             // input or its pending intermediate operations. Distinct captures
             // use their own local-to-shared atom map; equal atom ordinals in
@@ -176,12 +192,12 @@ impl StructuralJudge<'_> {
                 (
                     BinaryOperator::GreaterOrEqual,
                     value.clone(),
-                    Polynomial::constant(source.minimum.clone()),
+                    Polynomial::constant(minimum.clone()),
                 ),
                 (
                     BinaryOperator::LessOrEqual,
                     value.clone(),
-                    Polynomial::constant(source.maximum.clone()),
+                    Polynomial::constant(maximum.clone()),
                 ),
             ]) {
                 return Err("the saved rank bounds could not enter the current observation scope");
@@ -217,13 +233,48 @@ impl StructuralJudge<'_> {
         Ok(false)
     }
 
+    fn observed_rank_input(
+        &self,
+        input: &CapturedIntegerInput,
+        observations: &mut IntegerObservations<'_>,
+    ) -> Result<IntegerApplicationInput, &'static str> {
+        match input {
+            CapturedIntegerInput::Scalar { value, primitive } => self
+                .integer_value(value, *primitive, observations, 0)
+                .map(IntegerApplicationInput::Scalar)
+                .ok_or("the rank input has no exact integer observation"),
+            CapturedIntegerInput::Record {
+                type_reference,
+                reads,
+                snapshot,
+            } => {
+                let reads = reads
+                    .iter()
+                    .map(|(source, value, primitive)| {
+                        self.integer_value(value, *primitive, observations, 0)
+                            .map(|value| (source.clone(), value))
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or("a record rank read has no exact integer observation")?;
+                Ok(IntegerApplicationInput::Record {
+                    type_reference: *type_reference,
+                    snapshot: snapshot.clone(),
+                    reads,
+                })
+            }
+        }
+    }
+
     fn form_arriving_integer_rank(
         &self,
         engine: &mut super::Engine<'_>,
         destination: &CapturedIntegerRank,
-        input: &Polynomial,
+        input: &IntegerApplicationInput,
     ) -> Result<(Polynomial, BigInt), &'static str> {
         if !destination.measure.is_valid() {
+            let IntegerApplicationInput::Scalar(input) = input else {
+                return Err("a builtin rank cannot consume a record");
+            };
             return Ok((input.clone(), destination.minimum.clone()));
         }
         let primitive = self

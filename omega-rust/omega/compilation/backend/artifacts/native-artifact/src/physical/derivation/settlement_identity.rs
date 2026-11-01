@@ -3,12 +3,14 @@
 
 use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
     hash_call_site_owner, hash_claim_source, hash_internal_scalar_argument_source,
     hash_port_effect_record, hash_structural_argument, hash_structural_parameter_declaration,
     hash_structural_path, hash_target,
 };
+use crate::physical::identity_bytes::terminal_identity_bytes;
 use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinScalarArgument};
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
@@ -32,7 +34,7 @@ pub(crate) fn hosted_builtin_settlement_identity(
 ) -> Result<[u8; 32], &'static str> {
     // Structural-result custody has its own domain; scalar-only and unit-result
     // custody share the original builtin domain.
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(match result {
+    let mut digest = DomainDigestEncoder::new(match result {
         CompilerBuiltinResult::Unit => {
             b"omega.d41-boundary-trait-settlement.sha256.v1\0".as_slice()
         }
@@ -58,7 +60,7 @@ pub(crate) fn hosted_builtin_settlement_identity(
 }
 
 fn hash_builtin_scalar_argument(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     scalar_argument: &CompilerBuiltinScalarArgument,
 ) -> Result<(), &'static str> {
     match scalar_argument {
@@ -104,9 +106,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.d41-boundary-trait-settlement.sha256.v7\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v7\0");
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
@@ -185,9 +185,7 @@ pub(crate) fn admitted_provider_settlement_identity(
     settlement: &machine_code::BoundarySettlementRecord,
     port_effect: Option<&PortEffectRecord>,
 ) -> Result<[u8; 32], &'static str> {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.d41-boundary-trait-settlement.sha256.v4\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
@@ -209,7 +207,7 @@ pub(crate) fn admitted_provider_settlement_identity(
 /// execution, in canonical little-endian order. Every admitted-provider
 /// settlement role opens with this step before its role-specific custody.
 fn hash_provider_execution_binding(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     execution: ProviderExecutionBinding,
 ) {
     for coordinate in [
@@ -243,9 +241,7 @@ pub(crate) fn installed_provider_internal_call_identity(
     call: &BoundaryInternalCallCustody,
     assumption_closure: Option<[u8; 32]>,
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.d41-boundary-trait-settlement.sha256.v6\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v6\0");
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
@@ -265,7 +261,7 @@ pub(crate) fn installed_provider_internal_call_identity(
 
 /// Encode physical call-stack custody independently from its selection authority.
 pub(super) fn hash_internal_call_custody(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     call: &BoundaryInternalCallCustody,
 ) {
     let (family_tag, owner, call_target, call_field_offset, frame_terms, caller_live_bytes) =
@@ -336,12 +332,8 @@ pub(super) fn target_family_internal_call_identity(
         terminal_psi::TargetMachineSupply::Boundary => 2,
         _ => return Err("target-family internal-call identity requires executable supply"),
     };
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.d41-target-family-internal-call.sha256.v1\0",
-    );
-    digest.raw(&crate::physical::identity_bytes::terminal_identity_bytes(
-        terminal,
-    ));
+    let mut digest = DomainDigestEncoder::new(b"omega.d41-target-family-internal-call.sha256.v1\0");
+    digest.raw(&terminal_identity_bytes(terminal));
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, head_identity.as_bytes());
     digest.raw(head_contract);

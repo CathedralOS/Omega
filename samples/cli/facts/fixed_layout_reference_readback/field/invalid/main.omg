@@ -1,0 +1,48 @@
+// A reference loaded from fixed-layout storage retains its selected representation policy and live referent while the adjacent integer field keeps its value.
+// Expected exit: 0
+use omega::language::core::layout;
+data Payload [copy] { value: u64; }
+PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        let extent: u64 = match Marker == 11u64 { true -> 16u64, _ -> 8u64 };
+        LayoutPlan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 8 }
+    }
+}
+data Envelope<T> [copy] { value: u64; pointer: &T; }
+data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }
+EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::IntegerAt { offset: 0, stored_width: 8, interpretation: IntegerInterpretation::Unsigned } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+machine update<'source, 'storage, const Marker: u64>(pointer: &'source LayoutStorage<Payload, PayloadLayout<Marker> >, storage: &'storage u64) -> Readback<'storage, LayoutStorage<Payload, PayloadLayout<Marker> > > {
+    let mut record: LayoutStorage<Envelope<LayoutStorage<Payload, PayloadLayout<Marker> > >, EnvelopeLayout<LayoutStorage<Payload, PayloadLayout<Marker> > > >;
+    record.pointer = pointer;
+    record.value = 7u64;
+    let loaded: &'source LayoutStorage<Payload, PayloadLayout<Marker> > = record.pointer;
+    Readback { value: record.value, pointer: loaded }
+}
+// Place: field. The returned reference/scalar carrier crosses an enclosing field.
+data ReadbackField<'held, T> [copy] { item: Readback<'held, T>; }
+machine observe<'source, 'storage>(pointer: &'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: &'storage u64) -> bool {
+    let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = update<7u64>(pointer, storage);
+    let holder: ReadbackField<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = ReadbackField { item: result };
+    holder.item.value == 7u64 && holder.item.pointer.value == 43u64
+}
+machine main() crashes Trap {
+    let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;
+    pointee.value = 43u64;
+    let storage: u64 = 23u64;
+    let result: bool = observe(&pointee, &storage);
+    transition result && pointee.value == 43u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

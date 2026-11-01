@@ -157,12 +157,12 @@ public boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStack
 // The declared `reaches PortIo` is the realization's own bound; the
 // compiler-derived installation-reach resolution records it against the
 // requirement's `MachineControl + PortIo` upper bound. The named
-// implementation owns the complete root map; its one row names the
-// inherited requirement's declaring trait and the existing entry machine.
+// implementation owns the complete root map; its one member fills the
+// inherited requirement and calls the existing entry machine.
 public data FatalExceptionProvider {
 }
 public FatalExceptionProviderRoot satisfies FatalExceptionRoot {
-    InterruptEntry::enter = FatalExceptionProvider::enter;
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending) reaches MachineControl { FatalExceptionProvider::enter(acknowledgement) }
 }
 
 machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
@@ -277,7 +277,7 @@ public boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicyCallin
 public data TimerProvider {
 }
 public TimerProviderRoot satisfies TimerRoot {
-    InterruptEntry::enter = TimerProvider::enter;
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending) reaches MachineControl { TimerProvider::enter(acknowledgement) }
 }
 
 machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
@@ -303,7 +303,7 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 public data InterruptMaskProvider {
 }
 public InterruptMaskProviderMaskControl satisfies InterruptMaskControl {
-    InterruptMaskControl::save_and_mask = InterruptMaskProvider::save_and_mask;
+    machine save_and_mask() -> InterruptMaskGuard in Active reaches MachineControl ensures result in InterruptMaskGuard::Active { InterruptMaskProvider::save_and_mask() }
 }
 
 machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
@@ -317,7 +317,7 @@ proposition acknowledgement_completed(acknowledgement: InterruptAcknowledgement)
     = model_specific_written(2059, 0);
 
 AcknowledgementCompletion satisfies InterruptAcknowledgementCompletion {
-    InterruptAcknowledgementCompletion::complete = complete_acknowledgement;
+    machine complete(acknowledgement: InterruptAcknowledgement) reaches MachineControl requires acknowledgement in InterruptAcknowledgement::Pending { complete_acknowledgement(acknowledgement) }
 }
 
 machine complete_acknowledgement(acknowledgement: InterruptAcknowledgement)

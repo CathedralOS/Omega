@@ -14,7 +14,7 @@ data Registrar {}
 machine Registrar::pick(value: u64) -> u64 { value }
 
 RegistrarChooser satisfies Chooser {
-    Chooser::pick = Registrar::pick;
+    machine pick(value: u64) -> u64 { Registrar::pick(value) }
 }
 
 trait Service<Policy satisfies Decider> { }

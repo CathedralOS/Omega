@@ -9,6 +9,8 @@
 //! policies from the compiler's shared code catalog. `policy_code.rs` owns the
 //! exact source-entry association and finite invocation accounting;
 //! `terminal_execution.rs` runs the canonical code without source,
+//! `policy_signature.rs` encodes canonical ABI input and validates the result,
+//! `terminal_signature.rs` constructs that input from the canonical catalog,
 //! Psi's service catalog retains the exact named map and inherited signatures,
 //! `callback_bindings.rs` binds and closes callbacks; backend `layout` constructs
 //! their native value graphs and `build_time_decoding.rs` decodes build-time
@@ -24,10 +26,13 @@ mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
 mod policy_code;
+mod policy_signature;
 mod selected_application;
 mod terminal_execution;
+mod terminal_signature;
 mod terminal_values;
 pub use policy_code::CallingPolicyCode;
+pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_application;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};

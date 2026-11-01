@@ -1,50 +1,76 @@
 // Every call to entry names the visible machine and supplies all three declared parameters.
 data Note { value: u64; tag: u64; nonce: u64; }
-windows_x86_64 machine probe(value: u64, select: bool) -> Note {
-    next(value, select)
-    machine next(value: u64, select: bool) -> Note {
-        transition { _ -> entry(value, select) }
-    }
-    machine entry(value: u64, select: bool, nonce: u64) -> Note {
-        let tag: u64 = match select { true -> 11, false -> 13 };
-        Note { value: value, tag: tag, nonce: nonce }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_x86_64 machine probe(value: u64, select: bool) -> Note {
-    next(value, select)
-    machine next(value: u64, select: bool) -> Note {
-        transition { _ -> entry(value, select) }
-    }
-    machine entry(value: u64, select: bool, nonce: u64) -> Note {
-        let tag: u64 = match select { true -> 11, false -> 13 };
-        Note { value: value, tag: tag, nonce: nonce }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_arm64 machine probe(value: u64, select: bool) -> Note {
-    next(value, select)
-    machine next(value: u64, select: bool) -> Note {
-        transition { _ -> entry(value, select) }
-    }
-    machine entry(value: u64, select: bool, nonce: u64) -> Note {
-        let tag: u64 = match select { true -> 11, false -> 13 };
-        Note { value: value, tag: tag, nonce: nonce }
+
+boundary trait SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        next(value, select)
+        machine next(value: u64, select: bool) -> Note {
+            transition { _ -> entry(value, select) }
+        }
+        machine entry(value: u64, select: bool, nonce: u64) -> Note {
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: value, tag: tag, nonce: nonce }
+        }
     }
 }
-macos_arm64 machine probe(value: u64, select: bool) -> Note {
-    next(value, select)
-    machine next(value: u64, select: bool) -> Note {
-        transition { _ -> entry(value, select) }
-    }
-    machine entry(value: u64, select: bool, nonce: u64) -> Note {
-        let tag: u64 = match select { true -> 11, false -> 13 };
-        Note { value: value, tag: tag, nonce: nonce }
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        next(value, select)
+        machine next(value: u64, select: bool) -> Note {
+            transition { _ -> entry(value, select) }
+        }
+        machine entry(value: u64, select: bool, nonce: u64) -> Note {
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: value, tag: tag, nonce: nonce }
+        }
     }
 }
+
+
 machine main() crashes Trap {
-    let first: Note = probe(7, true);
-    let second: Note = probe(9, false);
+    let first: Note = SelectedProbe::probe(7, true);
+    let second: Note = SelectedProbe::probe(9, false);
     transition first.value == 7 && first.tag == 11 && first.nonce == 17 && second.value == 9 && second.tag == 13 && second.nonce == 17 {
         true -> done() false -> bad()
     }
     machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

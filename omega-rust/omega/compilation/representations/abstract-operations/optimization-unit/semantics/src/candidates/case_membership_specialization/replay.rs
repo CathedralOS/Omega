@@ -35,6 +35,7 @@ use semantic_vocabulary::{
     BlockId, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralTypeId,
 };
 
+use optimization_unit::established_case_at;
 use terminal_psi::StructuralPlaceDeclaration;
 
 /// The evidence every membership observing `place` resolves against: the
@@ -103,7 +104,7 @@ fn admit_membership_node(
     // establishment, the sole-case roster at the resolved end type proves
     // the verdict without custody evidence.
     let (proven_case, producer) =
-        optimization_unit::established_case_at(unit, evidence.function, evidence.declaration, path)
+        established_case_at(unit, evidence.function, evidence.declaration, path)
             .map(|(operation, case)| (case, Some(operation)))
             .or_else(|| {
                 resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))
@@ -191,9 +192,7 @@ fn folded_node(
         Some(producer) => {
             let resolved = function
                 .structural_place(row.source)
-                .and_then(|declaration| {
-                    optimization_unit::established_case_at(unit, function, declaration, path)
-                });
+                .and_then(|declaration| established_case_at(unit, function, declaration, path));
             if resolved != Some((producer, row.proven_case)) {
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }

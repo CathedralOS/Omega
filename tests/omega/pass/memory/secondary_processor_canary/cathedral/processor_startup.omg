@@ -215,13 +215,13 @@ public boundary trait FirstSecondaryProcessorRoot:
 // installed startup entry: it resolves the handed envelope's
 // acknowledgement requirement — the startup handshake the ledger
 // tests. The named implementation owns the complete root map; its one
-// row binds the inherited requirement to that existing entry machine,
+// member fills the inherited requirement by calling that existing entry machine,
 // and provider selection installs the root through the implementation.
 public data FirstSecondaryProcessor {
 }
 
 public FirstSecondaryProcessorConformance satisfies FirstSecondaryProcessorRoot {
-    SecondaryProcessorEntry::enter = FirstSecondaryProcessor::enter;
+    machine enter(envelope: StartupEnvelope in Pending) reaches MachineControl { FirstSecondaryProcessor::enter(envelope) }
 }
 
 machine FirstSecondaryProcessor::enter(
@@ -323,7 +323,7 @@ public data SecondSecondaryProcessor {
 }
 
 public SecondSecondaryProcessorConformance satisfies SecondSecondaryProcessorRoot {
-    SecondaryProcessorEntry::enter = SecondSecondaryProcessor::enter;
+    machine enter(envelope: StartupEnvelope in Pending) reaches MachineControl { SecondSecondaryProcessor::enter(envelope) }
 }
 
 machine SecondSecondaryProcessor::enter(
@@ -339,7 +339,7 @@ reaches MachineControl
 // grants no memory authority or observation by another processor.
 public data StartupConfirmation {}
 public StartupConfirmationProvider satisfies StartupAcknowledgementProtocol {
-    StartupAcknowledgementProtocol::confirm = StartupConfirmation::confirm;
+    machine confirm(envelope: StartupEnvelope) reaches MachineControl requires envelope in StartupEnvelope::Pending { StartupConfirmation::confirm(envelope) }
 }
 proposition confirmed(envelope: StartupEnvelope) =
     atomic_release_written<AtomicU64, u64>(&envelope.acknowledgement.value, envelope.invocation);

@@ -11,7 +11,7 @@ ensures acknowledged(ack, word)
 {
  other.value.store(ack.nonce, Publish);
 }
-CompletionProvider satisfies Completion { Completion::complete = finish; }
+CompletionProvider satisfies Completion { machine complete(ack: Ack, word: &Cell, other: &Cell) { finish(ack, word, other) } }
 machine main() reaches Completion crashes Trap {
  let mut word: Cell;
  let mut other: Cell;

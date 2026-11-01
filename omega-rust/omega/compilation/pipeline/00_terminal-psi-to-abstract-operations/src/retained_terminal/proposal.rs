@@ -252,7 +252,7 @@ fn project_terminal_native_body(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .unzip();
-    let callback_placements = crate::callback_settlement::place_callbacks(
+    let callback_placements = crate::settle_native_callback_placements(
         terminal_module,
         &selected,
         &request.boundaries.calling_applications,

@@ -424,6 +424,7 @@ pub struct TypedTreeTables {
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
+    pub type_aliases: Arena<crate::type_aliases::TypeAliasDefinition>,
     /// Applied field views, indexed by the exact type-reference row. A symbolic
     /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
@@ -481,6 +482,7 @@ pub struct TypedTreeRoots {
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
+    pub type_aliases: HandleSpan<crate::type_aliases::TypeAliasDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
@@ -514,6 +516,7 @@ impl TypedTreeRoots {
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
+            type_aliases: HandleSpan::empty(),
             domain_definitions,
             machines,
             measures: HandleSpan::default(),

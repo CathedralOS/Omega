@@ -5739,6 +5739,15 @@ pass/facts/stored_exclusive_byte_view_through_other_machine_exit built 2067ms ex
 pass/facts/stored_exclusive_byte_view_through_other_state_exit built 1968ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/stored_exclusive_byte_view_through_parameter_exit built 2541ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/stored_exclusive_byte_view_through_target_body_exit built 2957ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/stored_shared_byte_view_element_lend_through_call_result_exit built 4917ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_const_name_exit built 4496ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_field_exit built 4478ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_local_exit built 3025ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_match_join_exit built 4933ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_other_machine_exit built 3008ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_other_state_exit built 2977ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_parameter_exit built 3971ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_target_body_exit built 5387ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
 pass/facts/structural_issuer_forwarding_call_result built 1995ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/structural_issuer_forwarding_const_name built 2861ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/structural_issuer_forwarding_field built 2785ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -8859,6 +8868,7 @@ pass/traits/runtime_dyn_array_assignments_establishment_exit built 12946ms exit:
 pass/traits/runtime_dyn_array_literal_establishment_exit built 9837ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_array_result_exit built 5563ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_array_whole_after_stores_exit built 7349ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
+pass/traits/runtime_dyn_byte_array_result built 3606ms exit:0 interpreter-exit:0 interpreter:agrees @0fb500fb9d4b
 pass/traits/runtime_dyn_byte_record_result rejected 4533ms interpreter:unchecked @5f668826adf3+wt
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete

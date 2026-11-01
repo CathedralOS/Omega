@@ -129,6 +129,8 @@ pub struct SymbolResolvedRoots {
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     pub conformances: OrderedRootArena<crate::trait_definition::Conformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
+    /// Transparent declaration headers remain source metadata, not data roots.
+    pub type_aliases: OrderedRootArena<crate::type_aliases::TypeAliasDefinition>,
 }
 
 impl SymbolResolvedRoots {
@@ -165,6 +167,7 @@ impl SymbolResolvedRoots {
             traits,
             conformances: OrderedRootArena::default(),
             wire_schemas: OrderedRootArena::default(),
+            type_aliases: OrderedRootArena::default(),
         }
     }
 }

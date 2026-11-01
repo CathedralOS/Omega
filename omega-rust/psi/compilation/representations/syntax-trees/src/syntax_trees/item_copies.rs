@@ -29,8 +29,23 @@ use std::ops::{Deref, DerefMut};
 pub(super) struct SyntaxCopy<'destination> {
     destination: &'destination mut SyntaxTrees,
     pub(super) expression_copies: Vec<(ExpressionHandle, ExpressionHandle)>,
-    pub(super) match_subject_copies:
-        Vec<(Handle<MatchSubjectCapture>, Handle<MatchSubjectCapture>)>,
+    pub(super) type_substitutions: Vec<(
+        crate::types::TypeReferenceHandle,
+        crate::types::TypeReferenceHandle,
+    )>,
+    pub(super) expression_substitutions: Vec<(ExpressionHandle, ExpressionHandle)>,
+    pub(super) supplied_type_copies: Vec<crate::types::TypeReferenceHandle>,
+    pub(super) retain_alias_header_role: bool,
+    lifetime_substitutions: Vec<(source::SourceSpan, String, crate::identifier::Identifier)>,
+    pub(super) array_length_substitutions: Vec<(
+        source::SourceSpan,
+        String,
+        crate::types::TypeReferenceHandle,
+    )>,
+    pub(super) match_subject_copies: Vec<(
+        Handle<crate::expression::MatchSubjectCapture>,
+        Handle<crate::expression::MatchSubjectCapture>,
+    )>,
 }
 
 impl<'destination> SyntaxCopy<'destination> {
@@ -39,6 +54,12 @@ impl<'destination> SyntaxCopy<'destination> {
         Self {
             destination,
             expression_copies: Vec::new(),
+            type_substitutions: Vec::new(),
+            expression_substitutions: Vec::new(),
+            supplied_type_copies: Vec::new(),
+            retain_alias_header_role: true,
+            lifetime_substitutions: Vec::new(),
+            array_length_substitutions: Vec::new(),
             match_subject_copies: Vec::new(),
         }
     }
@@ -131,6 +152,39 @@ impl SyntaxTrees {
 
     /// Copy an operand from a retained snapshot of this syntax lineage.
     /// Independent forests use `extend_from`, which remaps declaration owners.
+    /// Copy a declaration-owned type graph with simultaneous substitutions of
+    /// exact source occurrences. Actual handles already belong to the receiving
+    /// forest, so they retain their supplying scope and are not rewritten again.
+    pub fn instantiate_type_reference_from(
+        &mut self,
+        other: &SyntaxTrees,
+        reference: crate::types::TypeReferenceHandle,
+        types: &[(
+            crate::types::TypeReferenceHandle,
+            crate::types::TypeReferenceHandle,
+        )],
+        expressions: &[(ExpressionHandle, ExpressionHandle)],
+        lifetimes: &[(source::SourceSpan, String, crate::identifier::Identifier)],
+        array_lengths: &[(
+            source::SourceSpan,
+            String,
+            crate::types::TypeReferenceHandle,
+        )],
+    ) -> (
+        crate::types::TypeReferenceHandle,
+        Vec<crate::types::TypeReferenceHandle>,
+    ) {
+        let mut copy = SyntaxCopy::new(self, other);
+        copy.retain_alias_header_role = false;
+        copy.type_substitutions.extend_from_slice(types);
+        copy.expression_substitutions.extend_from_slice(expressions);
+        copy.lifetime_substitutions.extend_from_slice(lifetimes);
+        copy.array_length_substitutions
+            .extend_from_slice(array_lengths);
+        let reference = copy.copy_type_reference_handle(other, reference);
+        (reference, copy.supplied_type_copies)
+    }
+
     pub fn copy_type_reference_handle(
         &mut self,
         other: &SyntaxTrees,
@@ -141,6 +195,20 @@ impl SyntaxTrees {
 }
 
 impl SyntaxCopy<'_> {
+    pub(super) fn copied_lifetime(
+        &self,
+        other: &SyntaxTrees,
+        name: &crate::identifier::Identifier,
+    ) -> crate::identifier::Identifier {
+        self.lifetime_substitutions
+            .iter()
+            .find_map(|(source, spelling, actual)| {
+                (*source == name.source_span() && spelling == name.as_str(other))
+                    .then(|| actual.clone())
+            })
+            .unwrap_or_else(|| name.clone())
+    }
+
     /// Deep-copy one proof fact from another syntax tree. Generic-instance
     /// synthesis uses this to retain field-dependent default-domain facts
     /// while discharging facts that depend only on concrete const arguments.
@@ -260,15 +328,6 @@ impl SyntaxCopy<'_> {
                             requirement_ordinal: *requirement_ordinal,
                             machine: self.copy_machine(other, machine),
                         },
-                        ConformanceMember::Reference {
-                            declaring_trait,
-                            requirement,
-                            target,
-                        } => ConformanceMember::Reference {
-                            declaring_trait: declaring_trait.clone(),
-                            requirement: requirement.clone(),
-                            target: self.copy_item_identifier_span(other, *target),
-                        },
                     })
                     .collect::<Vec<_>>();
                 let mut copied_start = arena::Handle::invalid();
@@ -352,6 +411,24 @@ impl SyntaxCopy<'_> {
                 })
             }
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
+            Item::TypeAlias(alias) => Item::TypeAlias(crate::item::TypeAliasDefinition {
+                name: alias.name.clone(),
+                is_public: alias.is_public,
+                lifetime_parameters: alias.lifetime_parameters.clone(),
+                type_parameters: self.copy_type_parameter_span(other, alias.type_parameters),
+                conformance_bounds: alias
+                    .conformance_bounds
+                    .iter()
+                    .map(|bound| crate::item::GenericConformanceBound {
+                        binder: bound.binder.clone(),
+                        trait_name: bound.trait_name.clone(),
+                        arguments: self.copy_type_reference_handle_span(other, bound.arguments),
+                    })
+                    .collect(),
+                authored_expansion: self
+                    .copy_type_reference_handle(other, alias.authored_expansion),
+                expansion: self.copy_type_reference_handle(other, alias.expansion),
+            }),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
                 type_parameters: self.copy_type_parameter_span(other, domain.type_parameters),

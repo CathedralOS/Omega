@@ -1,3 +1,4 @@
+use calling_conventions::{NativePlace, ValueLocation};
 use isa_aarch64::{
     Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixupKind,
     Aarch64NormalizedForeignCallFixupState,
@@ -15,10 +16,12 @@ use selected_instructions::{
 use target::{Architecture, NativeTarget};
 
 use super::SelectedFormEncodedRowDraft;
-use crate::OptimizedSelectedFormEncodingError;
+use crate::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{
-    SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixup,
-    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
+    CallbackAddressDestination, SelectedFormCallbackMaterialization,
+    SelectedFormCallbackMaterializationEncoding, SelectedFormEncodingState,
+    SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
+    SelectedFormNormalizedForeignCallFixupState,
 };
 
 /// Assemble one unresolved row's bytes, effects and architecture-neutral
@@ -57,20 +60,20 @@ pub(crate) fn normalized_foreign_call_record<'a>(
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
     selected_function: &'a SelectedFunction,
-) -> Result<&'a SelectedNormalizedForeignCall, OptimizedSelectedFormEncodingError> {
+) -> Result<&'a SelectedNormalizedForeignCall, Error> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     };
     let record = selected_function
         .normalized_foreign_calls
         .get(ordinal as usize)
-        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        .ok_or(Error::ArtifactMismatch)?;
     if record.instruction != instruction
         || record.call.boundary != boundary
         || record.call.binding.native_target() != Some(target)
         || !record.call.binding.has_valid_entry_mechanism()
     {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(record)
 }
@@ -90,7 +93,7 @@ pub(super) fn encode(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
-) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, Error> {
     let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     let views = super::operand_views(machine);
     let accesses = machine
@@ -100,7 +103,7 @@ pub(super) fn encode(
         .collect::<Vec<_>>();
     if record.call.binding.table_dispatch().is_some() {
         if target.architecture != Architecture::X86_64 {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
         let encoded = isa_x86_64::encode_x86_64_selected_table_call_form(
             record,
@@ -108,7 +111,7 @@ pub(super) fn encode(
             &views,
             &accesses,
         )
-        .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        .map_err(|_| Error::ArtifactMismatch)?;
         return super::validated_encoded_draft(
             instruction,
             machine,
@@ -119,7 +122,7 @@ pub(super) fn encode(
     }
     if let Some(binding) = record.call.binding.system_call() {
         if !record.call.callbacks.is_empty() {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
         let (bytes, effects) = match target.architecture {
             Architecture::X86_64 => {
@@ -132,7 +135,7 @@ pub(super) fn encode(
                     &accesses,
                     binding.number,
                 )
-                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                .map_err(|_| Error::ArtifactMismatch)?;
                 (
                     encoded.bytes().to_vec(),
                     encoded.footprint().encoded.clone(),
@@ -148,7 +151,7 @@ pub(super) fn encode(
                     &accesses,
                     binding.number,
                 )
-                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                .map_err(|_| Error::ArtifactMismatch)?;
                 (
                     encoded.bytes().to_vec(),
                     encoded.footprint().encoded.clone(),
@@ -169,17 +172,17 @@ pub(super) fn encode(
             let destinations = destinations
                 .iter()
                 .map(|destination| match destination {
-                    machine_code::CallbackAddressDestination::Register(register) => Ok(
+                    CallbackAddressDestination::Register(register) => Ok(
                         X86_64CallbackMaterializationDestination::Register(*register),
                     ),
-                    machine_code::CallbackAddressDestination::RecordField {
+                    CallbackAddressDestination::RecordField {
                         root_register,
                         byte_offset,
                     } => Ok(X86_64CallbackMaterializationDestination::RecordField {
                         root_register: *root_register,
                         byte_offset: *byte_offset,
                     }),
-                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                    CallbackAddressDestination::OutgoingStack { byte_offset } => {
                         Ok(X86_64CallbackMaterializationDestination::OutgoingStack {
                             byte_offset: *byte_offset,
                         })
@@ -197,7 +200,7 @@ pub(super) fn encode(
                 &destinations,
                 record,
             )
-            .map_err(OptimizedSelectedFormEncodingError::X86_64NormalizedForeignCall)?;
+            .map_err(Error::X86_64NormalizedForeignCall)?;
             let target_fixup = encoded.fixup();
             let kind = match target_fixup.kind {
                 X86_64NormalizedForeignCallFixupKind::Relative32FromNextInstructionToNormalizedForeignImportV1 => {
@@ -212,27 +215,27 @@ pub(super) fn encode(
             let callbacks = target_fixup
                 .callbacks
                 .iter()
-                .map(|callback| machine_code::SelectedFormCallbackMaterialization {
+                .map(|callback| SelectedFormCallbackMaterialization {
                     destination: match callback.destination {
                         X86_64CallbackMaterializationDestination::Register(register) => {
-                            machine_code::CallbackAddressDestination::Register(register)
+                            CallbackAddressDestination::Register(register)
                         }
                         X86_64CallbackMaterializationDestination::RecordField {
                             root_register,
                             byte_offset,
-                        } => machine_code::CallbackAddressDestination::RecordField {
+                        } => CallbackAddressDestination::RecordField {
                             root_register,
                             byte_offset,
                         },
-                        X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } =>
-                            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset },
+                        X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } => {
+                            CallbackAddressDestination::OutgoingStack { byte_offset }
+                        }
                     },
                     code_row_offset: callback.materialization_byte_offset,
                     code_byte_count: callback.materialization_byte_count,
-                    encoding:
-                        machine_code::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
-                            patch_row_offset: callback.relocation_byte_offset,
-                        },
+                    encoding: SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                        patch_row_offset: callback.relocation_byte_offset,
+                    },
                 })
                 .collect();
             selected_unresolved_fixup!(encoded, target_fixup, kind, state, callbacks)
@@ -241,18 +244,18 @@ pub(super) fn encode(
             let destinations = destinations
                 .iter()
                 .map(|destination| match destination {
-                    machine_code::CallbackAddressDestination::Register(register) => Ok(
+                    CallbackAddressDestination::Register(register) => Ok(
                         Aarch64CallbackMaterializationDestination::Register(*register),
                     ),
-                    machine_code::CallbackAddressDestination::RecordField {
+                    CallbackAddressDestination::RecordField {
                         root_register,
                         byte_offset,
                     } => Ok(Aarch64CallbackMaterializationDestination::RecordField {
                         root_register: *root_register,
                         byte_offset: *byte_offset,
                     }),
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+                    CallbackAddressDestination::OutgoingStack { .. } => {
+                        Err(Error::ArtifactMismatch)
                     }
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -267,7 +270,7 @@ pub(super) fn encode(
                 &destinations,
                 record,
             )
-            .map_err(OptimizedSelectedFormEncodingError::Aarch64NormalizedForeignCall)?;
+            .map_err(Error::Aarch64NormalizedForeignCall)?;
             let target_fixup = encoded.fixup();
             let kind = match target_fixup.kind {
                 Aarch64NormalizedForeignCallFixupKind::BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
@@ -282,27 +285,25 @@ pub(super) fn encode(
             let callbacks = target_fixup
                 .callbacks
                 .iter()
-                .map(|callback| machine_code::SelectedFormCallbackMaterialization {
+                .map(|callback| SelectedFormCallbackMaterialization {
                     destination: match callback.destination {
                         Aarch64CallbackMaterializationDestination::Register(register) => {
-                            machine_code::CallbackAddressDestination::Register(register)
+                            CallbackAddressDestination::Register(register)
                         }
                         Aarch64CallbackMaterializationDestination::RecordField {
                             root_register,
                             byte_offset,
-                        } => machine_code::CallbackAddressDestination::RecordField {
+                        } => CallbackAddressDestination::RecordField {
                             root_register,
                             byte_offset,
                         },
                     },
                     code_row_offset: callback.materialization_byte_offset,
                     code_byte_count: callback.materialization_byte_count,
-                    encoding:
-                        machine_code::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
-                            page_patch_row_offset: callback.page_relocation_byte_offset,
-                            page_offset_patch_row_offset: callback
-                                .page_offset_relocation_byte_offset,
-                        },
+                    encoding: SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                        page_patch_row_offset: callback.page_relocation_byte_offset,
+                        page_offset_patch_row_offset: callback.page_offset_relocation_byte_offset,
+                    },
                 })
                 .collect();
             selected_unresolved_fixup!(encoded, target_fixup, kind, state, callbacks)
@@ -321,7 +322,7 @@ pub(super) fn encode(
 /// evaluated `NativePlace` the caller's resolved roster row retains.
 fn callback_destinations(
     record: &SelectedNormalizedForeignCall,
-) -> Result<Vec<machine_code::CallbackAddressDestination>, OptimizedSelectedFormEncodingError> {
+) -> Result<Vec<CallbackAddressDestination>, Error> {
     record
         .call
         .callbacks
@@ -331,38 +332,29 @@ fn callback_destinations(
                 &callback.destination,
                 callback.application.placement.locations.as_slice(),
             ) {
+                (NativePlace::Parameter(_), [ValueLocation::Register { register, .. }]) => {
+                    Ok(CallbackAddressDestination::Register(*register))
+                }
                 (
-                    calling_conventions::NativePlace::Parameter(_),
-                    [calling_conventions::ValueLocation::Register { register, .. }],
-                ) => Ok(machine_code::CallbackAddressDestination::Register(
-                    *register,
-                )),
-                (
-                    calling_conventions::NativePlace::Parameter(_),
+                    NativePlace::Parameter(_),
                     [
-                        calling_conventions::ValueLocation::Stack {
+                        ValueLocation::Stack {
                             stack_byte_offset, ..
                         },
                     ],
-                ) => Ok(machine_code::CallbackAddressDestination::OutgoingStack {
+                ) => Ok(CallbackAddressDestination::OutgoingStack {
                     byte_offset: *stack_byte_offset,
                 }),
-                (
-                    calling_conventions::NativePlace::Field { .. },
-                    [calling_conventions::ValueLocation::Register { register, .. }],
-                ) => {
-                    let byte_offset = u32::try_from(
-                        callback
-                            .field_byte_offset
-                            .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?,
-                    )
-                    .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-                    Ok(machine_code::CallbackAddressDestination::RecordField {
+                (NativePlace::Field { .. }, [ValueLocation::Register { register, .. }]) => {
+                    let byte_offset =
+                        u32::try_from(callback.field_byte_offset.ok_or(Error::ArtifactMismatch)?)
+                            .map_err(|_| Error::ArtifactMismatch)?;
+                    Ok(CallbackAddressDestination::RecordField {
                         root_register: *register,
                         byte_offset,
                     })
                 }
-                _ => Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
+                _ => Err(Error::ArtifactMismatch),
             }
         })
         .collect()

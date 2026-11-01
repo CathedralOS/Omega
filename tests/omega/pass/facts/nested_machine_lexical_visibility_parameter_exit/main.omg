@@ -1,0 +1,14 @@
+// A bare call names the machine visible from the call site: the private `hidden` inside `outer`, the free `hidden` anywhere else, and no callee once the free one is absent.
+// Expected exit: 0
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine hidden(value: u64) -> u64 { 107 }
+machine verify(inner: u64, free: u64) crashes Trap {
+    transition inner == 7 && free == 107 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    verify(outer(7), hidden(7));
+}

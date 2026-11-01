@@ -366,6 +366,46 @@ group by `(root_symbol, case_facts_only)`, never mix. Truncated runs
 walk — only `all complete` does) are handled by the completion
 semantics above.
 
+## Verified results — merged batching (2026-11-05)
+
+Landed: `take(1)` frontier-trial cap (#1070) + operand-fit
+demand-batching (#1090, plural nested walker + per-machine population
+memo + `observe_private_arrivals_batch`). Post-merge census adds
+`[walkb]` counters on both batched entries (members > 1 only).
+
+| probe | walks `[walk]`+`[walkb]` | members served | wall | verdict |
+|-------|--------------------------|----------------|------|---------|
+| m26   | 349+126 = 475            | 761            | ~1 s | fails (m21-m25 range proofs) |
+| m32   | 348+144 = 492            | 820            | ~1 s | fails (m21-m31) — was OOM at 2m46 / 11.5 GB |
+| m48   | 541                      | —              | ~1 s | fails |
+| n128-b| 782                      | —              | ~3 s | fails |
+| m32-const (clean) | 470            | —              | ~3 s | **passes** |
+
+The Θ(N³) walk structure is collapsed: demands grow ~linearly in N and
+are served by ~O(N) batched walks. `window_app` --check now completes
+in **17 s** (previously unbounded); `windowed_calculator` still exceeds
+600 s — remaining walks are `default_domains::assignment_windows` (67%)
+and `walk_state` (28%), per-site consumers of
+`completed_value_case_at_occurrence` → `observe_runtime_state_prefix`
+(singular). Same batch shape as operand_fits; that consumer is the next
+plumbing target.
+
+**Identical-verdict evidence:** pre-merge `bd87af7` and post-merge
+m26/m32 produce byte-identical error sets — the batch preserves
+semantics on this shape. The m26/m32 range-proof rejections are a
+**prior main regression** (deep-machine `%`/`+` operands on unbounded
+`u64` now unprovable), independent of the batch work — flagged, not
+fixed here.
+
+**Session trap recorded:** `omega-remote`'s default `Remote` slot is
+shared across sessions — a foreign sync reset `~/Omega-Remote` to an
+unrelated head mid-session, silently building/running stale code.
+Also, each local `exec` spawn starts at the primary checkout's cwd,
+whose pinned anchor can lag main — `omega-remote` resolves HEAD/TOP
+from cwd, so calls must `cd` to the intended worktree first and
+prefer a private `--slot`. Symptom: 0 `[walk]` lines + ancient `git
+log` on the remote worktree.
+
 ## Blocks
 
 `samples/gui/windowed_calculator` checking on every host — the GUI

@@ -11,6 +11,6 @@ machine finish(envelope: Envelope) satisfies Completion::confirm
 requires envelope in Envelope::Pending
 ensures published(envelope)
 { envelope.acknowledgement.value.store(envelope.invocation, Publish); }
-CompletionProvider satisfies Completion { Completion::confirm = finish; }
+CompletionProvider satisfies Completion { machine confirm(envelope: Envelope) requires envelope in Envelope::Pending { finish(envelope) } }
 machine invalid(envelope: Envelope) reaches Completion { Completion::confirm(envelope); }
 machine main() {}

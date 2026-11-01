@@ -8,42 +8,57 @@ machine consume(diff: i64) -> i64
     diff
 }
 
-linux_x86_64 machine shift_right(val: i64, shift: u32) -> i64
-    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
-{
-    let shifted: i64 = val >> shift;
-    let diff: i64 = shifted - 100i64;
-    consume(diff)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine shift_right(val: i64, shift: u32) -> i64
-    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
-{
-    let shifted: i64 = val >> shift;
-    let diff: i64 = shifted - 100i64;
-    consume(diff)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine shift_right(val: i64, shift: u32) -> i64
-    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
-{
-    let shifted: i64 = val >> shift;
-    let diff: i64 = shifted - 100i64;
-    consume(diff)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine shift_right(val: i64, shift: u32) -> i64
-    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
-{
-    let shifted: i64 = val >> shift;
-    let diff: i64 = shifted - 100i64;
-    consume(diff)
+boundary trait SelectedShiftRight {
+    machine shift_right(val: i64, shift: u32) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32;
+}
+
+X86ShiftRight satisfies SelectedShiftRight {
+    machine shift_right(val: i64, shift: u32) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let shifted: i64 = val >> shift;
+        let diff: i64 = shifted - 100i64;
+        consume(diff)
+    }
+}
+
+ArmShiftRight satisfies SelectedShiftRight {
+    machine shift_right(val: i64, shift: u32) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let shifted: i64 = val >> shift;
+        let diff: i64 = shifted - 100i64;
+        consume(diff)
+    }
 }
 
 machine probe(val: i64, shift: u32) -> i64
     requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
 {
-    shift_right(val, shift)
+    SelectedShiftRight::shift_right(val, shift)
 }
 
 machine main() crashes Trap {
@@ -56,4 +71,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

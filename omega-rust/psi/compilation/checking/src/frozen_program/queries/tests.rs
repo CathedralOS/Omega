@@ -122,3 +122,35 @@ fn operand_fit_population_ancestry_is_exact_and_composes_with_numeric_queries() 
         );
     });
 }
+
+#[test]
+fn completed_case_population_ancestry_follows_the_request_and_projection_owner() {
+    let program = TypedTrees::default();
+    let context = CheckingContext::new(&program);
+    let machine = SymbolHandle::from_parts(1, 1);
+    let other = SymbolHandle::from_parts(2, 1);
+    let state = SymbolHandle::from_parts(3, 1);
+    let population = CheckingQuery::completed_case_population(&context, machine).unwrap();
+    let fits = CheckingQuery::operand_fit_population(&population, machine).unwrap();
+    let numeric = CheckingQuery::numeric_observation(&fits, machine, state).unwrap();
+    assert!(CheckingQuery::completed_case_population(&numeric, machine).is_none());
+    assert!(CheckingQuery::completed_case_population(&numeric, other).is_some());
+    assert!(
+        CheckingQuery::completed_case_population(
+            &numeric,
+            SymbolHandle::from_parts(machine.arena_index(), machine.generation() + 1),
+        )
+        .is_some()
+    );
+    // Another invocation with identical symbols has no unfinished population.
+    assert!(CheckingQuery::completed_case_population(&context, machine).is_some());
+    let independent = TypedTrees::default();
+    assert!(CheckingQuery::completed_case_population(&independent, machine).is_some());
+    let layout = crate::layout_checking::LayoutCheckingContext::new(&numeric, Some("linux_x86_64"));
+    assert!(CheckingQuery::completed_case_population(&layout, machine).is_none());
+    let mut projection = CheckingProjection::new(&layout);
+    assert!(CheckingQuery::completed_case_population(&projection, machine).is_none());
+    projection.program_mut();
+    assert!(projection.checking_memos().is_none());
+    assert!(CheckingQuery::completed_case_population(&projection, machine).is_some());
+}

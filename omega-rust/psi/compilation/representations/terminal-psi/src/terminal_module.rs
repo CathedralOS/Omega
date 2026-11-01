@@ -266,6 +266,25 @@ impl TerminalModule {
         find_structural_type(&self.structural_types, id)
     }
 
+    /// Foreign reference transport, independent of pointee storage demand.
+    /// A retained definition supplies its carrier kind; an identity-only leaf
+    /// retains the checked pointer/descriptor judgment. Neither grants access.
+    pub fn foreign_reference_descriptor(
+        &self,
+        referent: semantic_vocabulary::StructuralTypeId,
+    ) -> Option<bool> {
+        if let Some(declaration) = self.structural_type(referent) {
+            return Some(matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. }
+            ));
+        }
+        self.structural_referents
+            .iter()
+            .find(|row| row.id == referent)
+            .map(|row| row.foreign_descriptor)
+    }
+
     /// The structural domain keyed `id`, when the module declares it.
     pub fn structural_domain(
         &self,

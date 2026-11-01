@@ -30,3 +30,15 @@ All positive projects bind `ProgramEntry` for all four hosted targets. On the av
 8. **Encoding and native image emission (Omega 07–09).** Native and interpreter exit zero agree for every positive. No execution is claimed for unavailable foreign hosts.
 
 This is a parser-admission prerequisite witness, not a claim that this row alone completes R5. The finite-cycle and other may-write rows remain required, as does ordinary parser package admission and convergence.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

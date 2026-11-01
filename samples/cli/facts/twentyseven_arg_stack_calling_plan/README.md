@@ -104,3 +104,15 @@ omega --check samples/cli/facts/twentyseven_arg_stack_calling_plan/<place>/inval
 - Re-measured on macOS arm64 at producer revision `9b001b8f6afa` (shared generation producer `gen-9b001b8f6af`): `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for the root and all nine places (10/10), and each of the nine `<place>/invalid` twins exits 1 at checking carrying `may overflow \`u64\`` (decision 17, exact arithmetic is a proof obligation). `git diff` positive vs twin changes only the header oracle lines, the widened bound (`a27 <= 80u64` to `a27 <= 81u64`, matching `result`), and the argument value (`60` to `81`) — 10 to 16 changed lines per place, nothing structural.
 - Pinned record at `9b001b8f6afa+wt` with the generation runner at `OMEGA_CORPUS_JOBS=3`: nine `checked` rows with `check-target:macos_arm64` and nine `rejected ... expected` rows carrying the decision-17 `may overflow \`u64\`` continuation line in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail fixtures that did not reject.
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

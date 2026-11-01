@@ -57,29 +57,7 @@ use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
 
-/// The values an integer expression can take, as the arithmetic walk that
-/// checked its evaluation found them; `None` is an unbounded end. Every walk of
-/// the expression contributes, so the interval holds wherever it is evaluated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExpressionInterval {
-    pub expression: ExpressionHandle,
-    pub low: Option<i64>,
-    pub high: Option<i64>,
-}
-
-/// The retained interval of `expression`, from `intervals` in handle order.
-pub fn expression_interval(
-    intervals: &[ExpressionInterval],
-    expression: ExpressionHandle,
-) -> Option<&ExpressionInterval> {
-    let position = checked_trees::operators::handle_position(expression);
-    intervals
-        .binary_search_by_key(&position, |interval| {
-            checked_trees::operators::handle_position(interval.expression)
-        })
-        .ok()
-        .map(|found| &intervals[found])
-}
+use crate::proof_contracts::arithmetic_domains::ExpressionInterval;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
@@ -400,6 +378,12 @@ fn validate<'program>(
         fact_call_projections,
         specification_calls,
     ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
+        crate::declarations::type_aliases::validate(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         validate_data_field_types(
             program,
             &symbols,
@@ -1110,26 +1094,7 @@ fn validate<'program>(
         expression_values: walked_intervals,
     } = arithmetic_decisions;
     integer_range_obligations.extend(formation_obligations);
-    let mut expression_intervals = Vec::<ExpressionInterval>::new();
-    let mut walked_intervals = walked_intervals;
-    walked_intervals
-        .sort_by_key(|value| checked_trees::operators::handle_position(value.expression));
-    for value in walked_intervals {
-        let expression = value.expression;
-        let interval = value.interval;
-        // Each walk bounds the evaluations it saw; their hull bounds them all.
-        match expression_intervals.last_mut() {
-            Some(previous) if previous.expression == expression => {
-                previous.low = previous.low.zip(interval.low()).map(|(a, b)| a.min(b));
-                previous.high = previous.high.zip(interval.high()).map(|(a, b)| a.max(b));
-            }
-            _ => expression_intervals.push(ExpressionInterval {
-                expression,
-                low: interval.low(),
-                high: interval.high(),
-            }),
-        }
-    }
+    let expression_intervals = arithmetic_domains::collect_expression_intervals(walked_intervals);
     // Qualification consumes these same occurrence-bound operand judgments.
     // It follows flow checking so locals, guards, selected calls and writes
     // have one value owner; the asserted target never supplies its own premise.

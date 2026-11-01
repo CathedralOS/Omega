@@ -4,7 +4,7 @@ public boundary trait ArrayValue {
     machine read(values: [i32; 2]) -> i32 reaches;
 }
 ArrayProvider satisfies ArrayValue {
-    ArrayValue::read = first;
+    machine read(values: [i32; 2]) -> i32 { first(values) }
 }
 machine first(values: [i32; 2]) -> i32 { values[0] }
 

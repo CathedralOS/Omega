@@ -192,6 +192,7 @@ pub fn evaluate_pre_resolution(
     // Every job sees the same declaration context. Source custody without its
     // retained declarations would turn an ordinary imported constant call into
     // Unknown; restarting just that job on fresh syntax loses the same bodies.
+    let syntax_trees = crate::syntax_probes::normalize_type_aliases(syntax_trees, &source_context)?;
     let syntax_trees = const_initializers::evaluate(syntax_trees, &source_context)?;
     let syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
     let syntax_trees =
@@ -216,6 +217,10 @@ pub fn evaluate_pre_resolution(
         source_context.sources.clone(),
         source_context.source_scoped_top_level_bindings,
         source_context.retained_base(),
+        [
+            source_context.declaration_syntax,
+            source_context.retained_declaration_syntax,
+        ],
     )?;
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression

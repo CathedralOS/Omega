@@ -1,0 +1,11 @@
+// A spelling that matches only another machine's private helper is an unresolved name when used as a value.
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine main() crashes Trap {
+    let seen: u64 = outer(7);
+    let named: u64 = hidden;
+    transition seen == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

@@ -15,3 +15,5 @@ pub mod product_operand;
 pub mod trait_definition;
 pub mod visibility;
 pub mod wire;
+
+pub mod type_aliases;

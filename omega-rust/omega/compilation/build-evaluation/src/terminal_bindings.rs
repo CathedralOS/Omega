@@ -6,9 +6,11 @@
 //! an integer nor a matching debug name grants selection authority. Records
 //! remain inert until the product owner resolves and admits them.
 
+use crate::terminal_requests::build_facet;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, CompositionMode, ExecutedBuildSelection,
-    ExecutedProductSelection, ExecutedRootBinding, ProductDeclarationRequest, RootBindingOperand,
+    ExecutedProductSelection, ExecutedRootBinding, NativeBindingFormation,
+    ProductDeclarationRequest, ProductTarget, ProviderReadinessRequest, RootBindingOperand,
     RootBindingSelection,
 };
 use psi_compiler::{
@@ -34,7 +36,7 @@ pub struct TerminalBuildBindingHost {
     product_facet: Option<TerminalStructuralValue>,
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
-    native_formations: Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
+    native_formations: Arc<[NativeBindingFormation]>,
     original: TerminalStructuralValue,
     state: Mutex<BindingState>,
 }
@@ -56,9 +58,8 @@ struct InstalledBuildProvider {
     package: semantic_vocabulary::PackageKeyIdentity,
 }
 
-pub type BuildProviderRequest = language_semantics::declaration_selection::ProviderReadinessRequest<
-    psi_compiler::TerminalBuildProviderRequirement,
->;
+pub type BuildProviderRequest =
+    ProviderReadinessRequest<psi_compiler::TerminalBuildProviderRequirement>;
 
 impl BindingState {
     fn provider_is_installed(&self, request: &BuildProviderRequest) -> bool {
@@ -114,9 +115,7 @@ impl TerminalBuildBindingHost {
         let product_facet = if queries.is_empty() {
             None
         } else {
-            Some(crate::terminal_requests::build_facet(
-                artifact, &original, "product",
-            )?)
+            Some(build_facet(artifact, &original, "product")?)
         };
         Ok(Arc::new(Self {
             calls: Arc::clone(calls),
@@ -133,9 +132,7 @@ impl TerminalBuildBindingHost {
         }))
     }
 
-    pub(crate) fn native_formations(
-        &self,
-    ) -> &[language_semantics::declaration_selection::NativeBindingFormation] {
+    pub(crate) fn native_formations(&self) -> &[NativeBindingFormation] {
         &self.native_formations
     }
 
@@ -484,9 +481,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     ) => {
                         let target = u64::try_from(*code)
                             .ok()
-                            .and_then(
-                                language_semantics::declaration_selection::ProductTarget::from_code,
-                            )
+                            .and_then(ProductTarget::from_code)
                             .ok_or_else(|| {
                                 refuse("Product selection names an unknown catalog target")
                             })?;

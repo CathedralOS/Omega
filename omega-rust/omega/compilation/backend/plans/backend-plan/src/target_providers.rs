@@ -408,6 +408,19 @@ fn selected_checked_candidates<'plan, 'terminal>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
+                        // The portable catalog retains every member of the
+                        // remaining legacy families. A target-keyed plan joins
+                        // only its exact member before checking uniqueness;
+                        // other targets are not competing implementations.
+                        && module.target_machine_families.iter().all(|family| {
+                            let callable = terminal_psi::TargetMachineCallable::Machine(
+                                candidate.candidate,
+                            );
+                            !family.members.iter().any(|member| member.callable == callable)
+                                || family.members.iter().any(|member| {
+                                    member.target == plan.target && member.callable == callable
+                                })
+                        })
                 })
                 .collect::<Vec<_>>();
             // A template can supply many distinct closed requirements, never
@@ -419,7 +432,21 @@ fn selected_checked_candidates<'plan, 'terminal>(
             requirements.sort();
             if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
                 return Err(format!(
-                    "selected provider requirement `{requirement}` has duplicate canonical realizations"
+                    "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
+                    matching
+                        .iter()
+                        .map(|candidate| (
+                            candidate.candidate,
+                            module.identities.text(candidate.candidate_identity),
+                            module
+                                .machine(candidate.candidate)
+                                .and_then(|machine| machine.declaration.as_ref())
+                                .and_then(|declaration| module
+                                    .identities
+                                    .text(declaration.semantic_declaration)),
+                            module.identities.text(candidate.receiving_application),
+                        ))
+                        .collect::<Vec<_>>()
                 ));
             }
             selections.push(SelectedCheckedCandidate {

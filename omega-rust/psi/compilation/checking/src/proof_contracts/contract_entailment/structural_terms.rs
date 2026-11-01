@@ -511,6 +511,24 @@ pub(super) fn static_type_predicate_term(
             fields: Vec::new(),
         });
     }
+    static_type_equation_term(program, left, right, negate, substitutions)
+}
+
+/// Type equality has the same exact identity in a declaration and at an
+/// independently observed body occurrence. No synthetic source goal is needed.
+/// The atom's name carries each operand's identity and whether it is closed,
+/// in sorted order, so a judge can tell `T == i32` from `T == bool` without the
+/// program: see [`open_closed_type_atom`].
+pub(super) fn static_type_equation_term(
+    program: &dyn crate::CheckingInput,
+    left: typed_trees::types::TypeReferenceHandle,
+    right: typed_trees::types::TypeReferenceHandle,
+    negate: bool,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<StructuralTerm> {
     let identity = |reference| {
         program.type_identity_text(program.type_identity_with_simultaneous_substitutions(
             typed_trees::type_identity::TypeIdentityRequest {
@@ -519,15 +537,48 @@ pub(super) fn static_type_predicate_term(
             },
         ))
     };
-    let mut operands = [identity(left)?, identity(right)?];
+    let closed = |reference| {
+        typed_trees::domain::index_argument_is_closed_with_substitutions(
+            program.typed_program(),
+            reference,
+            substitutions,
+        )
+    };
+    let mut operands = [
+        (identity(left)?, closed(left)),
+        (identity(right)?, closed(right)),
+    ];
     operands.sort_unstable();
     Some(StructuralTerm::Variable(format!(
-        "$static-type-predicate:{}:{}:{}:{}:{negate}",
-        operands[0].len(),
-        operands[0],
-        operands[1].len(),
-        operands[1],
+        "$static-type-predicate:{}:{}:{}:{}:{negate}:{}{}",
+        operands[0].0.len(),
+        operands[0].0,
+        operands[1].0.len(),
+        operands[1].0,
+        u8::from(operands[0].1),
+        u8::from(operands[1].1),
     )))
+}
+
+/// The binder and the closed type of a non-negated type atom that equates an
+/// open type with a closed one (`T == i32`), decoded from its name. Operands
+/// are length-prefixed because identities contain `:`.
+pub(super) fn open_closed_type_atom(name: &str) -> Option<(&str, &str)> {
+    let rest = name.strip_prefix("$static-type-predicate:")?;
+    let (first_length, rest) = rest.split_once(':')?;
+    let first_length: usize = first_length.parse().ok()?;
+    let first = rest.get(..first_length)?;
+    let rest = rest.get(first_length..)?.strip_prefix(':')?;
+    let (second_length, rest) = rest.split_once(':')?;
+    let second_length: usize = second_length.parse().ok()?;
+    let second = rest.get(..second_length)?;
+    let rest = rest.get(second_length..)?.strip_prefix(':')?;
+    let (negate, flags) = rest.split_once(':')?;
+    match (negate, flags) {
+        ("false", "01") => Some((first, second)),
+        ("false", "10") => Some((second, first)),
+        _ => None,
+    }
 }
 
 pub(super) fn structural_term(

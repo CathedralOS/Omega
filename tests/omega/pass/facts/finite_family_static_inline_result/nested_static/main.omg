@@ -6,7 +6,7 @@ trait Family {
     machine row<const Width: u64>(value: Outer<Width>) -> Outer<Width> where Width == 16 || Width == 32;
 }
 machine produce<const Width: u64>(value: Outer<Width>) -> Outer<Width> satisfies Family::row { value }
-Selected satisfies Family { Family::row = produce; }
+Selected satisfies Family { machine row<const Width: u64>(value: Outer<Width>) -> Outer<Width> where Width == 16 || Width == 32 { produce<Width>(value) } }
 machine main() crashes Trap {
     let input: Outer<16> = Outer { inner: Inner { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] } };
     let output: Outer<16> = Family::row<16>(Selected as dyn Family, input);

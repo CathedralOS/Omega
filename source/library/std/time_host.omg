@@ -92,6 +92,7 @@ public NativeTimeHost satisfies TimeHost {
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
     invokes DarwinX64TimeRead
+    invokes WindowsTimeRead
     blocks
     {
         block TimeHostNativeProvider::sleep(milliseconds);
@@ -130,13 +131,14 @@ public boundary trait TimeHost {
     machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost;
     // Millisecond sleep. The Darwin and Linux x86-64 providers wait with
     // poll, Linux arm64 with nanosleep (the asm-generic table publishes no
-    // poll), Windows with kernel32 `Sleep`, and the interpreter advances its
-    // virtual clock. Windows Sleep is the requirement leaf itself.
+    // poll), Windows with kernel32 `Sleep` bound as `WindowsTimeRead::sleep`,
+    // and the interpreter advances its virtual clock.
     machine sleep(milliseconds: u32)
     reaches TimeHost
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
     invokes DarwinX64TimeRead
+    invokes WindowsTimeRead
     blocks;
 }

@@ -47,8 +47,8 @@ mod trait_applications;
 
 pub use bounds::GenericBoundRequirement;
 pub(crate) use bounds::{
-    named_conformance_argument_matches, validate_generic_conformance_bounds,
-    validate_trait_conformance_bounds,
+    named_conformance_argument_matches, validate_conformance_bounds,
+    validate_generic_conformance_bounds, validate_trait_conformance_bounds,
 };
 pub(crate) use external_shapes::{
     validate_external_leaf_native_shapes, validate_external_via_expression,

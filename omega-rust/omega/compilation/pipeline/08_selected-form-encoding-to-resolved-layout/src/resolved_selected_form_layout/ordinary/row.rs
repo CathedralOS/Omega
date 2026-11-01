@@ -1,6 +1,7 @@
 use super::plan::unexpected;
 use std::collections::BTreeMap;
 
+use calling_conventions::MachineRegister;
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
@@ -9,14 +10,16 @@ use selected_instructions::{
 use target::Architecture;
 
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
-    SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState,
+    CallbackAddressDestination, DeferredControlEncodingReason, ImageAddressFields,
+    SelectedFormCallbackMaterializationEncoding, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormImageAddressFixup, SelectedFormInternalMachineFixup,
+    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+    SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 
-use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence};
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
+use super::super::ResolvedBranchEvidence;
 use super::branch;
 
 #[allow(clippy::too_many_arguments)]
@@ -37,9 +40,9 @@ pub(super) fn resolve(
         Option<Box<ResolvedBranchEvidence>>,
         Option<SelectedFormInternalMachineFixup>,
         Option<SelectedFormNormalizedForeignCallFixup>,
-        Option<machine_code::SelectedFormImageAddressFixup>,
+        Option<SelectedFormImageAddressFixup>,
     ),
-    OptimizedResolvedSelectedFormLayoutError,
+    Error,
 > {
     // The resolved row owns its own byte vector; it is filled from the
     // encoding row's interned span rather than from a per-row vector.
@@ -115,18 +118,17 @@ pub(super) fn resolve(
 fn validate_image_address_fixup(
     instruction: &SelectedInstruction,
     bytes: &[u8],
-    fixup: machine_code::SelectedFormImageAddressFixup,
-) -> Result<machine_code::SelectedFormImageAddressFixup, OptimizedResolvedSelectedFormLayoutError> {
+    fixup: SelectedFormImageAddressFixup,
+) -> Result<SelectedFormImageAddressFixup, Error> {
     let SelectedInstructionKind::ImageAddress { reference } = instruction.kind else {
         return unexpected(instruction.id);
     };
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let row_len = u64::try_from(bytes.len()).map_err(|_| Error::OffsetOverflow)?;
     let fields_inside = match fixup.fields {
-        machine_code::ImageAddressFields::X86_64Relative32 { patch_offset } => {
+        ImageAddressFields::X86_64Relative32 { patch_offset } => {
             patch_offset.checked_add(4) == Some(row_len)
         }
-        machine_code::ImageAddressFields::Aarch64PageAddress {
+        ImageAddressFields::Aarch64PageAddress {
             page_patch_offset,
             page_offset_patch_offset,
         } => {
@@ -146,7 +148,7 @@ fn validate_internal_fixup(
     instruction_offset: u64,
     bytes: &[u8],
     fixup: SelectedFormInternalMachineFixup,
-) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<SelectedFormInternalMachineFixup, Error> {
     let Some(callee) = instruction.kind.machine_callee() else {
         return unexpected(instruction.id);
     };
@@ -189,7 +191,7 @@ fn validate_foreign_fixup(
     instruction_offset: u64,
     bytes: &[u8],
     fixup: SelectedFormNormalizedForeignCallFixup,
-) -> Result<SelectedFormNormalizedForeignCallFixup, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<SelectedFormNormalizedForeignCallFixup, Error> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind
     else {
         return unexpected(instruction.id);
@@ -245,19 +247,18 @@ fn validate_unresolved_field(
     opcode_row_offset: u16,
     reference_row_offset: u16,
     placeholder: [u8; 4],
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<(), Error> {
     let patch_start = usize::from(patch_row_offset);
     let patch_end = patch_start
         .checked_add(usize::from(patch_byte_width))
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        .ok_or(Error::OffsetOverflow)?;
     if bytes.get(patch_start..patch_end) != Some(placeholder.as_slice()) {
         return unexpected(instruction.id);
     }
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let row_len = u64::try_from(bytes.len()).map_err(|_| Error::OffsetOverflow)?;
     let row_end = instruction_offset
         .checked_add(row_len)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        .ok_or(Error::OffsetOverflow)?;
     let opcode = instruction_offset.checked_add(u64::from(opcode_row_offset));
     let reference = instruction_offset.checked_add(u64::from(reference_row_offset));
     if opcode.is_none_or(|at| at >= row_end) || reference.is_none_or(|at| at > row_end) {
@@ -276,14 +277,13 @@ fn validate_callback_materializations(
     bytes: &[u8],
     opcode_row_offset: u16,
     callbacks: &[machine_code::SelectedFormCallbackMaterialization],
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+) -> Result<(), Error> {
+    let row_len = u64::try_from(bytes.len()).map_err(|_| Error::OffsetOverflow)?;
     let mut cursor = 0_u64;
     for callback in callbacks {
         let materialization_end = u64::from(callback.code_row_offset)
             .checked_add(u64::from(callback.code_byte_count))
-            .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+            .ok_or(Error::OffsetOverflow)?;
         if u64::from(callback.code_row_offset) != cursor
             || materialization_end > row_len
             || materialization_end > u64::from(opcode_row_offset)
@@ -292,14 +292,12 @@ fn validate_callback_materializations(
         }
         let group = bytes
             .get(cursor as usize..materialization_end as usize)
-            .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-        let zero_patch = |offset: u16| -> Result<bool, OptimizedResolvedSelectedFormLayoutError> {
+            .ok_or(Error::OffsetOverflow)?;
+        let zero_patch = |offset: u16| -> Result<bool, Error> {
             let start = usize::from(offset)
                 .checked_sub(cursor as usize)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-            let end = start
-                .checked_add(4)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                .ok_or(Error::OffsetOverflow)?;
+            let end = start.checked_add(4).ok_or(Error::OffsetOverflow)?;
             Ok(u64::from(offset) >= cursor
                 && u64::from(offset).checked_add(4) <= Some(materialization_end)
                 && group.get(start..end) == Some(&[0, 0, 0, 0]))
@@ -307,12 +305,10 @@ fn validate_callback_materializations(
         match (architecture, callback.encoding) {
             (
                 Architecture::X86_64,
-                machine_code::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
-                    patch_row_offset,
-                },
+                SelectedFormCallbackMaterializationEncoding::X86_64Relative32 { patch_row_offset },
             ) => {
                 let canonical = match callback.destination {
-                    machine_code::CallbackAddressDestination::Register(_) => {
+                    CallbackAddressDestination::Register(_) => {
                         // REX 8D modrm disp32 — seven bytes, disp32 patch at +3.
                         callback.code_byte_count == 7
                             && patch_row_offset as u64 == cursor + 3
@@ -322,7 +318,7 @@ fn validate_callback_materializations(
                             && group[2] & 0xc7 == 0x05
                             && zero_patch(patch_row_offset)?
                     }
-                    machine_code::CallbackAddressDestination::RecordField {
+                    CallbackAddressDestination::RecordField {
                         root_register,
                         byte_offset,
                     } => {
@@ -330,20 +326,20 @@ fn validate_callback_materializations(
                         // fourteen bytes, disp32 patch at +3.
                         if !matches!(
                             root_register,
-                            calling_conventions::MachineRegister::X86Rax
-                                | calling_conventions::MachineRegister::X86Rcx
-                                | calling_conventions::MachineRegister::X86Rdx
-                                | calling_conventions::MachineRegister::X86Rbx
-                                | calling_conventions::MachineRegister::X86Rsi
-                                | calling_conventions::MachineRegister::X86Rdi
-                                | calling_conventions::MachineRegister::X86R8
-                                | calling_conventions::MachineRegister::X86R9
-                                | calling_conventions::MachineRegister::X86R10
-                                | calling_conventions::MachineRegister::X86R11
-                                | calling_conventions::MachineRegister::X86R12
-                                | calling_conventions::MachineRegister::X86R13
-                                | calling_conventions::MachineRegister::X86R14
-                                | calling_conventions::MachineRegister::X86R15
+                            MachineRegister::X86Rax
+                                | MachineRegister::X86Rcx
+                                | MachineRegister::X86Rdx
+                                | MachineRegister::X86Rbx
+                                | MachineRegister::X86Rsi
+                                | MachineRegister::X86Rdi
+                                | MachineRegister::X86R8
+                                | MachineRegister::X86R9
+                                | MachineRegister::X86R10
+                                | MachineRegister::X86R11
+                                | MachineRegister::X86R12
+                                | MachineRegister::X86R13
+                                | MachineRegister::X86R14
+                                | MachineRegister::X86R15
                         ) {
                             return unexpected(instruction.id);
                         }
@@ -361,7 +357,7 @@ fn validate_callback_materializations(
                                 == byte_offset
                             && zero_patch(patch_row_offset)?
                     }
-                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                    CallbackAddressDestination::OutgoingStack { byte_offset } => {
                         // lea r11, [rip+disp32], then the exact-width pointer
                         // store at pre-call RSP; CALL's return address is not
                         // part of this outgoing-area coordinate.
@@ -387,13 +383,13 @@ fn validate_callback_materializations(
             }
             (
                 Architecture::Aarch64,
-                machine_code::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
                     page_patch_row_offset,
                     page_offset_patch_row_offset,
                 },
             ) => {
                 let canonical = match callback.destination {
-                    machine_code::CallbackAddressDestination::Register(_) => {
+                    CallbackAddressDestination::Register(_) => {
                         callback.code_byte_count == 8
                             && page_patch_row_offset as u64 == cursor
                             && page_offset_patch_row_offset as u64 == cursor + 4
@@ -409,12 +405,11 @@ fn validate_callback_materializations(
                             && group[4] >> 5 == group[0] & 7
                             && group[5] & 3 == group[0] >> 3 & 3
                     }
-                    machine_code::CallbackAddressDestination::RecordField {
+                    CallbackAddressDestination::RecordField {
                         root_register,
                         byte_offset,
                     } => {
-                        let calling_conventions::MachineRegister::Aarch64X(root) = root_register
-                        else {
+                        let MachineRegister::Aarch64X(root) = root_register else {
                             return unexpected(instruction.id);
                         };
                         let store = group
@@ -441,7 +436,7 @@ fn validate_callback_materializations(
                                         | 16,
                                 )
                     }
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                    CallbackAddressDestination::OutgoingStack { .. } => {
                         return unexpected(instruction.id);
                     }
                 };

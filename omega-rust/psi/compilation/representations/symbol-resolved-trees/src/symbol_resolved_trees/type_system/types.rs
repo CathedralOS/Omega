@@ -57,6 +57,16 @@ pub enum TypeReference {
     },
     #[default]
     Unit,
+    /// Source-only application custody around an already expanded type.
+    /// Typing erases this carrier into an ordinary type occurrence plus its
+    /// independent alias-argument obligations; it is never a nominal type.
+    AliasUse {
+        expansion: Box<TypeReference>,
+        application: Box<TypeReference>,
+        declaration_source: source::SourceSpan,
+        definition_references: Vec<source::SourceSpan>,
+        supplied_operand_owner: OperandLifetimeOwnerHandle,
+    },
 }
 
 /// A const recipe retains the source declaration that supplies its leaves.
@@ -529,6 +539,34 @@ impl TypeReferenceTable {
                 name: name.clone(),
             }),
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
+            TypeReference::AliasUse {
+                expansion,
+                application,
+                declaration_source,
+                definition_references,
+                ..
+            } => {
+                let expansion = self.insert_tree_from_source(
+                    expansion,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                    source_expressions,
+                );
+                let application = self.insert_tree_from_source(
+                    application,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                    source_expressions,
+                );
+                self.insert(TypeReferenceNode::AliasUse {
+                    expansion,
+                    application,
+                    declaration_source: *declaration_source,
+                    definition_references: definition_references.clone(),
+                })
+            }
         };
         let owner = type_reference.supplied_operand_owner();
         let lexical_owner = type_reference.operand_lexical_owner();
@@ -558,6 +596,10 @@ impl TypeReference {
             | Self::DynamicTrait {
                 supplied_operand_owner,
                 ..
+            }
+            | Self::AliasUse {
+                supplied_operand_owner,
+                ..
             } => *supplied_operand_owner,
             Self::ConstExpression(expression) => expression.supplied_operand_owner,
             Self::Unit => OperandLifetimeOwnerHandle::invalid(),
@@ -567,6 +609,7 @@ impl TypeReference {
     pub fn operand_lexical_owner(&self) -> SymbolHandle {
         match self {
             Self::ConstExpression(expression) => expression.lexical_owner,
+            Self::AliasUse { expansion, .. } => expansion.operand_lexical_owner(),
             _ => SymbolHandle::invalid(),
         }
     }
@@ -583,6 +626,10 @@ impl TypeReference {
                 ..
             }
             | Self::DynamicTrait {
+                supplied_operand_owner,
+                ..
+            }
+            | Self::AliasUse {
                 supplied_operand_owner,
                 ..
             } => *supplied_operand_owner = owner,
@@ -637,6 +684,14 @@ pub enum TypeReferenceNode {
     },
     #[default]
     Unit,
+    /// Source-only application custody; typing erases the wrapper while
+    /// preserving the independently checked alias-argument obligations.
+    AliasUse {
+        expansion: TypeReferenceHandle,
+        application: TypeReferenceHandle,
+        declaration_source: source::SourceSpan,
+        definition_references: Vec<source::SourceSpan>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -749,6 +804,7 @@ impl TypeReference {
             TypeReference::Reference(_) => None,
             TypeReference::Constrained(_) => None,
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
+            TypeReference::AliasUse { expansion, .. } => expansion.primitive_type(),
             TypeReference::FixedArray(_)
             | TypeReference::Slice(_)
             | TypeReference::Generic(_)

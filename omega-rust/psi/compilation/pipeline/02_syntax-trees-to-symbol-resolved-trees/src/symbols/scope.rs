@@ -4,6 +4,7 @@ use language_core::is_self_receiver;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, TypeParameter};
 use symbol_resolved_trees::lookup_indexes::ResolvedIndexes;
+use symbol_resolved_trees::type_aliases::TypeAliasDefinition;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 
@@ -452,6 +453,8 @@ pub(super) struct MachineScope<'program> {
     /// body resolution (field-initializer resolution), where nested method
     /// receivers do not occur.
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
+    /// Alias headers supply argument roles, never runtime receiver members.
+    pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
     pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
@@ -465,6 +468,7 @@ pub(super) struct ContractScopeContext<'program> {
     pub(super) attached_machines: &'program AttachedMachines,
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
+    pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
     pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
@@ -492,6 +496,7 @@ impl<'program> ContractScopeContext<'program> {
             owned_data,
             prior_statements: &[],
             data_definitions: self.data_definitions,
+            type_aliases: self.type_aliases,
             data_members: self.data_members,
             data_type_parameters: self.data_type_parameters,
             data_payload_fields: self.data_payload_fields,

@@ -107,3 +107,15 @@ under `tests/omega/fail/facts/nested_record_value_through_<place>_rejected/` wit
 - **Pinned evidence:** Nine positive fixtures at `tests/omega/pass/facts/nested_record_value_through_<place>_exit/` (each binding `ProgramEntry` for all four hosted targets with `expected_native_exit.txt` = `0`), with their nine measured golden rows in `tests/omega/corpus_native_macos_arm64.txt`. Nine reject twins at `tests/omega/fail/facts/nested_record_value_through_<place>_rejected/` with authored `expected.txt`. The row was measured, not repaired: all ten places already ran green on both engines, and the gap was that no native golden row had been recorded.
 
 - **What remains open:** Reference and mutable loan transport of nested record fields (`&envelope.header.limit`), partial field assignment invalidation of sibling path facts, and dynamic partition conservation under `core::content`.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

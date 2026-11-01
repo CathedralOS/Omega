@@ -27,6 +27,10 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.input.has_active_completed_case_population(machine)
+    }
+
     fn has_active_operand_fit_population(&self, machine: symbols::SymbolHandle) -> bool {
         self.input.has_active_operand_fit_population(machine)
     }

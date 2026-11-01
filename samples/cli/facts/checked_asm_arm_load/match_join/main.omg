@@ -1,69 +1,82 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
-linux_arm64 machine choose(branch: bool) crashes Trap {
-    let left: u32 = 37;
-    let right: u32 = 37;
-    let source: u32 = match branch { true -> left, false -> right };
-    let mut loaded: u32 = 0;
-    asm {
-        ldr loaded, source
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-macos_arm64 machine choose(branch: bool) crashes Trap {
-    let left: u32 = 37;
-    let right: u32 = 37;
-    let source: u32 = match branch { true -> left, false -> right };
-    let mut loaded: u32 = 0;
-    asm {
-        ldr loaded, source
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
 }
 
-windows_x86_64 machine choose(branch: bool) crashes Trap {
-    let left: u32 = 37;
-    let right: u32 = 37;
-    let source: u32 = match branch { true -> left, false -> right };
-    let mut loaded: u32 = 0;
-    asm {
-        mov loaded, source
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
 }
 
-linux_x86_64 machine choose(branch: bool) crashes Trap {
-    let left: u32 = 37;
-    let right: u32 = 37;
-    let source: u32 = match branch { true -> left, false -> right };
-    let mut loaded: u32 = 0;
-    asm {
-        mov loaded, source
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
+boundary trait SelectedChoose {
+    machine choose(branch: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Choose satisfies SelectedChoose {
+    machine choose(branch: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let left: u32 = 37;
+        let right: u32 = 37;
+        let source: u32 = match branch { true -> left, false -> right };
+        let mut loaded: u32 = 0;
+        asm {
+            mov loaded, source
+        }
+        transition loaded == 37 {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+
+ArmChoose satisfies SelectedChoose {
+    machine choose(branch: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let left: u32 = 37;
+        let right: u32 = 37;
+        let source: u32 = match branch { true -> left, false -> right };
+        let mut loaded: u32 = 0;
+        asm {
+            ldr loaded, source
+        }
+        transition loaded == 37 {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+
+
 machine main() crashes Trap {
-    choose(true);
-    choose(false);
+    SelectedChoose::choose(true);
+    SelectedChoose::choose(false);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

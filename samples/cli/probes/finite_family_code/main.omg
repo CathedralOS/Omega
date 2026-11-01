@@ -8,8 +8,8 @@
 //     tuples `Width == 16 || Width == 32` admit; every other Width is
 //     unsatisfiable by construction.
 //   * `Item::code<Width>` declares `satisfies Shape<Item>::code` in its own
-//     signature — the row IS the conformance, and `Primary`'s roster binds
-//     it with `Shape::code = Item::code`.
+//     signature — the edge IS the conformance, and `Primary`'s roster member calls
+//     it from an inline `code` member.
 //     (note: `where` disjunctions admit only on trait requirements — a
 //     free machine carrying the same clause is rejected at admission).
 //
@@ -31,7 +31,7 @@ machine Item::code<Width: u32>(item: &Item) -> i32 satisfies Shape<Item>::code {
 }
 
 Primary satisfies Shape<Item> {
-    Shape::code = Item::code;
+    machine code<Width: u32>(subject: &Item) -> i32 where Width == 16 || Width == 32 { Item::code<Width>(subject) }
 }
 
 machine finite_family_code() {

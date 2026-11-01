@@ -60,6 +60,220 @@ impl BigIntInterval {
         }
     }
 
+    pub fn subtract(&self, other: &Self) -> Self {
+        Self {
+            low: self
+                .low
+                .as_ref()
+                .zip(other.high.as_ref())
+                .map(|(left, right)| left.sub(right)),
+            high: self
+                .high
+                .as_ref()
+                .zip(other.low.as_ref())
+                .map(|(left, right)| left.sub(right)),
+        }
+    }
+
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            low: self
+                .low
+                .as_ref()
+                .zip(other.low.as_ref())
+                .map(|(left, right)| left.clone().min(right.clone())),
+            high: self
+                .high
+                .as_ref()
+                .zip(other.high.as_ref())
+                .map(|(left, right)| left.clone().max(right.clone())),
+        }
+    }
+
+    pub fn excludes_zero(&self) -> bool {
+        self.low.as_ref().is_some_and(|low| low > &BigInt::zero())
+            || self.high.as_ref().is_some_and(BigInt::is_negative)
+    }
+
+    /// Bounds of truncating division on a nonzero divisor interval. Infinite
+    /// denominator ends contribute the limit zero; numerator ends remain
+    /// independent, so one unbounded end cannot erase the other finite end.
+    /// This supplies result bounds, never the caller's formation judgment.
+    pub fn divide(&self, divisor: &Self) -> Self {
+        let (dividend, divisor) = if divisor.high.as_ref().is_some_and(BigInt::is_negative) {
+            let negative_one = BigInt::from_i64(-1);
+            (self.scale(&negative_one), divisor.scale(&negative_one))
+        } else {
+            (self.clone(), divisor.clone())
+        };
+        if !divisor
+            .low
+            .as_ref()
+            .is_some_and(|low| low > &BigInt::zero())
+        {
+            return Self::unbounded();
+        }
+        let endpoint = |numerator: &Option<BigInt>, lower: bool| {
+            let numerator = numerator.as_ref()?;
+            let denominator = if lower == numerator.is_negative() {
+                &divisor.low
+            } else {
+                &divisor.high
+            };
+            match denominator {
+                Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
+                None => Some(BigInt::zero()),
+            }
+        };
+        Self {
+            low: endpoint(&dividend.low, true),
+            high: endpoint(&dividend.high, false),
+        }
+    }
+
+    /// The hull of defined truncating remainders. A result can be zero even
+    /// when the dividend cannot; signed minimum magnitudes stay arbitrary
+    /// precision. Definedness and fixed-width MIN / -1 remain separate.
+    pub fn remainder(&self, divisor: &Self) -> Self {
+        let dividend = self.union(&Self::constant(BigInt::zero()));
+        let Some(magnitude) = divisor
+            .low
+            .as_ref()
+            .zip(divisor.high.as_ref())
+            .map(|(low, high)| low.abs().max(high.abs()))
+        else {
+            return dividend;
+        };
+        if magnitude.is_zero() {
+            return Self::unbounded();
+        }
+        let bound = magnitude.sub(&BigInt::from_i64(1));
+        dividend.intersect(&Self {
+            low: Some(bound.negate()),
+            high: Some(bound),
+        })
+    }
+
+    /// A caller that admitted the exact remainder reading may retain the
+    /// stronger hull when every dividend shares one truncating quotient.
+    pub fn constant_remainder(&self, modulus: &BigInt, tight_interval: bool) -> Self {
+        if modulus.is_zero() {
+            return Self::unbounded();
+        }
+        if tight_interval
+            && let (Some(low), Some(high)) = (&self.low, &self.high)
+            && let (Some((low_quotient, low_remainder)), Some((high_quotient, high_remainder))) =
+                (low.div_rem(modulus), high.div_rem(modulus))
+            && low_quotient == high_quotient
+        {
+            return Self {
+                low: Some(low_remainder.clone().min(high_remainder.clone())),
+                high: Some(low_remainder.max(high_remainder)),
+            };
+        }
+        self.remainder(&Self::constant(modulus.clone()))
+    }
+
+    /// Bounds of an arithmetic right shift over an independently established
+    /// finite count range. Unknown value ends remain unknown on their side.
+    pub fn shift_right(&self, low_count: u64, high_count: u64) -> Self {
+        if low_count > high_count {
+            return Self::unbounded();
+        }
+        let low = self.low.as_ref().and_then(|value| {
+            floor_shift_right(value, low_count)
+                .zip(floor_shift_right(value, high_count))
+                .map(|(low, high)| low.min(high))
+        });
+        let high = self.high.as_ref().and_then(|value| {
+            floor_shift_right(value, low_count)
+                .zip(floor_shift_right(value, high_count))
+                .map(|(low, high)| low.max(high))
+        });
+        Self { low, high }
+    }
+
+    /// Conservative carrier-aware AND bounds from the operand sign quadrants.
+    /// The selected carrier, not endpoint monotonicity, supplies representation
+    /// meaning. Full bit-prefix kernels remain in the shared numeric foundation.
+    pub fn bitwise_and(&self, other: &Self, bits: u32, signed: bool) -> Self {
+        let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
+        let left_interval = self;
+        let right_interval = other;
+        // An operand can be nonnegative unless its whole interval sits
+        // below zero, and negative unless it never leaves zero.
+        let nonnegative =
+            |interval: &Self| !interval.high.as_ref().is_some_and(BigInt::is_negative);
+        let negative =
+            |interval: &Self| !interval.low.as_ref().is_some_and(|low| !low.is_negative());
+        let min_bound = |left: &Option<BigInt>, right: &Option<BigInt>| match (left, right) {
+            (Some(left), Some(right)) => Some(left.clone().min(right.clone())),
+            (Some(bound), None) | (None, Some(bound)) => Some(bound.clone()),
+            (None, None) => None,
+        };
+        // The union of the live quadrants: lows min, highs max, and one
+        // quadrant without a ceiling lifts the whole result's. `fired`
+        // keeps the first bounded quadrant's `Some` from reading as
+        // "unbounded so far" -- the union of bounds is empty only before
+        // the first live quadrant contributes one.
+        let mut low: Option<BigInt> = None;
+        let mut high: Option<BigInt> = None;
+        let mut fired = false;
+        let mut extend = |quadrant_low: BigInt, quadrant_high: Option<BigInt>| {
+            low = Some(match &low {
+                Some(current) => current.clone().min(quadrant_low.clone()),
+                None => quadrant_low,
+            });
+            high = match quadrant_high {
+                Some(bound) if !fired => Some(bound),
+                Some(bound) => high.clone().map(|current| current.max(bound)),
+                None => None,
+            };
+            fired = true;
+        };
+        let (left_nonnegative, left_negative) =
+            (nonnegative(left_interval), negative(left_interval));
+        let (right_nonnegative, right_negative) =
+            (nonnegative(right_interval), negative(right_interval));
+        if left_nonnegative && right_nonnegative {
+            extend(
+                BigInt::zero(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        if left_nonnegative && right_negative {
+            extend(BigInt::zero(), left_interval.high.clone());
+        }
+        if left_negative && right_nonnegative {
+            extend(BigInt::zero(), right_interval.high.clone());
+        }
+        if left_negative && right_negative {
+            extend(
+                minimum.clone(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        Self {
+            low: low.map(|low| low.max(minimum.clone())).or(Some(minimum)),
+            high: high.map(|high| high.min(maximum.clone())).or(Some(maximum)),
+        }
+    }
+
+    pub fn from_closed(range: facts::IntegerRange) -> Self {
+        Self {
+            low: Some(range.minimum),
+            high: Some(range.maximum),
+        }
+    }
+
+    /// Only two established, ordered finite ends can become a closed evidence
+    /// row. Unknown endpoints are never clipped to a machine carrier.
+    pub fn into_closed(self) -> Option<facts::IntegerRange> {
+        let minimum = self.low?;
+        let maximum = self.high?;
+        (minimum <= maximum).then_some(facts::IntegerRange { minimum, maximum })
+    }
+
     pub fn scale(&self, factor: &BigInt) -> Self {
         if factor.is_zero() {
             return Self::constant(BigInt::zero());
@@ -166,7 +380,14 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
 /// `div_rem` truncates toward zero, so a negative nondivisible value drops
 /// one more -- `-3 >> 1` is `-2`, not the truncated quotient `-1`.
 pub fn floor_shift_right(value: &BigInt, count: u64) -> Option<BigInt> {
-    let divisor = BigInt::from_i64(1).shl_bits(count as usize);
+    if count >= value.bit_length() as u64 {
+        return Some(if value.is_negative() {
+            BigInt::from_i64(-1)
+        } else {
+            BigInt::zero()
+        });
+    }
+    let divisor = BigInt::from_i64(1).shl_bits(usize::try_from(count).ok()?);
     let (quotient, remainder) = value.div_rem(&divisor)?;
     Some(if remainder.is_negative() {
         quotient.sub(&BigInt::from_i64(1))

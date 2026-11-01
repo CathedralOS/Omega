@@ -154,12 +154,12 @@ linux_x86_64 machine ClockImports::nanoseconds(selector: i32) -> u64
 }
 
 ClockImportsClockProbeImplementation satisfies ClockProbe {
-    ClockProbe::nanoseconds = ClockImports::nanoseconds;
-    ClockProbe::read = ClockImports::read;
-    ClockProbe::read_pair = ClockImports::read_pair;
-    ClockProbe::sleep = ClockImports::sleep;
-    ClockProbe::sleep_unit = ClockImports::sleep_unit;
-    ClockProbe::wait = ClockImports::wait;
+    machine nanoseconds(selector: i32) -> u64 { ClockImports::nanoseconds(selector) }
+    machine read(selector: i32, instant: &mut Instant) -> i32 { ClockImports::read(selector, instant) }
+    machine read_pair(selector: u32, pair: &mut [i64; 2]) -> i32 { ClockImports::read_pair(selector, pair) }
+    machine sleep(request: &Instant, remainder: u64) -> i32 { ClockImports::sleep(request, remainder) }
+    machine sleep_unit(request: &Instant, remainder: u64) { ClockImports::sleep_unit(request, remainder) }
+    machine wait(pointer: u64, count: u32, milliseconds: i32) -> i32 { ClockImports::wait(pointer, count, milliseconds) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -16,8 +16,9 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
 mod domain_premises;
+pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
-pub(super) use integer_predicates::{CapturedIntegerRank, FormedIntegerRank};
+pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
@@ -96,6 +97,8 @@ pub(super) struct CaseGuarantee {
     data: SymbolHandle,
     case: SymbolHandle,
 }
+
+pub(crate) mod owned_snapshots;
 
 #[derive(Clone, PartialEq)]
 struct MembershipGuarantee {
@@ -837,6 +840,7 @@ impl<'program> StructuralJudge<'program> {
                     continue;
                 }
                 let mut matched_read = entry.completed_read;
+                let mut matched_case = entry.selected_case;
                 let mut matched_current = entry.current.clone();
                 let mut matched_entry = entry.entry.clone();
                 let mut matched_backing = entry.backing.clone();
@@ -852,6 +856,9 @@ impl<'program> StructuralJudge<'program> {
                     };
                     if matched_backing != other.backing {
                         matched_backing = None;
+                    }
+                    if matched_case != other.selected_case {
+                        matched_case = None;
                     }
                     if matched_read != other.completed_read {
                         matched_read = None;
@@ -890,7 +897,11 @@ impl<'program> StructuralJudge<'program> {
                         }
                     }
                 }
-                if all_have_coord && (matched_current.is_some() || matched_entry.is_some()) {
+                if all_have_coord
+                    && (matched_current.is_some()
+                        || matched_entry.is_some()
+                        || matched_case.is_some())
+                {
                     if matched_current.is_none() {
                         matched_read = None;
                     }
@@ -898,6 +909,7 @@ impl<'program> StructuralJudge<'program> {
                         coordinate: entry.coordinate.clone(),
                         entry: matched_entry,
                         current: matched_current,
+                        selected_case: matched_case,
                         completed_read: matched_read,
                         backing: matched_backing,
                     });
@@ -1629,11 +1641,13 @@ impl<'program> StructuralJudge<'program> {
             }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
-                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
+                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right.clone()));
+                    self.note_type_atom(name, &right);
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
+                Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
+                self.note_type_atom(name, &left);
             }
             // A parameter-rooted member place resolves to its Opaque display
             // (`left.code`), so it carries the same rewrite as the unresolved
@@ -1654,6 +1668,31 @@ impl<'program> StructuralJudge<'program> {
                 self.hypotheses_contradictory = true;
             }
             _ => {}
+        }
+    }
+
+    /// Static type equality is exact (generics.md, "Static type equality"): a
+    /// type binder equated to one closed type is not equal to any other. This
+    /// judge sees `T == i32` and `T == bool` as unrelated atoms, so binding the
+    /// second one true while the first holds is the contradiction that lets a
+    /// contract's equation refute a case whose default domain states another.
+    fn note_type_atom(&mut self, name: &str, value: &StructuralTerm) {
+        let Some((open, closed)) = super::structural_terms::open_closed_type_atom(name) else {
+            return;
+        };
+        if value_predicates::boolean_value(value.semantic_value()) != Some(true) {
+            return;
+        }
+        let conflicts = self.substitutions.iter().any(|(other, bound)| {
+            other != name
+                && super::structural_terms::open_closed_type_atom(other).is_some_and(
+                    |(other_open, other_closed)| other_open == open && other_closed != closed,
+                )
+                && value_predicates::boolean_value(self.resolve(bound.clone()).semantic_value())
+                    == Some(true)
+        });
+        if conflicts {
+            self.hypotheses_contradictory = true;
         }
     }
 

@@ -16,7 +16,7 @@ use semantic_vocabulary::{OperationId, PlaceId, ScalarType, ValueId};
 
 use super::super::cycles::CycleComponentId;
 use super::foundations::{NodeLocation, encode_location};
-use crate::{FuelSettlement, PsiProvenance};
+use crate::{FuelSettlement, PsiProvenance, codec_bytes::push_encoded};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -367,16 +367,16 @@ fn candidate_identity(
     canonical.extend_from_slice(&contract.encode());
     canonical.extend_from_slice(&input.bytes());
     canonical.extend_from_slice(&output.bytes());
-    crate::codec_bytes::push_encoded(&mut canonical, component.machine.get().to_le_bytes());
+    push_encoded(&mut canonical, component.machine.get().to_le_bytes());
     canonical.extend_from_slice(
         &u64::try_from(component.internal_edges.len())
             .expect("component edge count fits u64")
             .to_le_bytes(),
     );
     for edge in &component.internal_edges {
-        crate::codec_bytes::push_encoded(&mut canonical, edge.edge.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut canonical, edge.source.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut canonical, edge.target.get().to_le_bytes());
+        push_encoded(&mut canonical, edge.edge.get().to_le_bytes());
+        push_encoded(&mut canonical, edge.source.get().to_le_bytes());
+        push_encoded(&mut canonical, edge.target.get().to_le_bytes());
     }
     canonical.extend_from_slice(
         &u64::try_from(relocations.len())
@@ -384,22 +384,19 @@ fn candidate_identity(
             .to_le_bytes(),
     );
     for relocation in relocations {
-        crate::codec_bytes::push_encoded(
+        push_encoded(
             &mut canonical,
             relocation.node.psi_operation.get().to_le_bytes(),
         );
         match &relocation.node.result {
             LoopInvariantNodeResult::Scalar { value, .. } => {
                 canonical.push(0);
-                crate::codec_bytes::push_encoded(&mut canonical, value.get().to_le_bytes());
+                push_encoded(&mut canonical, value.get().to_le_bytes());
             }
             LoopInvariantNodeResult::Structural(result) => {
                 canonical.push(1);
-                crate::codec_bytes::push_encoded(&mut canonical, result.place.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    &mut canonical,
-                    result.structural_type.get().to_le_bytes(),
-                );
+                push_encoded(&mut canonical, result.place.get().to_le_bytes());
+                push_encoded(&mut canonical, result.structural_type.get().to_le_bytes());
                 canonical.push(match result.multiplicity {
                     terminal_psi::StructuralMultiplicity::Unrestricted => 0,
                     terminal_psi::StructuralMultiplicity::Affine => 1,
@@ -423,21 +420,15 @@ fn candidate_identity(
             }
             LoopInvariantNodeResult::LiteralPlace(place) => {
                 canonical.push(2);
-                crate::codec_bytes::push_encoded(&mut canonical, place.id.get().to_le_bytes());
+                push_encoded(&mut canonical, place.id.get().to_le_bytes());
                 match place.kind {
                     semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
                         declaration_ordinal,
                         structural_type,
                     } => {
                         canonical.push(0);
-                        crate::codec_bytes::push_encoded(
-                            &mut canonical,
-                            declaration_ordinal.to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(
-                            &mut canonical,
-                            structural_type.get().to_le_bytes(),
-                        );
+                        push_encoded(&mut canonical, declaration_ordinal.to_le_bytes());
+                        push_encoded(&mut canonical, structural_type.get().to_le_bytes());
                     }
                     // Admission only produces a byte-sequence-literal
                     // declaration; any other kind still commits byte-exact
@@ -447,7 +438,7 @@ fn candidate_identity(
             }
             LoopInvariantNodeResult::TrivialAffineLocal(place) => {
                 canonical.push(4);
-                crate::codec_bytes::push_encoded(&mut canonical, place.id.get().to_le_bytes());
+                push_encoded(&mut canonical, place.id.get().to_le_bytes());
                 match place.kind {
                     semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
                         declaration_ordinal,
@@ -455,24 +446,15 @@ fn candidate_identity(
                         construction,
                     } => {
                         canonical.push(0);
-                        crate::codec_bytes::push_encoded(
-                            &mut canonical,
-                            declaration_ordinal.to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(
-                            &mut canonical,
-                            structural_type.get().to_le_bytes(),
-                        );
+                        push_encoded(&mut canonical, declaration_ordinal.to_le_bytes());
+                        push_encoded(&mut canonical, structural_type.get().to_le_bytes());
                         match construction {
                             Some(element) => {
                                 canonical.push(1);
                                 canonical.extend_from_slice(
                                     &element.root_structural_type.get().to_le_bytes(),
                                 );
-                                crate::codec_bytes::push_encoded(
-                                    &mut canonical,
-                                    element.index.to_le_bytes(),
-                                );
+                                push_encoded(&mut canonical, element.index.to_le_bytes());
                             }
                             None => canonical.push(0),
                         }
@@ -499,17 +481,14 @@ fn candidate_identity(
                 .to_le_bytes(),
         );
         for (parameter, representative) in &relocation.node.operand_rewrites {
-            crate::codec_bytes::push_encoded(&mut canonical, parameter.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut canonical, representative.get().to_le_bytes());
+            push_encoded(&mut canonical, parameter.get().to_le_bytes());
+            push_encoded(&mut canonical, representative.get().to_le_bytes());
         }
         match relocation.node.root_rewrite {
             Some((parameter, representative)) => {
                 canonical.push(1);
-                crate::codec_bytes::push_encoded(&mut canonical, parameter.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    &mut canonical,
-                    representative.get().to_le_bytes(),
-                );
+                push_encoded(&mut canonical, parameter.get().to_le_bytes());
+                push_encoded(&mut canonical, representative.get().to_le_bytes());
             }
             None => canonical.push(0),
         }
@@ -519,8 +498,8 @@ fn candidate_identity(
                 .to_le_bytes(),
         );
         for (parameter, root) in &relocation.node.argument_rewrites {
-            crate::codec_bytes::push_encoded(&mut canonical, parameter.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut canonical, root.get().to_le_bytes());
+            push_encoded(&mut canonical, parameter.get().to_le_bytes());
+            push_encoded(&mut canonical, root.get().to_le_bytes());
         }
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)

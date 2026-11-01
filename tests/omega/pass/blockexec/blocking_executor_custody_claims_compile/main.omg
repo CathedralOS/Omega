@@ -263,5 +263,5 @@ machine Main::main() reaches WorkerProvider suspends blocks crashes Trap {
 }
 
 CanaryWorkerImplementation satisfies WorkerProvider {
-    WorkerProvider::execute = CanaryWorkerProvider::execute;
+    machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches suspends blocks { CanaryWorkerProvider::execute<T, Arguments, Target>(arguments) }
 }

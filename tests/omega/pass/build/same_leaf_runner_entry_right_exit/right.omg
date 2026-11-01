@@ -18,5 +18,5 @@ invokes Console
 }
 
 public ProviderReaderImplementation satisfies Reader {
-    Reader::read = Provider::read;
+    machine read() -> i32 { Provider::read() }
 }

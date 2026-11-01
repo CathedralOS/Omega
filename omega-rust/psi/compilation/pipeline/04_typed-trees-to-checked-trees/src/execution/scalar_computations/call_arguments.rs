@@ -1,3 +1,5 @@
+mod declarations;
+
 use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
 use crate::execution::terminal_unit::cleanup::projected_temporary_cleanup;
 use crate::execution::terminal_unit::strips_erased_parameter;
@@ -280,34 +282,40 @@ impl Builder<'_, '_> {
                 self.plans.nodes.get_mut(root).authored_root = *argument;
                 computed_arguments.push(root);
             } else {
-                // Structural arguments require their actual loan/owner capture;
-                // a declaration's scalar input binding cannot manufacture it.
-                let source_call = statement_call?;
-                let operand = operand?;
-                let state =
-                    validation::find_state_in_machine(self.program, self.machine, self.state)?;
-                // Value planning owns both snapshots and loans. A borrowed
-                // operand retains its occurrence and source evidence without
-                // becoming an owned copy of the referent.
-                let retained = self.retain_structural_argument(*argument, parameter.type_reference);
-                let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
-                let argument_plan = if let Some(value) = retained {
-                    self.retained_call_argument(
-                        source_call,
-                        operand,
-                        *argument,
-                        parameter,
-                        value,
-                        argument_ordinal,
-                        &mut temporary_cleanups,
-                    )?
-                } else if self.uses_captured_dispatch_value(*argument) {
-                    // A selected saved value cannot fall back to a recipe
-                    // through its source's current storage when retention
-                    // fails. Ordinary place arguments retain their own route.
-                    return None;
+                let argument_plan = if let CallOperandCustody::Declaration { application, call } =
+                    custody
+                {
+                    self.declaration_structural_argument(application, call, *argument, parameter)?
                 } else {
-                    (|| {
+                    // Structural arguments require their actual loan/owner capture;
+                    // a declaration's scalar input binding cannot manufacture it.
+                    let source_call = statement_call?;
+                    let operand = operand?;
+                    let state =
+                        validation::find_state_in_machine(self.program, self.machine, self.state)?;
+                    // Value planning owns both snapshots and loans. A borrowed
+                    // operand retains its occurrence and source evidence without
+                    // becoming an owned copy of the referent.
+                    let retained =
+                        self.retain_structural_argument(*argument, parameter.type_reference);
+                    let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
+                    let argument_plan = if let Some(value) = retained {
+                        self.retained_call_argument(
+                            source_call,
+                            operand,
+                            *argument,
+                            parameter,
+                            value,
+                            argument_ordinal,
+                            &mut temporary_cleanups,
+                        )?
+                    } else if self.uses_captured_dispatch_value(*argument) {
+                        // A selected saved value cannot fall back to a recipe
+                        // through its source's current storage when retention
+                        // fails. Ordinary place arguments retain their own route.
+                        return None;
+                    } else {
+                        (|| {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
                         let mut argument_plan = structural_computation_argument(
                             self.program,
@@ -364,6 +372,8 @@ impl Builder<'_, '_> {
                         )
                     })
                     ?
+                    };
+                    argument_plan
                 };
                 structural_actuals.push(*argument);
                 structural_arguments.push(
@@ -388,7 +398,10 @@ impl Builder<'_, '_> {
                     .collect::<Option<Vec<_>>>()?,
             )?
         } else {
-            if !structural_arguments.is_empty() || !temporary_cleanups.is_empty() {
+            // Every declaration structural operand above has an exact checked
+            // reusable-copy receipt. It consumes no source claim or temporary;
+            // borrowed/affine operands require their own ordinary custody.
+            if !temporary_cleanups.is_empty() {
                 return None;
             }
             Vec::new()
@@ -560,7 +573,12 @@ impl Builder<'_, '_> {
                     discards = Some(vec![
                         checked_trees::CheckedNormalCleanupAction::RetireHome {
                             source: argument_plan.source.clone(),
-                            type_identity: self.program.normalized_type_identity(owner_type),
+                            type_identity: validation::stored_structural_type_identity(
+                                self.program,
+                                owner_type,
+                                &[],
+                                &[],
+                            ),
                         },
                     ]);
                 }

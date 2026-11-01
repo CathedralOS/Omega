@@ -1,13 +1,16 @@
-//! Select independently observed candidate coordinates for every participant.
+//! Select independently observed inputs for every participant. Declared views
+//! select a whole typed root before capturing its complete scalar-read roster.
 
 use super::{
+    applications::Application,
     coordinates::{Bound, Rank},
     ranges,
+    subjects::Subject,
     views::Order,
 };
-use crate::checks::current_scalar_values::parameter_projection_paths;
-use typed_trees::expression::BinaryOperator;
-use validation::ScopedArithmeticValue;
+use crate::checks::current_scalar_values::{CurrentScalarValues, parameter_projection_paths};
+use typed_trees::{expression::BinaryOperator, machine::Machine, state::State};
+use validation::{RankSubjectCoordinate, ScopedArithmeticValue};
 
 pub(super) struct Candidates {
     pub(super) ranks: Vec<Vec<Rank>>,
@@ -15,12 +18,100 @@ pub(super) struct Candidates {
     pub(super) field_paths: Vec<Vec<facts::PlaceSegment>>,
 }
 
+/// Candidate roots preserve nominal/generic identity. Paths are prefixes of
+/// actual projections already demanded by this component, never independently
+/// selected leaves from unrelated parameters.
+fn roots(
+    program: &dyn validation::CheckingInput,
+    state: &State,
+    application: Application,
+    paths: &[Vec<facts::PlaceSegment>],
+) -> Vec<RankSubjectCoordinate> {
+    let mut prefixes = vec![Vec::new()];
+    for path in paths {
+        for length in 1..=path.len() {
+            let prefix = path[..length].to_vec();
+            if !prefixes.contains(&prefix) {
+                prefixes.push(prefix);
+            }
+        }
+    }
+    let mut roots = Vec::new();
+    for parameter in program.state_parameters(state) {
+        if parameter.is_const || parameter.relevance.is_erased() {
+            continue;
+        }
+        for prefix in &prefixes {
+            if validation::project_type_reference_from_segments(
+                program,
+                parameter.type_reference,
+                prefix,
+            )
+            .is_some_and(|actual| {
+                validation::declared_input_type_matches(program, actual, application.input_type)
+            }) {
+                roots.push(RankSubjectCoordinate {
+                    parameter: parameter.symbol,
+                    path: prefix.clone(),
+                });
+            }
+        }
+    }
+    roots
+}
+
+fn observe(
+    program: &dyn validation::CheckingInput,
+    machine: &Machine,
+    values: &CurrentScalarValues<'_>,
+    subject: Subject,
+    application: Option<Application>,
+    bound: Option<Bound>,
+    minimum: i128,
+) -> Option<Rank> {
+    let (entry_value, formation) = match application {
+        Some(application) => {
+            let (input_type, bindings) = subject.bindings(
+                program,
+                application,
+                || {
+                    validation::captured_entry_owned_snapshot(
+                        program,
+                        machine,
+                        values.state(),
+                        &subject.root(),
+                    )
+                },
+                |coordinate| Some(coordinate.entry_value.clone()),
+            )?;
+            let formed = application.observe(values, machine, input_type, bindings)?;
+            (formed.value, Some(formed.formation))
+        }
+        None => {
+            let coordinate = subject.scalar()?;
+            (
+                coordinate.bounded_value(coordinate.entry_value.clone())?,
+                None,
+            )
+        }
+    };
+    Some(Rank {
+        subject,
+        bound,
+        application,
+        entry_value,
+        formation,
+        minimum,
+    })
+}
+
 pub(super) fn prepare(
     program: &dyn validation::CheckingInput,
-    machines: &[&typed_trees::machine::Machine],
+    machines: &[&Machine],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Result<Candidates, &'static str>> {
     let mut authored = Vec::with_capacity(machines.len());
+    let mut field_paths = Vec::new();
     for machine in machines {
         let [entry] = program.machine_states(machine) else {
             return None;
@@ -32,19 +123,12 @@ pub(super) fn prepare(
                 None
             },
         );
-    }
-    let mut field_paths = Vec::new();
-    for machine in machines {
-        for state in program.machine_states(machine) {
-            for path in parameter_projection_paths(program, machine, state) {
-                if !field_paths.contains(&path) {
-                    field_paths.push(path);
-                }
+        for path in parameter_projection_paths(program, machine, entry) {
+            if !field_paths.contains(&path) {
+                field_paths.push(path);
             }
         }
     }
-    // Projection requirements are produced by the selected views, not
-    // rediscovered only when a body happens to spell the same member access.
     for view in authored.iter().flatten() {
         for coordinate in std::iter::once(&view.coordinate).chain(
             view.upper
@@ -56,16 +140,37 @@ pub(super) fn prepare(
             }
         }
     }
+    let application = authored.iter().flatten().find_map(|view| view.application);
+    if let Some(application) = application {
+        let shape = application.shape(program)?;
+        let existing_paths = field_paths.clone();
+        for (machine, view) in machines.iter().zip(&authored) {
+            let entry = &program.machine_states(machine)[0];
+            let roots = view
+                .as_ref()
+                .map(|view| vec![view.coordinate.clone()])
+                .unwrap_or_else(|| roots(program, entry, application, &existing_paths));
+            for root in roots {
+                for read in &shape.reads {
+                    let path = root
+                        .path
+                        .iter()
+                        .chain(&read.coordinate.path)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    if !path.is_empty() && !field_paths.contains(&path) {
+                        field_paths.push(path);
+                    }
+                }
+            }
+        }
+    }
     let mut candidates = Vec::new();
-    let mut selected_order = None;
     let mut available = Vec::new();
     let mut entry_values = Vec::new();
+    let mut selected_order = None;
     for (machine, view) in machines.iter().zip(&authored) {
-        // Source declarations have one entry. Legacy multi-state arrival
-        // telescopes remain with the ordinary full-coordinate owner.
-        let [entry] = program.machine_states(machine) else {
-            return None;
-        };
+        let entry = &program.machine_states(machine)[0];
         let prepared =
             super::super::rank_inputs::at_entry(program, machine, entry, frames, &field_paths)?;
         available.push(prepared.coordinates);
@@ -74,43 +179,54 @@ pub(super) fn prepare(
             candidates.push(Vec::new());
             continue;
         };
-        let order = view.order;
         let values = entry_values.last()?;
-        let selected = available
-            .last()?
-            .iter()
-            .find(|coordinate| {
-                coordinate.parameter == view.coordinate.parameter
-                    && values.same_scalar_projection(&coordinate.path, &view.coordinate.path)
-                    && coordinate.observation == view.observation
-            })?
-            .clone();
-        // Coordinate identity belongs to the input; the component order belongs
-        // to the completed application result. They coincide only for a
-        // coordinate-only view. Never truncate an input to match its rank.
-        let carrier = view.application.map_or(selected.primitive, |application| {
-            application.result_primitive
-        });
-        if selected_order.is_some_and(|previous| previous != (order, carrier, view.declaration)) {
+        let inputs = available.last()?;
+        let subject = match view.application {
+            Some(application) => Subject::declared(
+                program,
+                entry,
+                &view.coordinate,
+                application,
+                inputs,
+                values,
+            )?,
+            None => Subject::Scalar(
+                inputs
+                    .iter()
+                    .find(|coordinate| {
+                        coordinate.parameter == view.coordinate.parameter
+                            && values
+                                .same_scalar_projection(&coordinate.path, &view.coordinate.path)
+                            && coordinate.observation == view.observation
+                    })?
+                    .clone(),
+            ),
+        };
+        let carrier = match view.application {
+            Some(application) => application.result_primitive,
+            None => subject.scalar()?.primitive,
+        };
+        if selected_order
+            .is_some_and(|previous| previous != (view.order, carrier, view.declaration))
+        {
             return None;
         }
-        if order != Order::Descending
+        if view.order != Order::Descending
             && !matches!(carrier, typed_trees::unsigned_integer_primitive_pattern!())
         {
             return None;
         }
-        selected_order = Some((order, carrier, view.declaration));
+        selected_order = Some((view.order, carrier, view.declaration));
         if let Err(reason) = ranges::entry(program, machine, view.measure, frames) {
             return Some(Err(reason));
         }
         let bound = if let Some(upper) = &view.upper {
             let bound = if let Some(input) = &upper.coordinate {
-                let coordinate = available.last()?.iter().find(|coordinate| {
+                let Some(coordinate) = inputs.iter().find(|coordinate| {
                     coordinate.parameter == input.parameter
                         && values.same_scalar_projection(&coordinate.path, &input.path)
                         && coordinate.observation == validation::RankPremiseObservation::Value
-                });
-                let Some(coordinate) = coordinate else {
+                }) else {
                     return Some(Err(
                         "a natural rank upper coordinate lacks independent entry receipts",
                     ));
@@ -122,12 +238,12 @@ pub(super) fn prepare(
                     entry_value: values.current_value(upper.expression)?,
                 }
             };
-            if order == Order::BoundedDistance
+            if view.order == Order::BoundedDistance
                 && !values.proves_values_relation(
                     program,
                     machine,
                     BinaryOperator::LessOrEqual,
-                    &selected.entry_value,
+                    &subject.scalar()?.entry_value,
                     bound.entry(),
                 )
             {
@@ -139,33 +255,26 @@ pub(super) fn prepare(
         } else {
             None
         };
-        let (entry_value, formation) = if let Some(application) = view.application {
-            if application.input_primitive != selected.primitive {
-                return Some(Err(
-                    "a computed natural rank has an incompatible input coordinate carrier",
-                ));
-            }
-            let Some(value) = application.observe(values, machine, selected.entry_value.clone())
-            else {
-                return Some(Err(
-                    "a computed natural rank application has no independent entry formation",
-                ));
-            };
-            (value.value, Some(value.formation))
-        } else {
-            (selected.entry_value.clone(), None)
+        let minimum = match view.application {
+            Some(application) => application.result_primitive.integer_bounds()?.0,
+            None => 0,
         };
-        candidates.push(vec![Rank {
-            coordinate: selected,
+        let Some(rank) = observe(
+            program,
+            machine,
+            values,
+            subject,
+            view.application,
             bound,
-            application: view.application,
-            entry_value,
-            formation,
-        }]);
+            minimum,
+        ) else {
+            return Some(Err(
+                "a computed natural rank application has no independent entry formation",
+            ));
+        };
+        candidates.push(vec![rank]);
     }
     let (order, primitive, _) = selected_order?;
-    let application = authored.iter().flatten().find_map(|view| view.application);
-    let input_primitive = application.map_or(primitive, |application| application.input_primitive);
     let closed_bounds = candidates
         .iter()
         .flatten()
@@ -179,35 +288,58 @@ pub(super) fn prepare(
         if !candidates.is_empty() {
             continue;
         }
-        // Private correspondence changes neither public schemas nor source
-        // signatures. Only exact runtime leaves in this invocation participate.
         if machine.is_public {
             return None;
         }
-        for coordinate in available[position]
-            .iter()
-            .filter(|coordinate| coordinate.primitive == input_primitive)
-        {
+        let entry = &program.machine_states(machine)[0];
+        let values = &entry_values[position];
+        let mut subjects = Vec::new();
+        if let Some(application) = application {
+            subjects.extend(
+                roots(program, entry, application, &field_paths)
+                    .iter()
+                    .filter_map(|root| {
+                        Subject::declared(
+                            program,
+                            entry,
+                            root,
+                            application,
+                            &available[position],
+                            values,
+                        )
+                    })
+                    .map(|subject| (subject, Some(application))),
+            );
+        }
+        // A helper may carry the already-produced rank rather than the input
+        // record. This is ordinary result transport, not a fabricated record
+        // or a body-shape optimization. Every actual edge must still compare
+        // that scalar with the independently formed application on its peer.
+        subjects.extend(
+            available[position]
+                .iter()
+                .filter(|coordinate| coordinate.primitive == primitive)
+                .cloned()
+                .map(|coordinate| (Subject::Scalar(coordinate), None)),
+        );
+        let minimum = if application.is_some() {
+            primitive.integer_bounds()?.0
+        } else {
+            0
+        };
+        for (subject, selected_application) in subjects {
             if order == Order::Descending {
-                let (entry_value, formation) = if let Some(application) = application {
-                    let Some(value) = application.observe(
-                        &entry_values[position],
-                        machine,
-                        coordinate.entry_value.clone(),
-                    ) else {
-                        continue;
-                    };
-                    (value.value, Some(value.formation))
-                } else {
-                    (coordinate.entry_value.clone(), None)
-                };
-                candidates.push(Rank {
-                    coordinate: coordinate.clone(),
-                    bound: None,
-                    application,
-                    entry_value,
-                    formation,
-                });
+                if let Some(rank) = observe(
+                    program,
+                    machine,
+                    values,
+                    subject,
+                    selected_application,
+                    None,
+                    minimum,
+                ) {
+                    candidates.push(rank);
+                }
                 continue;
             }
             let bounds = available[position]
@@ -217,29 +349,31 @@ pub(super) fn prepare(
                 .chain(closed_bounds.iter().cloned().map(Bound::Closed));
             for bound in bounds {
                 if order == Order::BoundedDistance
-                    && !entry_values[position].proves_values_relation(
+                    && !values.proves_values_relation(
                         program,
                         machine,
                         BinaryOperator::LessOrEqual,
-                        &coordinate.entry_value,
+                        &subject.scalar()?.entry_value,
                         bound.entry(),
                     )
                 {
                     continue;
                 }
-                candidates.push(Rank {
-                    coordinate: coordinate.clone(),
-                    bound: Some(bound),
-                    application: None,
-                    entry_value: coordinate.entry_value.clone(),
-                    formation: None,
-                });
+                if let Some(rank) = observe(
+                    program,
+                    machine,
+                    values,
+                    subject.clone(),
+                    None,
+                    Some(bound),
+                    minimum,
+                ) {
+                    candidates.push(rank);
+                }
             }
         }
         if candidates.is_empty() {
-            return Some(Err(
-                "a private member has no compatible natural rank coordinate",
-            ));
+            return Some(Err("a private member has no compatible natural rank input"));
         }
     }
     Some(Ok(Candidates {

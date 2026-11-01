@@ -397,41 +397,44 @@ fn constraint_requires_establishment(
     constraint: &TypeConstraintNode,
 ) -> bool {
     match constraint {
-        TypeConstraintNode::Domain(domain) => match domain.subject {
-            DomainConstraintSubject::Declared => {
-                // A route-/predicate-free declaration adds no membership
-                // obligation. Alias constituents still pass the same shared
-                // judgment; carrier validity is checked by the recursive walk.
-                if crate::value_custody::field_domains::domain_is_vacuous(
-                    program,
-                    domain.symbol,
-                    &mut Vec::new(),
-                ) {
-                    return false;
-                }
-                let zero_integer = crate::proof_contracts::domains::integer_domain_membership(
-                    program,
-                    domain.symbol,
-                    &domain.arguments,
-                    domain.semantic_id,
-                    &crate::ScopedArithmeticValue::Integer(BigInt::zero()),
-                ) == crate::StrictArithmeticImplicationJudgment::Proven;
-                let zero_bytes = domain.establishment_routes.is_empty()
-                    && crate::value_custody::field_domains::domain_admits_zero_byte_carrier(
+        TypeConstraintNode::Domain(domain) => {
+            match domain.subject {
+                DomainConstraintSubject::Declared => {
+                    // A route-/predicate-free declaration adds no membership
+                    // obligation. Alias constituents still pass the same shared
+                    // judgment; carrier validity is checked by the recursive walk.
+                    if crate::value_custody::field_domains::domain_is_vacuous(
                         program,
                         domain.symbol,
-                        carrier,
-                    );
-                !zero_integer && !zero_bytes
+                        &mut Vec::new(),
+                    ) {
+                        return false;
+                    }
+                    let zero_integer = crate::proof_contracts::domains::integer_domain_membership(
+                        program,
+                        domain.symbol,
+                        &domain.arguments,
+                        domain.semantic_id,
+                        &crate::ScopedArithmeticValue::Integer(BigInt::zero()),
+                    ) == crate::StrictArithmeticImplicationJudgment::Proven;
+                    let zero_bytes = domain.establishment_routes.is_empty()
+                        && crate::value_custody::field_domains::domain_admits_zero_byte_carrier(
+                            program,
+                            domain.symbol,
+                            carrier,
+                        );
+                    !zero_integer && !zero_bytes
+                    && !crate::proof_contracts::contract_entailment::domain_predicates_admit_zero(program, carrier, domain)
+                }
+                // These constrain the carrier, or exclude non-finite floats;
+                // they do not require value establishment beyond the base type.
+                DomainConstraintSubject::Carry(_)
+                | DomainConstraintSubject::OmegaLayout { .. }
+                | DomainConstraintSubject::Value(
+                    language_semantics::value_domain::ValueDomain::Finite,
+                ) => false,
             }
-            // These constrain the carrier, or exclude non-finite floats;
-            // they do not require value establishment beyond the base type.
-            DomainConstraintSubject::Carry(_)
-            | DomainConstraintSubject::OmegaLayout { .. }
-            | DomainConstraintSubject::Value(
-                language_semantics::value_domain::ValueDomain::Finite,
-            ) => false,
-        },
+        }
         TypeConstraintNode::Named(_) => true,
         TypeConstraintNode::Range {
             minimum,

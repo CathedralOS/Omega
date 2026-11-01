@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "machine `update` state `entry` local `loaded` expects `&LayoutStorage<Payload, PayloadLayout<const 8>>`",
+    "but the value is delivered as `&LayoutStorage<Payload, PayloadLayout<Marker>>`"
+  ]
+}

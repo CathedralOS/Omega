@@ -13,7 +13,7 @@ ensures acknowledged(second, word)
  word.value.store(first.nonce, Publish);
  word.value.store(second.nonce, Publish);
 }
-CompletionProvider satisfies Completion { Completion::complete = finish; }
+CompletionProvider satisfies Completion { machine complete(first: Ack, second: Ack, word: &Cell) { finish(first, second, word) } }
 machine main() reaches Completion crashes Trap {
  let mut word: Cell;
  let ack: Ack = Ack { nonce: 37 };

@@ -28,7 +28,7 @@ reaches Ping
 }
 
 PingProviderPingImplementation satisfies Ping {
-    Ping::ping = PingProvider::ping;
+    machine ping() { PingProvider::ping() }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

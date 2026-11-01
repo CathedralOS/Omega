@@ -111,7 +111,7 @@ fn inferred_normal_return_interval_in(
         primitive as u8,
         actuals
             .iter()
-            .map(|(symbol, interval, _)| (*symbol, interval.low, interval.high))
+            .map(|(symbol, interval, _)| (*symbol, *interval))
             .collect::<Vec<_>>(),
     );
     if let Some(memos) = memos

@@ -8,9 +8,11 @@
 //! callee bodies and a matching carrier cannot donate a source observation.
 
 use super::observed_projections::project_observed_value;
+use crate::frozen_program::CheckingQuery;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    observe_runtime_state_prefixes,
 };
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
@@ -579,6 +581,70 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
     }
 }
 
+/// Every completed-case occurrence in `machine`'s states is enumerable from
+/// the statement shapes the default-domain walkers consume. One prefix pass
+/// per state answers them all; each verdict (including "no proven case") is
+/// recorded by exact occurrence key so later queries replay without walking
+/// again.
+fn populate_machine_completed_cases(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    memos: &crate::frozen_program::CheckingMemos,
+) {
+    for state in program.machine_states(machine) {
+        let occurrences = crate::proof_contracts::default_domains::completed_case_occurrences(
+            program, machine, state,
+        );
+        if occurrences.is_empty() {
+            continue;
+        }
+        let mut visitors: Vec<CompletedCaseVisitor> = occurrences
+            .iter()
+            .map(|(statement_index, expression, reference)| CompletedCaseVisitor {
+                site: super::structural_prefix::StructuralPrefixSite {
+                    state: state.symbol,
+                    statement_index: *statement_index,
+                    in_transition_target: false,
+                },
+                expression: *expression,
+                reference: *reference,
+                case: None,
+                complete: true,
+                observed: false,
+            })
+            .collect();
+        let recognized = {
+            let mut batched: Vec<&mut dyn StructuralPrefixVisitor> = visitors
+                .iter_mut()
+                .map(|visitor| visitor as &mut dyn StructuralPrefixVisitor)
+                .collect();
+            observe_runtime_state_prefixes(program, machine, state, &mut batched)
+        };
+        if let Ok(mut outcomes) = memos.completed_case_outcomes.lock() {
+            for ((statement_index, expression, reference), (visitor, recognized)) in
+                occurrences.iter().zip(visitors.iter().zip(recognized))
+            {
+                let verdict = (recognized && visitor.complete && visitor.observed)
+                    .then_some(visitor.case)
+                    .flatten();
+                outcomes.insert(
+                    (
+                        machine.symbol,
+                        state.symbol,
+                        *statement_index,
+                        *expression,
+                        *reference,
+                    ),
+                    verdict,
+                );
+            }
+        }
+    }
+    if let Ok(mut populated) = memos.completed_case_populated.lock() {
+        populated.insert(machine.symbol, ());
+    }
+}
+
 /// Case identity emitted by the completed value, before a later statement
 /// can mutate its source. This is geometry only, not default-domain admission.
 /// Every normal initializer path must prove the same exact applied case.
@@ -590,6 +656,52 @@ pub(crate) fn completed_value_case_at_occurrence(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
+    // The completed-case demand is identical for every occurrence the
+    // default-domain walkers enumerate: one population walks each of this
+    // machine's state prefixes once, and later occurrences replay the
+    // recorded verdict. The memo binds only the stored machine and state --
+    // a projected body's same symbols keep the per-occurrence walk.
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+        program
+            .machine(machine.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, machine))
+            && program
+                .state_in_machine(machine, state.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, state))
+    });
+    if let Some(memos) = memos {
+        let key = (
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            expression,
+            reference,
+        );
+        let mut cached = memos
+            .completed_case_outcomes
+            .lock()
+            .ok()
+            .and_then(|outcomes| outcomes.get(&key).copied());
+        if cached.is_none()
+            && !memos
+                .completed_case_populated
+                .lock()
+                .map(|populated| populated.contains_key(&machine.symbol))
+                .unwrap_or(false)
+            && let Some(population) =
+                CheckingQuery::completed_case_population(program, machine.symbol)
+        {
+            populate_machine_completed_cases(&population, machine, memos);
+            cached = memos
+                .completed_case_outcomes
+                .lock()
+                .ok()
+                .and_then(|outcomes| outcomes.get(&key).copied());
+        }
+        if let Some(case) = cached {
+            return case;
+        }
+    }
     let mut visitor = CompletedCaseVisitor {
         site: super::structural_prefix::StructuralPrefixSite {
             state: state.symbol,

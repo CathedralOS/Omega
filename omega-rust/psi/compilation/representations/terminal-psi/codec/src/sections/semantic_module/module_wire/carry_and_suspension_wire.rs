@@ -3,14 +3,13 @@
 //! neither serialization nor the frontier commitment may erase loan access.
 
 use crate::sections::semantic_module::CodecError;
-use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
 };
-use crate::sections::semantic_module::structural_signature_wire::{
-    decode_structural_access, encode_structural_access,
+use crate::sections::semantic_module::wire::{Reader, Writer};
+use crate::sections::semantic_module::wire_fields::{
+    Access, Argument, Digest, Field, Flag, Id, Ids, List, Scalar, U32, wire_enum, wire_record,
 };
-use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
 use arena::{Handle, HandleSpan};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use terminal_psi::{
@@ -21,48 +20,132 @@ use terminal_psi::{
     TerminalSuspensionValueType,
 };
 
-pub(super) fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
-    writer.u8(match policy.suspension {
-        CarrySuspension::Forbidden => 1,
-        CarrySuspension::Allowed => 2,
-    });
-    writer.u8(match policy.cpu {
-        CarryCpu::Origin => 1,
-        CarryCpu::Any => 2,
-    });
-    writer.u8(match policy.host_thread {
-        CarryHostThread::Origin => 1,
-        CarryHostThread::Any => 2,
-    });
-    writer.u8(match policy.address {
-        CarryAddress::Stable => 1,
-        CarryAddress::Movable => 2,
-    });
+wire_record! {
+    Carry: CarryPolicy {
+        suspension: Suspension,
+        cpu: Cpu,
+        host_thread: HostThread,
+        address: Address,
+    }
 }
 
-pub(super) fn decode_carry_policy(reader: &mut Reader<'_>) -> Result<CarryPolicy, CodecError> {
-    Ok(CarryPolicy {
-        suspension: match reader.u8()? {
-            1 => CarrySuspension::Forbidden,
-            2 => CarrySuspension::Allowed,
-            tag => return Err(CodecError::InvalidTag("CarrySuspension", tag)),
+wire_enum! {
+    Suspension: CarrySuspension, "CarrySuspension" { 1 => Forbidden, 2 => Allowed }
+    Cpu: CarryCpu, "CarryCpu" { 1 => Origin, 2 => Any }
+    HostThread: CarryHostThread, "CarryHostThread" { 1 => Origin, 2 => Any }
+    Address: CarryAddress, "CarryAddress" { 1 => Stable, 2 => Movable }
+}
+
+wire_record! {
+    LiveValue: TerminalSuspensionLiveValue {
+        place: Place,
+        value_type: ValueType,
+        storage: Storage,
+        claim_count: U32,
+        claims: Ids,
+        effective: Carry,
+        loans: ValueLoans,
+    }
+    CallSite: TerminalSuspensionCallSite {
+        operation: Id,
+        crossing: Id,
+        target: CallTarget,
+        frontier_commitment: Digest,
+    }
+    Loan: TerminalSuspensionLoan {
+        capture: Capture,
+        backing: Backing,
+        resource: Resource,
+        parent: HandleKind,
+        suppliers: SpanKind,
+        access: Access,
+        active_at_call: Flag,
+    }
+}
+
+wire_enum! {
+    Place: TerminalSuspensionPlace, "TerminalSuspensionPlace" {
+        1 => Scalar(value: Id),
+        2 => Structural(argument: Argument),
+    }
+    ValueType: TerminalSuspensionValueType, "TerminalSuspensionValueType" {
+        1 => Scalar(scalar: Scalar),
+        2 => Structural(identity: Id),
+    }
+    Storage: TerminalSuspensionStorage, "TerminalSuspensionStorage" {
+        2 => Parameter,
+        3 => Local,
+        4 => CallArgument,
+    }
+    ValueLoans: TerminalSuspensionValueLoans, "TerminalSuspensionValueLoans" {
+        0 => Unresolved,
+        1 => ViewFree,
+        2 => Retained { links: SpanKind },
+    }
+    CallTarget: TerminalSuspensionCallTarget, "TerminalSuspensionCallTarget" {
+        1 => Machine(machine: Id),
+        2 => Boundary(boundary: Id),
+        5 => Dynamic { interface: U32, slot: U32 },
+    }
+    Capture: TerminalSuspensionLoanCapture, "TerminalSuspensionLoanCapture" {
+        0 => Unresolved,
+        1 => Reference {
+            formation: Id,
+            carrier: Id,
+            source: Id,
+            source_access: Access,
+            source_path: SpanKind,
         },
-        cpu: match reader.u8()? {
-            1 => CarryCpu::Origin,
-            2 => CarryCpu::Any,
-            tag => return Err(CodecError::InvalidTag("CarryCpu", tag)),
-        },
-        host_thread: match reader.u8()? {
-            1 => CarryHostThread::Origin,
-            2 => CarryHostThread::Any,
-            tag => return Err(CodecError::InvalidTag("CarryHostThread", tag)),
-        },
-        address: match reader.u8()? {
-            1 => CarryAddress::Stable,
-            2 => CarryAddress::Movable,
-            tag => return Err(CodecError::InvalidTag("CarryAddress", tag)),
-        },
-    })
+        2 => RetainedValue { live_value: U32, path: SpanKind },
+    }
+    Backing: TerminalSuspensionLoanBacking, "TerminalSuspensionLoanBacking" {
+        0 => Unresolved,
+        1 => RetainedOwner { live_value: U32 },
+        2 => IncomingReferent { argument: Argument },
+    }
+    Resource: TerminalSuspensionLoanResource, "TerminalSuspensionLoanResource" {
+        0 => Unresolved,
+        1 => DirectRoot,
+        2 => Reborrow,
+        3 => IncomingReference,
+    }
+}
+
+/// An arena handle in canonical slot form: zero is absence, and a present
+/// handle is generation one, so the wire never carries reuse history.
+struct HandleKind;
+impl<T> Field<Handle<T>> for HandleKind {
+    fn write(writer: &mut Writer, value: &Handle<T>) -> Result<(), CodecError> {
+        writer.u32(value.arena_index());
+        writer.u32(value.generation());
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Handle<T>, CodecError> {
+        let slot = reader.u32()?;
+        let generation = reader.u32()?;
+        if (slot == 0 && generation != 0) || (slot != 0 && generation != 1) {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+        Ok(Handle::from_parts(slot, generation))
+    }
+}
+
+/// A handle span; only the empty span starts at the absent handle.
+struct SpanKind;
+impl<T> Field<HandleSpan<T>> for SpanKind {
+    fn write(writer: &mut Writer, value: &HandleSpan<T>) -> Result<(), CodecError> {
+        HandleKind::write(writer, &value.start())?;
+        writer.u32(value.count());
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<HandleSpan<T>, CodecError> {
+        let start: Handle<T> = HandleKind::read(reader)?;
+        let count = reader.count()?;
+        if (count == 0) == start.is_valid() {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+        Ok(HandleSpan::from_parts_or_empty(start, count))
+    }
 }
 
 pub(crate) fn encode_suspension_call_plan(
@@ -71,109 +154,11 @@ pub(crate) fn encode_suspension_call_plan(
 ) -> Result<(), CodecError> {
     writer.id(plan.operation);
     writer.id(plan.crossing);
-    encode_suspension_call_target(writer, plan.target);
-    encode_carry_policy(writer, plan.effective);
+    CallTarget::write(writer, &plan.target)?;
+    Carry::write(writer, &plan.effective)?;
     writer.u32(plan.live_value_count);
-    writer.len("suspension live values", plan.live_values.len())?;
-    for live in &plan.live_values {
-        match &live.place {
-            TerminalSuspensionPlace::Scalar(value) => {
-                writer.u8(1);
-                writer.id(*value);
-            }
-            TerminalSuspensionPlace::Structural(argument) => {
-                writer.u8(2);
-                writer.id(argument.place);
-                encode_structural_access(writer, argument.access);
-                encode_structural_path(writer, "suspension structural path", &argument.path)?;
-            }
-        }
-        match live.value_type {
-            TerminalSuspensionValueType::Scalar(scalar_type) => {
-                writer.u8(1);
-                encode_scalar_type(writer, scalar_type);
-            }
-            TerminalSuspensionValueType::Structural(structural_type) => {
-                writer.u8(2);
-                writer.id(structural_type);
-            }
-        }
-        writer.u8(match live.storage {
-            TerminalSuspensionStorage::Parameter => 2,
-            TerminalSuspensionStorage::Local => 3,
-            TerminalSuspensionStorage::CallArgument => 4,
-        });
-        writer.u32(live.claim_count);
-        writer.len("suspension live claims", live.claims.len())?;
-        for claim in &live.claims {
-            writer.id(*claim);
-        }
-        encode_carry_policy(writer, live.effective);
-        match live.loans {
-            TerminalSuspensionValueLoans::Unresolved => writer.u8(0),
-            TerminalSuspensionValueLoans::ViewFree => writer.u8(1),
-            TerminalSuspensionValueLoans::Retained { links } => {
-                writer.u8(2);
-                encode_span(writer, links);
-            }
-        }
-    }
-    encode_loans(writer, &plan.loans)?;
-    Ok(())
-}
-
-pub(crate) fn encode_suspension_call_site(writer: &mut Writer, site: &TerminalSuspensionCallSite) {
-    writer.id(site.operation);
-    writer.id(site.crossing);
-    encode_suspension_call_target(writer, site.target);
-    writer.bytes(&site.frontier_commitment);
-}
-
-pub(crate) fn decode_suspension_call_site(
-    reader: &mut Reader<'_>,
-) -> Result<TerminalSuspensionCallSite, CodecError> {
-    Ok(TerminalSuspensionCallSite {
-        operation: reader.id("OperationId")?,
-        crossing: reader.id("SuspensionCrossingId")?,
-        target: decode_suspension_call_target(reader)?,
-        frontier_commitment: reader.array()?,
-    })
-}
-
-fn encode_suspension_call_target(writer: &mut Writer, target: TerminalSuspensionCallTarget) {
-    match target {
-        TerminalSuspensionCallTarget::Machine(machine) => {
-            writer.u8(1);
-            writer.id(machine);
-        }
-        TerminalSuspensionCallTarget::Boundary(boundary) => {
-            writer.u8(2);
-            writer.id(boundary);
-        }
-        TerminalSuspensionCallTarget::Dynamic { interface, slot } => {
-            writer.u8(5);
-            writer.u32(interface);
-            writer.u32(slot);
-        }
-    }
-}
-
-fn decode_suspension_call_target(
-    reader: &mut Reader<'_>,
-) -> Result<TerminalSuspensionCallTarget, CodecError> {
-    match reader.u8()? {
-        1 => Ok(TerminalSuspensionCallTarget::Machine(
-            reader.id("MachineId")?,
-        )),
-        2 => Ok(TerminalSuspensionCallTarget::Boundary(
-            reader.id("BoundaryMachineId")?,
-        )),
-        5 => Ok(TerminalSuspensionCallTarget::Dynamic {
-            interface: reader.u32()?,
-            slot: reader.u32()?,
-        }),
-        tag => Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)),
-    }
+    List::<LiveValue>::write(writer, &plan.live_values)?;
+    encode_loans(writer, &plan.loans)
 }
 
 pub(crate) fn decode_suspension_call_plan(
@@ -181,47 +166,10 @@ pub(crate) fn decode_suspension_call_plan(
 ) -> Result<TerminalSuspensionCallPlan, CodecError> {
     let operation = reader.id("OperationId")?;
     let crossing = reader.id("SuspensionCrossingId")?;
-    let target = decode_suspension_call_target(reader)?;
-    let effective = decode_carry_policy(reader)?;
+    let target = CallTarget::read(reader)?;
+    let effective = Carry::read(reader)?;
     let live_value_count = reader.u32()?;
-    let live_values = decode_counted(reader, |reader| {
-        let place = match reader.u8()? {
-            1 => TerminalSuspensionPlace::Scalar(reader.id("ValueId")?),
-            2 => TerminalSuspensionPlace::Structural(terminal_psi::StructuralArgument {
-                place: reader.id("PlaceId")?,
-                access: decode_structural_access(reader)?,
-                path: decode_structural_path(reader)?,
-            }),
-            tag => return Err(CodecError::InvalidTag("TerminalSuspensionPlace", tag)),
-        };
-        let value_type = match reader.u8()? {
-            1 => TerminalSuspensionValueType::Scalar(decode_scalar_type(reader)?),
-            2 => TerminalSuspensionValueType::Structural(reader.id("StructuralTypeId")?),
-            tag => return Err(CodecError::InvalidTag("TerminalSuspensionValueType", tag)),
-        };
-        let storage = match reader.u8()? {
-            2 => TerminalSuspensionStorage::Parameter,
-            3 => TerminalSuspensionStorage::Local,
-            4 => TerminalSuspensionStorage::CallArgument,
-            tag => return Err(CodecError::InvalidTag("TerminalSuspensionStorage", tag)),
-        };
-        Ok(TerminalSuspensionLiveValue {
-            place,
-            value_type,
-            storage,
-            claim_count: reader.u32()?,
-            claims: decode_ids(reader, "ClaimId")?,
-            effective: decode_carry_policy(reader)?,
-            loans: match reader.u8()? {
-                0 => TerminalSuspensionValueLoans::Unresolved,
-                1 => TerminalSuspensionValueLoans::ViewFree,
-                2 => TerminalSuspensionValueLoans::Retained {
-                    links: decode_span(reader)?,
-                },
-                tag => return Err(CodecError::InvalidTag("TerminalSuspensionValueLoans", tag)),
-            },
-        })
-    })?;
+    let live_values = List::<LiveValue>::read(reader)?;
     let loans = decode_loans(reader)?;
     validate_loan_coordinates(&loans, &live_values)?;
     Ok(TerminalSuspensionCallPlan {
@@ -235,34 +183,7 @@ pub(crate) fn decode_suspension_call_plan(
     })
 }
 
-fn encode_handle<T>(writer: &mut Writer, handle: Handle<T>) {
-    writer.u32(handle.arena_index());
-    writer.u32(handle.generation());
-}
-
-fn decode_handle<T>(reader: &mut Reader<'_>) -> Result<Handle<T>, CodecError> {
-    let slot = reader.u32()?;
-    let generation = reader.u32()?;
-    if (slot == 0 && generation != 0) || (slot != 0 && generation != 1) {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(Handle::from_parts(slot, generation))
-}
-
-fn encode_span<T>(writer: &mut Writer, span: HandleSpan<T>) {
-    encode_handle(writer, span.start());
-    writer.u32(span.count());
-}
-
-fn decode_span<T>(reader: &mut Reader<'_>) -> Result<HandleSpan<T>, CodecError> {
-    let start = decode_handle(reader)?;
-    let count = reader.count()?;
-    if (count == 0) == start.is_valid() {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(HandleSpan::from_parts_or_empty(start, count))
-}
-
+/// Loan arenas cross as their rows in arena order; decoding reinserts them.
 fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<(), CodecError> {
     let paths: Vec<_> = loans
         .paths
@@ -272,59 +193,15 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
     encode_structural_path(writer, "suspension loan paths", &paths)?;
     writer.len("suspension loan links", loans.value_links.len())?;
     for (_, link) in loans.value_links.iter() {
-        encode_handle(writer, *link);
+        HandleKind::write(writer, link)?;
     }
     writer.len("suspension loan suppliers", loans.supplier_links.len())?;
     for (_, supplier) in loans.supplier_links.iter() {
-        encode_handle(writer, *supplier);
+        HandleKind::write(writer, supplier)?;
     }
     writer.len("suspension loans", loans.occurrences.len())?;
     for (_, loan) in loans.occurrences.iter() {
-        match &loan.capture {
-            TerminalSuspensionLoanCapture::Unresolved => writer.u8(0),
-            TerminalSuspensionLoanCapture::Reference {
-                formation,
-                carrier,
-                source,
-                source_access,
-                source_path,
-            } => {
-                writer.u8(1);
-                writer.id(*formation);
-                writer.id(*carrier);
-                writer.id(*source);
-                encode_structural_access(writer, *source_access);
-                encode_span(writer, *source_path);
-            }
-            TerminalSuspensionLoanCapture::RetainedValue { live_value, path } => {
-                writer.u8(2);
-                writer.u32(*live_value);
-                encode_span(writer, *path);
-            }
-        }
-        match &loan.backing {
-            TerminalSuspensionLoanBacking::Unresolved => writer.u8(0),
-            TerminalSuspensionLoanBacking::RetainedOwner { live_value } => {
-                writer.u8(1);
-                writer.u32(*live_value);
-            }
-            TerminalSuspensionLoanBacking::IncomingReferent { argument } => {
-                writer.u8(2);
-                writer.id(argument.place);
-                encode_structural_access(writer, argument.access);
-                encode_structural_path(writer, "suspension incoming referent", &argument.path)?;
-            }
-        }
-        writer.u8(match loan.resource {
-            TerminalSuspensionLoanResource::Unresolved => 0,
-            TerminalSuspensionLoanResource::DirectRoot => 1,
-            TerminalSuspensionLoanResource::Reborrow => 2,
-            TerminalSuspensionLoanResource::IncomingReference => 3,
-        });
-        encode_handle(writer, loan.parent);
-        encode_span(writer, loan.suppliers);
-        encode_structural_access(writer, loan.access);
-        writer.boolean(loan.active_at_call);
+        Loan::write(writer, loan)?;
     }
     Ok(())
 }
@@ -334,64 +211,13 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
     for segment in decode_structural_path(reader)? {
         loans.paths.insert(segment);
     }
-    for link in decode_counted(reader, decode_handle)? {
+    for link in List::<HandleKind>::read(reader)? {
         loans.value_links.insert(link);
     }
-    for supplier in decode_counted(reader, decode_handle)? {
+    for supplier in List::<HandleKind>::read(reader)? {
         loans.supplier_links.insert(supplier);
     }
-    for loan in decode_counted(reader, |reader| {
-        let capture = match reader.u8()? {
-            0 => TerminalSuspensionLoanCapture::Unresolved,
-            1 => TerminalSuspensionLoanCapture::Reference {
-                formation: reader.id("OperationId")?,
-                carrier: reader.id("PlaceId")?,
-                source: reader.id("PlaceId")?,
-                source_access: decode_structural_access(reader)?,
-                source_path: decode_span(reader)?,
-            },
-            2 => TerminalSuspensionLoanCapture::RetainedValue {
-                live_value: reader.u32()?,
-                path: decode_span(reader)?,
-            },
-            tag => return Err(CodecError::InvalidTag("TerminalSuspensionLoanCapture", tag)),
-        };
-        let backing = match reader.u8()? {
-            0 => TerminalSuspensionLoanBacking::Unresolved,
-            1 => TerminalSuspensionLoanBacking::RetainedOwner {
-                live_value: reader.u32()?,
-            },
-            2 => TerminalSuspensionLoanBacking::IncomingReferent {
-                argument: terminal_psi::StructuralArgument {
-                    place: reader.id("PlaceId")?,
-                    access: decode_structural_access(reader)?,
-                    path: decode_structural_path(reader)?,
-                },
-            },
-            tag => return Err(CodecError::InvalidTag("TerminalSuspensionLoanBacking", tag)),
-        };
-        let resource = match reader.u8()? {
-            0 => TerminalSuspensionLoanResource::Unresolved,
-            1 => TerminalSuspensionLoanResource::DirectRoot,
-            2 => TerminalSuspensionLoanResource::Reborrow,
-            3 => TerminalSuspensionLoanResource::IncomingReference,
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "TerminalSuspensionLoanResource",
-                    tag,
-                ));
-            }
-        };
-        Ok(TerminalSuspensionLoan {
-            capture,
-            backing,
-            resource,
-            parent: decode_handle(reader)?,
-            suppliers: decode_span(reader)?,
-            access: decode_structural_access(reader)?,
-            active_at_call: reader.boolean()?,
-        })
-    })? {
+    for loan in List::<Loan>::read(reader)? {
         loans.occurrences.insert(loan);
     }
     Ok(loans)
@@ -473,10 +299,7 @@ fn validate_loan_coordinates(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        decode_suspension_call_plan, decode_suspension_call_target, encode_suspension_call_plan,
-        encode_suspension_call_target,
-    };
+    use super::{CallTarget, Field, decode_suspension_call_plan, encode_suspension_call_plan};
     use crate::codec_error::CodecError;
     use crate::sections::semantic_module::wire::{Reader, Writer};
     use language_semantics::CarryPolicy;
@@ -503,11 +326,11 @@ mod tests {
             },
         ] {
             let mut writer = Writer::default();
-            encode_suspension_call_target(&mut writer, target);
+            CallTarget::write(&mut writer, &target).unwrap();
             let bytes = writer.finish();
             let mut reader = Reader::new(&bytes);
             assert_eq!(
-                decode_suspension_call_target(&mut reader).expect("selector target"),
+                CallTarget::read(&mut reader).expect("selector target"),
                 target
             );
             assert_eq!(reader.remaining(), 0);
@@ -516,7 +339,7 @@ mod tests {
         for retired in [3, 4] {
             let bytes = [retired];
             assert!(matches!(
-                decode_suspension_call_target(&mut Reader::new(&bytes)),
+                CallTarget::read(&mut Reader::new(&bytes)),
                 Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)) if tag == retired
             ));
         }

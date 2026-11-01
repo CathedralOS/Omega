@@ -151,6 +151,55 @@ fn canonical_projection_preserves_partial_toolchain_plan_custody() {
 }
 
 #[test]
+fn canonical_projection_joins_exact_target_before_rejecting_duplicate_coordinates() {
+    let (mut declaration, mut module) = fixture();
+    let first = module.provider_candidates[0].clone();
+    let mut alternate = first.clone();
+    alternate.candidate = semantic_vocabulary::MachineId::new(5).unwrap();
+    module.provider_candidates = vec![first.clone(), alternate.clone()];
+    let callable = |candidate| terminal_psi::TargetMachineCallable::Machine(candidate);
+    module.target_machine_families = vec![terminal_psi::TargetMachineFamily {
+        canonical: terminal_psi::TargetMachineCallable::Boundary(first.boundary),
+        head_contract: [0; 32],
+        members: vec![
+            terminal_psi::TargetMachineFamilyMember {
+                target: "macos_arm64".into(),
+                callable: callable(first.candidate),
+                supply: terminal_psi::TargetMachineSupply::CheckedBody,
+            },
+            terminal_psi::TargetMachineFamilyMember {
+                target: "windows_x86_64".into(),
+                callable: callable(alternate.candidate),
+                supply: terminal_psi::TargetMachineSupply::CheckedBody,
+            },
+        ],
+    }];
+    for (target, expected) in [
+        ("macos_arm64", first.candidate),
+        ("windows_x86_64", alternate.candidate),
+    ] {
+        declaration.plan.target = target.into();
+        let selected = checked_candidate_roster(std::slice::from_ref(&declaration), &module)
+            .expect("distinct target members are not duplicates");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].candidate, expected);
+    }
+    // Two copies of the selected member still compete in the same target.
+    module.provider_candidates.push(alternate);
+    assert!(
+        checked_candidate_roster(std::slice::from_ref(&declaration), &module)
+            .unwrap_err()
+            .contains("duplicate canonical realizations")
+    );
+    declaration.plan.target = "linux_arm64".into();
+    assert!(
+        checked_candidate_roster(std::slice::from_ref(&declaration), &module)
+            .unwrap_err()
+            .contains("no emitted exact declaration candidate")
+    );
+}
+
+#[test]
 fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
     let (declaration, module) = fixture();
     for mismatch in ["owner", "requirement", "body", "duplicate"] {

@@ -9,6 +9,8 @@
 
 mod callable_shape;
 mod family_demands;
+#[cfg(test)]
+mod parameter_contract_tests;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
@@ -990,6 +992,20 @@ fn machine_parameter_contract_definition(
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.data_type_parameters(data),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    // Expansion erases the type head, not an alias's authored callable promise.
+    // Rejoin its owned telescope rather than accepting an orphan arena row.
+    for alias in program.type_aliases() {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program
+                .tables
+                .data_type_parameters
+                .span_or_empty(alias.type_parameters),
             symbol,
         ) {
             return Some(found);

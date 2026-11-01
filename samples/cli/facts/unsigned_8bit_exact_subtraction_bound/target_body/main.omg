@@ -2,44 +2,57 @@
 // Place: another target body. Each of four target-scoped machine bodies subtracts bounded 8-bit operands and discharges interval.
 // Expected exit: 0
 
-linux_x86_64 machine sub_target(lhs: u8, rhs: u8) -> u8
-requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
-{
-    let diff: u8 = lhs - rhs;
-    let headroom: u8 = 160u8 - diff;
-    let margin: u8 = diff - 60u8;
-    headroom + margin
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine sub_target(lhs: u8, rhs: u8) -> u8
-requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
-{
-    let diff: u8 = lhs - rhs;
-    let headroom: u8 = 160u8 - diff;
-    let margin: u8 = diff - 60u8;
-    headroom + margin
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine sub_target(lhs: u8, rhs: u8) -> u8
-requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
-{
-    let diff: u8 = lhs - rhs;
-    let headroom: u8 = 160u8 - diff;
-    let margin: u8 = diff - 60u8;
-    headroom + margin
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine sub_target(lhs: u8, rhs: u8) -> u8
-requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
-{
-    let diff: u8 = lhs - rhs;
-    let headroom: u8 = 160u8 - diff;
-    let margin: u8 = diff - 60u8;
-    headroom + margin
+boundary trait SelectedSubTarget {
+    machine sub_target(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40;
+}
+
+X86SubTarget satisfies SelectedSubTarget {
+    machine sub_target(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff: u8 = lhs - rhs;
+        let headroom: u8 = 160u8 - diff;
+        let margin: u8 = diff - 60u8;
+        headroom + margin
+    }
+}
+
+ArmSubTarget satisfies SelectedSubTarget {
+    machine sub_target(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff: u8 = lhs - rhs;
+        let headroom: u8 = 160u8 - diff;
+        let margin: u8 = diff - 60u8;
+        headroom + margin
+    }
 }
 
 machine probe() -> u8 {
-    sub_target(140u8, 30u8)
+    SelectedSubTarget::sub_target(140u8, 30u8)
 }
 
 machine main() crashes Trap {
@@ -49,4 +62,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

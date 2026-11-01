@@ -7,7 +7,7 @@ use super::{ExpressionHandle, Machine, RankingRangeCallProgress, State};
 use crate::proof_contracts::contract_entailment::{
     citations::machine_requires_facts,
     structural_case_arms::recognize_structural_state_prefix,
-    structural_judgment::{CapturedIntegerRank, StructuralJudge},
+    structural_judgment::{CapturedIntegerInput, CapturedIntegerRank, StructuralJudge},
 };
 use symbols::SymbolHandle;
 use typed_trees::{signature::SignatureContractKind, types::PrimitiveType};
@@ -21,7 +21,7 @@ pub(crate) struct CapturedRankComponent {
     /// Exact declaration-selected suffix on the authored subject. An empty
     /// suffix retains the ordinary scalar-read admission path.
     pub projection: Vec<facts::PlaceSegment>,
-    pub primitive: PrimitiveType,
+    pub primitive: Option<PrimitiveType>,
     /// Prove the selected relation's lower endpoint on this produced value.
     /// A desired floor cannot establish formation or become an entry premise.
     pub minimum: numerics::bignum::BigInt,
@@ -85,15 +85,70 @@ pub(crate) fn prove_captured_rank_call(
     }
     let mut formed = Vec::with_capacity(source.len());
     for component in &source {
-        let input = judge.admitted_entry_scalar_projection(
-            caller,
-            state,
-            component.subject,
-            &component.projection,
-        )?;
+        let input = if let Some(primitive) = component.primitive {
+            CapturedIntegerInput::Scalar {
+                value: judge.admitted_entry_scalar_projection(
+                    caller,
+                    state,
+                    component.subject,
+                    &component.projection,
+                )?,
+                primitive,
+            }
+        } else {
+            let declaration = program
+                .measures()
+                .iter()
+                .find(|declaration| declaration.symbol == component.measure)
+                .ok_or("the record rank lost its supplying declaration")?;
+            let shape = super::declared_input_shape(program, declaration)
+                .ok_or("the record rank has no complete typed read shape")?;
+            let actual =
+                crate::declared_place_type_raw(program, caller, Some(state), component.subject)
+                    .and_then(|reference| {
+                        crate::project_type_reference_from_segments(
+                            program,
+                            reference,
+                            &component.projection,
+                        )
+                    })
+                    .ok_or("the record rank lost its exact input type")?;
+            if !super::declared_input_type_matches(program, actual, shape.type_reference) {
+                return Err("the record rank input does not match its declared nominal type");
+            }
+            let mut reads = Vec::new();
+            for read in &shape.reads {
+                let path = component
+                    .projection
+                    .iter()
+                    .chain(&read.coordinate.path)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let value = judge.admitted_entry_scalar_projection(
+                    caller,
+                    state,
+                    component.subject,
+                    &path,
+                )?;
+                reads.push((read.coordinate.clone(), value, read.primitive_type));
+            }
+            let snapshot = crate::canonical_place_from_expression(program, component.subject)
+                .and_then(|mut place| {
+                    place.segments.extend_from_slice(&component.projection);
+                    judge.captured_place_projection(&place, language_semantics::content::ContentPlaceVersion::Entry)
+                }).and_then(|value| {
+                    super::super::structural_judgment::owned_snapshots::CapturedOwnedSnapshot::completed(
+                        &judge, state.symbol, actual, &value,
+                    )
+                });
+            CapturedIntegerInput::Record {
+                type_reference: actual,
+                snapshot,
+                reads,
+            }
+        };
         formed.push(judge.form_captured_integer_rank(&CapturedIntegerRank {
             input,
-            primitive: component.primitive,
             minimum: component.minimum.clone(),
             measure: component.measure,
         })?);

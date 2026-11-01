@@ -78,7 +78,7 @@ For an ambiguous role or non-`main.omg` entry, add one local `sample.json`:
 `entry` names one local Omega source. `rejection_contains` is a list of literal
 stderr diagnostic fragments, all required. Optional `rejection_any_contains`
 requires at least one listed literal as well; `rejection_casefold: true`
-preserves authored case-insensitive matching. These fields restate
+preserves authored case-insensitive matching. `notes` is optional author text that no gate reads. These fields restate
 the control's authored contract, not whatever error happens to occur on a machine. Without it, an intended-invalid
 project uses every nonempty line of its existing diagnostic expectation file.
 Missing expectations are reported as failures, never skipped or guessed from an

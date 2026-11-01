@@ -14,40 +14,53 @@ data Outer [copy] {
     mid: Middle;
 }
 
-linux_x86_64 machine check_target(outer: Outer) -> u64
-requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
-{
-    let res: u64 = outer.mid.inner.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine check_target(outer: Outer) -> u64
-requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
-{
-    let res: u64 = outer.mid.inner.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine check_target(outer: Outer) -> u64
-requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
-{
-    let res: u64 = outer.mid.inner.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine check_target(outer: Outer) -> u64
-requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
-{
-    let res: u64 = outer.mid.inner.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
+boundary trait SelectedCheckTarget {
+    machine check_target(outer: Outer) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80;
+}
+
+X86CheckTarget satisfies SelectedCheckTarget {
+    machine check_target(outer: Outer) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let res: u64 = outer.mid.inner.val;
+        let headroom: u64 = 80u64 - res;
+        let margin: u64 = res - 40u64;
+        headroom + margin
+    }
+}
+
+ArmCheckTarget satisfies SelectedCheckTarget {
+    machine check_target(outer: Outer) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 80
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let res: u64 = outer.mid.inner.val;
+        let headroom: u64 = 80u64 - res;
+        let margin: u64 = res - 40u64;
+        headroom + margin
+    }
 }
 
 machine probe() -> u64 {
@@ -58,7 +71,7 @@ machine probe() -> u64 {
             },
         },
     };
-    check_target(outer)
+    SelectedCheckTarget::check_target(outer)
 }
 
 machine main() crashes Trap {
@@ -68,4 +81,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

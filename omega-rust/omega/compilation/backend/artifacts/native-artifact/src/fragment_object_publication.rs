@@ -3,6 +3,7 @@
 use diagnostics::Diagnostic;
 
 use crate::NativePhysicalEvidenceScope;
+use crate::native_artifact_error;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 /// Entry custody and companion functions for one emitted object.
@@ -51,7 +52,7 @@ impl FragmentObjectProjection {
             .find(|function| function.machine == self.object.entry())
             .map(|function| &function.graph.call_plan)
             .ok_or_else(|| {
-                crate::native_artifact_error(
+                native_artifact_error(
                     "entry transport",
                     "emitted entry has no retained target function",
                 )
@@ -78,7 +79,7 @@ pub fn publish_fragment_object(
     let FragmentObjectProjection { object, .. } = projection;
     let mut object =
         image_emission::compose_private_function_objects(object, request.private_functions)
-            .map_err(|error| crate::native_artifact_error("private object composition", error))?;
+            .map_err(|error| native_artifact_error("private object composition", error))?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
@@ -106,36 +107,33 @@ pub fn publish_fragment_object(
                     || object.target() == target::NativeTarget::windows_x64()
                         && entry.source().target_slot().owner == target::TargetProfile::WindowsX64)
         {
-            return Err(crate::native_artifact_error(
+            return Err(native_artifact_error(
                 "ProgramEntry access-view custody",
                 "bound access-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
             ));
         }
         if entry.source().target_slot().owner == target::TargetProfile::UefiX64 {
             let adapter = entry.physical_adapter().ok_or_else(|| {
-                crate::native_artifact_error(
+                native_artifact_error(
                     "physical program entry",
                     "semantic entry requires an explicitly selected checked physical adapter",
                 )
             })?;
             if object.entry() != adapter.machine() {
-                return Err(crate::native_artifact_error(
+                return Err(native_artifact_error(
                     "physical program entry",
                     "emitted root is not the selected physical adapter",
                 ));
             }
             let physical = entry.physical_calling_plan().ok_or_else(|| {
-                crate::native_artifact_error(
-                    "physical program entry",
-                    "missing physical calling plan",
-                )
+                native_artifact_error("physical program entry", "missing physical calling plan")
             })?;
             let guarantee = entry
                 .storage_entry()
                 .and_then(|storage| storage.physical_contract())
                 .and_then(|contract| contract.guaranteed_entry_stack())
                 .ok_or_else(|| {
-                    crate::native_artifact_error(
+                    native_artifact_error(
                         "physical program entry",
                         "missing target entry stack guarantee",
                     )
@@ -152,14 +150,14 @@ pub fn publish_fragment_object(
                 .storage_entry()
                 .and_then(|storage| storage.physical_contract())
                 .ok_or_else(|| {
-                    crate::native_artifact_error(
+                    native_artifact_error(
                         "ProgramEntry receiver provisioning",
                         "missing exact hosted physical contract",
                     )
                 })?;
             let demand =
                 image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
-                    crate::native_artifact_error("ProgramEntry receiver stack demand", error)
+                    native_artifact_error("ProgramEntry receiver stack demand", error)
                 })?;
             image_emission::bind_hosted_receiver(
                 &mut object,
@@ -190,16 +188,14 @@ pub fn emit_fragment_object(
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
     let plan = emission.optimized_target().optimized().shared_program();
     let emitted = machine_emission::stage_optimized_function_fragment_emission(emission)
-        .map_err(|error| crate::native_artifact_error("function-fragment emission", error))?;
-    let applied =
-        machine_emission::stage_function_fragment_frame_application(emitted).map_err(|error| {
-            crate::native_artifact_error("function-fragment frame application", error)
-        })?;
+        .map_err(|error| native_artifact_error("function-fragment emission", error))?;
+    let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+        .map_err(|error| native_artifact_error("function-fragment frame application", error))?;
     let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-        .map_err(|error| crate::native_artifact_error("framed text placement", error))?;
+        .map_err(|error| native_artifact_error("framed text placement", error))?;
     let source = std::sync::Arc::new(
         object_file::stage_optimized_relocation_free_object_container(text)
-            .map_err(|error| crate::native_artifact_error("fragment object placement", error))?,
+            .map_err(|error| native_artifact_error("fragment object placement", error))?,
     );
     let object = image_emission::build_function_fragment_object_artifact(
         image_emission::FunctionFragmentObjectArtifactRequest {
@@ -207,7 +203,7 @@ pub fn emit_fragment_object(
             dynamic_dispatch: &plan.dynamic_dispatch,
         },
     )
-    .map_err(|error| crate::native_artifact_error("fragment object publication", error))?;
+    .map_err(|error| native_artifact_error("fragment object publication", error))?;
     Ok(FragmentObjectProjection { source, object })
 }
 
@@ -226,7 +222,7 @@ fn validate_emitted_receiver_binding(
         return if binding.is_none() && object.physical_entry_binding().is_none() {
             Ok(())
         } else {
-            Err(crate::native_artifact_error(
+            Err(native_artifact_error(
                 "ProgramEntry receiver provisioning",
                 "emitted object carries a hosted receiver binding that admission never granted",
             ))
@@ -251,14 +247,14 @@ fn validate_emitted_receiver_binding(
         {
             Ok(())
         } else {
-            Err(crate::native_artifact_error(
+            Err(native_artifact_error(
                 "ProgramEntry receiver provisioning",
                 "admitted UEFI physical adapter did not reach the emitted entry",
             ))
         };
     }
     let Some(binding) = binding else {
-        return Err(crate::native_artifact_error(
+        return Err(native_artifact_error(
             "ProgramEntry receiver provisioning",
             "admitted receiver provisioning did not reach the emitted object",
         ));
@@ -269,7 +265,7 @@ fn validate_emitted_receiver_binding(
     if binding.source() != settlement.source()
         || admitted_contract != Some(binding.physical_contract())
     {
-        return Err(crate::native_artifact_error(
+        return Err(native_artifact_error(
             "ProgramEntry receiver provisioning",
             "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
         ));

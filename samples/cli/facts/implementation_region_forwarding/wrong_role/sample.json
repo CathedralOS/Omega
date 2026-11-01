@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "data `Holder` cannot bind implementation `Implementation`",
+    "selected declaration does not name a package-scoped conformance"
+  ]
+}

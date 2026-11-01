@@ -14,6 +14,8 @@ use crate::fixture_package_inputs;
 mod behavior_admission_controls;
 #[path = "boundary_provider_controls.rs"]
 mod boundary_provider_controls;
+#[path = "callback_telescope_controls.rs"]
+mod callback_telescope_controls;
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
 #[path = "dynamic_image_controls.rs"]
@@ -26,6 +28,8 @@ mod indexed_family_controls;
 mod mathematical_actuals;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
+#[path = "scalar_issuer_controls.rs"]
+mod scalar_issuer_controls;
 #[path = "synchronous_provider_controls.rs"]
 mod synchronous_provider_controls;
 #[path = "task_activation_controls.rs"]
@@ -47,6 +51,8 @@ enum InspectionControls {
     ProviderChoices,
     BoundaryProviders,
     BehaviorAdmission,
+    CallbackTelescope,
+    ScalarIssuer,
 }
 
 #[derive(Clone, Copy)]
@@ -137,6 +143,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "behavior-admission-controls"] => {
                 (*machine, false, Some(InspectionControls::BehaviorAdmission))
             }
+            [machine, "callback-telescope-controls"] => {
+                (*machine, false, Some(InspectionControls::CallbackTelescope))
+            }
+            [machine, "scalar-issuer-controls"] => {
+                (*machine, false, Some(InspectionControls::ScalarIssuer))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -162,6 +174,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
+                    | InspectionControls::CallbackTelescope
             )
         );
         let product = if provider_controls {
@@ -225,7 +238,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .into_retained_terminal_artifact()
                 .ok_or("provider controls need a retained Terminal product")?;
             drop(prepared);
-            if let Some(choices) = provider_choices {
+            if matches!(
+                conformance_controls,
+                Some(InspectionControls::CallbackTelescope)
+            ) {
+                callback_telescope_controls::inspect(&retained)?;
+                observations.push("callback-telescope-controls:match".into());
+            } else if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
                 observations.push("provider-choice-controls:match".into());
             } else if matches!(
@@ -249,6 +268,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let produced = output
             .into_inspection()
             .map_err(|error| format!("inspection {machine} output: {error:?}"))?;
+        drop(prepared);
         let artifact = produced.artifact().as_ref();
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
@@ -323,6 +343,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::ScalarIssuer => scalar_issuer_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {
                     closed_reach_controls::inspect_captures(&decoded)?
@@ -334,6 +355,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
+                | InspectionControls::CallbackTelescope
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

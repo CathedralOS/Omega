@@ -5,6 +5,7 @@ use super::super::{
     resolve_checked_adapter_for_operator, selected_use_plan,
 };
 use super::{CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind};
+use checked_trees::CheckedBoundaryOperatorApplicationDemand;
 use checked_trees::{
     CheckedBoundaryOperatorApplicationUseSite, CheckedOperatorResolutionStatus, CheckedTrees,
 };
@@ -14,9 +15,7 @@ use symbols::SymbolHandle;
 pub(super) fn derive<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    applications: impl IntoIterator<
-        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
-    >,
+    applications: impl IntoIterator<Item = &'application CheckedBoundaryOperatorApplicationDemand>,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     let mut diagnostics = Vec::new();
@@ -44,7 +43,7 @@ pub(super) fn derive<'application>(
 fn derive_checked_expression_operator_application_realization(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    application: &CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<Option<CheckedNongenericOperatorApplicationRealization>, Diagnostic> {
     if matches!(
         application.site,

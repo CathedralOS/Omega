@@ -33,11 +33,11 @@ machine Item::lifted_code<Width: u32, Depth: u32>(item: &Item) -> u32 satisfies 
 }
 
 Primary satisfies Shape<Item> {
-    Shape::code = Item::code;
+    machine code<Width: u32, Depth: u32>(subject: &Item) -> u32 where (Width == 16 && Depth == 4) || (Width == 32 && Depth == 8) { Item::code<Width, Depth>(subject) }
 }
 
 Bumped satisfies Shape<Item> {
-    Shape::code = Item::lifted_code;
+    machine code<Width: u32, Depth: u32>(subject: &Item) -> u32 where (Width == 16 && Depth == 4) || (Width == 32 && Depth == 8) { Item::lifted_code<Width, Depth>(subject) }
 }
 
 machine scan(selected: dyn Shape<Item>, item: &Item, w: u32, d: u32) -> u32

@@ -49,4 +49,7 @@ pub enum SymbolKind {
     Function,
     Section,
     Import,
+    /// A transparent source type declaration. Its selected header and
+    /// telescope survive normalization; it never owns runtime data storage.
+    TypeAlias,
 }

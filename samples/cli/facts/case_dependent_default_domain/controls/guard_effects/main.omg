@@ -1,0 +1,100 @@
+// Case membership and the complete predicate recover the payload type and ordered bounds through the transported value.
+// Expected exit: 0.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+        || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+data NamedValue [copy] {
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+domain<T> NamedValue::Typed<T>
+    requires ((self in NamedValue::Integer) && T == i32)
+        || ((self in NamedValue::Boolean) && T == bool);
+data Interval [copy]
+    requires (self in Interval::Empty)
+        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+data NamedInterval [copy] {
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+domain<const Bound: u64> NamedInterval::Ordered<Bound>
+    requires (self in NamedInterval::Empty)
+        || ((self in NamedInterval::Range) && self.lo <= self.hi && self.hi <= Bound);
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+machine pick<T>(value: Value<T>) -> T {
+    match value {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+    match value {
+        NamedValue::Integer { value } -> value
+        NamedValue::Boolean { value } -> value
+    }
+}
+machine width(span: Interval) -> u64 {
+    match span {
+        Interval::Empty -> 77
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine width_named(span: NamedInterval in Ordered<32>) -> u64 {
+    match span {
+        NamedInterval::Empty -> 77
+        NamedInterval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+    let qualified: u64 in AtMost<32> = lo as u64 in AtMost<32>;
+    hi - (qualified as u64)
+}
+data Counter { value: u64 in Wrapping; }
+machine deny(counter: &mut Counter) -> bool { counter.value = counter.value + 1; false }
+machine guarded<T>(value: Value<T>, counter: &mut Counter) -> T {
+    match value {
+        Value::Integer { value } if deny(counter) -> value
+        Value::Integer { value } -> value
+        Value::Boolean { value } if deny(counter) -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine guarded_width(value: Interval, counter: &mut Counter) -> u64 {
+    match value {
+        Interval::Range { lo, hi } if deny(counter) -> width_range(lo, hi)
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+        Interval::Empty -> 77
+    }
+}
+machine guarded_named_width(value: NamedInterval in Ordered<32>, counter: &mut Counter) -> u64 {
+    match value {
+        NamedInterval::Range { lo, hi } if deny(counter) -> width_range(lo, hi)
+        NamedInterval::Range { lo, hi } -> width_range(lo, hi)
+        NamedInterval::Empty -> 77
+    }
+}
+machine main() crashes Trap {
+    let mut count: Counter = Counter { value: 0 };
+    let integer: Value<i32> = Value::Integer { value: 17 };
+    let flag: Value<bool> = Value::Boolean { value: true };
+    let number: i32 = guarded<i32>(integer, &mut count);
+    let boolean: bool = guarded<bool>(flag, &mut count);
+    let span: Interval = Interval::Range { lo: 17, hi: 21 };
+    let named_span: NamedInterval in Ordered<32> = (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>;
+    let direct_width: u64 = guarded_width(span, &mut count);
+    let named_width: u64 = guarded_named_width(named_span, &mut count);
+    transition number == 17 && boolean == true && direct_width == 4 && named_width == 6 && (count.value as u64) == 4 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,6 +1,6 @@
 //! Borrowed ancestry for unfinished checking queries. Descendants carry the
 //! same immutable input view, completed memos, and conservative recurrence cuts.
-//! A repeated bulk-fit request keeps the ordinary occurrence path; a repeated
+//! An unfinished machine population keeps the ordinary occurrence path; a repeated
 //! numeric state contributes unknown evidence. Neither publishes its own premise.
 
 use crate::CheckingInput;
@@ -16,6 +16,9 @@ enum QueryKind {
         state: SymbolHandle,
     },
     OperandFits {
+        machine: SymbolHandle,
+    },
+    CompletedCases {
         machine: SymbolHandle,
     },
 }
@@ -53,6 +56,19 @@ impl<'input> CheckingQuery<'input> {
             query: QueryKind::OperandFits { machine },
         })
     }
+
+    pub(crate) fn completed_case_population(
+        input: &'input dyn CheckingInput,
+        machine: SymbolHandle,
+    ) -> Option<Self> {
+        if input.has_active_completed_case_population(machine) {
+            return None;
+        }
+        Some(Self {
+            input,
+            query: QueryKind::CompletedCases { machine },
+        })
+    }
 }
 
 // Query ancestry changes no checking authority, geometry, selected meaning or
@@ -71,6 +87,11 @@ impl CheckingInput for CheckingQuery<'_> {
     fn has_active_operand_fit_population(&self, machine: SymbolHandle) -> bool {
         matches!(self.query, QueryKind::OperandFits { machine: active } if active == machine)
             || self.input.has_active_operand_fit_population(machine)
+    }
+
+    fn has_active_completed_case_population(&self, machine: SymbolHandle) -> bool {
+        matches!(self.query, QueryKind::CompletedCases { machine: active } if active == machine)
+            || self.input.has_active_completed_case_population(machine)
     }
 
     fn defers_pending_layout_geometry(&self) -> bool {

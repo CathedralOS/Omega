@@ -5,6 +5,7 @@
 //! handle when no node changes, so unchanged subterms keep their storage.
 
 use super::term::{Level, Sort, Term, TermArena, TermHandle, instantiate_level};
+use std::convert::Infallible;
 
 /// Increase every free variable at or above `cutoff` by `amount`. Returns
 /// `term` unchanged when `amount` is zero or no variable qualifies.
@@ -23,7 +24,7 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
     }
     arena
         .rebuild_subterms(term, &mut |arena, child, binders| {
-            Ok::<_, std::convert::Infallible>(shift(arena, child, cutoff + binders, amount))
+            Ok::<_, Infallible>(shift(arena, child, cutoff + binders, amount))
         })
         .expect("a term shift never refuses")
         .unwrap_or(term)
@@ -51,12 +52,7 @@ fn substitute_at(
     }
     arena
         .rebuild_subterms(term, &mut |arena, child, binders| {
-            Ok::<_, std::convert::Infallible>(substitute_at(
-                arena,
-                child,
-                argument,
-                depth + binders,
-            ))
+            Ok::<_, Infallible>(substitute_at(arena, child, argument, depth + binders))
         })
         .expect("a term substitution never refuses")
         .unwrap_or(term)

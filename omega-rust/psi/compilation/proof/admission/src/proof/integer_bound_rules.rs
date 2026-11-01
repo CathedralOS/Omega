@@ -22,6 +22,7 @@ use crate::{
     check_integer_correlated_forbidden_root_witness, integer_affine_truth_bounds,
     integer_cast_truth_bounds, map_integer_affine_bound,
 };
+use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId};
 use terminal_psi::{ProofNode, ProofRule};
 
@@ -111,10 +112,7 @@ impl ExactDefinitionOperation {
 
     /// The fixed scalar type and left operand of `expression` when it is
     /// this operation.
-    fn operands(
-        self,
-        expression: &ScalarTerm,
-    ) -> Option<(semantic_vocabulary::IntegerType, &ScalarTerm)> {
+    fn operands(self, expression: &ScalarTerm) -> Option<(IntegerType, &ScalarTerm)> {
         match (self, expression) {
             (
                 Self::Add,

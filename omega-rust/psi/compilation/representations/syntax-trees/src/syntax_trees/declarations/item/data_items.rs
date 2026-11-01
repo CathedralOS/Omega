@@ -78,7 +78,11 @@ pub struct ConformanceItem {
 pub enum ConformanceMember {
     /// A machine declared lexically inside the block. Its declaration name is
     /// the requirement slot it fills; later normalization retains an internal
-    /// conformance-qualified realization identity.
+    /// conformance-qualified realization identity. A single `satisfies
+    /// Trait<..>::name` clause on the member is the exact edge that names the
+    /// declaring trait when inherited requirements share the member's name.
+    /// An existing machine is reused by calling it from the member's body; a
+    /// requirement-to-machine assignment row is not a source form.
     Machine(Machine),
     /// A trait-authored default instantiated for this closed conformance.
     /// This variant is synthesized before symbol resolution; it is never
@@ -94,26 +98,15 @@ pub enum ConformanceMember {
     },
     /// A sealed core-trait row the compiler emits as an ordinary checked
     /// machine body: the structural `equals` of an `Equatable<T>`
-    /// implementation that authors no `equals` member or reference row. It is
+    /// implementation that authors no `equals` member. It is
     /// synthesized before symbol resolution and never accepted from source;
     /// typed lowering expands uses of this row structurally.
     Synthesized(Machine),
-    /// An explicit row reference such as
-    /// `Ranked::rank_value = Card::stable_rank_value;`.
-    Reference {
-        declaring_trait: Identifier,
-        requirement: Identifier,
-        target: HandleSpan<Identifier>,
-    },
 }
 
 impl Default for ConformanceMember {
     fn default() -> Self {
-        Self::Reference {
-            declaring_trait: Identifier::generated(""),
-            requirement: Identifier::generated(""),
-            target: HandleSpan::empty(),
-        }
+        Self::Machine(Machine::default())
     }
 }
 

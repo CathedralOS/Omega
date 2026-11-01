@@ -912,7 +912,7 @@ pub(super) fn clone_single_specialized_machine(
                 })?;
             program
                 .type_reference_table
-                .substitute_from(reference, applied)
+                .substitute_applied_from(reference, applied)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
     }
