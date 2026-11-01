@@ -108,6 +108,48 @@ pub(super) fn expression_prefix_roots(
     Some(roots)
 }
 
+/// Maximal compatible schedules supplied by the existing prefix owner. Guard,
+/// target and continuation boundaries remain exactly those of that operation;
+/// grouping does not infer execution order from an inventory of syntax.
+#[derive(Default)]
+pub(super) struct ExpressionPrefixGroups {
+    pub groups: Vec<Vec<typed_trees::expression::ExpressionHandle>>,
+    pub unavailable: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
+pub(super) fn expression_prefix_groups(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+) -> ExpressionPrefixGroups {
+    let mut plan = ExpressionPrefixGroups::default();
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
+        return plan;
+    };
+    for (_, expression) in program.tables.expression_roots(statement) {
+        if !expression.is_valid() {
+            continue;
+        }
+        let Some(prefix) = expression_prefix_roots(program, state, statement_index, expression)
+        else {
+            plan.unavailable.push(expression);
+            continue;
+        };
+        if let Some(group) = plan
+            .groups
+            .iter_mut()
+            .find(|group| group.starts_with(&prefix) || prefix.starts_with(group))
+        {
+            if prefix.len() > group.len() {
+                *group = prefix;
+            }
+        } else {
+            plan.groups.push(prefix);
+        }
+    }
+    plan
+}
+
 /// One reached arm of a visited prefix, in `observe`'s reading order: the
 /// program facts, the site's machine and resolved state, the arm's substitute
 /// judge carrying the selected call's published guarantees, and the

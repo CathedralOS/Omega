@@ -27,15 +27,50 @@ impl<'program> StructuralJudge<'program> {
                 .unwrap_or(scope.2);
         let scope = (scope.0, scope.1, reference);
         let mut entries = NormalObservationEntries::default();
-        let paths = self.clone().evaluate_normal_paths(
-            expression,
-            environment,
-            scope,
-            0,
-            OperationObservations::completion(observations, operations),
-            &mut entries,
-            demand,
-        );
+        let roots = [expression];
+        let observed_roots = if observations.is_empty() && operations.is_empty() {
+            &[][..]
+        } else {
+            &roots[..]
+        };
+        let paths = self
+            .clone()
+            .evaluate_normal_operands(
+                &[NormalOperand {
+                    expression,
+                    reference,
+                    demand,
+                }],
+                environment,
+                scope,
+                0,
+                OperationObservations::completion(observations, operations)
+                    .with_roots(observed_roots),
+                &mut entries,
+                None,
+            )
+            .and_then(|paths| {
+                paths
+                    .into_iter()
+                    .map(|(judge, values)| {
+                        let [(_, result)] = values.as_slice() else {
+                            return None;
+                        };
+                        Some(NormalReturnPath {
+                            value: result.value.clone(),
+                            observation: result.observation,
+                            value_requested: matches!(demand, NormalValueDemand::Value),
+                            judge,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()
+            });
+        if paths.is_none()
+            && !observed_roots.is_empty()
+            && !entries.roots_unavailable.contains(&expression)
+        {
+            entries.roots_unavailable.push(expression);
+        }
         CompletedExpression { paths, entries }
     }
 }

@@ -610,6 +610,76 @@ impl Observations {
         }
     }
 
+    fn collect_completed<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        completed: &super::structural_judgment::normal_returns::CompletedNormalObservations<
+            'program,
+        >,
+    ) {
+        for entry in &completed.operations {
+            let arguments = entry.observed_arguments().unwrap_or_default();
+            self.collect_ordering(
+                program,
+                machine,
+                state,
+                entry.expression,
+                &arguments,
+                &entry.judge,
+            );
+        }
+        for &expression in &completed.values_unavailable {
+            self.complete = false;
+            if self.candidates.contains(&expression) {
+                if let Some((_, value)) = self
+                    .values
+                    .iter_mut()
+                    .find(|(source, _)| *source == expression)
+                {
+                    *value = None;
+                } else {
+                    self.values.push((expression, None));
+                }
+            }
+            if self.results.contains(&expression) {
+                self.intersect_associations(expression, Vec::new());
+            }
+        }
+        for &expression in &completed.roots_unavailable {
+            self.invalidate_root(program, expression);
+        }
+        for root in &completed.roots {
+            let results = self
+                .results
+                .iter()
+                .copied()
+                .filter(|&result| {
+                    crate::expression_owners::expression_contains(program, root.expression, result)
+                })
+                .collect::<Vec<_>>();
+            let candidates = self
+                .candidates
+                .iter()
+                .copied()
+                .filter(|&candidate| {
+                    crate::expression_owners::expression_contains(
+                        program,
+                        root.expression,
+                        candidate,
+                    )
+                })
+                .collect::<Vec<_>>();
+            for path in &root.paths {
+                if self.wants_scalar_values {
+                    self.collect_requested(program, machine, state, path, &candidates);
+                }
+                self.collect_associations(program, machine, state, &results, path);
+            }
+        }
+    }
+
     fn collect_associations(
         &mut self,
         program: &dyn crate::CheckingInput,
@@ -831,8 +901,20 @@ impl Observations {
         state: &State,
         judge: &StructuralJudge<'_>,
     ) {
+        let candidates = self.candidates.clone();
+        self.collect_requested(program, machine, state, judge, &candidates);
+    }
+
+    fn collect_requested(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        judge: &StructuralJudge<'_>,
+        candidates: &[ExpressionHandle],
+    ) {
         for (expression, value) in judge.completed_expression_values() {
-            if !self.candidates.contains(expression) {
+            if !candidates.contains(expression) {
                 continue;
             }
             let Some(carrier) = super::observed_projections::integer_storage_read(
@@ -919,52 +1001,7 @@ impl StructuralPrefixVisitor for Observations {
         if self.wants_scalar_values {
             self.collect(program, machine, state, &judge);
         }
-        for entry in &completed.observations.operations {
-            // An attempted operation with unavailable required operands meets
-            // Unknown; it cannot leave another arm's proved ordering standing.
-            let arguments = entry.observed_arguments().unwrap_or_default();
-            self.collect_ordering(
-                program,
-                machine,
-                state,
-                entry.expression,
-                &arguments,
-                &entry.judge,
-            );
-        }
-        for &expression in &completed.observations.values_unavailable {
-            self.complete = false;
-            if self.candidates.contains(&expression) {
-                if let Some((_, value)) = self
-                    .values
-                    .iter_mut()
-                    .find(|(source, _)| *source == expression)
-                {
-                    *value = None;
-                } else {
-                    self.values.push((expression, None));
-                }
-            }
-            if self.results.contains(&expression) {
-                self.intersect_associations(expression, Vec::new());
-            }
-        }
-        if !completed.observations_complete
-            && let Some(statement) = program
-                .statement_table
-                .statement_at(state, self.statement_index)
-        {
-            for (_, root) in program.tables.expression_roots(statement) {
-                self.invalidate_root(program, root);
-            }
-        }
-        let results = self.results.clone();
-        for outcome in &completed.observations.paths {
-            if self.wants_scalar_values {
-                self.collect(program, machine, state, outcome);
-            }
-            self.collect_associations(program, machine, state, &results, outcome);
-        }
+        self.collect_completed(program, machine, state, &completed.observations);
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
@@ -972,12 +1009,6 @@ impl StructuralPrefixVisitor for Observations {
         if self.wants_scalar_values {
             self.collect(program, machine, state, &judge);
         }
-        let Some(statement) = program
-            .statement_table
-            .statement_at(state, self.statement_index)
-        else {
-            return;
-        };
         if self.is_complete() {
             return;
         }
@@ -1006,129 +1037,40 @@ impl StructuralPrefixVisitor for Observations {
                 .copied()
                 .filter(|result| !self.candidates.contains(result)),
         );
-        let roots: Vec<_> = program
-            .tables
-            .expression_roots(statement)
-            .into_iter()
-            .map(|(_, expression)| expression)
-            .filter(|expression| expression.is_valid())
-            .collect();
-        if roots.len() > 1
-            && !matches!(statement, StatementNode::Transition(_))
-            && judge.frame_resolver().is_some_and(|frames| {
-                roots.iter().all(|&root| {
-                    frames
-                        .expression_write_frame(machine, root)
-                        .complete_paths()
-                        .is_some_and(|paths| paths.is_empty())
-                })
-            })
-        {
-            let last_root = *roots.last().unwrap();
+        // Stage03 normalizes a machine terminal invocation to one Value(Call)
+        // root; its source arity is not a root count. This observer requests
+        // descendants' inputs, not the final call's execution or guarantees.
+        // The normal owner keeps earlier operands' effects, but its final-only
+        // query cut does not complete an unrequested operation after them.
+        let plan = super::structural_prefix::expression_prefix_groups(
+            program,
+            state,
+            self.statement_index,
+        );
+        for expression in plan.unavailable {
+            self.invalidate_root(program, expression);
+        }
+        for roots in plan.groups {
+            let Some(&last_root) = roots.last() else {
+                continue;
+            };
             let reference =
                 crate::expression_result_type_reference(program, machine, state, last_root)
                     .unwrap_or(state.return_type);
-            if let Some(observations) = phase_profile::scope("05.num.2a.1_completed_obs", || {
-                judge.completed_observations(
-                    self.statement_index,
-                    last_root,
-                    environment,
-                    (machine, state, reference),
-                    &requested,
-                    &self.operations,
-                )
-            }) {
-                for entry in observations.operations {
-                    let Some(arguments) = entry.observed_arguments() else {
-                        continue;
-                    };
-                    phase_profile::scope("05.num.2a.2_collect_ordering", || {
-                        self.collect_ordering(
-                            program,
-                            machine,
-                            state,
-                            entry.expression,
-                            &arguments,
-                            &entry.judge,
-                        );
-                    });
+            let Some(observations) = judge.completed_observations(
+                self.statement_index,
+                last_root,
+                environment,
+                (machine, state, reference),
+                &requested,
+                &self.operations,
+            ) else {
+                for root in roots {
+                    self.invalidate_root(program, root);
                 }
-                let results = self
-                    .results
-                    .iter()
-                    .copied()
-                    .filter(|result| {
-                        roots.iter().any(|&root| {
-                            crate::expression_owners::expression_contains(program, root, *result)
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                for outcome in observations.paths {
-                    if self.wants_scalar_values {
-                        self.collect(program, machine, state, &outcome);
-                    }
-                    phase_profile::scope("05.num.2a.3_collect_assoc", || {
-                        self.collect_associations(program, machine, state, &results, &outcome);
-                    });
-                }
-                return;
-            }
-        }
-        // The normal-value owner installs each root's completed leading roots
-        // itself, including ordered call arguments and guard/target context.
-        for (_, expression) in program.tables.expression_roots(statement) {
-            let reference =
-                crate::expression_result_type_reference(program, machine, state, expression)
-                    .unwrap_or(state.return_type);
-            let Some(observations) = phase_profile::scope("05.num.2a.1_completed_obs", || {
-                judge.completed_observations(
-                    self.statement_index,
-                    expression,
-                    environment,
-                    (machine, state, reference),
-                    &requested,
-                    &self.operations,
-                )
-            }) else {
-                // Unknown completion of a potentially evaluated root cannot
-                // leave a convenient sibling-path capture behind. Earlier
-                // snapshots outside this root retain their completed custody.
-                self.invalidate_root(program, expression);
                 continue;
             };
-            for entry in observations.operations {
-                let Some(arguments) = entry.observed_arguments() else {
-                    continue;
-                };
-                phase_profile::scope("05.num.2a.2_collect_ordering", || {
-                    self.collect_ordering(
-                        program,
-                        machine,
-                        state,
-                        entry.expression,
-                        &arguments,
-                        &entry.judge,
-                    );
-                });
-            }
-            // Root containment depends only on the requested expression
-            // identities, not an individual normal path's captured values.
-            let results = self
-                .results
-                .iter()
-                .copied()
-                .filter(|result| {
-                    crate::expression_owners::expression_contains(program, expression, *result)
-                })
-                .collect::<Vec<_>>();
-            for outcome in observations.paths {
-                if self.wants_scalar_values {
-                    self.collect(program, machine, state, &outcome);
-                }
-                phase_profile::scope("05.num.2a.3_collect_assoc", || {
-                    self.collect_associations(program, machine, state, &results, &outcome);
-                });
-            }
+            self.collect_completed(program, machine, state, &observations);
         }
     }
 }

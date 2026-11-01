@@ -9,7 +9,6 @@ use typed_trees::statement::StatementNode;
 pub(in crate::proof_contracts::contract_entailment) struct CompletedStatement<'program> {
     pub outcomes: Option<Vec<NormalReturnPath<'program>>>,
     pub observations: CompletedNormalObservations<'program>,
-    pub observations_complete: bool,
 }
 
 impl<'program> StructuralJudge<'program> {
@@ -23,14 +22,27 @@ impl<'program> StructuralJudge<'program> {
         operations: &[ExpressionHandle],
         advance: bool,
     ) -> Option<CompletedStatement<'program>> {
-        let requested = OperationObservations::completion(values, operations);
+        let roots = self
+            .program
+            .tables
+            .expression_roots(statement)
+            .into_iter()
+            .map(|(_, root)| root)
+            .filter(|root| root.is_valid())
+            .collect::<Vec<_>>();
+        let observed_roots = if values.is_empty() && operations.is_empty() {
+            &[][..]
+        } else {
+            roots.as_slice()
+        };
+        let requested =
+            OperationObservations::completion(values, operations).with_roots(observed_roots);
         let demand = if advance {
             NormalValueDemand::Value
         } else {
-            NormalValueDemand::Observe(values)
+            NormalValueDemand::ObserveOnly(values)
         };
         let mut entries = NormalObservationEntries::default();
-        let mut observations = Vec::new();
         let mut successors_available = true;
         let mut arguments_completed = false;
         let outcomes = match statement {
@@ -64,7 +76,6 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 requested,
                 &mut entries,
-                &mut observations,
                 advance,
                 &mut successors_available,
             ),
@@ -76,7 +87,6 @@ impl<'program> StructuralJudge<'program> {
                     scope,
                     requested,
                     &mut entries,
-                    &mut observations,
                     advance,
                     &mut arguments_completed,
                 )
@@ -89,21 +99,25 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => return None,
         };
-        if matches!(
-            statement,
-            StatementNode::LocalData(_) | StatementNode::Expression(_)
-        ) && (!values.is_empty() || !operations.is_empty())
-            && let Some(paths) = &outcomes
-        {
-            observations.extend(paths.iter().map(|path| path.judge.clone()));
+        if outcomes.is_none() && !arguments_completed {
+            for &root in observed_roots {
+                if !entries.roots.iter().any(|entry| entry.expression == root)
+                    && !entries.roots_unavailable.contains(&root)
+                {
+                    entries.roots_unavailable.push(root);
+                }
+            }
         }
-        let observations_complete = outcomes.is_some() || arguments_completed;
-        let outcomes = successors_available.then_some(outcomes).flatten();
+        // Observation-only traversal has a query frontier, not normal exits.
+        // In particular a stopped query is never reported as an all-crash body.
+        let outcomes = (advance && successors_available)
+            .then_some(outcomes)
+            .flatten();
         Some(CompletedStatement {
             outcomes,
-            observations_complete,
             observations: CompletedNormalObservations {
-                paths: observations,
+                roots: entries.roots,
+                roots_unavailable: entries.roots_unavailable,
                 operations: entries.operations,
                 values_unavailable: entries.values_unavailable,
             },

@@ -45,7 +45,6 @@ impl<'program> StructuralJudge<'program> {
             scope,
             OperationObservations::none(),
             &mut NormalObservationEntries::default(),
-            &mut Vec::new(),
             true,
             &mut false,
         )
@@ -59,7 +58,6 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
         requested: OperationObservations<'_>,
         entries: &mut NormalObservationEntries<'program>,
-        observations: &mut Vec<Self>,
         advance: bool,
         arguments_completed: &mut bool,
     ) -> Option<Vec<StructuralJudge<'program>>> {
@@ -84,14 +82,16 @@ impl<'program> StructuralJudge<'program> {
             Some(site),
             requested,
             entries,
+            if advance {
+                NormalValueDemand::Value
+            } else {
+                NormalValueDemand::ObserveOnly(requested.values)
+            },
         )?;
         // All argument paths have completed before invocation admission. Their
         // selected receipts remain valid even if an unrelated actual has no
         // whole-value representation or the invocation cannot be advanced.
         *arguments_completed = true;
-        if !requested.values.is_empty() || !requested.expressions.is_empty() {
-            observations.extend(argument_entries.iter().map(|entry| entry.judge.clone()));
-        }
         for entry in argument_entries {
             if !advance {
                 completed.push(entry.judge);
