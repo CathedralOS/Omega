@@ -18,6 +18,7 @@ pub struct ScalarStorageCoordinate {
     pub source_primitive: PrimitiveType,
     pub view_primitive: PrimitiveType,
     pub preserves_scalar_value: bool,
+    pub preserves_primitive_bits: bool,
 }
 
 impl ScalarStorageCoordinate {
@@ -68,6 +69,7 @@ impl LocalWriteSource {
         };
         let view_primitive = scalar_primitive(program, carrier, &path)?;
         let mut preserves_scalar_value = true;
+        let mut preserves_primitive_bits = true;
         for recast in self.recasts.iter().rev() {
             // A accessor is an operation capability, not an ordinary
             // scalar coordinate. Failed precision retains the backing footprint.
@@ -99,6 +101,7 @@ impl LocalWriteSource {
                 &path,
             )?;
             preserves_scalar_value &= translated.preserves_scalar_value;
+            preserves_primitive_bits &= translated.preserves_primitive_bits;
             previous_path.extend(translated.path.into_iter().map(|segment| match segment {
                 crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
                 crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },
@@ -116,6 +119,7 @@ impl LocalWriteSource {
             source_primitive,
             view_primitive,
             preserves_scalar_value,
+            preserves_primitive_bits,
         };
         // Presentation labels serve legacy bound/write consumers. Typed readers
         // keep case selectors and freeze runtime indices themselves.

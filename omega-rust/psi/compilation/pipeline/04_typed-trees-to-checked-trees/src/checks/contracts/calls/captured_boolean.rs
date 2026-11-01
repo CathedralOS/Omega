@@ -717,6 +717,33 @@ fn reference_construction_preserves_source(
         }
         return Some(false);
     }
+    // Canonical source places erase representation boundaries to their backing.
+    // Equal binding epochs therefore do not permit substituting that backing's
+    // numerical predicates for this view. Exact captured-value proofs above
+    // interpret the retained bits; an unproved interpretation has no fallback.
+    let (machine, captured_state) =
+        program.state_flow_site(state.machine_symbol, capture.state_symbol)?;
+    let statement = program
+        .statement_table
+        .statement_at(captured_state, capture.statement_index)?;
+    let mut owned_frames = None;
+    let frames = crate::flow::shared_call_frames_or(None, program, &mut owned_frames)?;
+    let sources = frames.reference_expression_sources_before_statement(
+        machine,
+        statement,
+        capture.expression,
+    )?;
+    if sources.iter().any(|source| {
+        (!source.recasts.is_empty() || source.representation.is_some())
+            && !source
+                .scalar_storage_coordinate(program, captured_state)
+                .is_some_and(|scalar| {
+                    scalar.preserves_scalar_value
+                        && scalar.source_primitive == scalar.view_primitive
+                })
+    }) {
+        return Some(false);
+    }
     let mut selectors = Vec::new();
     crate::facts::contract_occurrences::append_selector_occurrences(
         program,
