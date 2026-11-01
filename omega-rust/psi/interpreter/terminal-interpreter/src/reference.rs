@@ -1542,7 +1542,7 @@ impl TerminalExecution<'_> {
             };
             let supplying_array = array_loan.take();
             // Keep case selection and its payload field together. The ordinary
-            // projection owner strips declaration-only case steps from storage.
+            // projection owner retains the descended payload namespace.
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &types,
                 &value,
@@ -2108,8 +2108,8 @@ impl TerminalExecution<'_> {
             ));
         }
         // Authenticate case guards before resolving the physical descriptor
-        // path (which omits Case). Every active slot must have its captured
-        // backing, and every resident descriptor must be accounted for. The
+        // path. Every active slot must have its captured backing, and every
+        // resident descriptor must be accounted for. The
         // ordinary return moves this owner identity without copying referents.
         let mut active_count = 0usize;
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
