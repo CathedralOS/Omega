@@ -13,28 +13,21 @@ fn parameters<'a>(
     program: &'a dyn crate::CheckingInput,
     application: &ProductOperandApplication,
 ) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
-    // Build describes Product declarations without rooting their bodies in its
-    // execution census. The exact declared telescope and its table therefore
-    // belong to the designated immutable Product frontier, not active Build.
-    // Actuals and their formation recipes are still checked in the caller.
-    let declarations = program.typed_program().product_declarations();
-    match application.role? {
-        ProductOperandRole::BoundarySubject => {
-            let definition = declarations.trait_definition_by_symbol(application.declaration)?;
-            Some((
-                definition.name.as_str(),
-                declarations.trait_type_parameters(definition),
-            ))
-        }
-        ProductOperandRole::Provider => {
-            let definition = declarations.conformance_by_symbol(application.declaration)?;
-            Some((
-                declarations.symbols.name(definition.symbol),
-                declarations.conformance_type_parameters(definition),
-            ))
-        }
-        _ => None,
+    // Preparation retained the exact formal table before root projection.
+    // Reading it describes the declaration; actuals and formation recipes
+    // remain obligations of this supplying checking context.
+    if !matches!(
+        application.role?,
+        ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
+    ) {
+        return None;
     }
+    Some((
+        program.symbols.name(application.declaration),
+        program
+            .data_type_parameters
+            .span(application.declaration_parameters)?,
+    ))
 }
 
 fn occurrence<'a>(
@@ -71,9 +64,10 @@ pub(super) fn validate_parameter_correspondence(
             diagnostics.push(
                 Diagnostic::error(format!(
                     "Product nominal application lost its declared telescope: `{}` ({:?})",
-                    typed.symbols.name(application.declaration), application.role,
+                    typed.symbols.name(application.declaration),
+                    application.role,
                 ))
-                    .with_source_span(application.operand.source_span),
+                .with_source_span(application.operand.source_span),
             );
             continue;
         };
