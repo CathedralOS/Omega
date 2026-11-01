@@ -23,3 +23,11 @@ formal a register supplies, and the context is consumed on both branches.
 
 The borrow is call-scoped and qsort_r invokes the comparator synchronously.
 This establishes neither durable registration nor a future callback root.
+
+The Terminal inspection releases the source session, then repeats native callback
+placement from both the retained artifact and its encoded/decoded form. Canonical
+calling declarations supply binder identity, synchronous invocation, and native
+argument order (including the function-pointer argument). Controls change the
+proposed synchronous contract, pointer width, and argument ordinals; each must
+refuse against the retained declaration. Value and inline-slot layouts remain
+separate inputs; this does not establish source-free layout planning.

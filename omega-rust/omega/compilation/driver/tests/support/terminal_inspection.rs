@@ -14,6 +14,8 @@ use crate::fixture_package_inputs;
 mod behavior_admission_controls;
 #[path = "boundary_provider_controls.rs"]
 mod boundary_provider_controls;
+#[path = "callback_telescope_controls.rs"]
+mod callback_telescope_controls;
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
 #[path = "dynamic_image_controls.rs"]
@@ -47,6 +49,7 @@ enum InspectionControls {
     ProviderChoices,
     BoundaryProviders,
     BehaviorAdmission,
+    CallbackTelescope,
 }
 
 #[derive(Clone, Copy)]
@@ -137,6 +140,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "behavior-admission-controls"] => {
                 (*machine, false, Some(InspectionControls::BehaviorAdmission))
             }
+            [machine, "callback-telescope-controls"] => {
+                (*machine, false, Some(InspectionControls::CallbackTelescope))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -162,6 +168,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
+                    | InspectionControls::CallbackTelescope
             )
         );
         let product = if provider_controls {
@@ -225,7 +232,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .into_retained_terminal_artifact()
                 .ok_or("provider controls need a retained Terminal product")?;
             drop(prepared);
-            if let Some(choices) = provider_choices {
+            if matches!(
+                conformance_controls,
+                Some(InspectionControls::CallbackTelescope)
+            ) {
+                callback_telescope_controls::inspect(&retained)?;
+                observations.push("callback-telescope-controls:match".into());
+            } else if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
                 observations.push("provider-choice-controls:match".into());
             } else if matches!(
@@ -334,6 +347,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
+                | InspectionControls::CallbackTelescope
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
