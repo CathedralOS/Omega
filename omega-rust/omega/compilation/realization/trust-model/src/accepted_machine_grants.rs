@@ -1,9 +1,9 @@
-//! Accepted-machine grant selection and exact typed-definition lookup.
+//! Accepted-machine grant selection over Psi's complete declaration roster.
 //! Root package-grant policy belongs to `root_grants`; provider selectors
 //! resolve independently against selected provider plans.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use language_semantics::trust_declarations::{AcceptedMachineDeclaration, TrustDeclarations};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NonProviderTrustGrant {
@@ -17,15 +17,14 @@ struct NonProviderTrustGrantCandidate<'name> {
 }
 
 pub(crate) fn resolve_non_provider_trust_grant(
-    typed: &TypedTrees,
+    declarations: &TrustDeclarations,
     grant: &str,
 ) -> Result<NonProviderTrustGrant, Diagnostic> {
-    let candidates = typed
-        .machines()
+    let candidates = declarations
+        .machines
         .iter()
-        .filter(|machine| grantable_accepted_machine(typed, machine))
         .map(|machine| NonProviderTrustGrantCandidate {
-            subject: NonProviderTrustGrant::AcceptedMachine(machine.symbol),
+            subject: NonProviderTrustGrant::AcceptedMachine(machine.machine),
             kind: "accepted machine",
             name: machine.name.as_str(),
         })
@@ -55,18 +54,6 @@ pub(crate) fn resolve_non_provider_trust_grant(
     )))
 }
 
-pub(crate) fn grantable_accepted_machine(
-    typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> bool {
-    machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
-        && !typed.machine_specializations.iter().any(|specialization| {
-            specialization.accepted_template_commitment.is_some()
-                && specialization.instance == machine.symbol
-                && specialization.instance != specialization.template
-        })
-}
-
 fn validate_grant_subject(
     grant: &str,
     candidate: &NonProviderTrustGrantCandidate<'_>,
@@ -94,13 +81,13 @@ fn ambiguous_grant(grant: &str, candidates: &[&NonProviderTrustGrantCandidate<'_
 }
 
 pub(crate) fn accepted_machine(
-    typed: &TypedTrees,
+    declarations: &TrustDeclarations,
     symbol: symbols::SymbolHandle,
-) -> Result<&typed_trees::machine::Machine, Diagnostic> {
-    let machines = typed
-        .machines()
+) -> Result<&AcceptedMachineDeclaration, Diagnostic> {
+    let machines = declarations
+        .machines
         .iter()
-        .filter(|machine| grantable_accepted_machine(typed, machine) && machine.symbol == symbol)
+        .filter(|machine| machine.machine == symbol)
         .collect::<Vec<_>>();
     let [machine] = machines.as_slice() else {
         return Err(Diagnostic::error(match machines.len() {

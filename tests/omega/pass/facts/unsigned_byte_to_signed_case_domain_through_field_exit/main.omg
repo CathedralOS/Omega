@@ -1,0 +1,36 @@
+// Fact: widening an observed u8 to an i32 payload preserves 0..255 in ByteParcel::Byte, so 255 - value remains exact through transport.
+// Place: field
+// Expected exit: 0
+
+public data ByteParcel [copy]
+requires (self in ByteParcel::Empty) || ((self in ByteParcel::Byte) && self.value >= 0 && self.value <= 255)
+{
+    case Empty;
+    case Byte(value: i32);
+}
+public machine make(byte: u8) -> ByteParcel {
+    ByteParcel::Byte { value: byte as i32 }
+}
+public machine consume(parcel: ByteParcel) -> i32 {
+    transition parcel {
+        ByteParcel::Byte { value } -> (255 - value)
+        ByteParcel::Empty -> (-1)
+    }
+}
+data Envelope [copy] { parcel: ByteParcel; marker: u64; }
+public machine probe(byte: u8) -> i32 crashes Trap {
+    let envelope: Envelope = Envelope { parcel: make(byte), marker: 17 };
+    transition envelope.marker == 17 { true -> good(envelope.parcel) false -> bad() }
+    machine good(parcel: ByteParcel) -> i32 { consume(parcel) }
+    machine bad() -> i32 crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let first: i32 = probe(128u8);
+    let second: i32 = probe(255u8);
+    transition first == 127 && second == 0 && consume(ByteParcel::Empty) == -1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,11 +1,15 @@
 //! Fixtures shared by the mathematical core tests: sorts, lambdas,
 //! projections, eliminators, budgets and level offsets.
 
+mod assumption_closure;
 mod identity_and_w_types;
+mod level_worklists;
 mod levels_and_declarations;
+mod normalization_worklists;
 mod schemes_and_quotients;
 mod spine_chains;
 mod strict_layer;
+mod substitution_worklists;
 mod type_checking;
 
 use crate::mathematical_core::{

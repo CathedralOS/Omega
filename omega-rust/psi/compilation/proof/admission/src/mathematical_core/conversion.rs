@@ -89,272 +89,169 @@ pub fn weak_head_normalize_retaining(
     retained: &impl Fn(u32) -> bool,
 ) -> Result<TermHandle, CoreError> {
     let mut current = term;
-    loop {
-        match arena.get(current) {
-            Term::Constant {
-                declaration,
-                levels,
-            } => {
-                let declaration_index = declaration;
-                let Some(declaration) = signature.get(declaration) else {
-                    return Err(CoreError::UnknownDeclaration {
-                        declaration,
-                        signature_len: signature.len(),
-                    });
-                };
-                if retained(declaration_index) {
-                    return Ok(current);
-                }
-                match declaration.body {
-                    Some(body) => {
-                        budget.consume()?;
-                        current = instantiate_levels(arena, body, &levels).map_err(|index| {
-                            CoreError::UnboundLevelParameter {
-                                index,
-                                arity: declaration.level_arity,
-                            }
-                        })?;
+    // Frames own only arena handles and the focused child slot. Reductions
+    // resume the suspended context; a stuck head rebuilds precisely that slot.
+    // No result cache can skip an owed reduction or its budget charge.
+    let mut frames = Vec::new();
+    'normalize: loop {
+        loop {
+            match arena.get(current) {
+                Term::Constant {
+                    declaration,
+                    levels,
+                } => {
+                    let index = declaration;
+                    let Some(declaration) = signature.get(index) else {
+                        return Err(CoreError::UnknownDeclaration {
+                            declaration: index,
+                            signature_len: signature.len(),
+                        });
+                    };
+                    if retained(index) {
+                        break;
                     }
-                    // An assumption constant is a neutral atom: it has no
-                    // body to unfold and stays stuck.
-                    None => return Ok(current),
-                }
-            }
-            Term::Apply { function, argument } => {
-                let head =
-                    weak_head_normalize_retaining(arena, signature, function, budget, retained)?;
-                match arena.get(head) {
-                    Term::Lambda { body, .. } => {
-                        budget.consume()?;
-                        current = substitute(arena, body, argument);
-                    }
-                    _ => {
-                        if head == function {
-                            return Ok(current);
+                    let Some(body) = declaration.body else {
+                        break;
+                    };
+                    budget.consume()?;
+                    current = instantiate_levels(arena, body, &levels).map_err(|index| {
+                        CoreError::UnboundLevelParameter {
+                            index,
+                            arity: declaration.level_arity,
                         }
-                        return Ok(arena.insert(row!(Apply => head => argument)));
-                    }
+                    })?;
                 }
+                _ => match weak_head_focus(arena.node(current)) {
+                    Some((child, slot)) => {
+                        frames.push((current, slot));
+                        current = child;
+                    }
+                    None => break,
+                },
             }
-            Term::Fst { pair } => {
-                let head = weak_head_normalize_retaining(arena, signature, pair, budget, retained)?;
-                match arena.get(head) {
-                    Term::Pair { first, .. } => {
-                        budget.consume()?;
-                        current = first;
-                    }
-                    _ => {
-                        if head == pair {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::Fst { pair: head }));
-                    }
+        }
+        while let Some((parent, slot)) = frames.pop() {
+            match (arena.get(parent), arena.get(current)) {
+                (Term::Apply { argument, .. }, Term::Lambda { body, .. }) => {
+                    budget.consume()?;
+                    current = substitute(arena, body, argument);
+                    continue 'normalize;
                 }
-            }
-            Term::Snd { pair } => {
-                let head = weak_head_normalize_retaining(arena, signature, pair, budget, retained)?;
-                match arena.get(head) {
-                    Term::Pair { second, .. } => {
-                        budget.consume()?;
-                        current = second;
-                    }
-                    _ => {
-                        if head == pair {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::Snd { pair: head }));
-                    }
+                (Term::Fst { .. }, Term::Pair { first, .. }) => {
+                    budget.consume()?;
+                    current = first;
+                    continue 'normalize;
                 }
-            }
-            Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee,
-            } => {
-                // `caseTwo(C, d0, d1, zero) → d0` and `… one → d1`: a
-                // constructor scrutinee selects its branch; a neutral
-                // scrutinee keeps the elimination stuck. There is no
-                // eta law for `Two` — a stuck `caseTwo` is its own
-                // normal form.
-                let head =
-                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
-                match arena.get(head) {
-                    Term::TwoZero => {
-                        budget.consume()?;
-                        current = zero_branch;
-                    }
-                    Term::TwoOne => {
-                        budget.consume()?;
-                        current = one_branch;
-                    }
-                    _ => {
-                        if head == scrutinee {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::CaseTwo {
-                            motive,
-                            zero_branch,
-                            one_branch,
-                            scrutinee: head,
-                        }));
-                    }
+                (Term::Snd { .. }, Term::Pair { second, .. }) => {
+                    budget.consume()?;
+                    current = second;
+                    continue 'normalize;
                 }
-            }
-            Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            } => {
-                // `J(C, d, y, refl A x) → d`: a reflexivity proof selects
-                // the base case. Typing already equated the supplied
-                // endpoint with the proof's recorded endpoint and the
-                // `refl` value, so the match needs no endpoint re-check;
-                // a neutral proof keeps the elimination stuck. There is
-                // no identity eta — a stuck `J` is its own normal form.
-                let head =
-                    weak_head_normalize_retaining(arena, signature, proof, budget, retained)?;
-                match arena.get(head) {
-                    Term::Refl { .. } => {
-                        budget.consume()?;
-                        current = base;
-                    }
-                    _ => {
-                        if head == proof {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::IdElim {
-                            motive,
-                            base,
-                            endpoint,
-                            proof: head,
-                        }));
-                    }
+                (Term::CaseTwo { zero_branch, .. }, Term::TwoZero) => {
+                    budget.consume()?;
+                    current = zero_branch;
+                    continue 'normalize;
                 }
-            }
-            Term::IndW { motive, step, tree } => {
-                // `indW(P, step, sup A B a k) → step a k (λ(b : B a).
-                // indW(P, step, k b))`: a constructor tree supplies the
-                // label, the child function, and the checked `B`
-                // annotation the induction hypothesis's `B a` domain is
-                // rebuilt from, so the reduct is exact even when the
-                // surrounding `W` type is neutral. The hypothesis's
-                // child function stays arbitrary — a neutral `k` never
-                // blocks the step. A non-`sup` tree keeps the
-                // elimination stuck; there is no W eta.
-                let head = weak_head_normalize_retaining(arena, signature, tree, budget, retained)?;
-                match arena.get(head) {
+                (Term::CaseTwo { one_branch, .. }, Term::TwoOne) => {
+                    budget.consume()?;
+                    current = one_branch;
+                    continue 'normalize;
+                }
+                (Term::IdElim { base, .. }, Term::Refl { .. }) => {
+                    // Typing equates the endpoint and reflexivity annotation.
+                    // A neutral proof stays stuck; there is no identity eta.
+                    budget.consume()?;
+                    current = base;
+                    continue 'normalize;
+                }
+                (
+                    Term::IndW { motive, step, .. },
                     Term::Sup {
                         children,
                         label,
                         function,
                         ..
-                    } => {
-                        budget.consume()?;
-                        let bound_domain = arena.insert(row!(Apply => children => label));
-                        let shifted_motive = shift(arena, motive, 0, 1);
-                        let shifted_step = shift(arena, step, 0, 1);
-                        let shifted_function = shift(arena, function, 0, 1);
-                        let bound = arena.insert(Term::Variable(0));
-                        let child = arena.insert(row!(Apply => shifted_function => bound));
-                        let body = arena.insert(Term::IndW {
-                            motive: shifted_motive,
-                            step: shifted_step,
-                            tree: child,
-                        });
-                        let hypothesis = arena.insert(Term::Lambda {
-                            domain: bound_domain,
-                            body,
-                        });
-                        let applied = arena.insert(row!(Apply => step => label));
-                        let applied = arena.insert(row!(Apply => applied => function));
-                        current = arena.insert(row!(Apply => applied => hypothesis));
-                    }
-                    _ => {
-                        if head == tree {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::IndW {
-                            motive,
-                            step,
-                            tree: head,
-                        }));
-                    }
+                    },
+                ) => {
+                    // Preserve the constructor's checked B annotation and the
+                    // exact dependent induction hypothesis. A neutral child
+                    // function never blocks the constructor reduction.
+                    budget.consume()?;
+                    let bound_domain = arena.insert(row!(Apply => children => label));
+                    let shifted_motive = shift(arena, motive, 0, 1);
+                    let shifted_step = shift(arena, step, 0, 1);
+                    let shifted_function = shift(arena, function, 0, 1);
+                    let bound = arena.insert(Term::Variable(0));
+                    let child = arena.insert(row!(Apply => shifted_function => bound));
+                    let body = arena.insert(Term::IndW {
+                        motive: shifted_motive,
+                        step: shifted_step,
+                        tree: child,
+                    });
+                    let hypothesis = arena.insert(Term::Lambda {
+                        domain: bound_domain,
+                        body,
+                    });
+                    let applied = arena.insert(row!(Apply => step => label));
+                    let applied = arena.insert(row!(Apply => applied => function));
+                    current = arena.insert(row!(Apply => applied => hypothesis));
+                    continue 'normalize;
                 }
-            }
-            Term::EmptyElim { ty, scrutinee } => {
-                // `sEmpty` has no constructors, so the eliminator never
-                // fires — a well-typed scrutinee is always neutral. The
-                // scrutinee still weak-head normalizes so the stuck
-                // form is canonical.
-                let head =
-                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
-                if head == scrutinee {
-                    return Ok(current);
+                (Term::SquashElim { function, .. }, Term::SquashIntro { value, .. }) => {
+                    budget.consume()?;
+                    current = arena.insert(row!(Apply => function => value));
+                    continue 'normalize;
                 }
-                return Ok(arena.insert(Term::EmptyElim {
-                    ty,
-                    scrutinee: head,
-                }));
-            }
-            Term::SquashElim {
-                proposition,
-                function,
-                scrutinee,
-            } => {
-                // `unsq P f (sq a) → f a`: a squashed witness hands the
-                // unwrapped value to the function. A neutral scrutinee
-                // keeps the elimination stuck; there is no squash eta.
-                let head =
-                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
-                match arena.get(head) {
-                    Term::SquashIntro { value, .. } => {
-                        budget.consume()?;
-                        current = arena.insert(row!(Apply => function => value));
-                    }
-                    _ => {
-                        if head == scrutinee {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::SquashElim {
-                            proposition,
-                            function,
-                            scrutinee: head,
-                        }));
-                    }
+                (Term::BoxElim { body, .. }, Term::BoxIntro { value, .. }) => {
+                    budget.consume()?;
+                    current = arena.insert(row!(Apply => body => value));
+                    continue 'normalize;
                 }
+                // Empty has no constructors. All other unmatched elimination
+                // heads stay neutral; normalization supplies no eta law.
+                _ => {}
             }
-            Term::BoxElim {
-                motive,
-                body,
-                scrutinee,
-            } => {
-                // `unbox P f (box a) → f a`: a boxed proof opens at the
-                // body's binder. A neutral scrutinee keeps the
-                // elimination stuck; there is no box eta.
-                let head =
-                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
-                match arena.get(head) {
-                    Term::BoxIntro { value, .. } => {
-                        budget.consume()?;
-                        current = arena.insert(row!(Apply => body => value));
-                    }
-                    _ => {
-                        if head == scrutinee {
-                            return Ok(current);
-                        }
-                        return Ok(arena.insert(Term::BoxElim {
-                            motive,
-                            body,
-                            scrutinee: head,
-                        }));
-                    }
-                }
-            }
-            _ => return Ok(current),
+            current = replace_head_focus(arena, parent, slot, current);
         }
+        return Ok(current);
     }
+}
+
+/// The reduction context of each eliminator, in the canonical term layout.
+/// Motives, annotations, branches and arguments are never eagerly normalized.
+fn weak_head_focus(node: &Term) -> Option<(TermHandle, usize)> {
+    match node {
+        Term::Apply { function, .. } => Some((*function, 0)),
+        Term::Fst { pair } | Term::Snd { pair } => Some((*pair, 0)),
+        Term::CaseTwo { scrutinee, .. } => Some((*scrutinee, 3)),
+        Term::IdElim { proof, .. } => Some((*proof, 3)),
+        Term::IndW { tree, .. } => Some((*tree, 2)),
+        Term::EmptyElim { scrutinee, .. } => Some((*scrutinee, 1)),
+        Term::SquashElim { scrutinee, .. } | Term::BoxElim { scrutinee, .. } => {
+            Some((*scrutinee, 2))
+        }
+        _ => None,
+    }
+}
+
+fn replace_head_focus(
+    arena: &mut TermArena,
+    parent: TermHandle,
+    slot: usize,
+    head: TermHandle,
+) -> TermHandle {
+    let node = arena.node(parent);
+    let slots = node.subterms();
+    let mut children = [parent; super::term::MAX_SUBTERMS];
+    for (index, (child, _)) in slots.iter().enumerate() {
+        children[index] = child;
+    }
+    if children[slot] == head {
+        return parent;
+    }
+    children[slot] = head;
+    let node = node.with_children(&children[..slots.len()]);
+    arena.insert(node)
 }
 
 /// The weak head of the shared type the caller already carries — every

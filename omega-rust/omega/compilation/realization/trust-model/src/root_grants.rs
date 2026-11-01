@@ -10,13 +10,13 @@ use crate::{
     NonProviderTrustGrant, ResolvedSelectedProviderGrant, resolve_non_provider_trust_grant,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use language_semantics::trust_declarations::TrustDeclarations;
 
 /// Package claims require package-level review; individual accepted-machine
-/// grants cannot substitute for it. The early typed checking gate reconstructs
+/// grants cannot substitute for it. The early package gate reconstructs
 /// its own provider meanings, independent of later sealed checked admission.
 pub fn reject_package_non_provider_grants(
-    typed: &TypedTrees,
+    declarations: &TrustDeclarations,
     root_grants: &[String],
     provider_plans: &[&effects::provider_plan::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
@@ -27,11 +27,11 @@ pub fn reject_package_non_provider_grants(
         root_grants,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    reject_package_grants_with_providers(typed, root_grants, &provider_grants)
+    reject_package_grants_with_providers(declarations, root_grants, &provider_grants)
 }
 
 pub(crate) fn reject_package_grants_with_providers(
-    typed: &TypedTrees,
+    declarations: &TrustDeclarations,
     root_grants: &[String],
     provider_grants: &[ResolvedSelectedProviderGrant],
 ) -> Result<(), Vec<Diagnostic>> {
@@ -42,7 +42,7 @@ pub(crate) fn reject_package_grants_with_providers(
         {
             continue;
         }
-        match resolve_non_provider_trust_grant(typed, grant)
+        match resolve_non_provider_trust_grant(declarations, grant)
             .map_err(|diagnostic| vec![diagnostic])?
         {
             NonProviderTrustGrant::AcceptedMachine(_) => {

@@ -362,3 +362,87 @@ fn named_value_types_refresh_equal_revision_parameter_replacement() {
         Some(first_type)
     );
 }
+
+#[test]
+fn machine_scope_lookup_follows_storage_replacement_and_independent_clones() {
+    use crate::machine::Machine;
+    let root = SymbolHandle::from_parts(10, 1);
+    let retained = SymbolHandle::from_parts(11, 1);
+    let next_root = SymbolHandle::from_parts(12, 1);
+    let next_retained = SymbolHandle::from_parts(13, 1);
+    let mut program = TypedTrees::default();
+    program.push_machine(Machine {
+        symbol: root,
+        ..Default::default()
+    });
+    let retained_handle = program.tables.machines.insert(Machine {
+        symbol: retained,
+        name: "original".into(),
+        ..Default::default()
+    });
+    assert_eq!(program.machine_by_symbol(root).unwrap().symbol, root);
+    assert_eq!(
+        program
+            .machine_declaration_for_lexical_scope(retained)
+            .unwrap()
+            .name
+            .as_str(),
+        "original"
+    );
+    let mut fork = program.clone();
+    fork.tables.machines.get_mut(retained_handle).name = "fork".into();
+    assert_eq!(
+        fork.machine_declaration_for_lexical_scope(retained)
+            .unwrap()
+            .name
+            .as_str(),
+        "fork"
+    );
+    assert_eq!(
+        program
+            .machine_declaration_for_lexical_scope(retained)
+            .unwrap()
+            .name
+            .as_str(),
+        "original"
+    );
+    let revision = program.tables.machines.revision();
+    let mut replacement = arena::Arena::new();
+    let replacement_root = replacement.insert(Machine {
+        symbol: next_root,
+        ..Default::default()
+    });
+    replacement.insert(Machine {
+        symbol: next_retained,
+        ..Default::default()
+    });
+    // push_machine also records a mutable root-span operation. Reproduce its
+    // revision with a no-op mutable borrow, without copying the old storage.
+    while replacement.revision() < revision {
+        let _ = replacement.get_mut(replacement_root);
+    }
+    assert_eq!(replacement.revision(), revision);
+    program.tables.machines = replacement.into();
+    assert!(program.machine_by_symbol(root).is_none());
+    assert_eq!(
+        program.machine_by_symbol(next_root).unwrap().symbol,
+        next_root
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(retained)
+            .is_none()
+    );
+    assert_eq!(
+        program
+            .machine_declaration_for_lexical_scope(next_retained)
+            .unwrap()
+            .symbol,
+        next_retained
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(SymbolHandle::from_parts(13, 2))
+            .is_none()
+    );
+}

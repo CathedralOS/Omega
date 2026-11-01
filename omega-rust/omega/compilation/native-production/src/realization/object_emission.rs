@@ -45,6 +45,7 @@ pub(crate) fn emit_realization_object(
         },
         request.optimization_selections,
         request.optimization_budget(),
+        request.observation,
     )
     .map_err(|error| match error {
         TargetLoweringError::AbstractOptimization(error) => {
@@ -53,12 +54,14 @@ pub(crate) fn emit_realization_object(
         TargetLoweringError::Target(error) => realization_error("target lowering", error),
     })?;
     let borrowed_storage_layouts = target.borrowed_storage_layouts().to_vec();
-    let projection = pipeline::emit_target(target).map_err(|error| match error {
-        BodyEmissionError::Physical(error) => {
-            selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
-        }
-        BodyEmissionError::Object(diagnostics) => diagnostics,
-    })?;
+    let projection =
+        pipeline::emit_target(target, request.observation).map_err(|error| match error {
+            BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(
+                request.optimization_selections.selections(),
+                error,
+            ),
+            BodyEmissionError::Object(diagnostics) => diagnostics,
+        })?;
     // Emit the root first so optimization-pruned callback uses do not demand
     // unused bodies. Each surviving symbolic reference retains its admitted
     // occurrence; the body worklist follows the same rule in its own namespace.

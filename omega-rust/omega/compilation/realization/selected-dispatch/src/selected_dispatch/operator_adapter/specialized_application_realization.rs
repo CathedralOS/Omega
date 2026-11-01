@@ -235,5 +235,9 @@ pub(super) fn applications_match(
     demand_row: &CheckedBoundaryOperatorApplicationDemand,
     realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
 ) -> bool {
-    validation::checked_operator_application_matches_realization(checked, demand_row, realization)
+    checked_trees::operators::checked_operator_application_matches_realization(
+        &checked.typed,
+        demand_row,
+        realization,
+    )
 }

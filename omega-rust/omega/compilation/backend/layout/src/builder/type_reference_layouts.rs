@@ -70,9 +70,6 @@ impl<'program> LayoutBuilder<'program> {
                 }
                 match referee_node {
                     TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
-                    TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
-                        Ok(fat_descriptor_layout(self.target))
-                    }
                     _ => Ok(pointer_layout(self.target)),
                 }
             }
