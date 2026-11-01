@@ -52,7 +52,7 @@ fn byte_predicate_observations_require_complete_current_typed_contents() {
                 entry: None,
             })
             .collect(),
-        scalar_requirements: Vec::new(),
+        scalar_requirements: Vec::new().into(),
         carrier: array,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -88,7 +88,7 @@ fn closure_gate_keeps_normalization_without_an_eligible_domain() {
     let second = StructuralDomainId::new(2).unwrap();
     let mut contract = PayloadMembershipContract {
         scalar_observations: Vec::new(),
-        scalar_requirements: Vec::new(),
+        scalar_requirements: Vec::new().into(),
         carrier: StructuralTypeId::new(1).unwrap(),
         qualifications: vec![second, first, first],
         projected_qualifications: Vec::new(),
@@ -137,7 +137,7 @@ fn closure_gate_preserves_eligible_and_opaque_domain_behavior() {
     };
     let empty = PayloadMembershipContract {
         scalar_observations: Vec::new(),
-        scalar_requirements: Vec::new(),
+        scalar_requirements: Vec::new().into(),
         carrier,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),

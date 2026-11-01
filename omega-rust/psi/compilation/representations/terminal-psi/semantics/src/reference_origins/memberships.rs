@@ -172,7 +172,7 @@ fn preserve_call_memberships<'input>(
         if place == result.place {
             Some(PayloadMembershipContract {
                 scalar_observations: Vec::new(),
-                scalar_requirements: Vec::new(),
+                scalar_requirements: Vec::new().into(),
                 carrier: declaration.structural_type,
                 qualifications: declaration.qualifications.clone(),
                 projected_qualifications: declaration.projected_qualifications.clone(),
@@ -441,7 +441,7 @@ mod tests {
             &|_| {
                 Some(PayloadMembershipContract {
                     scalar_observations: Vec::new(),
-                    scalar_requirements: Vec::new(),
+                    scalar_requirements: Vec::new().into(),
                     carrier: StructuralTypeId::new(1).unwrap(),
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),

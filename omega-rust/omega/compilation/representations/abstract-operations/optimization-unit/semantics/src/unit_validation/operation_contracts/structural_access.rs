@@ -89,7 +89,7 @@ impl StructuralSourceContract<'_> {
     pub(crate) fn payload_contract(&self) -> PayloadMembershipContract {
         PayloadMembershipContract {
             scalar_observations: Vec::new(),
-            scalar_requirements: Vec::new(),
+            scalar_requirements: Vec::new().into(),
             carrier: self.structural_type,
             qualifications: self.qualifications.to_vec(),
             projected_qualifications: self.projected_qualifications.to_vec(),

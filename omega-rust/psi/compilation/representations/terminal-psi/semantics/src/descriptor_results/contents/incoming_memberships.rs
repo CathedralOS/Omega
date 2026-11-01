@@ -43,7 +43,7 @@ pub(super) fn select(
                 domains,
                 PayloadMembershipContract {
                     scalar_observations: Vec::new(),
-                    scalar_requirements: Vec::new(),
+                    scalar_requirements: Vec::new().into(),
                     carrier: *element,
                     qualifications,
                     projected_qualifications,
@@ -68,7 +68,7 @@ pub(super) fn select(
                     domains,
                     PayloadMembershipContract {
                         scalar_observations: Vec::new(),
-                        scalar_requirements: Vec::new(),
+                        scalar_requirements: Vec::new().into(),
                         carrier: *element,
                         qualifications,
                         projected_qualifications,
