@@ -1,10 +1,11 @@
 # Derived target-layout constants
 
-Owning requirement: **TARGET-SEMANTIC-APPLICATIONS**. The fact is: a target-selected
+Owning migration: **BUILD-OWNED-TARGET-SELECTION**. The underlying target-semantic
+requirement remains in **PROVIDER-SELECTION-AFTER-TERMINAL**. The fact is: a target-selected
 layout query contributes to a derived constant whose result discharges exact
 subtraction and agrees with execution.
 
-The primary program is frozen at SHA256
+The original pre-migration primary program was frozen at SHA256
 `4bb0e87fb321432dde92fbc1447989ccf9dad8d4b0b6c55cc99b872253dd5f36`.
 It computes `const OBSERVED_SIZE: u64 = size_of<Main>() + 1u64`, transports that
 value, and performs `observed - 5u64` before any equality guard. The runtime
@@ -12,7 +13,7 @@ branch traps unless both the exact value and subtraction result agree with the
 target's authored expectation. Linux selects extent 4 and therefore value 5;
 Windows/macOS select extent 8 and therefore value 9.
 
-Fresh baseline main: `d6cf554fd1cbf20551983d29bae26f5cf3b81664`. Its optimized
+Historical implementation baseline main: `d6cf554fd1cbf20551983d29bae26f5cf3b81664`. Its optimized
 CLI (opt-level 1, SHA256
 `7eb4e799f088a9940752614a8f6b53a6dc43349f5e12d3030233cac0f520617e`)
 runs the existing direct-query control with native and Terminal exits 0, but
@@ -24,12 +25,11 @@ this advance uses it.
 
 Acceptance: `omega run --both main.omg`, and the same command for each place.
 All positive projects bind all four hosted `ProgramEntry` targets and promise
-exit 0. Execution evidence is Linux x86-64 native plus Terminal. Explicit target
-compilation alone is not execution. The source-backed
-`mbx run -p compiler --example target_constant_closure` additionally runs the
-unchanged Windows-target program in Terminal on Linux, whose authored branch
-requires value 9. It emits a Windows native product but does not execute it.
-Windows/macOS/ARM64 native execution is not claimed.
+exit 0. The original retained qualification is Linux x86-64 native plus Terminal. Its
+then-existing source-backed `target_constant_closure` example also ran a Windows
+Terminal program and emitted a Windows image without executing that image. The
+example has since been replaced; those observations retain their historical
+producer identity. Explicit target checking/emission is not foreign-host execution.
 
 | Place | Carrier of the same value | Pinned fixture suffix |
 | --- | --- | --- |
@@ -41,7 +41,19 @@ Windows/macOS/ARM64 native execution is not claimed.
 | const name | named derived constant | `through_const_name_exit` |
 | other state | state arrival parameter | `through_other_state_exit` |
 | other machine | attached machine result | `through_other_machine_exit` |
-| target body | target-scoped family result | `through_target_body_exit` |
+| target body | ordinary selected `DerivedObservation` result | `through_target_body_exit` |
+
+The current source uses ordinary named implementations and explicit target-keyed
+Build selections. `Answer` retains the exact Small/Large choices above.
+`ExpectedExtent` publishes the complete `4 || 8` expectation, and the target-body
+place selects `DerivedObservationCode`, whose original body still returns
+`OBSERVED_SIZE`. Its public `5..9` interval justifies the caller's subtraction;
+it does not claim general normalization of `result == OBSERVED_SIZE`.
+
+The match place executes both original value paths, snapshots route 17 before
+route 23 is written, and performs both exact subtractions before observing either
+result. The value, geometry and subtraction comparisons remain separate runtime
+falsifiers. Marker mutations must trap without changing the value contract.
 
 The nine fixture pairs are
 `tests/omega/{pass,fail}/facts/target_layout_derived_constant_through_*`.
@@ -83,14 +95,15 @@ The specification and consuming layers are covered as follows:
   values. Same-product native `code_layout` remains forbidden. Existing
   declared-operator and unselected-provider controls remain rejecting.
 - **Psi 05–07:** the same authored programs reach canonical Terminal Psi and
-  execute their result/trap branch. The API example independently roundtrips
-  canonical bytes and checks historical closure admission.
+  execute their result/trap branch. Retained historical API evidence roundtripped
+  canonical bytes and checked closure admission; it is not a new-source run.
 - **Omega 00–02:** historical plans retain exact provider and target provenance;
   actual checked query subjects use the selected layout authority. Ordinary
   scalar call/state placement carries the transported value.
 - **Omega 03–06:** native instruction selection, register homes and frame
-  realization execute the exact subtraction and result branch on Linux x86-64.
-- **Omega 07–09 and emission:** the emitted ELF executes with exit 0 and agrees
+  realization execute the exact subtraction and result branch on each actually
+  observed host.
+- **Omega 07–09 and emission:** the emitted native image executes with exit 0 and agrees
   with Terminal. Retained run evidence includes the actual image, canonical
   Terminal artifact and engine streams; no compile-only result is counted.
 
@@ -98,6 +111,29 @@ Canonical authority is [semantic evaluation](../../../../wiki/spec/language/eval
 [constant evaluation](../../../../wiki/spec/language/constants.md#evaluation),
 [layout queries](../../../../wiki/spec/layouts/plans.md#size-and-alignment-queries)
 and [Terminal compatibility](../../../../wiki/spec/terminal-psi/product.md).
+
+The migration exposed two necessary general checking boundaries: a completed
+return can carry its exact ordered observation even when replaying its source
+expression at exit would be unsafe; the deferred range route still requires a
+real target-dependent recipe. `controls/ground_return_guarantee` and its sole-value
+4/5 twin keep an unused false ground guarantee from becoming a deferred proof.
+The unused genuine target-false observation control also refuses.
+
+Public target-dependent constants retain their authored semantic dependency
+through package review rather than requiring a folded scalar. This description
+retains exact query kind/operand and nominal alias links; it grants no geometry,
+layout proof or execution authority. Those remain tied to checked source and
+target closure. Changing a dependency changes public identity even when the
+current scalar answers happen to coincide.
+
+Migration validation is in progress: optimized producer `8316f371bf8` observed
+17 authored positive native/Terminal agreements and 20 intended Source refusals,
+plus six existing return-bound preservation controls identical to the retained
+baseline. The existing `public_alias` positive exposed the review representation
+gap above; its repaired normal preparation/execution and final scoped pin records
+remain required before this migration is complete. These are Mac ARM64
+observations with the producer's matching SDK, distinct from the historical
+Linux qualification.
 
 The broader capability remains open. Late aggregate/qualified constants,
 provider-free observation receipts, arithmetic layout predicates in ordinary
