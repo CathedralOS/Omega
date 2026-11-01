@@ -85,6 +85,13 @@ pub fn prepare_boundary_calling_plans<'checked>(
             "calling plans require the exact Product source owner's prepared signature catalog",
         )]);
     }
+    let trace_admission = std::env::var_os("OMEGA_DEBUG_CALLING_ADMISSION").is_some();
+    if trace_admission {
+        eprintln!(
+            "calling admission: prepare target={}",
+            target_profile.target_name()
+        );
+    }
     let typed = &checked.typed;
     let signatures = std::sync::Arc::clone(typed.boundary_signatures());
     if !std::ptr::eq(signatures.as_ref(), services.signatures()) {
@@ -169,6 +176,17 @@ pub fn prepare_boundary_calling_plans<'checked>(
             &machine_bodies,
             &provider_inputs,
         )?;
+        if trace_admission {
+            eprintln!(
+                "calling admission: pending={} selected_bodies={:?}",
+                pending.len(),
+                providers
+                    .bodies
+                    .iter()
+                    .map(|body| typed.symbols.display_path(body.provider_machine, "::"))
+                    .collect::<Vec<_>>()
+            );
+        }
         let admissions = build_time_evaluation::SelectedBuildTimeClosureAdmission {
             program: checked,
             selection_authority: package_inputs.map(|inputs| {
@@ -188,6 +206,9 @@ pub fn prepare_boundary_calling_plans<'checked>(
             )
         }))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if trace_admission {
+            eprintln!("calling admission: results={admissions:?}");
+        }
         // Refuse inadmissible execution before asking the driver to publish
         // its code. Otherwise an unrelated lowering refusal can hide the
         // selected closure's missing termination or authority obligation.
