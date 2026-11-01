@@ -1571,6 +1571,20 @@ impl<'program> StructuralJudge<'program> {
                             .unwrap_or_else(|| observed.clone())
                         })
                 } else { None };
+                if let ExpressionNode::Cast(cast) = node
+                    && let [(source_expression, source)] = inputs.as_slice()
+                    && let Some(value) = source.observed_value()
+                    && let Some(reference) = crate::expression_result_type_reference(
+                        program, scope.0, scope.1, *source_expression,
+                    )
+                    && program.primitive_type_reference(reference)
+                        != program.primitive_type_reference(cast.target_type)
+                    && super::super::structural_terms::denotation_preserving_conversion(
+                        program, cast, reference,
+                    )
+                {
+                    judge.intake_completed_scalar_bounds(reference, value);
+                }
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
