@@ -759,9 +759,15 @@ impl Denotation {
         &mut self,
         term: &ScalarTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if let Some(boolean) = self.boolean_term(term)? {
-            return Ok(boolean);
-        }
+        super::booleans::scalar_denotation::denote(self, term)
+    }
+
+    /// Non-Boolean source shapes keep their existing relation/opaque routes.
+    /// The scalar continuation owns Boolean children before reaching this leaf.
+    pub(super) fn scalar_leaf(
+        &mut self,
+        term: &ScalarTerm,
+    ) -> Result<TermHandle, BoundedDenotationError> {
         if let Some(relation) = self.integer_relation_term(term)? {
             return Ok(relation);
         }

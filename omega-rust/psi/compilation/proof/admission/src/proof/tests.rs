@@ -1148,3 +1148,72 @@ fn deep_logical_assumption_admission_uses_default_stack_and_exact_premise() {
         }
     }).join().expect("complete logical admission and owned receipts stay on a default stack");
 }
+
+#[test]
+fn deep_scalar_assumption_admission_uses_default_stack_and_exact_premise() {
+    std::thread::spawn(|| {
+        fn statement(depth: usize, right: bool) -> Proposition {
+            fn value(depth: usize, seed: bool) -> ScalarTerm {
+                let mut value = ScalarTerm::Boolean(seed);
+                for _ in 0..depth { value = ScalarTerm::BooleanNot { operand: Box::new(value) }; }
+                value
+            }
+            Proposition::Equal(value(depth, true), value(depth, right))
+        }
+        // The independently authored kernel question reaches its existing fuel
+        // ceiling at this depth; source denotation must return that typed refusal.
+        let mut arena = crate::TermArena::new();
+        let two = arena.insert(crate::Term::Two);
+        let zero = arena.insert(crate::Term::TwoZero);
+        let one = arena.insert(crate::Term::TwoOne);
+        let mut endpoints = [one, one];
+        for endpoint in &mut endpoints {
+            for _ in 0..8192 {
+                let motive = arena.insert(crate::Term::Lambda { domain: two, body: two });
+                *endpoint = arena.insert(crate::Term::CaseTwo {
+                    motive, zero_branch: one, one_branch: zero, scrutinee: *endpoint,
+                });
+            }
+        }
+        let expected = arena.insert(crate::Term::Id { ty: two, left: endpoints[0], right: endpoints[1] });
+        let evidence = arena.insert(crate::Term::Variable(0));
+        let certificate = crate::MathematicalCertificate::closed(vec![expected], evidence, expected);
+        assert!(matches!(crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::default()), Err(crate::CoreError::StepCeiling)));
+        for (depth, valid) in [(8192, true), (64, true), (64, false)] {
+            let goal = statement(depth, true);
+            let context = PropositionContext::default();
+            context.validate(&goal).expect("the complete scalar statement is well formed");
+            eprintln!("{depth}-node scalar statement admitted; begin owned clone");
+            let copied = goal.clone();
+            eprintln!("owned clone returned; begin exact value operations");
+            assert!(copied == goal);
+            assert_eq!(copied.cmp(&goal), std::cmp::Ordering::Equal);
+            use std::hash::{Hash, Hasher};
+            let mut original_hash = std::collections::hash_map::DefaultHasher::new();
+            let mut copy_hash = std::collections::hash_map::DefaultHasher::new();
+            goal.hash(&mut original_hash);copied.hash(&mut copy_hash);
+            assert_eq!(original_hash.finish(), copy_hash.finish());
+            eprintln!("exact value operations returned; begin complete scalar admission valid={valid}");
+            let assumptions = [statement(depth, true)];
+            let proof = ProofNode { conclusion: statement(depth, valid), rule: ProofRule::Assumption { index: 0 } };
+            let before = verification_workers_started();
+            let result = super::accept_certificate_on_current_thread(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
+            if depth == 8192 {
+                assert!(matches!(result, Err(ProofError::MathematicalCore(ref error)) if matches!(error.as_ref(), crate::BoundedDenotationError::Kernel(crate::CoreError::StepCeiling))), "the deep source question must preserve the independent kernel's resource refusal");
+            } else if valid {
+                let accepted = result.expect("within the kernel's existing allowance, the complete exact scalar premise is kernel judged");
+                assert_eq!(accepted.assumptions.len(), 1);
+                assert_eq!(accepted.assumptions[0].index, 0);
+                assert!(accepted.assumptions[0].proposition == goal);
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else { panic!("bounded rule labels cannot replace the exact kernel judgment"); };
+                assert_eq!(receipt.context_depth, 1);
+                assert_eq!(receipt.declarations, 0);
+                assert_eq!(receipt.assumption_closure, 0);
+            } else {
+                assert!(matches!(result, Err(ProofError::AssumptionConclusionMismatch(0))));
+            }
+            assert_eq!(verification_workers_started(), before);
+            eprintln!("complete scalar admission returned depth={depth} valid={valid}");
+        }
+    }).join().expect("complete scalar admission and owned receipts stay on a default stack");
+}

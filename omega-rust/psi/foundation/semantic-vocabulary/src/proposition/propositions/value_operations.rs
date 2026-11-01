@@ -227,7 +227,6 @@ impl Eq for Proposition {}
 impl std::hash::Hash for Proposition {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use Proposition::*;
-        use std::hash::Hash;
         let mut pending = Vec::new();
         let mut current = self;
         loop {
