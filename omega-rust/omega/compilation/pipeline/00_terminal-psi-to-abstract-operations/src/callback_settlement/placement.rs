@@ -9,11 +9,15 @@ use backend_plan::{
 };
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
-    BoundaryNativeParameterShape, NativeParameterApplication, NativePlace, ValueShape,
+    BoundaryNativeParameterShape, NativeParameterApplication, NativePlace,
+    TerminalCallingTelescope, ValueShape,
 };
 use terminal_psi::{TerminalCallbackApplication, TerminalModule};
 
-pub(crate) fn place_callbacks(
+/// Place reached foreign callbacks using canonical declarations and this
+/// target's selected calling applications. Works after releasing source and
+/// on decoded artifacts; unselected candidates create no placement demand.
+pub fn settle_native_callback_placements(
     module: &TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,
     calling: &[BoundaryCallingApplication],
@@ -63,11 +67,18 @@ pub(crate) fn place_callbacks(
         let inbound = calling_application(calling, &application.requirement)?;
         let registrar =
             calling_application(calling, selected.selected_requirement_identity(requirement))?;
-        let entry_parameters = inbound
-            .signature
-            .native_parameters
-            .span(inbound.signature.native_parameter_rows)
-            .ok_or("callback entry has stale native parameter storage")?
+        let mut interfaces = module.boundary_machines.iter().filter(|declaration| {
+            module.identities.text(declaration.identity) == Some(application.requirement.as_str())
+        });
+        let (Some(interface), None) = (interfaces.next(), interfaces.next()) else {
+            return Err("callback has no unique exact Terminal requirement declaration".into());
+        };
+        let inbound_telescope =
+            TerminalCallingTelescope::for_application(module, interface.id, inbound)?;
+        let registrar_telescope =
+            TerminalCallingTelescope::for_application(module, boundary, registrar)?;
+        let entry_parameters = inbound_telescope
+            .parameters
             .iter()
             .map(|parameter| {
                 Ok(NativeCallbackEntryParameter {
@@ -83,7 +94,11 @@ pub(crate) fn place_callbacks(
             contract_commitment: application.body.contract,
             boundary_entry_plan: inbound.plan.plan().clone(),
             entry_parameters,
-            private_materialization: private_materialization(application, registrar)?,
+            private_materialization: private_materialization(
+                application,
+                registrar,
+                &registrar_telescope,
+            )?,
         });
     }
     Ok(placements)
@@ -123,13 +138,9 @@ fn parameter_application(
 fn private_materialization(
     application: &TerminalCallbackApplication,
     registrar: &BoundaryCallingApplication,
+    telescope: &TerminalCallingTelescope,
 ) -> Result<Option<BoundCallbackPrivateMaterialization>, String> {
-    let bindings = registrar
-        .signature
-        .callback_bindings
-        .span(registrar.signature.callback_binding_rows)
-        .ok_or("registrar has stale callback binder storage")?;
-    let mut matching = bindings.iter().filter(|binding| {
+    let mut matching = telescope.binders.iter().filter(|binding| {
         binding.static_machine_ordinal == application.static_machine_ordinal
             && binding.requirement_identity == application.requirement
     });
@@ -162,12 +173,8 @@ fn private_materialization(
     let parameter = match row.destination {
         NativePlace::Parameter(parameter) | NativePlace::Field { parameter, .. } => parameter,
     };
-    let native = registrar
-        .signature
-        .native_parameters
-        .span(registrar.signature.native_parameter_rows)
-        .ok_or("registrar has stale native parameter storage")?;
-    let mut parameters = native
+    let mut parameters = telescope
+        .parameters
         .iter()
         .filter(|candidate| candidate.identity == parameter);
     let (Some(parameter), None) = (parameters.next(), parameters.next()) else {

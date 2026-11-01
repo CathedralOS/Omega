@@ -3,10 +3,10 @@
 public boundary trait Parent { machine read() -> i32 reaches; }
 public boundary trait Child: Parent { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
-    Parent::read = shared;
-    Child::choose = shared;
+    machine read() -> i32 { shared() }
+    machine choose() -> i32 { shared() }
 }
-ParentMap satisfies Parent { Parent::read = shared; }
+ParentMap satisfies Parent { machine read() -> i32 { shared() } }
 machine shared() -> i32 { 1 }
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {

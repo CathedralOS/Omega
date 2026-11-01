@@ -1,27 +1,51 @@
 // An independent completed call guarantees value == 7, so exact value - 7 is safe.
 // Expected exit: 0
-windows_x86_64 machine source(input: u64) -> u64 ensures result == 7 {
-    7
+boundary trait IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7;
 }
-linux_x86_64 machine source(input: u64) -> u64 ensures result == 7 {
-    7
+WindowsSource satisfies IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7 {
+        7
+    }
 }
-macos_arm64 machine source(input: u64) -> u64 ensures result == 7 {
-    7
+LinuxSource satisfies IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7 {
+        7
+    }
 }
-linux_arm64 machine source(input: u64) -> u64 ensures result == 7 {
-    7
+MacosSource satisfies IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7 {
+        7
+    }
 }
-reserved_target machine source(input: u64) -> u64 ensures result == 7 {
-    forwarded(input)
+LinuxArmSource satisfies IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7 {
+        7
+    }
 }
-machine forwarded(input: u64) -> u64 ensures result == 7 { source(input) }
-windows_x86_64 machine evaluate() -> u64 { forwarded(3) - 7 }
-linux_x86_64 machine evaluate() -> u64 { forwarded(3) - 7 }
-macos_arm64 machine evaluate() -> u64 { forwarded(3) - 7 }
-linux_arm64 machine evaluate() -> u64 { forwarded(3) - 7 }
+ReservedSource satisfies IndependentSource {
+    machine source(input: u64) -> u64 reaches ensures result == 7 {
+        forwarded(input)
+    }
+}
+machine forwarded(input: u64) -> u64 ensures result == 7 { IndependentSource::source(input) }
+boundary trait Evaluation {
+    machine evaluate() -> u64 reaches IndependentSource;
+}
+WindowsEvaluation satisfies Evaluation {
+    machine evaluate() -> u64 reaches IndependentSource { forwarded(3) - 7 }
+}
+LinuxEvaluation satisfies Evaluation {
+    machine evaluate() -> u64 reaches IndependentSource { forwarded(3) - 7 }
+}
+MacosEvaluation satisfies Evaluation {
+    machine evaluate() -> u64 reaches IndependentSource { forwarded(3) - 7 }
+}
+LinuxArmEvaluation satisfies Evaluation {
+    machine evaluate() -> u64 reaches IndependentSource { forwarded(3) - 7 }
+}
 machine main() crashes Trap {
-    let difference: u64 = evaluate();
+    let difference: u64 = Evaluation::evaluate();
     transition difference == 0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

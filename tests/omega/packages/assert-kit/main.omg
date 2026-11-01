@@ -22,7 +22,7 @@ crashes Trap
 public data CheckingAssert { }
 
 public CheckingAssertProvider satisfies Assert {
-    Assert::check = CheckingAssert::check;
+    machine check(ok: bool) crashes Trap { CheckingAssert::check(ok) }
 }
 
 machine CheckingAssert::check(ok: bool)
@@ -35,7 +35,7 @@ crashes Trap
 public data NoOpAssert { }
 
 public NoOpAssertProvider satisfies Assert {
-    Assert::check = NoOpAssert::check;
+    machine check(ok: bool) { NoOpAssert::check(ok) }
 }
 
 machine NoOpAssert::check(ok: bool)

@@ -9,6 +9,8 @@ use crate::SelectedExecution;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
+use provider_planning::ProviderPlanningContext;
+use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::Arc;
 
 /// Realization choices joined to a completed source judgment.
@@ -134,21 +136,16 @@ pub fn prepare_selected_execution(
         )?;
         external_providers.selected_callback_roots(selected)
     };
-    let service_declarations = Arc::new(
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            settlement
-                .provider_inventory
-                .services_for(&program)
-                .map_err(|error| vec![error])?,
-            settlement.boundary_calling_plan_realizations,
-            settlement.exact_toolchain_sources,
-        ),
-    );
+    let service_declarations = Arc::new(ServiceDeclarations::prepare(
+        settlement
+            .provider_inventory
+            .services_for(&program)
+            .map_err(|error| vec![error])?,
+        settlement.boundary_calling_plan_realizations,
+        settlement.exact_toolchain_sources,
+    ));
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
-        provider_planning::ProviderPlanningContext::new(
-            &program.typed,
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),
         settlement.exact_toolchain_sources,
         &settlement.selected_provider_provenance,
     )

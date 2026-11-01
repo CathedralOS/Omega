@@ -19,7 +19,7 @@ use super::{
     admit_decoded_footprint, decoded_effects_footprint, decoded_footprint, decoded_row_footprint,
     encoded_row, operand_accesses, operand_views,
 };
-use crate::OptimizedSelectedFormEncodingError;
+use crate::OptimizedSelectedFormEncodingError as Error;
 use crate::row_encoding::normalized_foreign_call_record;
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
@@ -43,17 +43,15 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     if record.call.binding.table_dispatch().is_some() {
         if target.architecture != Architecture::X86_64
             || !matches!(row.state, SelectedFormEncodingState::Encoded)
         {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
-        let (bytes, retained) = encoded
-            .encoded(row)
-            .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        let (bytes, retained) = encoded.encoded(row).ok_or(Error::ArtifactMismatch)?;
         let accesses = operand_accesses(machine);
         let decoded = decoded_row_footprint!(
             isa_x86_64::validate_x86_64_selected_table_call_form(
@@ -63,7 +61,7 @@ pub(super) fn validate(
                 &accesses,
                 bytes,
             ),
-            |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
+            |_| Error::ArtifactMismatch
         );
         admit_decoded_footprint(instruction, machine, bytes.len(), retained, &decoded)?;
         return Ok(());
@@ -71,7 +69,7 @@ pub(super) fn validate(
     if let Some(binding) = record.call.binding.system_call() {
         let (bytes, footprint) = encoded_row(row, encoded)?;
         if !record.call.callbacks.is_empty() {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
         let views = operand_views(machine);
         let accesses = operand_accesses(machine);
@@ -87,7 +85,7 @@ pub(super) fn validate(
                     binding.number,
                     bytes,
                 ),
-                |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
+                |_| Error::ArtifactMismatch
             ),
             Architecture::Aarch64 => decoded_row_footprint!(
                 isa_aarch64::validate_aarch64_selected_system_call_form(
@@ -100,29 +98,29 @@ pub(super) fn validate(
                     binding.number,
                     bytes,
                 ),
-                |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
+                |_| Error::ArtifactMismatch
             ),
         };
         admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
         return Ok(());
     }
     let SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } = &row.state else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     };
     let Some((bytes, footprint)) = encoded.encoded(row) else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     };
     if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.addend != 0
     {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let (boundary, ordinal) = match kind {
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => (boundary, ordinal),
-        _ => return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
+        _ => return Err(Error::ArtifactMismatch),
     };
     if fixup.boundary != boundary || fixup.ordinal != ordinal {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let views = operand_views(machine);
     let accesses = operand_accesses(machine);
@@ -132,7 +130,7 @@ pub(super) fn validate(
                 SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => {
                     X86_64NormalizedForeignCallFixupKind::Relative32FromNextInstructionToNormalizedForeignImportV1
                 }
-                _ => return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
+                _ => return Err(Error::ArtifactMismatch),
             };
             let (destinations, callbacks) = x86_64_callback_replay(fixup)?;
             let validated = validate_x86_64_selected_normalized_foreign_call_template(
@@ -158,7 +156,7 @@ pub(super) fn validate(
                 &destinations,
                 record,
             )
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            .map_err(|_| Error::ArtifactMismatch)?;
             decoded_effects_footprint(machine, validated.effects())?
         }
         Architecture::Aarch64 => {
@@ -166,7 +164,7 @@ pub(super) fn validate(
                 SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
                     Aarch64NormalizedForeignCallFixupKind::BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
                 }
-                _ => return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
+                _ => return Err(Error::ArtifactMismatch),
             };
             let (destinations, callbacks) = aarch64_callback_replay(fixup)?;
             let validated = validate_aarch64_selected_normalized_foreign_call_template(
@@ -192,7 +190,7 @@ pub(super) fn validate(
                 &destinations,
                 record,
             )
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            .map_err(|_| Error::ArtifactMismatch)?;
             decoded_effects_footprint(machine, validated.effects())?
         }
     };
@@ -209,7 +207,7 @@ fn x86_64_callback_replay(
         Vec<X86_64CallbackMaterializationDestination>,
         Vec<X86_64CallbackAddressMaterialization>,
     ),
-    OptimizedSelectedFormEncodingError,
+    Error,
 > {
     let mut destinations = Vec::with_capacity(fixup.callbacks.len());
     let mut callbacks = Vec::with_capacity(fixup.callbacks.len());
@@ -218,7 +216,7 @@ fn x86_64_callback_replay(
             patch_row_offset,
         } = callback.encoding
         else {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         };
         let destination = match callback.destination {
             machine_code::CallbackAddressDestination::Register(register) => {
@@ -253,7 +251,7 @@ fn aarch64_callback_replay(
         Vec<Aarch64CallbackMaterializationDestination>,
         Vec<Aarch64CallbackAddressMaterialization>,
     ),
-    OptimizedSelectedFormEncodingError,
+    Error,
 > {
     let mut destinations = Vec::with_capacity(fixup.callbacks.len());
     let mut callbacks = Vec::with_capacity(fixup.callbacks.len());
@@ -263,7 +261,7 @@ fn aarch64_callback_replay(
             page_offset_patch_row_offset,
         } = callback.encoding
         else {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         };
         let destination = match callback.destination {
             machine_code::CallbackAddressDestination::Register(register) => {
@@ -277,7 +275,7 @@ fn aarch64_callback_replay(
                 byte_offset,
             },
             machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
         };
         destinations.push(destination);

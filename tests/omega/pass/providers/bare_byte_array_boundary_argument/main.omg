@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console + Sink {
 }
 
 SinkProviderSinkImplementation satisfies Sink {
-    Sink::take = SinkProvider::take;
+    machine take(name: [u8; 7]) -> u64 { SinkProvider::take(name) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

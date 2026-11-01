@@ -12,7 +12,7 @@ public boundary trait Sink {
 public data QuietSink { }
 
 public QuietSinkProvider satisfies Sink {
-    Sink::emit = QuietSink::emit;
+    machine emit(text: &[u8]) { QuietSink::emit(text) }
 }
 
 machine QuietSink::emit(text: &[u8])

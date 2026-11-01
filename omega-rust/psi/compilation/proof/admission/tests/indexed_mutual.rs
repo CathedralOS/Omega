@@ -48,7 +48,7 @@
 use crate::common::*;
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
-    check_signature, check_type, indexed_scheme,
+    argument_error_pair_pattern, check_signature, check_type, indexed_scheme,
 };
 
 // ── The producer signature ────────────────────────────────────────────
@@ -493,10 +493,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
     let expected = forest_at(&mut arena, &captured);
     let error =
         check_type(&mut arena, &context, captured_fcons, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        proof_admission::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, argument_error_pair_pattern!()));
 
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever

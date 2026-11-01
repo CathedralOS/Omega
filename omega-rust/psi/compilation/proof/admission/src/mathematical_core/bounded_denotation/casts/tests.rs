@@ -9,6 +9,7 @@ use semantic_vocabulary::{
     ScalarType, ValueId,
 };
 use std::collections::BTreeSet;
+use std::slice::from_ref;
 
 fn integer(sign: IntegerSign, bits: u16) -> IntegerType {
     IntegerType::new(sign, bits).expect("fixed integer type")
@@ -78,8 +79,8 @@ fn cast_bound_transports_through_one_exact_cast_edge() {
     verify_bounded_certificate(
         &context,
         &conclusion,
-        std::slice::from_ref(&root_bound),
-        std::slice::from_ref(&definition),
+        from_ref(&root_bound),
+        from_ref(&definition),
         &proof,
         &mut Budget::default(),
     )
@@ -87,8 +88,8 @@ fn cast_bound_transports_through_one_exact_cast_edge() {
     let (rule_axioms, cast_identities) = denotation_counts(
         &context,
         &conclusion,
-        std::slice::from_ref(&root_bound),
-        std::slice::from_ref(&definition),
+        from_ref(&root_bound),
+        from_ref(&definition),
         &proof,
     );
     assert_eq!(rule_axioms, 0);
@@ -141,7 +142,7 @@ fn cast_bound_walks_a_multi_edge_word_in_either_direction() {
         verify_bounded_certificate(
             &context,
             &conclusion,
-            std::slice::from_ref(&root_bound),
+            from_ref(&root_bound),
             &axioms,
             &proof,
             &mut Budget::default(),
@@ -150,7 +151,7 @@ fn cast_bound_walks_a_multi_edge_word_in_either_direction() {
         let (rule_axioms, cast_identities) = denotation_counts(
             &context,
             &conclusion,
-            std::slice::from_ref(&root_bound),
+            from_ref(&root_bound),
             &axioms,
             &proof,
         );
@@ -197,18 +198,13 @@ fn truth_root_cast_bound_uses_the_tightest_carrier_membership() {
             &context,
             &conclusion,
             &[],
-            std::slice::from_ref(&definition),
+            from_ref(&definition),
             &proof,
             &mut Budget::default(),
         )
         .expect("the carrier-membership bound transports to the target");
-        let (rule_axioms, cast_identities) = denotation_counts(
-            &context,
-            &conclusion,
-            &[],
-            std::slice::from_ref(&definition),
-            &proof,
-        );
+        let (rule_axioms, cast_identities) =
+            denotation_counts(&context, &conclusion, &[], from_ref(&definition), &proof);
         assert_eq!(rule_axioms, 0);
         assert_eq!(cast_identities, 1);
     }

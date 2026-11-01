@@ -1,0 +1,3 @@
+trait Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine main() { let value: Holder<u64> = Holder { value: 42u64 }; }

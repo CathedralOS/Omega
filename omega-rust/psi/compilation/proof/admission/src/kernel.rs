@@ -2,7 +2,9 @@ use crate::integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, check_integer_math_term_size, compare_integer_math_terms,
 };
 use crate::proof::integer_math_normalization::lift_exact_integer_relation;
+use semantic_vocabulary::IntegerMathLiteral;
 use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm};
+use std::cmp::Ordering;
 pub use terminal_psi::PrimitiveJudgment;
 
 #[cfg(test)]
@@ -155,14 +157,10 @@ fn mathematical_integer_carrier_bound_exclusive(
     }
     let bound = IntegerMathTerm::Add(
         Box::new(IntegerMathTerm::IntegerLiteral(
-            semantic_vocabulary::IntegerMathLiteral::from_integer_value(
-                source_type.maximum_value(),
-            ),
+            IntegerMathLiteral::from_integer_value(source_type.maximum_value()),
         )),
         Box::new(IntegerMathTerm::IntegerLiteral(
-            semantic_vocabulary::IntegerMathLiteral::from_integer_value(
-                semantic_vocabulary::IntegerValue::Unsigned(1),
-            ),
+            IntegerMathLiteral::from_integer_value(semantic_vocabulary::IntegerValue::Unsigned(1)),
         )),
     );
     compare_integer_math_terms(right, &bound)
@@ -170,10 +168,7 @@ fn mathematical_integer_carrier_bound_exclusive(
         .map_err(KernelError::ClosedIntegerEvaluation)
 }
 
-pub(crate) fn compare_integer_literals(
-    left: &ScalarTerm,
-    right: &ScalarTerm,
-) -> Option<std::cmp::Ordering> {
+pub(crate) fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<Ordering> {
     let (left_type, left) = left.integer_value()?;
     let (right_type, right) = right.integer_value()?;
     if left_type != right_type {
@@ -193,7 +188,7 @@ pub(crate) fn compare_integer_literals(
 /// operand stays open past normalization or cannot lift.
 fn compare_fixed_integer_relation(
     proposition: &Proposition,
-) -> Result<Option<std::cmp::Ordering>, KernelError> {
+) -> Result<Option<Ordering>, KernelError> {
     let (left, right) = match proposition {
         semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return Ok(None),

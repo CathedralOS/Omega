@@ -348,8 +348,14 @@ authored policy evaluation retains the complete checked-input census, including
 Build copies. Omega consumes those records instead of rewalking signatures.
 Projection refusals remain deferred until an ABI request, and runtime type
 recipes still materialize one parameter at a time. These telescopes and their
-separate source correspondence are invocation-owned; publishing the complete
-signature/contract set canonically in Terminal is still required.
+separate source correspondence originate in the invocation-owned catalog.
+Canonical Terminal now retains the emitted boundaries' calling telescopes;
+native callback placement reads those exact declaration rows, including
+native-only function-pointer arguments, instead of taking their identity and
+order from the source-prepared ABI application. The proposed application must
+agree with that retained telescope. Runtime value recipes, opaque selection,
+and private inline-slot layout closure still need migration before the complete
+signature/contract set can be prepared after source release.
 
 Psi's same immutable catalog also retains the complete explicit calling-policy
 application census: the owning vocabulary, concrete boundary arguments, exact

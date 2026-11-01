@@ -4,8 +4,8 @@
 use super::CodecError;
 use super::machine_declaration_wire;
 use super::wire::{Reader, Writer};
+use super::wire_fields::{ExternalPackage, Field};
 use language_semantics::ExternalBindingIdentity;
-use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
     ExternalProviderConformance, ExternalProviderOwner, NominalDeclarationIdentity,
@@ -17,7 +17,7 @@ pub(super) fn encode(
 ) -> Result<(), CodecError> {
     writer.u32(candidate.requirement.identity().0);
     writer.u32(candidate.requirement_identity.0);
-    encode_package(writer, candidate.requirement_package);
+    ExternalPackage::write(writer, &candidate.requirement_package)?;
     writer.boolean(candidate.requirement_schema.is_some());
     if let Some(schema) = &candidate.requirement_schema {
         writer.u32(schema.identity.0);
@@ -35,12 +35,12 @@ pub(super) fn encode(
         writer.string("external provider target membership", target)?;
     }
     machine_declaration_wire::encode(writer, &candidate.realization)?;
-    encode_package(writer, candidate.realization_package);
+    ExternalPackage::write(writer, &candidate.realization_package)?;
     writer.boolean(candidate.provider.is_some());
     if let Some(provider) = &candidate.provider {
         writer.u32(provider.declaration.identity().0);
         writer.u32(provider.identity.0);
-        encode_package(writer, provider.package);
+        ExternalPackage::write(writer, &provider.package)?;
     }
     writer.u8(candidate.binding.mechanism().identity_tag());
     match &candidate.binding {
@@ -58,7 +58,7 @@ pub(super) fn encode(
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ExternalProviderConformance, CodecError> {
     let requirement = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let requirement_identity = TerminalIdentityIndex(reader.u32()?);
-    let requirement_package = decode_package(reader)?;
+    let requirement_package = ExternalPackage::read(reader)?;
     let requirement_schema = if reader.boolean()? {
         Some(terminal_psi::ExternalRequirementSchema {
             identity: TerminalIdentityIndex(reader.u32()?),
@@ -86,12 +86,12 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ExternalProviderConforma
         None
     };
     let realization = machine_declaration_wire::decode(reader)?;
-    let realization_package = decode_package(reader)?;
+    let realization_package = ExternalPackage::read(reader)?;
     let provider = if reader.boolean()? {
         Some(ExternalProviderOwner {
             declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
             identity: TerminalIdentityIndex(reader.u32()?),
-            package: decode_package(reader)?,
+            package: ExternalPackage::read(reader)?,
         })
     } else {
         None
@@ -124,22 +124,4 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ExternalProviderConforma
         provider,
         binding,
     })
-}
-
-fn encode_package(writer: &mut Writer, package: Option<PackageKeyIdentity>) {
-    writer.boolean(package.is_some());
-    if let Some(package) = package {
-        writer.bytes(&package.digest());
-    }
-}
-
-fn decode_package(reader: &mut Reader<'_>) -> Result<Option<PackageKeyIdentity>, CodecError> {
-    if !reader.boolean()? {
-        return Ok(None);
-    }
-    PackageKeyIdentity::from_digest(reader.array()?)
-        .map(Some)
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "empty external provider package identity",
-        ))
 }

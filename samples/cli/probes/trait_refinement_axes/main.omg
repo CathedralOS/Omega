@@ -41,8 +41,8 @@ machine Sink::flush(sink: &mut Sink) satisfies Logger<Sink>::flush {
 data Main { sink: Sink; hits: i32 in Wrapping; }
 
 SinkLogger satisfies Logger<Sink> {
-    Logger::write = Sink::write;
-    Logger::flush = Sink::flush;
+    machine write(subject: &mut Sink) suspends blocks { Sink::write(subject) }
+    machine flush(subject: &mut Sink) { Sink::flush(subject) }
 }
 
 machine Main::main(main: &mut Main) {

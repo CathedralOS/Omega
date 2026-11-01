@@ -2,232 +2,119 @@
 //! result, source, operation and contract identity.
 
 use super::super::CodecError;
-use super::super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
-use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::structural_field_wire::{
+    decode_ieee_float_field, decode_ieee_float_format, encode_ieee_float_field,
+    encode_ieee_float_format,
+};
+use super::super::wire::{Reader, Writer};
+use super::super::wire_fields::{
+    Digest, Field, Id, List, U8, U16, U32, U64, u32_newtypes, wire_enum, wire_record,
+};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatStructuralField};
 use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, FloatSemanticApplication,
-    FloatSemanticApplicationOperand, FloatSemanticContractIdentity, ProofOnlyValueType,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    FloatMeaningSource, FloatProjectionContractIdentity, FloatProjectionInput,
+    FloatProjectionInputId, FloatSemanticApplication, FloatSemanticApplicationOperand,
+    FloatSemanticContractIdentity, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId,
 };
 
-use super::super::structural_field_wire::{
-    decode_ieee_float_format as decode_ieee_format, encode_ieee_float_format as encode_ieee_format,
-};
+u32_newtypes! {
+    Value: ProofValueId;
+    Proposition: ProofPropositionId;
+    InputId: FloatProjectionInputId;
+}
 
-pub(super) fn encode_float_meaning_projection(
-    writer: &mut Writer,
-    projection: &FloatMeaningProjection,
-) -> Result<(), CodecError> {
-    writer.u32(projection.result.id.0);
-    writer.u8(match projection.result.value_type {
-        ProofOnlyValueType::FloatMeaning => 1,
-    });
-    match &projection.source {
-        FloatMeaningSource::TransitionalInput(input) => {
-            writer.u8(1);
-            writer.u32(input.id.0);
-            encode_ieee_format(writer, input.format);
-        }
-        FloatMeaningSource::DirectMachineParameter(parameter) => {
-            writer.u8(4);
-            writer.id(parameter.owner);
-            writer.id(parameter.parameter);
-            encode_ieee_format(writer, parameter.format);
-        }
-        FloatMeaningSource::DirectMachineResult(result) => {
-            writer.u8(5);
-            writer.id(result.owner);
-            writer.id(result.result);
-            encode_ieee_format(writer, result.format);
-        }
-        FloatMeaningSource::DirectBlockParameter(parameter) => {
-            writer.u8(7);
-            writer.id(parameter.owner);
-            writer.id(parameter.block);
-            writer.id(parameter.parameter);
-            encode_ieee_format(writer, parameter.format);
-        }
-        FloatMeaningSource::DirectOperationResult(result) => {
-            writer.u8(6);
-            writer.id(result.owner);
-            writer.id(result.producer);
-            writer.id(result.result);
-            encode_ieee_format(writer, result.format);
-        }
-        FloatMeaningSource::DirectCallResult(result) => {
-            writer.u8(8);
-            writer.id(result.owner);
-            writer.id(result.producer);
-            writer.id(result.result);
-            encode_ieee_format(writer, result.format);
-        }
-        FloatMeaningSource::DirectStructuralLeaf(leaf) => {
-            writer.u8(9);
-            writer.id(leaf.owner);
-            encode_ieee_float_field(writer, &leaf.field)?;
-            encode_ieee_format(writer, leaf.format);
-        }
-        FloatMeaningSource::ExactBinary32Literal(bits) => {
-            writer.u8(2);
-            writer.u32(*bits);
-        }
-        FloatMeaningSource::ExactBinary64Literal(bits) => {
-            writer.u8(3);
-            writer.u64(*bits);
-        }
-        FloatMeaningSource::SemanticApplication(application) => {
-            writer.u8(10);
-            writer.u8(application.contract.row);
-            writer.u16(application.contract.catalog_version);
-            writer.bytes(&application.contract.commitment);
-            encode_ieee_format(writer, application.format);
-            writer.len(
-                "float semantic application operands",
-                application.operands.len(),
-            )?;
-            for operand in &application.operands {
-                match operand {
-                    FloatSemanticApplicationOperand::Format(format) => {
-                        writer.u8(1);
-                        encode_ieee_format(writer, *format);
-                    }
-                    FloatSemanticApplicationOperand::Meaning(value) => {
-                        writer.u8(2);
-                        writer.u32(value.0);
-                    }
-                }
-            }
-        }
+struct Format;
+impl Field<IeeeFloatFormat> for Format {
+    fn write(writer: &mut Writer, value: &IeeeFloatFormat) -> Result<(), CodecError> {
+        encode_ieee_float_format(writer, *value);
+        Ok(())
     }
-    writer.u8(match projection.operation {
-        FloatMeaningProjectionOperation::Meaning32 => 1,
-        FloatMeaningProjectionOperation::Meaning64 => 2,
-    });
-    writer.u16(projection.contract.format);
-    writer.u8(projection.contract.operation);
-    writer.u8(projection.contract.declaration);
-    writer.u16(projection.contract.catalog_version);
-    writer.bytes(&projection.contract.commitment);
-    Ok(())
+    fn read(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
+        decode_ieee_float_format(reader)
+    }
 }
 
-pub(super) fn encode_float_meaning_equality(
-    writer: &mut Writer,
-    proposition: &FloatMeaningEqualityProposition,
-) -> Result<(), CodecError> {
-    writer.u32(proposition.id.0);
-    writer.u32(proposition.left.0);
-    writer.u32(proposition.right.0);
-    Ok(())
+struct FloatField;
+impl Field<IeeeFloatStructuralField> for FloatField {
+    fn write(writer: &mut Writer, value: &IeeeFloatStructuralField) -> Result<(), CodecError> {
+        encode_ieee_float_field(writer, value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<IeeeFloatStructuralField, CodecError> {
+        decode_ieee_float_field(reader)
+    }
 }
 
-pub(super) fn decode_float_meaning_projection(
-    reader: &mut Reader<'_>,
-) -> Result<FloatMeaningProjection, CodecError> {
-    Ok(FloatMeaningProjection {
-        result: ProofValueDeclaration {
-            id: ProofValueId(reader.u32()?),
-            value_type: match reader.u8()? {
-                1 => ProofOnlyValueType::FloatMeaning,
-                tag => return Err(CodecError::InvalidTag("ProofOnlyValueType", tag)),
-            },
-        },
-        source: match reader.u8()? {
-            1 => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                id: FloatProjectionInputId(reader.u32()?),
-                format: decode_ieee_format(reader)?,
-            }),
-            2 => FloatMeaningSource::ExactBinary32Literal(reader.u32()?),
-            3 => FloatMeaningSource::ExactBinary64Literal(reader.u64()?),
-            4 => FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
-                owner: reader.id("float-meaning direct parameter owner")?,
-                parameter: reader.id("float-meaning direct parameter value")?,
-                format: decode_ieee_format(reader)?,
-            }),
-            5 => FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
-                owner: reader.id("float-meaning direct result owner")?,
-                result: reader.id("float-meaning direct result value")?,
-                format: decode_ieee_format(reader)?,
-            }),
-            6 => FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
-                owner: reader.id("float-meaning direct operation-result owner")?,
-                producer: reader.id("float-meaning direct operation-result producer")?,
-                result: reader.id("float-meaning direct operation-result value")?,
-                format: decode_ieee_format(reader)?,
-            }),
-            7 => FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
-                owner: reader.id("float-meaning direct block-parameter owner")?,
-                block: reader.id("float-meaning direct block-parameter block")?,
-                parameter: reader.id("float-meaning direct block-parameter value")?,
-                format: decode_ieee_format(reader)?,
-            }),
-            8 => FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
-                owner: reader.id("float-meaning direct call-result owner")?,
-                producer: reader.id("float-meaning direct call-result producer")?,
-                result: reader.id("float-meaning direct call-result value")?,
-                format: decode_ieee_format(reader)?,
-            }),
-            9 => FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
-                owner: reader.id("float-meaning direct structural-leaf owner")?,
-                field: decode_ieee_float_field(reader)?,
-                format: decode_ieee_format(reader)?,
-            }),
-            10 => {
-                let contract = FloatSemanticContractIdentity {
-                    row: reader.u8()?,
-                    catalog_version: reader.u16()?,
-                    commitment: reader.array()?,
-                };
-                let format = decode_ieee_format(reader)?;
-                let operands = decode_counted(reader, |reader| match reader.u8()? {
-                    1 => Ok(FloatSemanticApplicationOperand::Format(decode_ieee_format(
-                        reader,
-                    )?)),
-                    2 => Ok(FloatSemanticApplicationOperand::Meaning(ProofValueId(
-                        reader.u32()?,
-                    ))),
-                    tag => Err(CodecError::InvalidTag(
-                        "FloatSemanticApplicationOperand",
-                        tag,
-                    )),
-                })?;
-                FloatMeaningSource::SemanticApplication(FloatSemanticApplication {
-                    contract,
-                    format,
-                    operands,
-                })
-            }
-            tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
-        },
-        operation: match reader.u8()? {
-            1 => FloatMeaningProjectionOperation::Meaning32,
-            2 => FloatMeaningProjectionOperation::Meaning64,
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "FloatMeaningProjectionOperation",
-                    tag,
-                ));
-            }
-        },
-        contract: terminal_psi::FloatProjectionContractIdentity {
-            format: reader.u16()?,
-            operation: reader.u8()?,
-            declaration: reader.u8()?,
-            catalog_version: reader.u16()?,
-            commitment: reader.array()?,
-        },
-    })
+wire_record! {
+    Projection: FloatMeaningProjection {
+        result: Declaration,
+        source: Source,
+        operation: Operation,
+        contract: ProjectionContract,
+    }
+    Declaration: ProofValueDeclaration { id: Value, value_type: ValueType }
+    Input: FloatProjectionInput { id: InputId, format: Format }
+    MachineParameter: DirectMachineFloatParameter { owner: Id, parameter: Id, format: Format }
+    MachineResult: DirectMachineFloatResult { owner: Id, result: Id, format: Format }
+    OperationResult: DirectOperationFloatResult {
+        owner: Id,
+        producer: Id,
+        result: Id,
+        format: Format,
+    }
+    BlockParameter: DirectBlockFloatParameter {
+        owner: Id,
+        block: Id,
+        parameter: Id,
+        format: Format,
+    }
+    CallResult: DirectCallFloatResult { owner: Id, producer: Id, result: Id, format: Format }
+    StructuralLeaf: DirectStructuralFloatLeaf { owner: Id, field: FloatField, format: Format }
+    Application: FloatSemanticApplication {
+        contract: ApplicationContract,
+        format: Format,
+        operands: List<ApplicationOperand>,
+    }
+    ApplicationContract: FloatSemanticContractIdentity {
+        row: U8,
+        catalog_version: U16,
+        commitment: Digest,
+    }
+    ProjectionContract: FloatProjectionContractIdentity {
+        format: U16,
+        operation: U8,
+        declaration: U8,
+        catalog_version: U16,
+        commitment: Digest,
+    }
+    Equality: FloatMeaningEqualityProposition { id: Proposition, left: Value, right: Value }
 }
 
-pub(super) fn decode_float_meaning_equality(
-    reader: &mut Reader<'_>,
-) -> Result<FloatMeaningEqualityProposition, CodecError> {
-    Ok(FloatMeaningEqualityProposition {
-        id: ProofPropositionId(reader.u32()?),
-        left: ProofValueId(reader.u32()?),
-        right: ProofValueId(reader.u32()?),
-    })
+wire_enum! {
+    ValueType: ProofOnlyValueType, "ProofOnlyValueType" {
+        1 => FloatMeaning,
+    }
+    Source: FloatMeaningSource, "FloatMeaningSource" {
+        1 => TransitionalInput(input: Input),
+        2 => ExactBinary32Literal(bits: U32),
+        3 => ExactBinary64Literal(bits: U64),
+        4 => DirectMachineParameter(parameter: MachineParameter),
+        5 => DirectMachineResult(result: MachineResult),
+        6 => DirectOperationResult(result: OperationResult),
+        7 => DirectBlockParameter(parameter: BlockParameter),
+        8 => DirectCallResult(result: CallResult),
+        9 => DirectStructuralLeaf(leaf: StructuralLeaf),
+        10 => SemanticApplication(application: Application),
+    }
+    ApplicationOperand: FloatSemanticApplicationOperand, "FloatSemanticApplicationOperand" {
+        1 => Format(format: Format),
+        2 => Meaning(value: Value),
+    }
+    Operation: FloatMeaningProjectionOperation, "FloatMeaningProjectionOperation" {
+        1 => Meaning32,
+        2 => Meaning64,
+    }
 }

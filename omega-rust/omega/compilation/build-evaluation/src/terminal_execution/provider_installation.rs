@@ -1,11 +1,19 @@
 //! Join a source-selected implementation to the waiting activation's static slots.
 
 use crate::terminal_bindings::BuildProviderRequest;
+use build_time_evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use psi_compiler::ProducedBuildProvider;
+use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
+use terminal_installation::{
+    AdmittedComponentProvider, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
+    ProviderInstallationSelection, admit_component_provider, admit_target_layouts,
+    admit_target_machine_selections,
+};
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
 };
+use terminal_psi::TargetMachineCallable;
 
 pub(super) fn admit_request(
     receiver: TerminalExecutionView<'_>,
@@ -35,9 +43,9 @@ pub(super) fn prepare<'host, 'code>(
     receiver: TerminalExecutionView<'_>,
     request: &BuildProviderRequest,
     provider: &ProducedBuildProvider,
-    profile: target::TargetProfile,
+    profile: TargetProfile,
     account: &evaluation_accounting::EvaluationInvocationAccount,
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<TerminalComponentBinding<'host, 'code>>, String> {
     let identities = &receiver.module().identities;
     let Some(artifact) = provider.artifact() else {
@@ -51,16 +59,12 @@ pub(super) fn prepare<'host, 'code>(
     // Keep freshly produced code alive after helper preparation is released;
     // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
-    let targets = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        profile.target_name(),
-    );
+    let targets = admit_target_machine_selections(artifact.view(), profile.target_name());
     let target_facts = profile
         .layout_target_facts()
         .ok_or("Build helper target has no representation facts")?;
-    let layouts =
-        terminal_installation::admit_target_layouts(artifact.view(), &targets, &target_facts)
-            .map_err(|error| format!("Build helper layouts: {error:?}"))?;
+    let layouts = admit_target_layouts(artifact.view(), &targets, &target_facts)
+        .map_err(|error| format!("Build helper layouts: {error:?}"))?;
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
@@ -87,7 +91,7 @@ pub(super) fn prepare<'host, 'code>(
                 "named Build provider has ambiguous candidates for one demanded slot".into(),
             );
         }
-        let selected = terminal_installation::ProviderInstallationSelection {
+        let selected = ProviderInstallationSelection {
             boundary: candidate.boundary,
             provider_identity: module
                 .identities
@@ -97,12 +101,7 @@ pub(super) fn prepare<'host, 'code>(
             provider_declaration: provider.declaration().to_owned(),
             candidate: candidate.candidate,
         };
-        let admitted = terminal_installation::admit_component_provider(
-            receiver,
-            *boundary,
-            artifact.view(),
-            &selected,
-        )?;
+        let admitted = admit_component_provider(receiver, *boundary, artifact.view(), &selected)?;
         let supplies = runtime_supplies(&program, &admitted, &targets, &layouts)?;
         let requirements = program
             .execution_requirements(Some(&supplies))
@@ -117,17 +116,14 @@ pub(super) fn prepare<'host, 'code>(
             Some(account),
             accounting,
             |scope| {
-                let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
+                let scope_profile = TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
-                Ok(build_time_evaluation::ScalarScopeEvaluation {
+                Ok(ScalarScopeEvaluation {
                     application_roots: None,
                     layout_target: scope_profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    targets: terminal_installation::admit_target_machine_selections(
-                        artifact.view(),
-                        scope,
-                    ),
+                    targets: admit_target_machine_selections(artifact.view(), scope),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
                         .map(|model| terminal_installation::ScalarAddressModel {
@@ -161,16 +157,14 @@ pub(super) fn prepare<'host, 'code>(
 
 fn runtime_supplies(
     program: &TerminalProgram<'_>,
-    admitted: &terminal_installation::AdmittedComponentProvider,
-    targets: &terminal_installation::AdmittedTargetMachineSelections,
-    layouts: &terminal_installation::AdmittedTargetLayouts,
+    admitted: &AdmittedComponentProvider,
+    targets: &AdmittedTargetMachineSelections,
+    layouts: &AdmittedTargetLayouts,
 ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             installation: Some(admitted.selection()),
-            entry: Some(terminal_psi::TargetMachineCallable::Machine(
-                admitted.candidate(),
-            )),
+            entry: Some(TargetMachineCallable::Machine(admitted.candidate())),
             host_imports: &[],
             x86_flags: None,
             memory_ordering: None,

@@ -6,6 +6,9 @@
 //! public callers can share its owner, but cannot extract or inject carriers.
 
 use crate::ComputedBuildConfig;
+use build_time_evaluation::BuildTimeValue;
+use evaluation_accounting::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity};
+use package_compilation::SourceAssemblyInputs;
 use std::sync::{Arc, Mutex};
 
 /// Exact content and custody of an admitted Pure Build. Product selections
@@ -18,13 +21,10 @@ pub(crate) struct CompletedPureBuildInputs {
     // Absence is the ordinary per-invocation policy, not a reason to repeat
     // pure execution. Sponsored usage carries different ceilings and units;
     // retain that distinction without retaining the account's authority.
-    sponsor_policy: Option<(
-        evaluation_accounting::EvaluationMeasurementIdentity,
-        evaluation_accounting::BuildEvaluationSponsorLimits,
-    )>,
+    sponsor_policy: Option<(EvaluationMeasurementIdentity, BuildEvaluationSponsorLimits)>,
     selected_entry: symbols::SymbolHandle,
-    initial_build: build_time_evaluation::BuildTimeValue,
-    source: package_compilation::SourceAssemblyInputs,
+    initial_build: BuildTimeValue,
+    source: SourceAssemblyInputs,
     dependencies: Vec<CompletedPureBuildDependency>,
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
     activation: package_compilation::BuildActivation,
@@ -51,7 +51,7 @@ impl CompletedPureBuildInputs {
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
         selected_entry: symbols::SymbolHandle,
-        initial_build: build_time_evaluation::BuildTimeValue,
+        initial_build: BuildTimeValue,
         packages: &package_compilation::PackageCompilationInputs,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         scope: &package_compilation::BuildMachineFilesystemScope,
@@ -74,10 +74,7 @@ impl CompletedPureBuildInputs {
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
             selected_entry,
             initial_build,
-            source: package_compilation::SourceAssemblyInputs::new(
-                Some(packages),
-                activation.build_execution_profile(),
-            ),
+            source: SourceAssemblyInputs::new(Some(packages), activation.build_execution_profile()),
             dependencies: packages
                 .dependency_build_handoff_instances()
                 .map(|(consumer_scope, bundle)| CompletedPureBuildDependency {
@@ -242,11 +239,7 @@ impl CompletedPureBuild {
     }
 }
 
-fn same_initial_value(
-    left: &build_time_evaluation::BuildTimeValue,
-    right: &build_time_evaluation::BuildTimeValue,
-) -> bool {
-    use build_time_evaluation::BuildTimeValue;
+fn same_initial_value(left: &BuildTimeValue, right: &BuildTimeValue) -> bool {
     match (left, right) {
         (BuildTimeValue::Float(left), BuildTimeValue::Float(right)) => {
             left.to_bits() == right.to_bits()

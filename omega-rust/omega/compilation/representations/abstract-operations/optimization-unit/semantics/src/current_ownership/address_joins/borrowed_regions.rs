@@ -11,17 +11,21 @@ use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
+use terminal_psi::StructuralArgument;
 use terminal_semantics::borrowed_storage::{AliasSources, resolve};
 pub(in crate::current_ownership) use terminal_semantics::borrowed_storage::{
     Position, Projection, Region,
 };
+use terminal_semantics::descriptor_lifetimes::descriptor_path;
 use terminal_semantics::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation};
+use terminal_semantics::descriptor_results::descriptor_slots;
+use terminal_semantics::descriptor_results::is_shared_descriptor;
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorSourceOrigin, DescriptorStoredCallEffect,
 };
 
 pub(in crate::current_ownership) type BorrowedReferenceSources =
-    BTreeMap<PlaceId, Option<Vec<terminal_psi::StructuralArgument>>>;
+    BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>;
 
 type ObservationKey = (Position, PlaceId, Vec<StructuralPathSegment>);
 
@@ -156,10 +160,7 @@ impl BorrowedRegions {
         let mut reference_sources = BorrowedReferenceSources::new();
         for parameter in function.block_structural_parameters() {
             if parameter.access != StructuralAccess::Owned
-                && !terminal_semantics::descriptor_results::is_shared_descriptor(
-                    declarations.iter(),
-                    parameter.structural_type,
-                )
+                && !is_shared_descriptor(declarations.iter(), parameter.structural_type)
             {
                 reference_sources.insert(parameter.place, None);
             }
@@ -191,12 +192,12 @@ impl BorrowedRegions {
                                 origins
                                     .into_iter()
                                     .map(|origin| {
-                                        let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
+                                        let path = descriptor_path(
                                             declarations,
                                             *current.place_types.get(&origin.root)?,
                                             &origin.path,
                                         )?;
-                                        Some(terminal_psi::StructuralArgument {
+                                        Some(StructuralArgument {
                                             place: origin.root,
                                             path,
                                             access: parameter.access,
@@ -256,12 +257,7 @@ impl BorrowedRegions {
                         for root in roots {
                             observed.insert(DescriptorLocation::whole(root));
                             if let Some(ty) = current.place_types.get(&root)
-                                && let Some(slots) =
-                                    terminal_semantics::descriptor_results::descriptor_slots(
-                                        declarations,
-                                        root,
-                                        *ty,
-                                    )
+                                && let Some(slots) = descriptor_slots(declarations, root, *ty)
                             {
                                 observed.extend(slots);
                             }
@@ -286,20 +282,12 @@ impl BorrowedRegions {
                         let Some(ty) = current.place_types.get(&location.root) else {
                             continue;
                         };
-                        let Some(path) = terminal_semantics::descriptor_lifetimes::descriptor_path(
-                            declarations,
-                            *ty,
-                            &location.path,
-                        ) else {
+                        let Some(path) = descriptor_path(declarations, *ty, &location.path) else {
                             continue;
                         };
                         let key = (position, location.root, path);
-                        if terminal_semantics::descriptor_results::descriptor_slots(
-                            declarations,
-                            location.root,
-                            *ty,
-                        )
-                        .is_some_and(|slots| slots.contains(&location))
+                        if descriptor_slots(declarations, location.root, *ty)
+                            .is_some_and(|slots| slots.contains(&location))
                         {
                             descriptor_sources.insert(key.clone());
                         }
@@ -339,10 +327,7 @@ impl BorrowedRegions {
                         ..
                     } = &node.operation
                         && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                        && terminal_semantics::descriptor_results::is_shared_descriptor(
-                            declarations.iter(),
-                            result.structural_type,
-                        )
+                        && is_shared_descriptor(declarations.iter(), result.structural_type)
                         && let Some(origins) = analysis.call_origins(function.machine, result.place)
                     {
                         returned.insert(result.place, origins);
@@ -390,7 +375,7 @@ impl BorrowedRegions {
                         ..
                     } if result.multiplicity
                         == terminal_psi::StructuralMultiplicity::Unrestricted
-                        && terminal_semantics::descriptor_results::is_shared_descriptor(
+                        && is_shared_descriptor(
                             types.values().copied(),
                             result.structural_type,
                         ) =>

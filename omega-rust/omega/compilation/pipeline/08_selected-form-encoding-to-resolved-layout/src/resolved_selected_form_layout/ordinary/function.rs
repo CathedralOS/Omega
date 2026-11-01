@@ -7,9 +7,10 @@ use target::Architecture;
 
 use machine_code::SelectedFormEncodingRow;
 
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+    SelectedFunctionLayoutPolicy,
 };
 use super::{order, plan, row};
 
@@ -21,7 +22,7 @@ pub(in super::super) fn layout(
     physical: &ValidatedPhysicalRegisterModel,
     policy: SelectedFunctionLayoutPolicy,
     encoded: &machine_code::SelectedFormEncodedRowStore,
-) -> Result<ResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<ResolvedSelectedFunctionLayout, Error> {
     let ordered = order::derive(function, policy)?;
     let layout = plan::derive(architecture, &ordered, pre_rows)?;
     let mut blocks = Vec::with_capacity(ordered.len());
@@ -30,16 +31,14 @@ pub(in super::super) fn layout(
         let mut instruction_offset = block_offset;
         let mut instructions = Vec::new();
         for instruction in plan::instructions(block) {
-            let pre = pre_rows.get(&instruction.id).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-            )?;
-            let machine = machine_rows.get(&instruction.id).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-            )?;
+            let pre = pre_rows
+                .get(&instruction.id)
+                .ok_or(Error::MissingInstruction(instruction.id))?;
+            let machine = machine_rows
+                .get(&instruction.id)
+                .ok_or(Error::MissingInstruction(instruction.id))?;
             if machine.alternative.key != pre.alternative {
-                return Err(
-                    OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id),
-                );
+                return Err(Error::AlternativeMismatch(instruction.id));
             }
             let (
                 bytes,
@@ -59,8 +58,7 @@ pub(in super::super) fn layout(
                 layout.widened_branches.contains(&instruction.id),
                 encoded,
             )?;
-            let byte_count = u64::try_from(bytes.len())
-                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+            let byte_count = u64::try_from(bytes.len()).map_err(|_| Error::OffsetOverflow)?;
             instructions.push(ResolvedSelectedFormRow {
                 instruction: instruction.id,
                 alternative: pre.alternative,
@@ -73,15 +71,15 @@ pub(in super::super) fn layout(
             });
             instruction_offset = instruction_offset
                 .checked_add(byte_count)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                .ok_or(Error::OffsetOverflow)?;
         }
         let byte_count = layout.block_sizes[&block.id];
         if instruction_offset
             != block_offset
                 .checked_add(byte_count)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?
+                .ok_or(Error::OffsetOverflow)?
         {
-            return Err(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow);
+            return Err(Error::OffsetOverflow);
         }
         blocks.push(ResolvedSelectedBlockLayout {
             block: block.id,

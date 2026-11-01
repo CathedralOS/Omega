@@ -1,4 +1,19 @@
 use super::*;
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, PlaceId, ScalarType, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralPathQualification, StructuralPathSegment, StructuralTypeShape,
+    element_view_establish_pair_pattern, mutating_access_pair_pattern,
+    nonlinear_multiplicity_pair_pattern,
+};
+use terminal_semantics::{
+    observed_field_backing_access, observed_field_declaration, primitive_projection_type,
+    primitive_store_preserves_scalar_memberships, primitive_store_restriction,
+    projected_field_declaration, scalar_field_requires_evidence, structural_store_value_admitted,
+    structural_window_projection, structural_window_selects_child,
+};
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_structural_case_membership(
     operation: &Operation,
@@ -59,10 +74,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             });
             let writable = matches!(
                 parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || (projected
-                && parameter.access == terminal_psi::StructuralAccess::Owned);
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || (projected && parameter.access == StructuralAccess::Owned);
             let multiplicity = parameter.multiplicity == StructuralMultiplicity::Unrestricted
                 || (projected && parameter.multiplicity == StructuralMultiplicity::Affine);
             if !writable
@@ -122,14 +135,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 result.projected_qualifications.as_slice(),
             )
         };
-    let Some(expected) = terminal_semantics::primitive_projection_type(
-        module.structural_types.iter(),
-        destination_type,
-        path,
-    ) else {
+    let Some(expected) =
+        primitive_projection_type(module.structural_types.iter(), destination_type, path)
+    else {
         return malformed("write-only primitive store requires a primitive-scalar root");
     };
-    let Some(restriction) = terminal_semantics::primitive_store_restriction(
+    let Some(restriction) = primitive_store_restriction(
         module.structural_types.iter(),
         module.structural_domains.iter(),
         destination_type,
@@ -155,7 +166,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     else {
         return malformed("primitive store lost its completed SSA source");
     };
-    if !terminal_semantics::primitive_store_preserves_scalar_memberships(
+    if !primitive_store_preserves_scalar_memberships(
         module.structural_types.iter(),
         module.structural_domains.iter(),
         &module.scalar_qualifications,
@@ -194,7 +205,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     }
     let (root_type, carrier_path) =
         field_store_carrier(module, machine, *destination, path, *field)?;
-    let Some(declaration) = terminal_semantics::projected_field_declaration(
+    let Some(declaration) = projected_field_declaration(
         module.structural_types.iter(),
         root_type,
         carrier_path,
@@ -206,14 +217,11 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         StructuralFieldType::Scalar(scalar_type) if range_obligation.is_none() => {
             Some(*scalar_type)
         }
-        field_type
-            if terminal_semantics::scalar_field_requires_evidence(field_type)
-                && range_obligation.is_some() =>
-        {
+        field_type if scalar_field_requires_evidence(field_type) && range_obligation.is_some() => {
             field_type.scalar_type()
         }
         StructuralFieldType::IeeeFloat(format) if range_obligation.is_none() => {
-            Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+            Some(ScalarType::IeeeFloat(*format))
         }
         _ => None,
     };
@@ -260,7 +268,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         *source,
         path,
         *field,
-        terminal_psi::StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
     ) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
@@ -297,9 +305,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit {
         return malformed("structural field store declares a non-Unit result");
     }
-    if value.access != terminal_psi::StructuralAccess::Owned
+    if value.access != StructuralAccess::Owned
         || !value.path.is_empty()
-        || !terminal_semantics::structural_store_value_admitted(
+        || !structural_store_value_admitted(
             machine,
             module.structural_types.iter(),
             *disposition,
@@ -345,24 +353,23 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 fn window_root_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-    required_access: terminal_psi::StructuralAccess,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if !terminal_semantics::structural_window_selects_child(path, field) {
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+    required_access: StructuralAccess,
+) -> Option<StructuralTypeId> {
+    if !structural_window_selects_child(path, field) {
         if path.is_empty() {
             return mutable_borrowed_parameter_type(machine, place, required_access);
         }
         // Serialization proves the carrier and referent geometry. Ordered
         // custody must additionally authenticate the reference's backing as
         // live owned or exclusive ingress storage, with no live descendants.
-        let (terminal_psi::StructuralPathSegment::Referent, carrier_path) = path.split_last()?
-        else {
+        let (StructuralPathSegment::Referent, carrier_path) = path.split_last()? else {
             return None;
         };
         let root_type = borrowed_field_store_root_type(machine, place, required_access)?;
-        let carrier = terminal_semantics::structural_window_projection(
+        let carrier = structural_window_projection(
             module.structural_types.iter(),
             root_type,
             carrier_path,
@@ -375,7 +382,7 @@ fn window_root_type(
                 declaration.id == carrier.structural_type
                     && matches!(
                         declaration.shape,
-                        terminal_psi::StructuralTypeShape::Reference {
+                        StructuralTypeShape::Reference {
                             access,
                             ..
                         } if required_access.admits_referent(access)
@@ -394,19 +401,19 @@ fn window_root_type(
 /// belongs to ordered verification, not this serialization foundation check.
 fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-    required_access: terminal_psi::StructuralAccess,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
+    place: PlaceId,
+    required_access: StructuralAccess,
+) -> Option<StructuralTypeId> {
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
         .chain(machine.block_structural_parameters())
         .find(|parameter| parameter.place == place)
         && required_access.admits(parameter.access)
-        && (parameter.access == terminal_psi::StructuralAccess::Owned
+        && (parameter.access == StructuralAccess::Owned
             || matches!(
                 parameter.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                nonlinear_multiplicity_pair_pattern!()
             ))
     {
         return Some(parameter.structural_type);
@@ -422,9 +429,9 @@ fn borrowed_field_store_root_type(
 /// multiplicity and no entry claims. Memberships are retained separately.
 fn mutable_borrowed_parameter_type(
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-    required_access: terminal_psi::StructuralAccess,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
+    place: PlaceId,
+    required_access: StructuralAccess,
+) -> Option<StructuralTypeId> {
     machine
         .structural_parameters
         .iter()
@@ -434,7 +441,7 @@ fn mutable_borrowed_parameter_type(
                 && required_access.admits_referent(parameter.access)
                 && matches!(
                     parameter.multiplicity,
-                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                    nonlinear_multiplicity_pair_pattern!()
                 )
                 && !machine
                     .entry_claims
@@ -455,43 +462,32 @@ fn mutable_borrowed_parameter_type(
 fn window_memberships(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-    root_type: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-) -> Result<
-    (
-        Vec<semantic_vocabulary::StructuralDomainId>,
-        Vec<terminal_psi::StructuralPathQualification>,
-    ),
-    CodecError,
-> {
-    let Some(projection) = terminal_semantics::structural_window_projection(
-        module.structural_types.iter(),
-        root_type,
-        path,
-        field,
-    ) else {
+    place: PlaceId,
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+) -> Result<(Vec<StructuralDomainId>, Vec<StructuralPathQualification>), CodecError> {
+    let Some(projection) =
+        structural_window_projection(module.structural_types.iter(), root_type, path, field)
+    else {
         return malformed("qualified structural window has no declared projection");
     };
     let Some((whole, projected)) = declared_memberships(machine, place) else {
         return malformed("structural window has no membership declaration");
     };
-    terminal_psi::StructuralPathQualification::select_restorable(whole, projected, &projection.path)
-        .ok_or_else(|| {
+    StructuralPathQualification::select_restorable(whole, projected, &projection.path).ok_or_else(
+        || {
             CodecError::MalformedStructuralFoundation(
                 "structural window cannot restore an ancestor's qualification",
             )
-        })
+        },
+    )
 }
 
 pub(super) fn declared_memberships(
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-) -> Option<(
-    &[semantic_vocabulary::StructuralDomainId],
-    &[terminal_psi::StructuralPathQualification],
-)> {
+    place: PlaceId,
+) -> Option<(&[StructuralDomainId], &[StructuralPathQualification])> {
     machine
         .structural_parameter(place)
         .map(|parameter| {
@@ -518,16 +514,13 @@ pub(super) fn declared_memberships(
 /// evidence and restoration custody remain independent verifier obligations.
 fn window_field_type(
     module: &TerminalModule,
-    root_type: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
-    let Some(projection) = terminal_semantics::structural_window_projection(
-        module.structural_types.iter(),
-        root_type,
-        path,
-        field,
-    ) else {
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+) -> Result<StructuralTypeId, CodecError> {
+    let Some(projection) =
+        structural_window_projection(module.structural_types.iter(), root_type, path, field)
+    else {
         return malformed("structural field move does not select a structural field");
     };
     Ok(projection.structural_type)
@@ -537,10 +530,10 @@ fn window_field_type(
 /// reference/view carriers keep their separate loan-access contract.
 fn owns_observed_storage(
     module: &TerminalModule,
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    access: terminal_psi::StructuralAccess,
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
 ) -> bool {
-    access == terminal_psi::StructuralAccess::Owned
+    access == StructuralAccess::Owned
         && module.structural_types.iter().any(|declaration| {
             declaration.id == structural_type && (declaration.shape).is_composite_shape()
         })
@@ -603,29 +596,23 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 match &producer.kind {
                     OperationKind::EstablishReference { source, .. }
                     | OperationKind::EstablishAccessReference { source, .. }
-                    | terminal_psi::element_view_establish_pair_pattern!(source, ..) => {
-                        source.access
-                    }
-                    _ => terminal_psi::StructuralAccess::Owned,
+                    | element_view_establish_pair_pattern!(source, ..) => source.access,
+                    _ => StructuralAccess::Owned,
                 },
             ),
         };
-        let matching = terminal_semantics::observed_field_declaration(
-            module.structural_types.iter(),
-            observed_root,
-            path,
-            *field,
-        )
-        .is_some_and(|candidate| {
-            candidate.field_type.scalar_type() == Some(result.scalar_type)
-                && scalar_observation_authorized(
-                    module,
-                    observed_root,
-                    path,
-                    &candidate.field_type,
-                    access,
-                )
-        });
+        let matching =
+            observed_field_declaration(module.structural_types.iter(), observed_root, path, *field)
+                .is_some_and(|candidate| {
+                    candidate.field_type.scalar_type() == Some(result.scalar_type)
+                        && scalar_observation_authorized(
+                            module,
+                            observed_root,
+                            path,
+                            &candidate.field_type,
+                            access,
+                        )
+                });
         if !matching
             || (!owns_observed_storage(module, local.structural_type, access)
                 && (local.multiplicity == StructuralMultiplicity::Linear
@@ -651,7 +638,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     }) else {
         return malformed("scalar structural field source is not a parameter");
     };
-    let matching = terminal_semantics::observed_field_declaration(
+    let matching = observed_field_declaration(
         module.structural_types.iter(),
         parameter.structural_type,
         path,
@@ -672,9 +659,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if (!owned_observation && parameter.multiplicity == StructuralMultiplicity::Linear)
         || !matches!(
             parameter.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
         )
         // A scalar snapshot neither consumes the source nor establishes or
         // discharges any claim on it. Owned composite storage may be read
@@ -700,22 +687,19 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 /// Scalar representation alone grants no permission to snapshot a shared cell.
 fn scalar_observation_authorized(
     module: &TerminalModule,
-    root: semantic_vocabulary::StructuralTypeId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
     field: &StructuralFieldType,
-    access: terminal_psi::StructuralAccess,
+    access: StructuralAccess,
 ) -> bool {
-    let Some(access) = terminal_semantics::observed_field_backing_access(
-        module.structural_types.iter(),
-        root,
-        path,
-        access,
-    ) else {
+    let Some(access) =
+        observed_field_backing_access(module.structural_types.iter(), root, path, access)
+    else {
         return false;
     };
-    access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+    access != StructuralAccess::WriteOnlyBorrow
         && (!matches!(
             field,
             StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
-        ) || matches!(access, terminal_psi::mutating_access_pair_pattern!()))
+        ) || matches!(access, mutating_access_pair_pattern!()))
 }

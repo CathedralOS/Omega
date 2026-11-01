@@ -11,8 +11,8 @@ public boundary trait Gate {
     machine close(ticket: i32) -> i32 reaches;
 }
 GateProvider satisfies Gate {
-    Gate::open = open_gate;
-    Gate::close = close_gate;
+    machine open() -> i32 { open_gate() }
+    machine close(ticket: i32) -> i32 { close_gate(ticket) }
 }
 macos_arm64 machine open_gate() -> i32 { 7 }
 

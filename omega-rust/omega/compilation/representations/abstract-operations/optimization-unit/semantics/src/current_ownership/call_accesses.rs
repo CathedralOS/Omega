@@ -19,6 +19,7 @@ use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::DescriptorMachine;
 
 #[derive(Clone)]
 struct ParameterMutation {
@@ -40,7 +41,7 @@ pub(crate) struct CallAccesses<'unit> {
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
     pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) references: super::references::call_effects::ReferenceCallEffects,
-    view_graph: Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
+    view_graph: Option<Vec<DescriptorMachine>>,
     borrowed_origins: std::cell::RefCell<BTreeMap<MachineId, BorrowedRegions>>,
 }
 
@@ -110,9 +111,7 @@ impl<'unit> CallAccesses<'unit> {
         &self.boundaries
     }
 
-    pub(crate) fn view_graph(
-        &self,
-    ) -> Option<&[terminal_semantics::descriptor_results::DescriptorMachine]> {
+    pub(crate) fn view_graph(&self) -> Option<&[DescriptorMachine]> {
         self.view_graph.as_deref()
     }
 

@@ -14,6 +14,7 @@ use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralOperationResult,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+    exclusive_borrow_pair_pattern, record_or_mixed_shape_pattern,
 };
 
 use super::{
@@ -232,7 +233,7 @@ fn record_fields(
     current: StructuralTypeId,
 ) -> Option<&[StructuralFieldDeclaration]> {
     match shape(unit, current)? {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => Some(fields),
+        record_or_mixed_shape_pattern!(fields) => Some(fields),
         _ => None,
     }
 }
@@ -1452,10 +1453,7 @@ fn place_is_rewritten(function: &PsiOptimizationFunction, place: PlaceId) -> boo
 pub fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) -> bool {
     argument.place == place
         && (!argument.path.is_empty()
-            || matches!(
-                argument.access,
-                terminal_psi::exclusive_borrow_pair_pattern!()
-            ))
+            || matches!(argument.access, exclusive_borrow_pair_pattern!()))
 }
 /// Whether `operation` writes or vacates `place`, or re-lends it with
 /// authority another party can write through: a bare-place destination that

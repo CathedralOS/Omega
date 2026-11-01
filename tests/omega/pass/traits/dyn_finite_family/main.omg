@@ -13,7 +13,7 @@ machine Item::code<Width: u32>(item: &Item) -> i32 satisfies Shape<Item>::code {
     transition { _ -> item.value }
 }
 Primary satisfies Shape<Item> {
-    Shape::code = Item::code;
+    machine code<Width: u32>(subject: &Item) -> i32 where Width == 16 || Width == 32 { Item::code<Width>(subject) }
 }
 data Main {
     item: Item;

@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console, Thing {
 }
 
 ThingProviderThingImplementation satisfies Thing {
-    Thing::take = ThingProvider::take;
+    machine take(first: u64, values: [u8; 4], last: u64) -> i32 { ThingProvider::take(first, values, last) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

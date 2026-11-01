@@ -2,6 +2,7 @@
 //! The checked producer owns policy evaluation; these checks grant no execution
 //! authority and do not pretend to replay an omitted source computation.
 use super::super::wire::strictly_increasing;
+use super::structural_type_foundations::validate_type_shape;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
@@ -9,6 +10,7 @@ use terminal_psi::{
     StructuralRecordStorage, StructuralTypeShape, TargetLayoutSchemaFieldKind,
     TerminalIdentityIndex, TerminalModule,
 };
+use terminal_semantics::{reference_storage_byte_width, reference_storage_layout};
 
 pub(super) fn validate(
     module: &TerminalModule,
@@ -154,7 +156,7 @@ pub(super) fn validate(
                     return malformed("layout schema argument has stale field correspondence");
                 }
                 let geometry = if let Some(scalar) = source.field_type.scalar_type() {
-                    terminal_semantics::reference_storage_byte_width(scalar).map(|width| {
+                    reference_storage_byte_width(scalar).map(|width| {
                         (
                             u64::from(width),
                             u64::from(width),
@@ -226,11 +228,7 @@ pub(super) fn validate(
                     .find(|stored| stored.field == field.id)
                     .map(|stored| stored.storage.clone());
             }
-            super::structural_type_foundations::validate_type_shape(
-                module,
-                &resolved,
-                attachments,
-            )?;
+            validate_type_shape(module, &resolved, attachments)?;
         }
     }
     for declaration in &module.structural_types {
@@ -297,9 +295,7 @@ fn schema_storage_layout(
                     let mut alignment = 1u64;
                     for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                         let (size, align) = if let Some(scalar) = field.field_type.scalar_type() {
-                            let size = u64::from(terminal_semantics::reference_storage_byte_width(
-                                scalar,
-                            )?);
+                            let size = u64::from(reference_storage_byte_width(scalar)?);
                             (size, size)
                         } else {
                             schema_storage_layout(
@@ -326,10 +322,7 @@ fn schema_storage_layout(
                 }
                 _ => None,
             },
-            _ => terminal_semantics::reference_storage_layout(
-                module.structural_types.iter(),
-                identity,
-            ),
+            _ => reference_storage_layout(module.structural_types.iter(), identity),
         }
     })();
     visiting.remove(&identity);

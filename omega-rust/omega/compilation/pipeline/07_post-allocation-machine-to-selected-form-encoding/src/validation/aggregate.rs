@@ -1,22 +1,20 @@
-use super::super::OptimizedSelectedFormEncodingError;
+use super::super::OptimizedSelectedFormEncodingError as Error;
 use machine_code::SelectedFormEncoding;
 
-pub(super) fn validate(
-    artifact: &SelectedFormEncoding,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+pub(super) fn validate(artifact: &SelectedFormEncoding) -> Result<(), Error> {
     if artifact.counts != crate::rows::counts_of(artifact.rows())? {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let identity = artifact.recomputed_identity();
     if artifact.identity != identity {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{OptimizedSelectedFormEncodingError, validate};
+    use super::{Error, validate};
     use machine_code::SelectedFormEncodingIdentity;
     use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts};
     use physical_instructions::PostAllocationMachineIdentity;
@@ -39,15 +37,9 @@ mod tests {
         let original = program.clone();
         program.counts.ordinary_encoded = 1;
         program.identity = program.recomputed_identity();
-        assert!(matches!(
-            validate(&program),
-            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
-        ));
+        assert!(matches!(validate(&program), Err(Error::ArtifactMismatch)));
         program = original;
         program.identity = SelectedFormEncodingIdentity::from_bytes([0; 32]);
-        assert!(matches!(
-            validate(&program),
-            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
-        ));
+        assert!(matches!(validate(&program), Err(Error::ArtifactMismatch)));
     }
 }

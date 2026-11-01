@@ -127,10 +127,10 @@ machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
 }
 
 RegionSplitImplementation satisfies RegionSplit {
-    RegionSplit::split = RegionSplitProvider::split;
+    machine split(whole: Region in Owned, head: u64) -> SplitResult { RegionSplitProvider::split(whole, head) }
 }
 RegionSinkImplementation satisfies RegionSink {
-    RegionSink::accept = RegionSinkProvider::accept;
+    machine accept(piece: Region in Owned) { RegionSinkProvider::accept(piece) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

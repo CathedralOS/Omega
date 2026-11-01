@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ByteSequencePredicate as Predicate, StructuralPathSegment as Segment, StructuralTypeDeclaration,
 };
+use terminal_semantics::structural_paths_may_overlap;
 
 pub(super) fn requires_ascii(
     unit: &PsiOptimizationUnit,
@@ -107,7 +108,7 @@ pub(super) fn holds(
                     range_obligation,
                     ..
                 } if destination.place() == root => {
-                    if !terminal_semantics::structural_paths_may_overlap(path, written) {
+                    if !structural_paths_may_overlap(path, written) {
                         return false;
                     }
                     let one_element = written.strip_prefix(path).is_some_and(|suffix| {
@@ -131,9 +132,8 @@ pub(super) fn holds(
                     field,
                     ..
                 } if destination.place() == root => {
-                    return full_path(function, types, root, written, *field).is_none_or(
-                        |written| terminal_semantics::structural_paths_may_overlap(path, &written),
-                    );
+                    return full_path(function, types, root, written, *field)
+                        .is_none_or(|written| structural_paths_may_overlap(path, &written));
                 }
                 // Scalar siblings cannot change this array; retain exact field
                 // projection instead of invalidating the containing record.
@@ -143,9 +143,8 @@ pub(super) fn holds(
                     field,
                     ..
                 } if destination.place() == root => {
-                    return full_path(function, types, root, written, Some(*field)).is_none_or(
-                        |written| terminal_semantics::structural_paths_may_overlap(path, &written),
-                    );
+                    return full_path(function, types, root, written, Some(*field))
+                        .is_none_or(|written| structural_paths_may_overlap(path, &written));
                 }
                 // A different place may name an alias of the same backing.
                 // Without an exact disjoint footprint, no earlier byte-content

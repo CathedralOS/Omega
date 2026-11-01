@@ -2,7 +2,7 @@
 boundary trait PositiveSource {
     machine read() -> u64 reaches ensures result > 0;
 }
-linux_x86_64 machine read() -> u64 { 7 }
-macos_arm64 machine read() -> u64 { 0 }
-SelectedSource satisfies PositiveSource { PositiveSource::read = read; }
+linux_x86_64 machine read_realization() -> u64 { 7 }
+macos_arm64 machine read_realization() -> u64 { 0 }
+SelectedSource satisfies PositiveSource { machine read() -> u64 ensures result > 0 { read_realization() } }
 machine main() {}

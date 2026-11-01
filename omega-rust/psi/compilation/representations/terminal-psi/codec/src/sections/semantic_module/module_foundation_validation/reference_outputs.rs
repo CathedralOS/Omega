@@ -7,6 +7,9 @@ use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryReferenceDestination,
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::{
+    descriptor_value_access, provider_outputs_cover_writable_slots,
+};
 
 pub(super) fn validate(
     module: &TerminalModule,
@@ -23,10 +26,7 @@ pub(super) fn validate(
             malformed("checked-body family contract carries opaque reference outputs")
         };
     }
-    if !terminal_semantics::descriptor_results::provider_outputs_cover_writable_slots(
-        &module.structural_types,
-        boundary,
-    ) {
+    if !provider_outputs_cover_writable_slots(&module.structural_types, boundary) {
         return malformed("boundary reference parameter contract has incomplete leaf coverage");
     }
     let parameter = |position: u32| {
@@ -138,11 +138,7 @@ fn validate_leaf(
             ))?;
     let declared = match selected.shape {
         StructuralTypeShape::Reference { access, .. } => Some(access),
-        _ => terminal_semantics::descriptor_results::descriptor_value_access(
-            module.structural_types.iter(),
-            selected.id,
-            multiplicity,
-        ),
+        _ => descriptor_value_access(module.structural_types.iter(), selected.id, multiplicity),
     };
     let declared = if shared_storage {
         match declared {

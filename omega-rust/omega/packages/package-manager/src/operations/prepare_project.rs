@@ -6,7 +6,7 @@ use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
     ResolvedPackageSourceClosure,
 };
-use crate::resolution::source::AcquiredBuildSource;
+use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -331,8 +331,7 @@ impl LocalProjectPreparation {
     /// anonymous Build sources. Accepted selectors cannot refresh during discovery.
     pub fn source_acquisitions(
         &self,
-    ) -> Result<crate::resolution::source::BuildSourceAcquisitions<'_>, PrepareLocalProjectError>
-    {
+    ) -> Result<BuildSourceAcquisitions<'_>, PrepareLocalProjectError> {
         let source = self
             .accepted
             .as_ref()

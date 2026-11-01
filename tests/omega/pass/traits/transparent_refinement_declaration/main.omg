@@ -26,8 +26,8 @@ machine Sink::flush(sink: &mut Sink) satisfies Logger<Sink>::flush {
 }
 
 SinkLogger satisfies Logger<Sink> {
-    Logger::write = Sink::write;
-    Logger::flush = Sink::flush;
+    machine write(subject: &mut Sink) suspends blocks { Sink::write(subject) }
+    machine flush(subject: &mut Sink) { Sink::flush(subject) }
 }
 
 data Main {

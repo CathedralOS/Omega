@@ -513,7 +513,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             };
             entries
         };
-        self.proven &= !entries.is_empty();
+        // Some(empty) is a completed traversal with no arrival at this call
+        // (for example a guard which always returns false). None above is the
+        // refusal case. Only actual arrivals owe the callee's requirements;
+        // the ordinary source checker still forms every authored expression.
         let predicate_parameters = self
             .inherited
             .as_ref()

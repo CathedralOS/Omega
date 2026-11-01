@@ -2,7 +2,8 @@
 
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
-    Dir as CapabilityDirectory, File as CapabilityFile, OpenOptions as CapabilityOpenOptions,
+    Dir as CapabilityDirectory, File as CapabilityFile, Metadata,
+    OpenOptions as CapabilityOpenOptions,
 };
 use std::ffi::{OsStr, OsString};
 use std::io::{Read, Seek, SeekFrom};
@@ -296,7 +297,7 @@ fn single_file_name(path: &Path) -> Result<&OsStr, RecordFileError> {
 fn verify_regular_identity(
     directory: &CapabilityDirectory,
     relative_path: &OsStr,
-    handle_metadata: &cap_std::fs::Metadata,
+    handle_metadata: &Metadata,
     display_path: &Path,
 ) -> Result<(), RecordFileError> {
     let path_metadata = io_at(directory.symlink_metadata(relative_path), display_path)?;
@@ -313,20 +314,14 @@ fn verify_regular_identity(
 }
 
 #[cfg(unix)]
-fn same_capability_file_identity(
-    left: &cap_std::fs::Metadata,
-    right: &cap_std::fs::Metadata,
-) -> bool {
+fn same_capability_file_identity(left: &Metadata, right: &Metadata) -> bool {
     use cap_std::fs::MetadataExt;
 
     left.dev() == right.dev() && left.ino() == right.ino()
 }
 
 #[cfg(windows)]
-fn same_capability_file_identity(
-    left: &cap_std::fs::Metadata,
-    right: &cap_std::fs::Metadata,
-) -> bool {
+fn same_capability_file_identity(left: &Metadata, right: &Metadata) -> bool {
     // cap-std exposes these methods only when its nightly feature probe passes.
     // The compatibility extension preserves Option-valued identity; cap-fs-ext's
     // dev/ino convenience methods instead panic when backing identity is absent.
@@ -345,10 +340,7 @@ fn same_capability_file_identity(
 }
 
 #[cfg(not(any(unix, windows)))]
-fn same_capability_file_identity(
-    _left: &cap_std::fs::Metadata,
-    _right: &cap_std::fs::Metadata,
-) -> bool {
+fn same_capability_file_identity(_left: &Metadata, _right: &Metadata) -> bool {
     false
 }
 

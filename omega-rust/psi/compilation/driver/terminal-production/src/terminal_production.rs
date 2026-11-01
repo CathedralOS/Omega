@@ -11,6 +11,8 @@ use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
 use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_entry_receipt};
 
+use crate::build_bindings::capture_native_formations;
+
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
     /// Portable publication requires closed declaration owners. Invocation code
@@ -65,12 +67,9 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
-        let native_formations = crate::build_bindings::capture_native_formations(
-            checked,
-            self.machine,
-            &declaration_requests,
-        )
-        .map_err(TerminalArtifactProductionError::BuildContext)?;
+        let native_formations =
+            capture_native_formations(checked, self.machine, &declaration_requests)
+                .map_err(TerminalArtifactProductionError::BuildContext)?;
         let mut lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(

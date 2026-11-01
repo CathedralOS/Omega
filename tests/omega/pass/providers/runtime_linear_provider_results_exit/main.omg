@@ -13,14 +13,14 @@ public boundary trait Relay {
 }
 
 Adapter satisfies Relay {
-    Relay::forward = forward;
-    Relay::replace = replace;
-    Relay::pair = pair;
+    machine forward(receipt: Receipt) -> Receipt { forward_realization(receipt) }
+    machine replace(receipt: Receipt) -> Receipt { replace_realization(receipt) }
+    machine pair(left: Receipt, right: Receipt) -> Pair { pair_realization(left, right) }
 }
 
 machine identity(receipt: Receipt) -> Receipt { receipt }
 
-machine forward(receipt: Receipt) -> Receipt {
+machine forward_realization(receipt: Receipt) -> Receipt {
     let held: Receipt = identity(receipt);
     transition held.code == 7 {
         true -> first(held)
@@ -36,13 +36,13 @@ machine consume(receipt: Receipt) -> i32 {
     code
 }
 
-machine replace(receipt: Receipt) -> Receipt {
+machine replace_realization(receipt: Receipt) -> Receipt {
     let prior: i32 = consume(receipt);
     let replacement: Receipt = Receipt { code: 10 };
     replacement
 }
 
-machine pair(left: Receipt, right: Receipt) -> Pair {
+machine pair_realization(left: Receipt, right: Receipt) -> Pair {
     Pair { left: left, right: right }
 }
 

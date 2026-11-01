@@ -12,5 +12,5 @@ satisfies Sink::emit
 }
 
 public QuietSinkSinkImplementation satisfies Sink {
-    Sink::emit = QuietSink::emit;
+    machine emit(text: &[u8]) { QuietSink::emit(text) }
 }

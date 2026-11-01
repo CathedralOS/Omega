@@ -7,10 +7,10 @@ const MODEL_RELEASE_FAILURE: u64 = 0x8000000000000015;
 const MODEL_EXIT_FAILURE: u64 = 0x8000000000000003;
 
 ModelFirmware satisfies UefiBootServices {
-    UefiBootServices::allocate_pages = allocate;
-    UefiBootServices::free_pages = release;
-    UefiBootServices::get_memory_map = acquire;
-    UefiBootServices::exit_boot_services = exit_services;
+    machine allocate_pages( this: &EfiBootServicesTable, allocate_type: u32, memory_type: u32, pages: u64, memory: &mut u64 ) -> u64 reaches UefiBootServices { allocate(this, allocate_type, memory_type, pages, memory) }
+    machine free_pages(this: &EfiBootServicesTable, memory: u64, pages: u64) -> u64 { release(this, memory, pages) }
+    machine get_memory_map( this: &EfiBootServicesTable, map_size: &mut u64, map: u64, key: &mut u64, descriptor_size: &mut u64, descriptor_version: &mut u32 ) -> u64 { acquire(this, map_size, map, key, descriptor_size, descriptor_version) }
+    machine exit_boot_services(this: &EfiBootServicesTable, image: u64, map_key: u64) -> u64 reaches UefiBootServices { exit_services(this, image, map_key) }
 }
 
 machine allocate(this: &EfiBootServicesTable, allocate_type: u32, memory_type: u32,

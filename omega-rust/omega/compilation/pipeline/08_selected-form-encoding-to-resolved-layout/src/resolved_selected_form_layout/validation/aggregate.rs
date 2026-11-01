@@ -5,10 +5,8 @@ use physical_instructions::PostAllocationMachineOptimizationCustody;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
-    StagedOptimizedResolvedSelectedFormLayout,
-};
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
+use super::super::{SelectedFunctionLayoutPolicy, StagedOptimizedResolvedSelectedFormLayout};
 
 pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -17,7 +15,7 @@ pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
     optimization: Option<PostAllocationMachineOptimizationCustody>,
     policy: SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<(), Error> {
     if artifact.selected() != selected.selected_identity()
         || artifact.machine() != machine.machine().receipt().identity()
         || artifact.pre_layout() != pre_layout.identity()
@@ -25,14 +23,14 @@ pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
         || artifact.target() != selected.selected_plan().target
         || artifact.policy() != policy
     {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(())
 }
 
 pub(super) fn validate_identity(
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<(), Error> {
     let identity = layout_identity(
         artifact.selected(),
         artifact.machine(),
@@ -43,7 +41,7 @@ pub(super) fn validate_identity(
         artifact.functions(),
     );
     if artifact.identity() != identity {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(())
 }

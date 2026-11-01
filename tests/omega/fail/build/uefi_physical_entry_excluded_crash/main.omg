@@ -2,7 +2,7 @@ use omega::language::core::extent;
 use vendor::targets::uefi_x86_64::entry;
 
 FirmwareBootstrap satisfies UefiPhysicalEntry {
-    UefiPhysicalEntry::enter = firmware_entry;
+    machine enter( image_handle: EfiImageHandle, system_table: &EfiSystemTable ) -> EfiStatus crashes Trap { firmware_entry(image_handle, system_table) }
 }
 
 // Only the physical adapter can crash. The semantic root is innocent.

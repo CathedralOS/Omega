@@ -5,8 +5,8 @@ trait Reader<Value> {
     machine read(value: &Value) -> bool;
 }
 
-First satisfies Reader<Item> { Reader::read = first; }
-Second satisfies Reader<Item> { Reader::read = second; }
+First satisfies Reader<Item> { machine read(value: &Item) -> bool { first(value) } }
+Second satisfies Reader<Item> { machine read(value: &Item) -> bool { second(value) } }
 
 linux_x86_64 machine first(value: &Item) -> bool { true }
 windows_x86_64 machine first(value: &Item) -> bool { true }

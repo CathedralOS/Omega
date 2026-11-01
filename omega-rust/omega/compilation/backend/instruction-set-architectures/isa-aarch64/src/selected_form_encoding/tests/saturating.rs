@@ -7,89 +7,53 @@ use super::*;
 use super::{SaturatingCarrier as Carrier, SaturatingOperation as Op};
 
 #[test]
-fn saturating_subtract_binds_registers_condition_and_flag_effects() {
+fn saturating_forms_bind_registers_condition_and_flag_effects() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingSubtract {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(MachineAlternativeFamily::SaturatingSubtract(
-        SaturatingCarrier::U64,
-    ));
-    for left in ["x0", "x1", "x9", "x29"] {
-        for right in ["x0", "x1", "x9", "x29"] {
-            for destination in ["x0", "x1", "x9", "x29"] {
-                let operands = [left, right, destination]
-                    .map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands);
-
-                let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 8);
-                let decoded = validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
-                assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
-                assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
-                for byte in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[byte] ^= 1;
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "changed byte {byte}"
-                    );
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn saturating_add_binds_registers_condition_and_flag_effects() {
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingAdd {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(MachineAlternativeFamily::SaturatingAdd(
-        SaturatingCarrier::U64,
-    ));
-    for left in ["x0", "x1", "x9", "x29"] {
-        for right in ["x0", "x1", "x9", "x29"] {
-            for destination in ["x0", "x1", "x9", "x29"] {
-                let operands = [left, right, destination]
-                    .map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands);
-
-                let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 8);
-                let decoded = validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
-                assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
-                assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
-                for byte in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[byte] ^= 1;
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "changed byte {byte}"
-                    );
+    for (kind, family) in [
+        (
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::U64,
+            },
+            MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
+        ),
+        (
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::U64,
+            },
+            MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
+        ),
+    ] {
+        let key = alternative(family);
+        for left in ["x0", "x1", "x9", "x29"] {
+            for right in ["x0", "x1", "x9", "x29"] {
+                for destination in ["x0", "x1", "x9", "x29"] {
+                    let operands = [left, right, destination]
+                        .map(|name| physical.model().view_named(name).unwrap().id);
+                    let encoded =
+                        encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+                    assert_eq!(encoded.bytes().len(), 8);
+                    let decoded = validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+                    assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
+                    for byte in 0..encoded.bytes().len() {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[byte] ^= 1;
+                        assert!(
+                            validate_aarch64_selected_form_encoding(
+                                &physical, kind, key, &operands, &changed
+                            )
+                            .is_err(),
+                            "changed byte {byte}"
+                        );
+                    }
                 }
             }
         }

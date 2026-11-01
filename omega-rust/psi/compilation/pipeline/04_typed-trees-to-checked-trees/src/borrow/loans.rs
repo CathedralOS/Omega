@@ -413,7 +413,15 @@ fn binding_borrow_loans(
     {
         let mut loans = Vec::new();
         for arm in program.expression_table.match_arms(dispatch.arms) {
+            // Pattern effects have their own occurrence owner. No delivered
+            // value means no loan formation; a live value uses its independently
+            // proved arm-local carrier, including an ordinary type equation.
+            if program.static_type_context_is_unreachable(arm.value) {
+                continue;
+            }
             let mut selected = local_data.clone();
+            selected.type_reference =
+                program.statically_refined_type_reference(arm.value, selected.type_reference);
             selected.initial_value = arm.value;
             loans.extend(binding_borrow_loans(
                 program,

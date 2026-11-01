@@ -14,8 +14,8 @@ public SecondCalling satisfies CallingPolicy {
         second_plan(signature)
     }
 }
-FirstMap satisfies FirstRoot { Parent::value = first_value; FirstRoot::selected = first_value; }
-SecondMap satisfies SecondRoot { Parent::value = second_value; SecondRoot::selected = second_value; }
+FirstMap satisfies FirstRoot { machine value() -> u64 { first_value() } machine selected() -> u64 { first_value() } }
+SecondMap satisfies SecondRoot { machine value() -> u64 { second_value() } machine selected() -> u64 { second_value() } }
 machine first_value() -> u64 { 17 }
 machine second_value() -> u64 { 29 }
 

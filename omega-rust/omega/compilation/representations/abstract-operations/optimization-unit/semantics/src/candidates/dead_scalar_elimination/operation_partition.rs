@@ -4,6 +4,10 @@ use optimization_core::OptimizationRuleIdentity;
 use semantic_vocabulary::{ScalarType, ValueId};
 
 use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
+use abstract_operations::bitwise_or_xor_pair_pattern;
+use abstract_operations::boolean_not_or_equal_pair_pattern;
+use abstract_operations::integer_equal_less_pair_pattern;
+use semantic_vocabulary::ObligationId;
 
 /// Independent exhaustive mirror of the producer's closed safety partition.
 /// A new abstract operation cannot compile until this validator decides that
@@ -12,12 +16,12 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
     match operation {
         O::EstablishNativeCodeLayout { .. } | O::EstablishActivationClaim { .. } | O::SplitActivationClaim { .. } | O::MergeActivationClaim { .. } | O::ReleaseActivationClaim { .. } => None,
         O::IntegerConstant { .. } | O::BooleanConstant { .. } => Some(DeadScalarFamily::Literal),
-        abstract_operations::boolean_not_or_equal_pair_pattern!(..)
-        | abstract_operations::integer_equal_less_pair_pattern!(..)
+        boolean_not_or_equal_pair_pattern!(..)
+        | integer_equal_less_pair_pattern!(..)
         | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
         | O::IntegerWiden { .. }
         | O::IntegerBitwiseAnd { .. }
-        | abstract_operations::bitwise_or_xor_pair_pattern!(..) => Some(DeadScalarFamily::UnconditionallyTotal),
+        | bitwise_or_xor_pair_pattern!(..) => Some(DeadScalarFamily::UnconditionallyTotal),
         O::IntegerExactCast { .. } => Some(DeadScalarFamily::ProofCertified),
         // An integer policy pair is total exactly when it carries no
         // obligation: wrapping and saturating add, subtract and multiply, and
@@ -77,7 +81,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
     }
 }
 
-fn obligation_family(obligation: Option<semantic_vocabulary::ObligationId>) -> DeadScalarFamily {
+fn obligation_family(obligation: Option<ObligationId>) -> DeadScalarFamily {
     match obligation {
         None => DeadScalarFamily::UnconditionallyTotal,
         Some(_) => DeadScalarFamily::ProofCertified,
@@ -91,7 +95,7 @@ pub(crate) fn independently_validated_dead_scalar_shape(
     semantic_vocabulary::OperationId,
     ValueId,
     ScalarType,
-    Option<semantic_vocabulary::ObligationId>,
+    Option<ObligationId>,
 )> {
     let rule_family = dead_scalar_family(rule)?;
     if independently_validated_dead_scalar_operation_family(operation) != Some(rule_family) {
@@ -117,8 +121,8 @@ pub(crate) fn independently_validated_dead_scalar_shape(
         ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             DeadScalarFamily::UnconditionallyTotal,
-            abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
-            | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
+            boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
+            | integer_equal_less_pair_pattern!(psi_operation, result, ..)
             | O::IntegerLessOrEqual {
                 psi_operation,
                 result,
@@ -133,12 +137,7 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             )
-            | abstract_operations::bitwise_or_xor_pair_pattern!(
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            ),
+            | bitwise_or_xor_pair_pattern!(psi_operation, result, scalar_type, ..),
         ) => Some((
             *psi_operation,
             *result,

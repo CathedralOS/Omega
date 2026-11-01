@@ -1,16 +1,14 @@
 //! Private canonical byte cursor primitives for the terminal module codec.
 
 use super::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
+use semantic_vocabulary::InvocationSite;
 use semantic_vocabulary::PsiSemanticId;
 
-pub(crate) fn encode_invocation_site(
-    writer: &mut Writer,
-    site: semantic_vocabulary::InvocationSite,
-) {
+pub(crate) fn encode_invocation_site(writer: &mut Writer, site: InvocationSite) {
     let (tag, identity) = match site {
-        semantic_vocabulary::InvocationSite::Operation(operation) => (0, operation.get()),
-        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => (1, edge.get()),
-        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => (2, edge.get()),
+        InvocationSite::Operation(operation) => (0, operation.get()),
+        InvocationSite::ExternalCompletion(edge) => (1, edge.get()),
+        InvocationSite::InvokeNoNormal(edge) => (2, edge.get()),
     };
     writer.u8(tag);
     writer.u64(identity);
@@ -18,10 +16,10 @@ pub(crate) fn encode_invocation_site(
 
 pub(crate) fn decode_invocation_site(
     reader: &mut Reader<'_>,
-) -> Result<semantic_vocabulary::InvocationSite, CodecError> {
+) -> Result<InvocationSite, CodecError> {
     let tag = reader.u8()?;
     let identity = reader.u64()?;
-    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or(
+    InvocationSite::from_tagged_identity(tag, identity).ok_or(
         CodecError::MalformedStructuralFoundation("invalid invocation identity"),
     )
 }

@@ -1,6 +1,7 @@
 //! Executable entry admission before physical construction.
 
 use diagnostics::Diagnostic;
+use terminal_installation::admit_target_machine_selections;
 use terminal_psi_to_abstract_operations::{
     NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
     ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
@@ -31,10 +32,7 @@ pub fn admit_executable_entry(
             "source-selected entry deployment does not own the native target",
         ));
     }
-    let selections = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        source_profile.target_name(),
-    );
+    let selections = admit_target_machine_selections(artifact.view(), source_profile.target_name());
     let selected_entry = selections
         .entry(
             artifact.view().identity(),

@@ -92,3 +92,57 @@ pub fn data_predicates_admit_zero(
             )
         })
 }
+
+/// Zero admission of an exact, predicate-only applied theory. The carrier's
+/// own establishment is checked separately by the enclosing type walk. No
+/// membership, route, semantic contribution or receiving annotation is a premise.
+pub(crate) fn domain_predicates_admit_zero(
+    program: &dyn crate::CheckingInput,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    constraint: &typed_trees::types::DomainConstraint,
+) -> bool {
+    let Some(domain) =
+        program.domain_definition_for_instance(constraint.symbol, constraint.semantic_id)
+    else {
+        return false;
+    };
+    if domain.alias.is_some()
+        || !domain.establishment_routes.is_empty()
+        || !domain.semantic_roles.is_empty()
+        || !constraint.establishment_routes.is_empty()
+        || !constraint.semantic_roles.is_empty()
+        || !typed_trees::domain::has_bound_symbol_only_proof(program, domain)
+    {
+        return false;
+    }
+    let Some(value) = zero_value_structural_term(program, carrier) else {
+        return false;
+    };
+    let parameters = [StateParameter {
+        symbol: domain.subject_symbol,
+        name: domain.subject_name.clone(),
+        type_reference: carrier,
+        ..Default::default()
+    }];
+    let bindings = [(domain.subject_name.to_string(), value)];
+    let judge =
+        StructuralJudge::from_declaration_requires(program, domain.symbol, &parameters, &[], false);
+    program.proof_facts(domain).iter().all(|fact| {
+        fact.as_expression().is_some_and(|expression| {
+            matches!(
+                instantiated_selected_fact_judgment(
+                    program,
+                    &judge,
+                    domain.symbol,
+                    &parameters,
+                    *expression,
+                    &bindings,
+                    &[],
+                    &[],
+                    None,
+                ),
+                StructuralJudgment::Proven
+            )
+        })
+    })
+}

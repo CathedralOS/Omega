@@ -1,5 +1,8 @@
 use super::*;
 use crate::publication::executable_container_digest;
+use std::fs;
+use std::fs::read;
+use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -9,18 +12,16 @@ struct PublicationDirectory(PathBuf);
 impl PublicationDirectory {
     fn new() -> Self {
         let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "omega-package-publication-{}-{sequence}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&path).expect("create package publication test directory");
+        let path =
+            std::env::temp_dir().join(format!("omega-package-publication-{}-{sequence}", id()));
+        fs::create_dir(&path).expect("create package publication test directory");
         Self(path)
     }
 }
 
 impl Drop for PublicationDirectory {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        let _ = fs::remove_dir_all(&self.0);
     }
 }
 
@@ -72,11 +73,11 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
             .join("window_test.app/Contents/MacOS/window_test")
     );
     assert_eq!(
-        std::fs::read(first.inner_executable_path().unwrap()).unwrap(),
+        read(first.inner_executable_path().unwrap()).unwrap(),
         executable
     );
     let plist_path = first.package_root().join("Contents/Info.plist");
-    let first_plist = std::fs::read(&plist_path).unwrap();
+    let first_plist = read(&plist_path).unwrap();
     assert_eq!(plist_identifier(&first_plist), Some(identifier.as_str()));
     assert_eq!(first.components().len(), 2);
     assert!(
@@ -87,7 +88,7 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            std::fs::metadata(first.inner_executable_path().unwrap())
+            fs::metadata(first.inner_executable_path().unwrap())
                 .unwrap()
                 .permissions()
                 .mode()
@@ -96,7 +97,7 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
         );
     }
     assert_eq!(publish(), first);
-    assert_eq!(std::fs::read(plist_path).unwrap(), first_plist);
+    assert_eq!(read(plist_path).unwrap(), first_plist);
     let mut changed = first.clone();
     changed.application_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
     let mut changed = first.clone();
@@ -112,8 +113,8 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
     let executable = signed_executable(identifier.as_str());
     let digest = executable_container_digest(&executable);
     let previous = directory.0.join("window_test.app");
-    std::fs::create_dir(&previous).unwrap();
-    std::fs::write(previous.join("previous"), b"retained").unwrap();
+    fs::create_dir(&previous).unwrap();
+    fs::write(previous.join("previous"), b"retained").unwrap();
     let wrong_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
     assert!(
         publish_macos_application_package(
@@ -154,12 +155,9 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
             "{name}"
         );
     }
+    assert_eq!(read(previous.join("previous")).unwrap(), b"retained");
     assert_eq!(
-        std::fs::read(previous.join("previous")).unwrap(),
-        b"retained"
-    );
-    assert_eq!(
-        std::fs::read_dir(&directory.0).unwrap().count(),
+        fs::read_dir(&directory.0).unwrap().count(),
         1,
         "failed staging leaves no temporary package"
     );
