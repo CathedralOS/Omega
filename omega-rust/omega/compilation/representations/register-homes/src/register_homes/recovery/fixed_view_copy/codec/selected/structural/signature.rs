@@ -10,6 +10,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
     decode_place, decode_reference_origin_path, decode_type, encode_access, encode_entry_claim,
     encode_multiplicity, encode_parameter, encode_place, encode_type,
 };
+use crate::register_homes::recovery::fixed_view_copy::codec::values::decode_bool;
 use abstract_operations::StructuralTypeCatalog;
 use legalized_operations::LegalizedStructuralContract;
 use selected_instructions::effects::program::identity::{
@@ -31,6 +32,7 @@ pub(super) fn encode_signature(
     for referent in value.structural_types.referents() {
         push_encoded(bytes, referent.id.get().to_le_bytes());
         push_encoded(bytes, referent.identity.0.to_le_bytes());
+        bytes.push(u8::from(referent.foreign_descriptor));
     }
     let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
     length(bytes, quotients.len());
@@ -108,6 +110,7 @@ pub(super) fn decode_signature(
         Ok(terminal_psi::StructuralReferentIdentity {
             id: decode_id(cursor, StructuralTypeId::new)?,
             identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            foreign_descriptor: decode_bool(cursor)?,
         })
     })?;
     let count = cursor.length()?;
@@ -328,6 +331,7 @@ mod tests {
                 vec![terminal_psi::StructuralReferentIdentity {
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(2),
+                    foreign_descriptor: false,
                 }],
             ),
             parameters: Vec::new(),
@@ -385,12 +389,24 @@ mod tests {
             vec![terminal_psi::StructuralReferentIdentity {
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(3),
+                foreign_descriptor: false,
             }],
         );
         let mut changed = Vec::new();
         encode_signature(&mut changed, &renamed).unwrap();
         assert_ne!(bytes, changed);
         let mut reordered = signature.clone();
+        let mut descriptor = signature.clone();
+        let mut referents = descriptor.structural_types.referents().to_vec();
+        referents[0].foreign_descriptor = true;
+        descriptor.structural_types =
+            StructuralTypeCatalog::new(signature.structural_types.to_vec(), referents);
+        let mut descriptor_bytes = Vec::new();
+        encode_signature(&mut descriptor_bytes, &descriptor).unwrap();
+        assert_ne!(bytes, descriptor_bytes);
+        let mut cursor = Cursor::new(&descriptor_bytes);
+        assert_eq!(decode_signature(&mut cursor).unwrap(), descriptor);
+        assert_eq!(cursor.remaining(), 0);
         reordered.result.as_mut().unwrap().reference_sources[0]
             .sources
             .swap(0, 1);

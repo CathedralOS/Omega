@@ -82,9 +82,31 @@ pub(super) fn observe(
             ));
         }
         let signature = MaterializedBoundarySignature::from_terminal(module, description, target)?;
-        if module.structural_referents.is_empty() {
+        let argument = module
+            .boundary_machine(description)
+            .and_then(|boundary| boundary.structural_parameters.first())
+            .and_then(|parameter| module.structural_type(parameter.structural_type))
+            .ok_or("reference calling fixture lost its record declaration")?;
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &argument.shape else {
+            return Err("reference calling fixture has no canonical record body".into());
+        };
+        let [field] = fields.as_slice() else {
+            return Err("reference calling fixture must retain its one declared field".into());
+        };
+        let terminal_psi::StructuralFieldType::Structural(reference) = field.field_type else {
+            return Err("reference calling fixture field lost its structural carrier".into());
+        };
+        let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+            module.structural_type(reference).map(|row| &row.shape)
+        else {
+            return Err("reference calling fixture lost its reference edge".into());
+        };
+        if module.structural_type(*referent).is_some()
+            || module.foreign_reference_descriptor(*referent) != Some(false)
+        {
             return Err(
-                "reference calling fixture did not retain an identity-only referent".into(),
+                "reference calling fixture did not preserve its identity-only pointer target"
+                    .into(),
             );
         }
         let record = signature
@@ -152,7 +174,7 @@ pub(super) fn observe(
                 .as_ref()
                 .is_none_or(|result| result.shape.byte_size != 8)
         {
-            return Err("calling fixture did not produce its authored scalar ABI".into());
+            return Err("calling fixture did not produce its authored word-sized ABI".into());
         }
         if usage.total_units() == 0 {
             return Err("calling fixture recorded no execution fuel".into());
