@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
-    RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS, SOURCE_READS, STAGE05_ROOT, STATUS_PHRASES,
+    RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS, SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
     golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
@@ -121,12 +121,12 @@ A detached editable document is not an instance of its described type.
                              {"omega-rust/pipeline.md": 1, "wiki/spec/build/a.md": 1})
 
 
-class Stage05RatchetTests(unittest.TestCase):
-    """Stage 05 lowers stage 04's plans; it neither re-gates their shapes nor
-    reads the typed source trees to rebuild a fact stage 04 did not publish."""
+class Stage06RatchetTests(unittest.TestCase):
+    """Stage 06 lowers stage 05's plans; it neither re-gates their shapes nor
+    reads the typed source trees to rebuild a fact stage 05 did not publish."""
 
-    UNIT = STAGE05_ROOT + "/src/unit/lowering.rs"
-    TEST = STAGE05_ROOT + "/src/unit/lowering/tests.rs"
+    UNIT = STAGE06_ROOT + "/src/unit/lowering.rs"
+    TEST = STAGE06_ROOT + "/src/unit/lowering/tests.rs"
 
     def tree(self, files):
         directory = tempfile.TemporaryDirectory()
@@ -159,7 +159,7 @@ class Stage05RatchetTests(unittest.TestCase):
     def test_only_stage_05_counts(self):
         root = self.tree({
             self.UNIT: "Err(unsupported(site)); checked.typed.machines",
-            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/a.rs":
+            "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/a.rs":
                 "Err(unsupported(site)); checked.typed.machines",
         })
         self.assertEqual(ratchet_counts(SHAPE_GATES, root), {self.UNIT: 1})
@@ -172,14 +172,14 @@ class Stage05RatchetTests(unittest.TestCase):
                            self.TEST: "LoweringError::Unsupported"})
         violations = ratchet_violations(SHAPE_GATES, ratchet_counts(SHAPE_GATES, after), baseline)
         self.assertEqual(len(violations), 2)
-        self.assertIn("lowering.rs: 2 stage-05 shape gates, baseline 1", violations[0])
-        self.assertIn("stage 04 plan", violations[0])
-        self.assertIn("tests.rs: 1 stage-05 shape gates, baseline 0", violations[1])
+        self.assertIn("lowering.rs: 2 stage-06 shape gates, baseline 1", violations[0])
+        self.assertIn("stage 05 plan", violations[0])
+        self.assertIn("tests.rs: 1 stage-06 shape gates, baseline 0", violations[1])
 
     def test_a_planted_source_read_fails(self):
         violations = ratchet_violations(SOURCE_CONTEXT_READS, {self.UNIT: 3}, {self.UNIT: 2})
         self.assertEqual(len(violations), 1)
-        self.assertIn("3 stage-05 source-context reads, baseline 2", violations[0])
+        self.assertIn("3 stage-06 source-context reads, baseline 2", violations[0])
         self.assertIn("Public contracts", violations[0])
 
     def test_a_retired_site_lowers_the_baseline(self):

@@ -73,7 +73,7 @@ to remove.
 
 ### Not name-keyed (handle/identity-keyed, compliant by construction)
 
-`04_typed-trees-to-checked-trees/src/product_pruning/dependencies.rs`
+`05_typed-trees-to-checked-trees/src/product_pruning/dependencies.rs`
 (`HashMap<SymbolHandle, Vec<SymbolHandle>>` edges),
 `02_abstract-operations-to-target-operations/.../dynamic.rs`
 (`BTreeMap<MachineId|PlaceId|StructuralTypeId, _>`),

@@ -14,7 +14,7 @@
 //! Only the arm target's own roster carries these selections. Authored
 //! projections have no case qualifier, and loans of a payload or non-copy
 //! payloads keep their ordinary accesses. Nested calls' own rosters, which
-//! stage 05 replays independently, keep their argument-order ends.
+//! stage 06 replays independently, keep their argument-order ends.
 
 use crate::frozen_program::expression_table;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

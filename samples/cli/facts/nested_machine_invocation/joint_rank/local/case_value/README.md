@@ -49,7 +49,7 @@ The requirement evidence is scoped as follows:
 - Soundness: formation, selected operator meaning, effects, loans, read authority,
   cleanup and strict descent remain separate obligations. Exact synthetic result
   ownership cannot be confused with a caller formal or another declaration.
-- Psi 05–07: existing checked entry observations and ordinary case payload reads
+- Psi 06–08: existing checked entry observations and ordinary case payload reads
   lower into canonical Terminal Psi; the authored counter and canary oracle is
   observed by both Terminal and native execution on macOS ARM64.
 - Omega 00–02: all four hosted entry bindings use ordinary target data, selected

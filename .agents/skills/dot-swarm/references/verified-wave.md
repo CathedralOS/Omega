@@ -55,7 +55,7 @@ proper proof carriers; they cannot be placed into the Meaning carrier.
 
 Relevant source owners are:
 
-- `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/float_meaning.rs`
+- `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/proof/float_meaning.rs`
 - `omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs`
 - `omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/float_meaning_projection.rs`
 

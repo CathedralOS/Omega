@@ -3,7 +3,7 @@
 //! Partial residual bodies and nominal caller metadata retain their semantic
 //! distinctions. Nominal bodies and selected actions use the ordinary roster;
 //! every shape any plan names lives in the ordinary
-//! `CheckedUnitEffectPlans` type namespace, which stage 04 fills once with a
+//! `CheckedUnitEffectPlans` type namespace, which stage 05 fills once with a
 //! conflict check. This view names the family once, so a consumer asks which Unit
 //! plan a machine lowers instead of walking three rosters and repeating the
 //! same attachment admission beside each. Every multi-state Unit control graph

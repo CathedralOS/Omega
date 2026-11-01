@@ -53,7 +53,7 @@ and [loan closure](../../../../wiki/spec/terminal-psi/loans.md#reborrow-lineage-
 | Identity and lifetime | Returned descriptors keep original backing. A copied scalar detaches from its carrier; independently live references keep their loans. Counter observations distinguish premature, missing and duplicate hooks. |
 | Composition | All three descriptor productions occur at the consuming site in all nine places, retaining the original Unit-call/linear-sibling control. Reference-free projected children preserve their observed storage until the scalar read completes. |
 | Soundness | All nine code-6 twins reject at the unchanged cleanup prerequisites. Separate borrow controls retain a live descendant and reject early backing access. |
-| Psi 05–07 | Checked completion contexts and ordered actions survive into Terminal Psi; actual execution must return 0. |
+| Psi 06–08 | Checked completion contexts and ordered actions survive into Terminal Psi; actual execution must return 0. |
 | Omega 00–02 | Each public project binds all four hosted entries. The measured host realizes pointer, record and fixed-array geometry and calling plans. Foreign entry bindings alone are not execution evidence. |
 | Omega 03–06 | Host execution exercises descriptor carriers, live backing storage and hook calls through instruction selection and frame realization. |
 | Omega 07–09 and emission | Native exit 0 must agree with Terminal exit 0 on the measured host. This does not claim Windows/Linux execution from macOS. |

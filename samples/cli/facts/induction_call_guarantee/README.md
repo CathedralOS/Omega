@@ -46,7 +46,7 @@ not run.
 - **Composition:** `use` reads `gauss`. `observe` reads `use`. No post-hoc
   guard replaces those contracts.
 - **Soundness:** a base arm of `acc + 1` leaves the postcondition unproved.
-- **Psi 05–07 through Omega 07–09:** the nine positives agree on this host.
+- **Psi 06–08 through Omega 07–09:** the nine positives agree on this host.
   The other hosted targets are bound and not executed here.
 
 ## Build-owned target-body migration

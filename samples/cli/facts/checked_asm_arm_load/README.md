@@ -75,7 +75,7 @@ with its authored fragment):
   authored diagnostic on every place and target body; raw addresses grant no
   access authority, and the refusal comes from the shared instruction contract
   rather than a fixture-local recognizer.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the checked place read
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the checked place read
   lowers target-neutrally; both engines agree on every positive (`native exit
   0` / `interp exit: 0` for all ten), so the recorded value is not a
   compile-time fiction.
@@ -108,7 +108,7 @@ error: cannot prove requires contract for call after from
   `asm#scratch#2#eax == 5` here) in state `branch`
 ```
 
-Repair: `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/assembly_control/normalization.rs`.
+Repair: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/assembly_control/normalization.rs`.
 An assembly label edge carries one argument per helper parameter: the mutable
 place captures and the register versions. Since `921e9383c083` the edge also
 substituted a register version's *recorded initializer* (so a `sub` premise

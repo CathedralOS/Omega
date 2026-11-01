@@ -111,7 +111,7 @@ fixtures have no `build.omg`.
    explicit empty clause does not admit `Mark`. Service reach stays separate
    from `invokes`, suspension, blocking, and crashes. Public omission still
    publishes an empty synchronous-invocation ceiling and is outside this row.
-5. **Checked-to-Terminal Psi (`Psi 05–07`).** The direct boundary call, the
+5. **Checked-to-Terminal Psi (`Psi 06–08`).** The direct boundary call, the
    provider body, and the comparison lower into Terminal Psi and execute in
    the interpreter. The empty-ceiling twins are rejected in checking and do
    not produce a program.
@@ -225,7 +225,7 @@ reselects a provider by spelling or uses its body to narrow the requirement.
 - **Soundness:** boundary/provider authority, trust, `invokes`, blocking,
   suspension and crashes remain independent. Selected implementations must fit
   their requirements; a silent selected body cannot erase the pinned reach.
-- **Psi 05–07:** the checked service records survive ordinary Terminal production;
+- **Psi 06–08:** the checked service records survive ordinary Terminal production;
   positive runtime observations require actual Terminal execution.
 - **Omega 00–02:** exact boundary/provider identity selects the read implementation;
   result and argument placement preserve 7 through the nine carriers.

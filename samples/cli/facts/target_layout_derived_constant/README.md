@@ -82,7 +82,7 @@ The specification and consuming layers are covered as follows:
   obligation; the equivalent valid bound is 9. A cyclic target-constant graph rejects without provisional
   values. Same-product native `code_layout` remains forbidden. Existing
   declared-operator and unselected-provider controls remain rejecting.
-- **Psi 05–07:** the same authored programs reach canonical Terminal Psi and
+- **Psi 06–08:** the same authored programs reach canonical Terminal Psi and
   execute their result/trap branch. The API example independently roundtrips
   canonical bytes and checks historical closure admission.
 - **Omega 00–02:** historical plans retain exact provider and target provenance;

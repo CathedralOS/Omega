@@ -72,7 +72,7 @@ only their intervening write differs. Both must reject the `invoke` requirement
    stale-value, stale-pointer and overlapping-loan controls preserve independent
    arithmetic, access and ownership obligations. Unknown reference suppliers
    do not become empty effects or evidence.
-5. **Psi 05–07:** the nine positives and two positive compositions execute in
+5. **Psi 06–08:** the nine positives and two positive compositions execute in
    Terminal Psi. Reference-bearing payload observations preserve affine custody;
    the emitter copies only copyable carriers. Full declared field paths retain
    their case and reference crossings before live projection and restoration.

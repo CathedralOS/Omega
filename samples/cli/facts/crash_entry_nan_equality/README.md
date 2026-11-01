@@ -84,7 +84,7 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   reflexively; a guard that cannot be entered leaves the route uncovered, so
   each twin is refused rather than silently accepted, and proof-only terms
   cannot authorize executable guards.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the guard lowers as a
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the guard lowers as a
   float equality predicate over the recorded entry observation, the crash entry
   and its uncovered route lower unchanged, and `omega run --both` executes the
   same program in the Terminal Psi interpreter and natively with agreement

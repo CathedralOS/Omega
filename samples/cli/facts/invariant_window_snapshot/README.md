@@ -49,7 +49,7 @@ producer `cf36a5e96fcb69e7fc28963e0d56fe48b915b828`, SHA-256
 - **Soundness:** the false nonnegative consumer must reject. Store-enforced
   interval bounds remain available; mixed logical consequences require an
   independently established predicate for the exact value considered.
-- **Psi 05–07:** ordinary source checking and Terminal lowering retain the
+- **Psi 06–08:** ordinary source checking and Terminal lowering retain the
   reads, restoration stores and call requirements. Actual interpreter execution
   agrees with native execution under `omega run --both`.
 - **Omega 00–02:** four hosted Build entries, ordinary field layouts and scalar

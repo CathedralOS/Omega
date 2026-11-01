@@ -76,7 +76,7 @@ part of this row.
   Match markers make branch inversion observable without changing the arithmetic.
 - Soundness: removing only outer copy custody rejects; representation creates
   no reference, claim, lifetime or descendant qualification authority.
-- Psi 05–07: normal completion retains the complete recursive result type and
+- Psi 06–08: normal completion retains the complete recursive result type and
   ordinary structural custody; canonical artifact inspection must accept it.
 - Omega 00–02: recursive public shape, exact foreign application and target ABI
   placement remain authenticated. Equal flattened bytes cannot erase containing

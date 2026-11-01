@@ -148,9 +148,9 @@ limits and replay instructions remain linked above.
 
 Source anchors reviewed at the recorded base:
 
-- [RetainedCheck input equality](../../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs)
+- [RetainedCheck input equality](../../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
   and [driver reuse dispatch](../../../../omega-rust/psi/compilation/driver/src/source_checking.rs).
-- [Fact-construction dependencies and fixed point](../../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs).
+- [Fact-construction dependencies and fixed point](../../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts.rs).
 - [ValueEnvironment](../../../../omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/value_environment.rs)
   and [symbolic operands](../../../../omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs).
 - [Batched observations](../../../../omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/arrivals.rs),

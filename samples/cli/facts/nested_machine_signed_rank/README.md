@@ -160,7 +160,7 @@ The eight requirement layers use the existing row's runtime falsifiers:
 - Soundness boundaries: all 27 increment-zero twins reject for missing strict
   descent; nine additional negative controls reject their individual broken
   premises, safety or type obligations.
-- Checked-to-Terminal Psi (`Psi 05–07`): occurrence-bound arithmetic decisions
+- Checked-to-Terminal Psi (`Psi 06–08`): occurrence-bound arithmetic decisions
   reach normal predicate lowering; the Terminal interpreter executes the
   selected and fallback paths and signed rank edges.
 - Provider, layout and ABI (`Omega 00–02`): four-target Build bindings join the

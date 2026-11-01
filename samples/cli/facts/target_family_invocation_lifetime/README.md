@@ -50,7 +50,7 @@ Applicable requirements:
 - Soundness: source checking retains universal callable refinement, complete
   own telescope correspondence, exact storage origins, access and loan debt.
   No signature, visibility or proof requirement is weakened by selection.
-- Psi 05–07: one checked portable requirement call and its actual returned
+- Psi 06–08: one checked portable requirement call and its actual returned
   reference must survive Terminal lowering and execute in the interpreter.
 - Omega 00–09: explicit four-hosted-target Build rows select ordinary
   implementations; matching-host native calls must preserve returned storage

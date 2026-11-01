@@ -74,7 +74,7 @@ is macos_arm64 only.
   write-only reads, invalid bounds and exclusive-descriptor reuse still reject.
   See [ownership](../../../../../wiki/spec/language/ownership.md) and
   [lifetimes](../../../../../wiki/spec/language/lifetimes.md).
-- **Psi 05–07:** existing CopiedStructuralPlace carries the full source path;
+- **Psi 06–08:** existing CopiedStructuralPlace carries the full source path;
   source, selectors and reference crossings are not reconstructed by a consumer.
   Both engines execute the copied-tail check and current/backing canaries.
 - **Omega 00–02:** ordinary pointer/record/array layouts and call placement keep

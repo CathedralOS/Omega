@@ -46,7 +46,7 @@ It does not establish Windows filesystem execution.
 | Identity and lifetime | Local values, projected fields, parameters and completed call results preserve their own integer observations. |
 | Composition | The same fact crosses all nine places; the match join exercises both arms and target bodies retain identical arithmetic. |
 | Soundness boundaries | OFFSET 1 rejects at the unchanged consuming obligation. Arithmetic fixtures separately keep overflowing products, signed MIN/-1, zero divisors, stale writes, wrapping and saturation from supplying exact-product laws. |
-| Checked to Terminal Psi, Psi 05–07 | Checked arithmetic, construction, call/return and state edges erase to Terminal Psi; `--both` executes that artifact with the same authored result. |
+| Checked to Terminal Psi, Psi 06–08 | Checked arithmetic, construction, call/return and state edges erase to Terminal Psi; `--both` executes that artifact with the same authored result. |
 | Provider settlement, geometry and ABI, Omega 00–02 | These source-only programs require no foreign provider. Scalar u16/u64 values and the record result use ordinary layout and calling plans. |
 | Selection, register homes and frames, Omega 03–06 | Runtime products, casts, remainder comparisons, calls and state arguments use the native integer path and preserve the observed result. |
 | Encoding and native emission, Omega 07–09 | Host image execution must exit 0 and agree with Terminal execution; foreign target entry declarations are not claimed as foreign-host execution. |

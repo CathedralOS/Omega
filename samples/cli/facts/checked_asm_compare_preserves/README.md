@@ -26,7 +26,7 @@ The same sources are pinned as `tests/omega/{pass,fail}/facts/checked_asm_compar
 - Identity and lifetime: comparison has a separate private result. Register versions and checked output places remain distinct; no scratch state crosses an assembly-body boundary.
 - Composition: ordinary result and parameter contracts transport 37 through the nine places. Both match arms execute. The consuming label/return contract establishes the fact before the final runtime oracle observes it.
 - Soundness: mixed ISA operands, unsupported register aliases, uninitialized registers, wrong target bodies, false label goals and overwritten/stale output goals have separate rejection controls. Helper postconditions are ordinary proof goals on every normal return.
-- Psi 05–07: scalar computation, explicit zero-flag edges and captured output updates use ordinary Terminal operations, with native/Terminal agreement required on the matching host.
+- Psi 06–08: scalar computation, explicit zero-flag edges and captured output updates use ordinary Terminal operations, with native/Terminal agreement required on the matching host.
 - Omega 00–02: recorded catalog target demands survive graph copying and helper extraction; four target-scoped implementations retain the same source contract.
 - Omega 03–06: ordinary scalar and calling plans realize the private arithmetic result, edges and output writeback. Stack/frame/link/zero and wide aliases remain outside this register cohort.
 - Omega 07–09 and emission: focused execution must validate the authored exit in both engines. Nonmatching hosts are not claimed as native execution evidence.

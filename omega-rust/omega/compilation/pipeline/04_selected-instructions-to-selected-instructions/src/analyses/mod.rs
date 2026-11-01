@@ -160,7 +160,7 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 liveness_functions[index] = Arc::new(
-                    phase_profile::scope("06.1.d.05.i.1_liveness", || {
+                    phase_profile::scope("omega.05.batch_reanalyze.liveness", || {
                         liveness::compute::compute_function_for_ranges(index, function)
                     })
                     .map_err(RecoveryReanalysisError::Liveness)?,
@@ -172,7 +172,7 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 range_functions[index] = Arc::new(
-                    phase_profile::scope("06.1.d.05.i.2_live_ranges", || {
+                    phase_profile::scope("omega.05.batch_reanalyze.live_ranges", || {
                         live_ranges::compute::compute_function(
                             index,
                             function,
@@ -191,7 +191,7 @@ impl UnsealedRecoveryFacts {
                     .get(index)
                     .zip(self.legality_functions.get(index))
                     .map(|(r, l)| (r.as_ref(), l.as_ref()));
-                let computed = phase_profile::scope("06.1.d.05.i.3_legality", || {
+                let computed = phase_profile::scope("omega.05.batch_reanalyze.legality", || {
                     allocation_legality::compute::compute_function_reusing(
                         index,
                         &range_functions[index],

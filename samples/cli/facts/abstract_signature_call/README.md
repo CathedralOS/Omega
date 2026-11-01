@@ -7,7 +7,7 @@ Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The exact requirement thi
 row establishes is that item's formation-checks bullet — the checks in
 `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs`
 and
-`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
+`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
 extended to **calls in abstract signatures** — together with the item's own
 sentence for this row: "A call inside an abstract signature is the premise, and
 the signature records that call's result: `samples/cli/facts/abstract_signature_call/local`
@@ -189,7 +189,7 @@ repaired under [Forwarded applied provider](#forwarded-applied-provider).
   closed Boolean computations acquire no authority, borrow no storage, and
   introduce no runtime service reach; other custody modes remain outside this
   row's evidence.
-- **Psi 05–07:** constant evaluation retains and validates authored call custody
+- **Psi 06–08:** constant evaluation retains and validates authored call custody
   before materializing the Boolean. The resulting program lowers through
   Terminal Psi, whose interpreter must observe exit 0 beside native execution.
 - **Omega 00–02:** all positives retain the four hosted `ProgramEntry` bindings
@@ -524,7 +524,7 @@ and no fixture key or diagnostic continuation line was lost.
    the abstract signature's instantiated premise, not an unrelated missing
    import or stale setup; a program that assumes the premise while it is false
    does not compile.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the abstract dispatch is
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the abstract dispatch is
    specialized to the selected `witness` body and lowered to an ordinary
    selected call chain (`main`/`observe` → `apply` → `witness` → `premise`);
    proof-only obligations are erased. The Terminal Psi interpreter executes all
@@ -649,7 +649,7 @@ nine twins reject the premise. Windows, macOS, and QEMU were not run.
 - **Composition:** `hold(direct)` reads the recorded result. No caller guard
   re-establishes `direct == true`.
 - **Soundness:** each twin is structurally false on `premise<T>(kept)`.
-- **Psi 05–07 through Omega 07–09:** the nine positives agree on this host's
+- **Psi 06–08 through Omega 07–09:** the nine positives agree on this host's
   Terminal Psi interpreter and native image. The other hosted targets are
   bound and not executed here.
 

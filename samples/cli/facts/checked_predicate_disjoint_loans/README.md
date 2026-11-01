@@ -122,7 +122,7 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   [equal-input twin](controls/record_operand_snapshot/invalid/main.omg) bind
   the constructed record before a later argument mutates its source.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
-- **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
+- **Psi 06–08:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
   `run --both` observes interpreted execution as well as native execution.
 - **Omega 00–02:** ordinary array geometry and call plans retain original caller

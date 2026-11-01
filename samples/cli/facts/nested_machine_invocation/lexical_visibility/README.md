@@ -118,7 +118,7 @@ existing `tests/omega/fail/calls/nested_machine_private_descendant`.
 - **Soundness boundaries:** module qualification and export do not widen visibility
   (`module_export`); a local keeps its own meaning (`local_named_like_helper`); a bare
   helper name is not a value (`bare_name_value`).
-- **Psi 05–07:** lexical nesting is erased into distinct flat machine identities; the
+- **Psi 06–08:** lexical nesting is erased into distinct flat machine identities; the
   interpreter returns exit 0 for all nine positives, so the two `hidden` identities
   survive Terminal Psi. These programs add no proof-only carrier, loan or cleanup.
 - **Omega 00–02:** Build companions bind `ProgramEntry` for all four hosted targets;

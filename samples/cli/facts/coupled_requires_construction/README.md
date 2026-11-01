@@ -71,7 +71,7 @@ construction through the same path.
 - **Soundness:** the equation's own `value + left` keeps its u8 formation
   obligation, discharged by `value <= 60` and `left <= 60`. Wrapping
   equations and unbounded operands still refuse.
-- **Psi 05–07:** construction, calls, the match and transitions lower to
+- **Psi 06–08:** construction, calls, the match and transitions lower to
   Terminal Psi; predicate evidence is erased.
 - **Omega 00–09:** the Windows x86-64 host executes all nine positives and
   pins natively and in Terminal Psi with exit 0/0. The other three hosted

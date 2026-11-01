@@ -39,7 +39,7 @@ refusal qualifies. The canonical pins are
 | Identity and lifetime | Local copies, exact fields, parameter actuals and result contracts carry the same value. No reference authority or mutable-loan rule is introduced. |
 | Composition | Calls, branch joins and nested machines retain the checked guard through the nine places. No caller assertion substitutes for the conversion obligation. |
 | Soundness | IEEE comparisons retain NaN behavior. Integer/Bool equality rules do not establish floating reflexivity. The three false-guard inputs exercise separate boundaries. |
-| Psi 05–07 | All ten programs execute through Terminal Psi with exit 0, including fractional conversion and false guards. |
+| Psi 06–08 | All ten programs execute through Terminal Psi with exit 0, including fractional conversion and false guards. |
 | Omega 00–09 | The same authored programs realize and execute natively with exit 0 on macos_arm64, agreeing with Terminal Psi. The runtime footer observes conversion and branch results. |
 
 A source-valid counterfactual replaces the local conversion with zero while

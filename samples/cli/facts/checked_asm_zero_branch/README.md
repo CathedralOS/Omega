@@ -41,7 +41,7 @@ Matching fixtures live under `tests/omega/{pass,fail}/facts/checked_asm_zero_bra
 - **Soundness boundaries:** clobbers remain the catalog's exact union; invented
   and omitted changes reject. The branch acquires no authority. This loop makes
   no termination promise; existing ranked-decrease transport stays separate.
-- **Psi 05–07:** the shared control model normalizes ZF polarity to ordinary
+- **Psi 06–08:** the shared control model normalizes ZF polarity to ordinary
   checked Boolean guards and transitions. Terminal execution consumes those
   operations, without reparsing assembly text.
 - **Omega 00–02:** hosted ProgramEntry selects the x86 body; scalar/record

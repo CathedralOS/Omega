@@ -85,7 +85,7 @@ pub fn reserved_result_place(
                 expression_table(program).authored_selection_occurrences(projection);
             let occurrence = occurrences.next()?;
             let selection = program.authored_declaration_selections().get(occurrence)?;
-            // Stage 04 settles ordinary operator occurrences after proving
+            // Stage 05 settles ordinary operator occurrences after proving
             // contracts. The late binding is source custody, not a builtin
             // premise: the exact owner/operand query below must independently
             // reconstruct builtin meaning before the coordinate is usable.

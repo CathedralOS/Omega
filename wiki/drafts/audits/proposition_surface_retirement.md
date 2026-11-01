@@ -36,7 +36,7 @@ declaration and its parameters resolved identities.
 | Parse | `psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations/proposition.rs` |
 | Resolve | `psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/proposition.rs` |
 | Type | `psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations/proposition.rs` |
-| Check | `psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/proposition_vocabulary.rs`, `proof/proof_output_calls.rs` (named-witness call lanes), `proof/contracts.rs`, `proof/contracts/inherited.rs`, `proof/contracts/operators.rs`, `proof/evidence_forwarding.rs`, `proof/outcome_arms.rs`, `proof/contract_entailment.rs` |
+| Check | `psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/proof/proposition_vocabulary.rs`, `proof/proof_output_calls.rs` (named-witness call lanes), `proof/contracts.rs`, `proof/contracts/inherited.rs`, `proof/contracts/operators.rs`, `proof/evidence_forwarding.rs`, `proof/outcome_arms.rs`, `proof/contract_entailment.rs` |
 
 ## 3. Representations
 

@@ -82,7 +82,7 @@ observation. After ordinary project preparation, run each positive with
   still reject. [Shared holder observation](controls/borrowed_holder_shared/main.omg)
   and [selected-holder replacement](controls/borrowed_holder_selected_replacement/main.omg)
   exercise access attenuation and the current receiving generation.
-- **Checked-to-Terminal Psi (`Psi 05–07`):** byte observations retain complete
+- **Checked-to-Terminal Psi (`Psi 06–08`):** byte observations retain complete
   array/reference paths and independently proved bounds. Canonical artifact
   inspection admits the portable product; `run --both` executes its semantics.
   Selected ownership follows ordinary ordered evaluation rather than a
@@ -237,7 +237,7 @@ and [reborrow lineage](../../../../wiki/spec/terminal-psi/loans.md#reborrow-line
   reject under `controls/reborrowed_*_rejected`; the existing wrong-input and
   generic result-lifetime controls remain rejecting. No permission or longer
   lifetime is inferred from a matching path.
-- **Psi 05–07:** ordinary checked reference formation and return custody lower
+- **Psi 06–08:** ordinary checked reference formation and return custody lower
   to explicit descriptor/projection operations and execute in Terminal Psi.
   There is no new wire format or second proof replay.
 - **Omega 00–02:** nested reference, array and byte-view layouts and the

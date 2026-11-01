@@ -38,7 +38,7 @@ runtime oracles under `tests/omega/{pass,fail}/facts/linear_owner_borrowed_proje
 | Identity and lifetime | The stored reference reaches the original caller array. Each twin reads that array while the exclusive leaf is live and must reject. Cleanup ends the loan before the final qualified caller observation. |
 | Composition | All nine places carry the same fact. The call-result constructor keeps its applied domain identities; both match alternatives execute, and selected versus unselected implementations have different outcomes. |
 | Soundness boundaries | An address lends the live linear owner without copying or retiring its cleanup obligation. Unissued membership still rejects; runtime equality never supplies issuer authority. |
-| Psi 05–07 | Terminal execution checks borrowed projection, observable exactly-once nominal cleanup and post-cleanup caller access. Cleanup canaries detect omission, repetition and neighboring writes. |
+| Psi 06–08 | Terminal execution checks borrowed projection, observable exactly-once nominal cleanup and post-cleanup caller access. Cleanup canaries detect omission, repetition and neighboring writes. |
 | Omega 00–02 | Real field and fixed-array layouts, borrowed addresses and ordinary call placements preserve the same original storage and scalar canaries. This row uses no foreign provider or retention protocol. |
 | Omega 03–06 | Native execution checks actual address paths, values surviving calls, both join routes and the selected entry. The same runtime guards falsify wrong register or frame homes. |
 | Omega 07–09 and emission | At producer `6e4217b0fe2`, every place has matching-host native/Terminal zero exits on macOS arm64, Linux x64, Linux arm64 and Windows x64. |

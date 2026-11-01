@@ -61,7 +61,7 @@ The specification requirements exercised by the row are:
   type equality still rejects the universal extractor. Other
   controls cover invalid cases, inactive payloads, reversed bounds, mutation
   restoration, zero establishment and retired syntax.
-- **Psi 05–07:** the complete source predicate supplies case-local proof
+- **Psi 06–08:** the complete source predicate supplies case-local proof
   consequences before proof erasure. Actual values still use ordinary tagged
   data, calls and subtraction; `--both` runs Terminal Psi independently.
 - **Omega 00–02:** Build selects ProgramEntry normally. Bundle transfers and

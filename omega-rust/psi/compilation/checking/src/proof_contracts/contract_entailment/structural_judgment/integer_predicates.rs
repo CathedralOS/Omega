@@ -1141,7 +1141,7 @@ impl<'program> StructuralJudge<'program> {
         predicates: &[StructuralTerm],
         depth: usize,
     ) -> Vec<bool> {
-        let _eq_guard = phase_profile::guard("05.num.prove.1_eq_loop");
+        let _eq_guard = phase_profile::guard("psi.05.numeric.prove.eq_loop");
         let mut proofs = Vec::with_capacity(predicates.len());
         let mut unresolved = Vec::new();
         let has_mathematical_binary_rewrite = self.rewrites.has_mathematical_binary_pattern();
@@ -1187,7 +1187,7 @@ impl<'program> StructuralJudge<'program> {
             proofs.push(matches!(judgment, StructuralJudgment::Proven));
         }
         drop(_eq_guard);
-        let shared = phase_profile::scope("05.num.prove.2_shared", || {
+        let shared = phase_profile::scope("psi.05.numeric.prove.shared", || {
             self.prepared_predicate_proofs(predicates, &unresolved)
         });
         for (index, position) in unresolved.into_iter().enumerate() {
@@ -1200,7 +1200,7 @@ impl<'program> StructuralJudge<'program> {
                 .flatten()
             {
                 Some(proven) => proven,
-                None => phase_profile::scope("05.num.prove.3_fallback", || {
+                None => phase_profile::scope("psi.05.numeric.prove.fallback", || {
                     self.proves_observed_integer_predicate(&predicates[position])
                 }),
             };
@@ -1216,7 +1216,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values || self.case_facts_only || unresolved.is_empty() {
             return None;
         }
-        let prepared = phase_profile::scope("05.num.prove.2a_prep", || {
+        let prepared = phase_profile::scope("psi.05.numeric.prove.prep", || {
             self.cached_prepared_integer_premises()
         })?;
         let base_atoms = prepared.observations.atoms.len();
@@ -1233,7 +1233,7 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .map(|position| {
                 prepared.reset_goal_work(&mut work);
-                let comparison = match phase_profile::scope("05.num.prove.2b_project", || {
+                let comparison = match phase_profile::scope("psi.05.numeric.prove.project", || {
                     self.project_integer_comparison(&predicates[*position], &mut work)
                 }) {
                     IntegerComparisonProjection::Comparison(comparison) => comparison,
@@ -1427,7 +1427,7 @@ impl<'program> StructuralJudge<'program> {
                         }
                     }
                 }
-                let _fork_guard = phase_profile::guard("05.num.prove.2c_fork");
+                let _fork_guard = phase_profile::guard("psi.05.numeric.prove.fork");
                 let operations = 0..work.operations.len();
                 let goal_has_no_operations = operations.is_empty();
                 let no_rewrites = self.has_no_rewrites();
@@ -1455,23 +1455,23 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
                 if operator != BinaryOperator::Equal {
-                    phase_profile::count("05.num.prove.2c_fork.non_equal", 1);
+                    phase_profile::count("psi.05.numeric.prove.fork.non_equal", 1);
                 } else if goal_has_addr_bound {
-                    phase_profile::count("05.num.prove.2c_fork.addr_bound", 1);
+                    phase_profile::count("psi.05.numeric.prove.fork.addr_bound", 1);
                 } else if work.atoms.len() == base_atoms {
-                    phase_profile::count("05.num.prove.2c_fork.existing_atoms", 1);
+                    phase_profile::count("psi.05.numeric.prove.fork.existing_atoms", 1);
                     if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
-                        phase_profile::count("05.num.prove.2c_fork.existing_atoms.opaque", 1);
+                        phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.opaque", 1);
                     } else if !goal_only_linear_ops {
-                        phase_profile::count("05.num.prove.2c_fork.existing_atoms.non_linear", 1);
+                        phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.non_linear", 1);
                     } else if work.carrier_bounds.len() != base_bounds {
                         phase_profile::count(
-                            "05.num.prove.2c_fork.existing_atoms.carrier_bounds",
+                            "psi.05.numeric.prove.fork.existing_atoms.carrier_bounds",
                             1,
                         );
                     }
                 } else {
-                    phase_profile::count("05.num.prove.2c_fork.new_atoms_correlated", 1);
+                    phase_profile::count("psi.05.numeric.prove.fork.new_atoms_correlated", 1);
                 }
                 let mut observations = work.clone();
                 // Only this goal has registered since the sealed premise context.
@@ -1530,10 +1530,10 @@ impl<'program> StructuralJudge<'program> {
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(&state)
         {
-            phase_profile::count("05.num.prove.2a_prep.hit", 1);
+            phase_profile::count("psi.05.numeric.prove.prep.hit", 1);
             return cached;
         }
-        phase_profile::count("05.num.prove.2a_prep.miss", 1);
+        phase_profile::count("psi.05.numeric.prove.prep.miss", 1);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());

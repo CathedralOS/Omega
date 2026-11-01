@@ -73,7 +73,7 @@ It also exercises the original-storage obligation of
 4. **Soundness:** every twin retains all values, bounds, reference access and
    transport, adding only the conflicting write. Address exposure grants no
    authority under [counts and addresses](../../../../wiki/spec/language/counts_and_addresses.md#address-exposure).
-5. **Psi 05–07:** acceptance requires retained original backing and selected
+5. **Psi 06–08:** acceptance requires retained original backing and selected
    coordinates in canonical Terminal Psi, with native/interpreter agreement.
    No success is inferred from Source checking alone.
 6. **Omega 00–02:** acceptance uses ordinary ProgramEntry settlement, two-byte
