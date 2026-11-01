@@ -894,6 +894,49 @@ fail/facts/nested_machine_signed_rank_target_body_rejected rejected 1677ms expec
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_unsafe_below_minimum_rejected rejected 844ms expected @db757705d687
 	Exact integer cast in machine `rank` state `entry` from `i64` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/predicate_type_formation_rejected rejected 3892ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_call_result_rejected rejected 1976ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_const_name_rejected rejected 576ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_field_rejected rejected 1774ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_local_rejected rejected 1764ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_match_join_rejected rejected 1583ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_other_machine_rejected rejected 2292ms expected @62ce026b5931+wt
+	data `Value` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_other_state_rejected rejected 2255ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_parameter_rejected rejected 2126ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/predicate_type_formation_through_target_body_rejected rejected 1882ms expected @62ce026b5931+wt
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
@@ -8365,6 +8408,16 @@ pass/facts/predicate_array_copy_through_other_machine_exit checked 3642ms check-
 pass/facts/predicate_array_copy_through_other_state_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/predicate_array_copy_through_parameter_exit checked 2978ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/predicate_array_copy_through_target_body_exit checked 3457ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/predicate_type_formation_exit checked 5077ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_call_result_exit checked 7757ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_const_name_exit checked 5040ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_field_exit checked 7695ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_local_exit checked 7581ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_match_join_exit checked 6273ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_other_machine_exit checked 6122ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_other_state_exit checked 7660ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_parameter_exit checked 5004ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/predicate_type_formation_through_target_body_exit checked 6145ms check-target:macos_arm64 @62ce026b5931+wt
 pass/facts/progress_selector_nested_arrival_through_call_result_exit rejected 2873ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/facts/progress_selector_nested_arrival_through_const_name_exit rejected 2633ms check-target:macos_arm64 @ccdb99ca2214
