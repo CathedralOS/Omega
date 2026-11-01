@@ -125,14 +125,16 @@ before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
 Select `windows_x86_64` or `macos_arm64` for a separate matching-host run.
-The macOS option uses the same `macos-14` ARM64 runner as existing post-merge
+The macOS option uses the same `macos-15` ARM64 runner as existing post-merge
 qualification; it does not substitute a cross-compile for native execution. Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
 
-Linux and macOS pilots share the post-merge workflow's `compiler-regression` cache prefix
-and `/tmp/ot` target directory. Both must match: GitHub's cache version includes
+Linux pilots share the post-merge workflow's `compiler-regression` cache prefix
+and `/tmp/ot` target directory. macOS15 uses `compiler-regression-macos15` in both
+workflows, with the same target directory, keeping retired macOS14/SDK objects
+out of that namespace. Both key and path must match: GitHub's cache version includes
 the archived paths. This lets a fresh branch reuse main's compatible Cargo
 objects instead of starting a private cold cache. Windows pilots retain their
 own namespace because their runner image differs. Restored objects still pass
