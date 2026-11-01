@@ -99,6 +99,25 @@ The current matching-host baseline is the scoped macOS15 run41323737111 with
 optimized source08798a08b8d2ef02bc438ece549d6006539d0d5f: all18original Source
 pins (nine positives/nine intended rejections) and nine native/Terminal agreements
 pass. Its two Source/two runtime historical timing slowdowns remain reported,
-not semantic failures. Fresh migrated-row observations and exact independent
-review are being completed before publication; no Windows runtime or full
-filesystem capability closure is claimed.
+not semantic failures. Fresh migrated-row observations use optimized producer
+`13c1304502d60141ce3403a0c5367d45e0792846` with its matching immutable SDK:
+all nine public programs exit0 in native and Terminal execution, all nine invalid
+projects refuse the exact99>=100 issuer obligation, and the eighteen Source pins
+and nine runtime pins pass. The target-body project prepares/checks for all four
+hosted targets. Six Terminal counterfactuals produce two unchanged exit0 controls
+and four typed traps after changing only either marker, the issuer body to100,
+or the selected subtraction body to0. These distinguish both branch outcomes,
+exact input behavior and selected operation without adding a public postcondition.
+
+The producer includes the fully qualified retained-loan compiler published in
+PR1213. It is not relabeled as the later Source base: the twenty-file production
+delta is reviewed against this row. Mixed data-where predicates/restoration windows,
+generic-instance carriers, recasts and static provider applications are absent;
+the scalar comparison/subtraction leaf laws and normal contracts remain the same.
+The SDK and Cargo inputs are identical. The initial marker probe used unsupported
+Rust-style `*route` syntax; the corrected Omega `route = marker` source passes,
+and that parse-only setup failure is retained separately.
+
+Fresh runtime is macOS ARM64 only. No Windows runtime or full filesystem/Build
+capability closure is claimed; the remaining scalar-reference, byte-view and
+parent transport limits above stay open.
