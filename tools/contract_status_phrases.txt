@@ -1,7 +1,7 @@
 # Status phrasing ("not yet", "now passes", "exits N on <host>", an
 # "Implementation status" heading, ...) per contract file.
-# Written by `python tools/check_rules.py --update-status-phrases`.
 # Counts may only fall: put open work on its TASKS.md item, not in the contract.
+# Written by `python tools/check_rules.py --update-status-phrases`.
 1 wiki/spec/build/compiler_request.md
 1 wiki/spec/build/component_publication.md
 1 wiki/spec/build/configuration.md
