@@ -137,7 +137,9 @@ pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
 };
-pub(crate) use contract_refinement::check_contract_refinement;
+pub(crate) use contract_refinement::{
+    CallableContract, CallableContractRefinement, check_contract_refinement,
+};
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 
 pub(crate) use content_conservation::{

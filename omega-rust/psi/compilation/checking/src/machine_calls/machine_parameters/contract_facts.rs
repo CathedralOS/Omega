@@ -47,6 +47,8 @@ pub(super) fn validate_contract_facts(
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
     actual_owner: symbols::SymbolHandle,
+    actual_result: typed_trees::types::TypeReferenceHandle,
+    binder_pairs: &[(SymbolHandle, SymbolHandle)],
     substitutions: &[(
         symbols::SymbolHandle,
         typed_trees::types::TypeReferenceHandle,
@@ -55,6 +57,24 @@ pub(super) fn validate_contract_facts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
+    let prepare_implication = || {
+        crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
+            program,
+            crate::proof_contracts::contract_entailment::CallableContract {
+                owner: requirement.symbol,
+                contracts: required_contracts,
+                parameters: required_parameters,
+                result: requirement.return_type,
+            },
+            crate::proof_contracts::contract_entailment::CallableContract {
+                owner: actual_owner,
+                contracts: actual_contracts,
+                parameters: actual_parameters,
+                result: actual_result,
+            },
+            binder_pairs,
+        )
+    };
     validate_callable_contract_refinement(
         program,
         label,
@@ -67,6 +87,7 @@ pub(super) fn validate_contract_facts(
         actual_owner,
         substitutions,
         proof_scope,
+        prepare_implication,
         diagnostics,
     );
 }
@@ -87,8 +108,13 @@ pub(crate) fn validate_callable_contract_refinement(
         typed_trees::types::TypeReferenceHandle,
     )],
     proof_scope: CallableProofScope<'_>,
+    prepare_implication: impl FnOnce() -> Option<
+        crate::proof_contracts::contract_entailment::CallableContractRefinement,
+    >,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let mut prepare_implication = Some(prepare_implication);
+    let mut implication = None;
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
@@ -143,6 +169,17 @@ pub(crate) fn validate_callable_contract_refinement(
             }
         };
         if !valid {
+            // Exact correspondence remains the cheap common case. Prepare the
+            // shared semantic judgment once, only when implication is needed.
+            if let Some(prepare) = prepare_implication.take() {
+                implication = prepare();
+            }
+            if implication
+                .as_ref()
+                .is_some_and(|judgment| judgment.proves(program, &kind))
+            {
+                continue;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: its {} facts are not a conservative refinement",
                 requirement_identity,
