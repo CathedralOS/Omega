@@ -1,2 +1,2 @@
-violates required fact
+cannot prove requires contract
 value <= 60
