@@ -235,16 +235,6 @@ fn validate_machine_top_level_requirement_conformance(
         }
     }
     let generic_types = required_type_parameters.iter().collect::<Vec<_>>();
-    crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
-        program,
-        &label,
-        requirement.symbol,
-        machine.symbol,
-        required_type_parameters,
-        actual_type_parameters,
-        &generic_types,
-        diagnostics,
-    );
     for (index, (required, actual)) in required_type_parameters
         .iter()
         .zip(actual_type_parameters)
@@ -395,6 +385,65 @@ fn validate_machine_top_level_requirement_conformance(
                 "{label} return type does not realize the requirement's declared lifetime telescope"
             )));
         }
+    }
+
+    // Nested machine bounds consume the same input-region application as
+    // the enclosing value signature. A declaration's raw lifetime count is
+    // not a substitute for that established comparison frame.
+    let binders = required_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+        .flat_map(|(ordinal, (required, actual))| {
+            let name = format!("$conformance{ordinal}");
+            [(required.symbol, name.clone()), (actual.symbol, name)]
+        })
+        .collect::<Vec<_>>();
+    let required_borrow = crate::borrow_contracts::CallableBorrowContract {
+        lexical_owner: requirement.symbol,
+        lifetime_parameters: &requirement.lifetime_parameters,
+        parameters: required_parameters,
+        return_type: requirement_entry.return_type,
+        substitutions: &[],
+        substitution_scope_starts: &[],
+        application_scopes: &[],
+        binders: &binders,
+        lifetime_applications: &[],
+        argument_owner: requirement.symbol,
+    };
+    let actual_borrow = crate::borrow_contracts::CallableBorrowContract {
+        lexical_owner: machine.symbol,
+        lifetime_parameters: &machine.lifetime_parameters,
+        parameters: actual_parameters,
+        return_type: provider_entry.return_type,
+        substitutions: &[],
+        substitution_scope_starts: &[],
+        application_scopes: &[],
+        binders: &binders,
+        lifetime_applications: &[],
+        argument_owner: machine.symbol,
+    };
+    if let Err(message) = crate::borrow_contracts::PreparedCallableBorrowRefinement::prepare(
+        program,
+        &required_borrow,
+        &actual_borrow,
+    )
+    .and_then(|prepared| {
+        let frame = prepared.lifetime_frame(program, &required_borrow, &actual_borrow)?;
+        crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
+            program,
+            &label,
+            &frame,
+            required_type_parameters,
+            actual_type_parameters,
+            &generic_types,
+            diagnostics,
+        );
+        prepared.validate(program, required_borrow, actual_borrow)
+    }) {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label}: conformance borrow contract: {message}"
+        )));
     }
 
     validate_top_level_requirement_effect_ceiling(
