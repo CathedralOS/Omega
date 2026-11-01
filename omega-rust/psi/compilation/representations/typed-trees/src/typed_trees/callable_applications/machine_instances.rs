@@ -145,3 +145,65 @@ impl TypedTrees {
         current == source_state
     }
 }
+
+impl TypedTrees {
+    /// Whether a concrete ordinary invocation calls the exact operation held
+    /// by one declared Machine binder. This is invocation correspondence,
+    /// never authority to select another declaration or a same-shaped body.
+    pub fn static_machine_binding_selects_target(
+        &self,
+        mut owner: SymbolHandle,
+        binder: SymbolHandle,
+        target: SymbolHandle,
+    ) -> Result<bool, &'static str> {
+        if !binder.is_valid() || self.retained_static_machine_contract(binder).is_none() {
+            return Ok(false);
+        }
+        let entry = |symbol| {
+            if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+                self.machine_by_symbol(symbol)
+                    .and_then(|machine| self.machine_states(machine).first())
+                    .map(|state| state.symbol)
+            } else {
+                (self.symbols.get(symbol).kind == symbols::SymbolKind::State).then_some(symbol)
+            }
+        };
+        let mut visited = Vec::new();
+        loop {
+            if visited.contains(&owner) {
+                return Err("static call has cyclic invocation ownership");
+            }
+            visited.push(owner);
+            let mut instances = self
+                .machine_specializations
+                .iter()
+                .filter(|instance| instance.instance == owner);
+            let Some(instance) = instances.next() else {
+                return Ok(false);
+            };
+            if instances.next().is_some() {
+                return Err("static call has ambiguous invocation ownership");
+            }
+            if let Some(crate::static_applications::StaticMachineBindingValue::Machine(argument)) =
+                self.specialization_binding(instance, binder)
+            {
+                let declared = self
+                    .data_type_parameters
+                    .span_or_empty(instance.template_parameters)
+                    .iter()
+                    .any(|parameter| {
+                        parameter.symbol == binder
+                            && matches!(
+                                parameter.kind,
+                                crate::data::TypeParameterKind::Machine { .. }
+                            )
+                    });
+                return Ok(declared
+                    && argument.application.is_none()
+                    && entry(argument.symbol)
+                        .is_some_and(|selected| entry(target) == Some(selected)));
+            }
+            owner = instance.template;
+        }
+    }
+}

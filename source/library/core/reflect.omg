@@ -1,0 +1,57 @@
+module core::reflect;
+
+// Descriptive context for one typed field invocation. Text is immutable
+// literal storage; none of these descriptions grants access to a value.
+public data FieldInfo {
+    member_identity: &[u8];
+    case_identity: &[u8];
+    owner_identity: &[u8];
+    owner_application: &[u8];
+    name: &[u8];
+    qualified_type: &[u8];
+    declaration_position: u64;
+    has_stable_number: bool;
+    is_erased: bool;
+    stable_number: u64;
+}
+
+// A compiler-known operation on this exact toolchain declaration. It closes
+// into ordinary typed projections and callback calls in the lexical author's
+// scope. The context and subject are evaluated once, and each invocation
+// receives fresh subloans. Library policies supply the callback explicitly.
+public machine visit_runtime_fields<T, machine Visitor, Context>(value: &T, context: &mut Context)
+requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo, value: &Kind);
+{}
+
+// Editing uses the same exact member applications and ordinary write authority.
+// Each field is reborrowed exclusively only for its selected invocation.
+public machine visit_runtime_fields_mut<T, machine Visitor, Context>(value: &mut T, context: &mut Context)
+requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo, value: &mut Kind);
+{}
+
+// Declaration inspection needs no runtime T. Erased members are described too;
+// this callback receives no field loan or construction authority.
+public machine inspect_record_fields<T, machine Visitor, Context>(context: &mut Context)
+requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo);
+{}
+
+// Sum visitation reports exactly one active case, then common fields and only
+// that case's payload. Case identity is descriptive; guards and ordinary
+// subloan checks establish permission to project a payload.
+public data CaseInfo {
+    member_identity: &[u8];
+    owner_identity: &[u8];
+    owner_application: &[u8];
+    name: &[u8];
+    declaration_position: u64;
+    has_stable_number: bool;
+    stable_number: u64;
+}
+public machine visit_active_fields<T, machine CaseVisitor, machine FieldVisitor, Context>(value: &T, context: &mut Context)
+requires machine CaseVisitor(context: &mut Context, selected: &CaseInfo);
+requires machine FieldVisitor<Kind>(context: &mut Context, field: &FieldInfo, value: &Kind);
+{}
+public machine visit_active_fields_mut<T, machine CaseVisitor, machine FieldVisitor, Context>(value: &mut T, context: &mut Context)
+requires machine CaseVisitor(context: &mut Context, selected: &CaseInfo);
+requires machine FieldVisitor<Kind>(context: &mut Context, field: &FieldInfo, value: &mut Kind);
+{}

@@ -1,13 +1,10 @@
-// MINT ARC RUNG 2b: THE POLICY AUTHORS THE WIRE PLAN. This is the
-// byte-pinned compact_binary roundtrip with one addition: an inline
-// `CompactBinary::plan(schema: Schema) -> Plan` grammar policy. Because it
-// exists, the compiler MATERIALIZES each schema's facts (number + FieldKind),
-// evaluates the policy at build time (purity-gated, the L0 engine), extracts
-// the authored `Varint(tag)`/`LengthPrefixed(tag)` placements, and requires
-// agreement with the codec walk -- the emitted tag bytes then come from the
-// authored plan. The hand-computed bytes below must therefore still hold
-// EXACTLY (the fail twin, wire_policy_plan_disagrees, proves divergence is a
-// compile error -- the policy is load-bearing, not decorative).
+use omega_language_std::wire;
+use omega::language::core::reflect;
+// The owner builds an explicit WireSchema through authorized declaration
+// inspection. AuthoredCompactBinary::plan evaluates as an ordinary source
+// constant; a requires gate checks its placements against the source library's
+// framing. The hand-computed bytes remain unchanged. The rejection twin
+// changes the plan while retaining that same gate and byte grammar.
 //
 // Wire stage 2b: the compact_binary v0 round trip. `encode` frames the
 // message, `decode(&mut value, &buffer, &mut read, &mut ok)` reads it
@@ -37,14 +34,14 @@ data CounterMessage {
 }
 
 data CounterSample {
-    counter: u32;
-    delta: i32;
-    flag: bool;
+    #0 counter: u32;
+    #1 delta: i32;
+    #2 flag: bool;
 }
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
 // is the ZII zero case, so an untouched verdict reads as failure.
-data WireVerdict {
+data PolicyVerdict {
     case Invalid;
     case Sound;
 }
@@ -53,7 +50,7 @@ data Main {
     buffer: [u8; 64];
     written: u64;
     read: u64;
-    verdict: WireVerdict;
+    verdict: PolicyVerdict;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -63,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
         flag: true
     };
 
-    CounterMessage::encode(&msg, &mut main.buffer, &mut main.written);
+    PolicyCodec::encode(&msg, &mut main.buffer, &mut main.written);
 
     let decoded: CounterSample = CounterSample {
         counter: 0,
@@ -71,9 +68,9 @@ machine Main::main(main: &mut Main) reaches Console {
         flag: false
     };
 
-    CounterMessage::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    PolicyCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
-    let matches: bool = main.verdict == WireVerdict::Sound
+    let matches: bool = main.verdict == PolicyVerdict::Sound
         && main.written == 8
         && main.read == 8
         && main.buffer[0] == 0
@@ -102,9 +99,9 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // --- The grammar policy (std layout vocabulary, inlined) -----------------
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, 1 <= align, align <= 16 { size: u64; align: u64; number: i64; kind: FieldKind; }
-data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
+data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
+data WireSchemaField [copy] { number: i64; kind: FieldKind; }
+data WireSchema [copy] where field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
@@ -113,23 +110,23 @@ data FieldPlan [copy] {
 }
 data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 
-data CompactBinary {
+data AuthoredCompactBinary {
     plans: [FieldPlan; 32];
     index: u64 in Wrapping;
     tag: u64;
 }
-machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
-    CompactBinary::evaluate(compact_binary, schema, 128)
+machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {
+    AuthoredCompactBinary::evaluate(compact_binary, schema, 128)
 }
 
-machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
+machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 128
 terminates by fuel
 {
     transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
-    machine fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping) -> Plan
+    machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: u64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index < 32 && index < schema.field_count {
@@ -137,14 +134,14 @@ terminates by fuel
             _ -> done(compact_binary, schema)
         }
     }
-    machine place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping) -> Plan
+    machine place(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: u64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[index].number);
         compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
-    machine done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    machine done(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {
         Plan {
             fields: compact_binary.plans,
             entry_count: schema.field_count,
@@ -170,4 +167,114 @@ machine field_plan(kind: &FieldKind, tag: u64) -> FieldPlan {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The source-owned constructor receives carrier-validated words only.
+data PolicyCodec {}
+machine PolicyCodec::plan(context: &mut ScalarPlanContext) {
+    policy_gate(POLICY_ACCEPTED);
+    reflect::inspect_record_fields<CounterMessage, CompactBinary::plan_scalar>(context);
+}
+machine PolicyCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<CounterSample> {
+    transition fields.len == 3u64 { true -> create(fields) false -> DecodeResult::Invalid }
+    machine create(fields: &[ScalarSlot]) -> DecodeResult<CounterSample>
+    requires fields.len == 3u64
+    {
+        let counter: u64 = fields[0u64].unsigned;
+        let delta: i64 = fields[1u64].signed;
+        let flag: u64 = fields[2u64].unsigned;
+        transition counter <= 4294967295u64 && delta >= (0i64 - 2147483648i64) && delta <= 2147483647i64 && flag <= 1u64 {
+            true -> establish(counter, delta, flag)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine establish(counter: u64, delta: i64, flag: u64) -> DecodeResult<CounterSample>
+    requires counter <= 4294967295u64 && delta >= (0i64 - 2147483648i64) && delta <= 2147483647i64 && flag <= 1u64
+    { DecodeResult::Sound { value: CounterSample { counter: counter as u32, delta: delta as i32, flag: flag == 1u64 } } }
+}
+machine PolicyCodec::decode<const N: u64>(value: &mut CounterSample, bytes: &[u8; N], read: &mut u64, verdict: &mut PolicyVerdict) {
+    let mut fields: [ScalarSlot; 3];
+    transition CompactBinary::decode_record<CounterSample, PolicyCodec::plan, PolicyCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut CounterSample, decoded: CounterSample, verdict: &mut PolicyVerdict) {
+        value = decoded;
+        verdict = PolicyVerdict::Sound;
+    }
+    machine invalid(verdict: &mut PolicyVerdict) { verdict = PolicyVerdict::Invalid; }
+}
+
+machine PolicyCodec::fields(value: &CounterSample, context: &mut EncodeContext) {
+    policy_gate(POLICY_ACCEPTED);
+    reflect::visit_runtime_fields<CounterSample, CompactBinary::scalar_field>(value, context);
+}
+machine PolicyCodec::encode<const N: u64>(value: &CounterSample, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N]; let mut fields: [EncodedField; 3];
+    transition CompactBinary::encode<CounterSample, PolicyCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next) _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+
+
+// The explicit 32-slot budget belongs to this authored example policy. It is
+// not a reflection or codec limit (the library's 40-field witness exceeds it).
+data PolicyKind [copy] { supported: bool; kind: FieldKind; }
+data PolicyCapture { schema: WireSchema; valid: bool; }
+const POLICY_ACCEPTED: bool = selected_policy_is_valid();
+machine policy_gate(valid: bool) requires valid {}
+machine describe_policy_member<Kind>(capture: &mut PolicyCapture, info: &reflect::FieldInfo) {
+    let kind: PolicyKind = policy_kind<Kind>();
+    transition info.has_stable_number && !info.is_erased && kind.supported && info.declaration_position < 32u64 {
+        true -> put(capture, info, kind.kind)
+        false -> invalid(capture)
+    }
+    machine put(capture: &mut PolicyCapture, info: &reflect::FieldInfo, kind: FieldKind)
+    requires info.declaration_position < 32u64
+    {
+        capture.schema.fields[info.declaration_position] = WireSchemaField { number: narrow_u64_to_i64_wrapping(info.stable_number), kind: kind };
+        capture.schema.field_count = info.declaration_position + 1u64;
+    }
+    machine invalid(capture: &mut PolicyCapture) { capture.valid = false; }
+}
+machine selected_policy_is_valid() -> bool {
+    let mut capture: PolicyCapture;
+    capture.valid = true;
+    reflect::inspect_record_fields<CounterMessage, describe_policy_member>(&mut capture);
+    let mut policy: AuthoredCompactBinary;
+    let selected: Plan = AuthoredCompactBinary::plan(&mut policy, capture.schema);
+    capture.valid && selected.entry_count == capture.schema.field_count && policy_matches(&capture.schema, &selected, 0u64, 100u64)
+}
+machine policy_kind<Kind>() -> PolicyKind {
+    transition {
+        Kind == u32 || Kind == i32 || Kind == bool -> PolicyKind { supported: true, kind: FieldKind::Scalar }
+
+        _ -> PolicyKind { supported: false, kind: FieldKind::Scalar }
+    }
+}
+machine policy_matches(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
+requires fuel > 0u64
+terminates by fuel
+{
+    transition {
+        index == schema.field_count -> true
+        index < schema.field_count && index < 32u64 && fuel > 1u64 -> member(schema, plan, index, fuel)
+        _ -> false
+    }
+    machine member(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
+    requires index < schema.field_count && index < 32u64 && fuel > 1u64
+    {
+        transition policy_member_matches(&schema.fields[index].kind, &plan.fields[index], narrow_i64_to_u64_wrapping(schema.fields[index].number)) {
+            true -> policy_matches(schema, plan, index + 1u64, fuel - 1u64)
+            false -> false
+        }
+    }
+}
+machine policy_member_matches(kind: &FieldKind, placement: &FieldPlan, number: u64) -> bool {
+    transition placement {
+        FieldPlan::Varint { tag } -> (tag == number && kind == FieldKind::Scalar)
+        FieldPlan::LengthPrefixed { tag } -> (tag == number && kind != FieldKind::Scalar)
+        _ -> false
+    }
 }

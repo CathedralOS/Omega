@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode` reads a
 // byte-LENGTH varint, bounds-checks it, then stores a fat `{ptr, len}`
 // descriptor VIEWING the decode buffer in place -- no allocator, no copy -- and
@@ -17,12 +19,12 @@ data Blob {
 }
 
 data BlobSample {
-    bytes: &[u8];
+    #0 bytes: &[u8];
 }
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
 // is the ZII zero case, so an untouched verdict reads as failure.
-data WireVerdict {
+data BlobVerdict {
     case Invalid;
     case Sound;
 }
@@ -34,7 +36,7 @@ data Main {
     written: u64;
     written2: u64;
     read: u64;
-    verdict: WireVerdict;
+    verdict: BlobVerdict;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -42,14 +44,15 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
 
-    Blob::encode(&sample, &mut main.buffer, &mut main.written);
+    BlobCodec::encode(&sample, &mut main.buffer, &mut main.written);
 
-    let decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
-    Blob::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    // Start from different content so omitting the descriptor store fails.
+    let decoded: BlobSample = BlobSample { bytes: main.source[2..4] };
+    BlobCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
-    Blob::encode(&decoded, &mut main.buffer2, &mut main.written2);
+    BlobCodec::encode(&decoded, &mut main.buffer2, &mut main.written2);
 
-    let matches: bool = main.verdict == WireVerdict::Sound
+    let matches: bool = main.verdict == BlobVerdict::Sound
         && main.read == 5
         && main.written2 == 5
         && main.buffer2[2] == 2
@@ -74,4 +77,54 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The semantic owner supplies visitation. The library owns all byte grammar.
+data BlobCodec {}
+machine BlobCodec::fields(value: &BlobSample, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<BlobSample, CompactBinary::bytes_field>(value, context);
+}
+machine BlobCodec::encode<const N: u64>(value: &BlobSample, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<BlobSample, BlobCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+
+machine BlobCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Blob, CompactBinary::plan_payload>(context);
+}
+machine BlobCodec::decode<const N: u64>(value: &mut BlobSample, bytes: &[u8; N], read: &mut u64, verdict: &mut BlobVerdict) {
+    let mut slots: [ScalarSlot; 1];
+    transition CompactBinary::read_record<BlobCodec::plan>(bytes, &mut slots[..], 10000u64) {
+        FrameRead::Read { next } -> shape(value, bytes, &slots[..], read, verdict, next)
+        _ -> invalid(verdict)
+    }
+    machine shape(value: &mut BlobSample, bytes: &[u8], slots: &[ScalarSlot], read: &mut u64, verdict: &mut BlobVerdict, next: u64) {
+        transition slots.len == 1u64 {
+            true -> region(value, bytes, slots, read, verdict, next)
+            false -> invalid(verdict)
+        }
+    }
+    machine region(value: &mut BlobSample, bytes: &[u8], slots: &[ScalarSlot], read: &mut u64, verdict: &mut BlobVerdict, next: u64)
+    requires slots.len == 1u64
+    {
+        let start: u64 = slots[0u64].start;
+        let end: u64 = slots[0u64].end;
+        transition start <= end && end <= bytes.len {
+            true -> establish(value, bytes, read, verdict, next, start, end)
+            false -> invalid(verdict)
+        }
+    }
+    machine establish(value: &mut BlobSample, bytes: &[u8], read: &mut u64, verdict: &mut BlobVerdict, next: u64, start: u64, end: u64)
+    requires start <= end && end <= bytes.len
+    {
+        value.bytes = &bytes[start..end];
+        read = next;
+        verdict = BlobVerdict::Sound;
+    }
+    machine invalid(verdict: &mut BlobVerdict) { verdict = BlobVerdict::Invalid; }
 }

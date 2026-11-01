@@ -49,7 +49,7 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
     type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::{
-    alias_bindings, local_aliases, reference_subjects, stored_origins, wire_codecs,
+    alias_bindings, local_aliases, reference_subjects, stored_origins,
 };
 use std::sync::Mutex;
 use symbols::SymbolHandle;
@@ -649,12 +649,6 @@ fn walk_state_write_prefix_body(
             }
             _ => None,
         };
-        // A synthesized wire codec call's exclusive borrows are the codec
-        // leaf's own written-paths model: rebinding through them is a
-        // recorded write, not an untracked replacement, so the
-        // frozen-binding opacity fence does not apply to it.
-        let wire_codec_call = matches!(statement, StatementNode::Call(call)
-            if wire_codecs::is_wire_codec_call(program, call));
         let stored_call_transfer = super::stored_calls::statement_effects(
             program,
             machine,
@@ -681,9 +675,7 @@ fn walk_state_write_prefix_body(
         // exposure fences below own that transfer. Demanding a physical frame
         // as well made an opaque scalar accessor erase its unchanged view.
         // Complete/assignment queries still retain every physical write; wire
-        // codecs retain their independent whole-slot retirement below.
         let origin_transfer_only = relation_complete
-            && !wire_codec_call
             && matches!(
                 query,
                 Some(
@@ -714,19 +706,17 @@ fn walk_state_write_prefix_body(
         // A complete relation can preserve every reference slot while producing
         // no new loans. Its absence, not its effect count, marks unknown calls.
         // Cases and non-call exposures still need the frozen-binding fence.
-        if !wire_codec_call
-            && stored_origins::statement_exposes_frozen_binding(
-                program,
-                machine,
-                state,
-                statement,
-                frozen_stored.as_deref().unwrap_or(&stored),
-                &local_alias_origins,
-                symbols,
-                inference,
-                relation_complete,
-            )
-        {
+        if stored_origins::statement_exposes_frozen_binding(
+            program,
+            machine,
+            state,
+            statement,
+            frozen_stored.as_deref().unwrap_or(&stored),
+            &local_alias_origins,
+            symbols,
+            inference,
+            relation_complete,
+        ) {
             return None;
         }
         if !divergent_alias_origins.is_empty() {
@@ -1082,31 +1072,7 @@ fn walk_state_write_prefix_body(
                     nested_receiver_members.as_slice()
                 };
                 let receiver_origins = divergent_receiver_origins.unwrap_or_default();
-                // A synthesized wire codec has no body to summarize and no
-                // parameters to instantiate; its frame is its exclusively
-                // borrowed arguments. The type-name receiver must never reach
-                // the ownership floor, which would poison it as a place.
-                let codec = wire_codecs::is_wire_codec_call(program, nested_call);
-                let nested_writes = if codec {
-                    if has_divergent_receiver {
-                        return None;
-                    }
-                    // A divergent argument is resolved rather than refused:
-                    // the resolver below takes the candidate set and unions
-                    // every proven referent, and keeps an unproven binding
-                    // opaque on its own.
-                    wire_codecs::known_wire_codec_call_written_paths(
-                        program,
-                        machine,
-                        nested_call,
-                        parameters,
-                        &isolated_local_roots,
-                        &local_alias_origins,
-                        &divergent_alias_origins,
-                        symbols,
-                        inference,
-                    )
-                } else {
+                let nested_writes = {
                     let deduped_paths =
                         |paths: for<'site> fn(
                             &dyn crate::CheckingInput,
@@ -1196,16 +1162,6 @@ fn walk_state_write_prefix_body(
                         )
                     })
                 }?;
-                let codec_written_roots: Vec<String> = if codec {
-                    nested_writes
-                        .iter()
-                        .map(|path| split_place_root(path))
-                        .filter(|(_, suffix)| suffix.is_empty())
-                        .map(|(root, _)| root.to_string())
-                        .collect()
-                } else {
-                    Vec::new()
-                };
                 for relative in expand_write_paths(
                     program,
                     &origins.close_paths(program, nested_writes),
@@ -1218,15 +1174,6 @@ fn walk_state_write_prefix_body(
                         written.push(relative);
                     }
                 }
-                // The codec writes every exclusive-borrow target wholesale,
-                // so rows it does not re-declare are dead evidence: retire a
-                // fully written local's stored origins rather than let later
-                // statements read stale referents from them.
-                stored.retain(|local| {
-                    !codec_written_roots
-                        .iter()
-                        .any(|root| program.symbols.name(local.local_symbol) == root)
-                });
             }
             StatementNode::Transition(transition) => {
                 if matches!(

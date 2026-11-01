@@ -416,24 +416,37 @@ impl TerminalExecution<'_> {
         } else {
             None
         };
+        // Native lowering and interpretation share the exact projected
+        // storage endpoint judgment. An inline borrowed descriptor has no
+        // obligation to reuse the catalog id of its receiving presentation.
+        // Access, live backing and qualification rosters remain checked below.
         let field_compatible = storage.is_none()
-            && terminal_semantics::reference_byte_field_compatible(
+            && (terminal_semantics::reference_source_projection_compatible(
+                self.structural_types().values(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+                reference_type,
+            ) || terminal_semantics::reference_byte_field_compatible(
                 self.structural_types().values(),
                 self.program.catalogs.structural_domains.iter(),
                 self.live_structural_type(source.place)?,
                 &source.path,
                 reference_type,
                 projected_qualifications,
-            );
-        // Every bounded owner keeps the ordinary loan's actual home: a field
-        // retains its parent/namespace/identity; a local retains its activation.
+            ));
+        // Byte storage loans retain the actual descriptor binding as well as
+        // its home. This includes an outer loan to a stored view descriptor:
+        // forwarding it must not later rediscover backing from descriptor words.
+        // Bounded owners retain their parent/namespace or local activation.
         // Capturing a reference never mints an independent owned byte cell.
         let byte_owner_loan = if storage.is_none()
             && self
                 .structural_types()
                 .get(&referent_type)
-                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
-        {
+                .is_some_and(|declaration| {
+                    declaration.shape.is_bounded_owned_byte_sequence()
+                        || declaration.shape.is_borrowed_byte_carrier()
+                }) {
             let (qualifications, projected_qualifications) =
                 terminal_psi::StructuralPathQualification::select(
                     &[],
@@ -954,7 +967,10 @@ impl TerminalExecution<'_> {
                 storage,
                 &mut identity_cursor,
             )
-            .map_err(|error| error.in_reference_formation("establish reference"))?;
+            .map_err(|error| TerminalInterpretError::ReferenceFormation {
+                stage: "establish reference",
+                detail: format!("source={source:?} result={result:?}: {error:?}"),
+            })?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         let mut carrier = TerminalStructuralValue::minted(

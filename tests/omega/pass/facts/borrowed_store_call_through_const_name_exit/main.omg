@@ -1,0 +1,33 @@
+// Fact: A checked call through a nested generic owner preserves the exact caller destination and input backing of a stored borrowed descriptor.
+// Expected exit: 0
+data Subject [copy] { items: &[u8]; }
+data Holder { value: Subject; }
+machine update<const N: u64>(value: &mut Subject, bytes: &[u8; N]) {
+    region(value, &bytes[..], 0u64, N);
+    machine region(value: &mut Subject, bytes: &[u8], start: u64, end: u64) {
+        transition start <= end && end <= bytes.len { true -> establish(value, bytes, start, end) false -> done() }
+    }
+    machine establish(value: &mut Subject, bytes: &[u8], start: u64, end: u64)
+    requires start <= end && end <= bytes.len
+    { value.items = &bytes[start..end]; }
+    machine done() {}
+}
+machine valid(value: &Subject) -> bool {
+    transition value.items.len == 2u64 { true -> inspect(value) false -> false }
+    machine inspect(value: &Subject) -> bool requires value.items.len == 2u64 {
+        value.items[0u64] == 31u8 && value.items[1u64] == 47u8
+    }
+}
+machine measured() -> bool {
+    let first: [u8; 2] = [11u8, 29u8];
+    let second: [u8; 2] = [31u8, 47u8];
+    let mut subject: Subject = Subject { items: &first[..] };
+    update(&mut subject, &second);
+    valid(&subject) && first[0u64] == 11u8 && second[1u64] == 47u8
+}
+const OBSERVED: bool = measured();
+machine main() crashes Trap {
+    transition OBSERVED { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

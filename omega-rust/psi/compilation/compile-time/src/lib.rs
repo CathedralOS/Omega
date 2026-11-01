@@ -13,7 +13,7 @@
 //! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
 //! `const_evaluation/selected_constants.rs` owns deferred evaluation order;
 //! layout providers answer geometry without choosing source checks or mutations.
-//! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
+//! `syntax_probes.rs` owns their temporary frontend work; `validation::reflection` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
 //! `product_declarations.rs` admits executed audits, runtime assumed bindings
 //! and wire demands against their source-issued requests. Wire compatibility

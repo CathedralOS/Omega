@@ -99,6 +99,7 @@ fn parse_or_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let context = context.boolean();
     parse_binary_chain_handle::<4>(
         syntax_trees,
         input,

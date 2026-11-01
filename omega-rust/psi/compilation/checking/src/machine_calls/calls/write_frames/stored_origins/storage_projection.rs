@@ -59,9 +59,8 @@ impl<'program> StorageProjectionCursor<'program> {
             return None;
         }
         let reference = self.normalize()?;
-        let TypeReferenceNode::Reference {
-            referee, access, ..
-        } = self.program.type_reference_table.type_reference(reference)
+        let TypeReferenceNode::Reference { referee, .. } =
+            self.program.type_reference_table.type_reference(reference)
         else {
             return None;
         };

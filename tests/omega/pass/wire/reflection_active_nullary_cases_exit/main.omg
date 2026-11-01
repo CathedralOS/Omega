@@ -1,0 +1,38 @@
+// Expected exit: 0
+use omega::language::core::reflect;
+data Event [copy] {
+    #0 common: u64;
+    #7 case Idle;
+    #8 case Ready;
+    #9 case Item(#0 payload: u64);
+}
+data Seen { cases: u64; tag: u64; fields: u64; sum: u64; }
+machine selected(seen: &mut Seen, info: &reflect::CaseInfo) {
+    seen.cases = ((seen.cases as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    seen.tag = info.stable_number;
+}
+machine field<Kind>(seen: &mut Seen, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u64
+{ collect(seen, value); }
+machine collect(seen: &mut Seen, value: &u64) {
+    seen.fields = ((seen.fields as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    seen.sum = ((seen.sum as u64 in Wrapping) + (value as u64 in Wrapping)) as u64;
+}
+machine main() crashes Trap {
+    let item: Event = Event::Item { common: 11u64, payload: 22u64 };
+    let idle: Event = Event::Idle { common: 5u64 };
+    let ready: Event = Event::Ready { common: 6u64 };
+    let mut a: Seen;
+    let mut b: Seen;
+    let mut c: Seen;
+    reflect::visit_active_fields<Event, selected, field>(&item, &mut a);
+    reflect::visit_active_fields<Event, selected, field>(&idle, &mut b);
+    reflect::visit_active_fields<Event, selected, field>(&ready, &mut c);
+    transition a.cases == 1u64 && a.tag == 9u64 && a.fields == 2u64 && a.sum == 33u64
+        && b.cases == 1u64 && b.tag == 7u64 && b.fields == 1u64 && b.sum == 5u64
+        && c.cases == 1u64 && c.tag == 8u64 && c.fields == 1u64 && c.sum == 6u64 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

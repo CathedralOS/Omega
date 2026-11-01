@@ -31,52 +31,7 @@ pub(crate) fn validate_wire_schemas(
         }
 
         validate_schema(program, symbols, schema, diagnostics);
-        validate_nested_schema_cycles(program, schema, diagnostics);
     }
-}
-
-/// A schema that reaches ITSELF through nested message fields (directly or
-/// through siblings) can never have a finite worst-case encoding, so the
-/// cycle is a hard error at the declaration -- not a call-site rejection.
-/// Only physically relevant CURRENT-era fields participate: version blocks
-/// snapshot history and erased fields retain semantic identity, but neither
-/// is encoded by the current encoder.
-pub(super) fn validate_nested_schema_cycles(
-    program: &dyn crate::CheckingInput,
-    schema: &WireSchema,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut visited: Vec<&str> = Vec::new();
-    if nested_references_reach(program, schema, schema.name.as_str(), &mut visited) {
-        diagnostics.push(Diagnostic::error(format!(
-            "data `{}` contains itself through its nested message fields; a schema cycle has no finite worst-case encoding",
-            schema.name
-        )));
-    }
-}
-
-fn nested_references_reach<'program>(
-    program: &'program dyn crate::CheckingInput,
-    from: &WireSchema,
-    target: &str,
-    visited: &mut Vec<&'program str>,
-) -> bool {
-    for field in program.relevant_wire_fields(from.members) {
-        let Some(child) = program.wire_field_nested_schema(field) else {
-            continue;
-        };
-        if child.name.as_str() == target {
-            return true;
-        }
-        if visited.contains(&child.name.as_str()) {
-            continue;
-        }
-        visited.push(child.name.as_str());
-        if nested_references_reach(program, child, target, visited) {
-            return true;
-        }
-    }
-    false
 }
 
 /// One numbering scope: the current schema body or a single version block.
@@ -236,28 +191,6 @@ fn validate_scope_field_types(
         );
         if field.relevance.is_erased() {
             continue;
-        }
-
-        // Bounded repeated carriers (`[T; N]` and `FixedVec<T, N>`) give the
-        // generated realization a finite worst-case byte/work budget. A bare
-        // scalar slice has no such bound in the current encode requirement.
-        if program.wire_field_is_unbounded_slice(field)
-            && !program.is_borrowed_byte_slice(field.type_reference)
-            && program
-                .wire_field_borrowed_scalar_slice_encoding(field)
-                .is_none()
-        {
-            // A borrowed byte slice `&[u8]` is the zero-copy RAW-bytes/text
-            // field (length varint + raw bytes, runtime-bounded like the old
-            // runtime-sized text content), so it is exempt from the "needs a maximum" rule
-            // that bounded repeated scalar carriers obey. Any OTHER bare
-            // slice still rejects -- it has no finite worst case.
-            diagnostics.push(Diagnostic::error(format!(
-                "{} field `{}`: compact_binary cannot encode the unbounded slice `{}`; borrowed slices require a stage 2 scalar element (i32, i64, u32, u64, bool), while repeated text and nested-message elements still need an owned/bounded carrier",
-                scope_label(schema, scope),
-                field.name,
-                program.display_type_reference(field.type_reference),
-            )));
         }
     }
 }

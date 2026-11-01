@@ -1,0 +1,18 @@
+// Fact: A pure source reflection query computes the complete capacity of the exact selected schema, and its foreign nominal result retains that bound through every value transport.
+// Expected exit: 0
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data First { #0 counter: u32; }
+data Second { #0 counter: u32; #1 timestamp: u32; }
+machine inspect(bound: &mut ScalarBound) { reflect::inspect_record_fields<First, CompactBinary::max_scalar_field>(bound); }
+const BOUND: ScalarBound = CompactBinary::scalar_bound<inspect>();
+machine accept(bound: &ScalarBound) requires bound.valid && bound.bytes == 7u64 {}
+data Consumer {}
+machine Consumer::forward(bound: &ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); }
+machine main() crashes Trap {
+    let bound: ScalarBound = BOUND;
+    Consumer::forward(&bound);
+    transition bound.valid && bound.bytes == 7u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

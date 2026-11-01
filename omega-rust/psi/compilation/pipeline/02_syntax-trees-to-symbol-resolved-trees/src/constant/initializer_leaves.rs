@@ -174,7 +174,7 @@ pub(crate) fn pending_const_initializer_leaves(
                         // A call, match, or evaluated constant reference at a
                         // nominal destination is one structured leaf; a bare
                         // case or other name stays with literal validation.
-                        require_closed_data(selection, syntax, name)?;
+                        selection.require_closed_data_leaf(syntax, name)?;
                         push_structured_leaf(leaves, expression, type_reference);
                         return Ok(());
                     }

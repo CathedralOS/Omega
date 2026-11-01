@@ -311,7 +311,20 @@ pub fn reference_source_projection_compatible<'types>(
         return (source == *referent || target.scalar_restriction.is_none())
             && reference_source_compatible(types, source, reference);
     }
-    if let Some(source) = runtime_structural_path_tip(types.clone(), root, path) {
+    // Inline descriptor fields have their carrier in the field declaration.
+    // A catalog leaf lookup may find a different presentation of that carrier;
+    // lending the descriptor itself compares the exact stored representation
+    // with the declared referee, before considering a pointee view.
+    if let Some(field) = crate::runtime_structural_field(types.clone(), root, path)
+        && let Some(carrier) = field.field_type.byte_sequence_carrier()
+        && let Some(StructuralTypeShape::Reference { referent, .. }) =
+            crate::structural_shape(types.clone(), reference)
+        && crate::structural_declaration(types.clone(), *referent)
+            .is_some_and(|row| row.shape == StructuralTypeShape::ByteSequence(carrier))
+    {
+        return true;
+    }
+    if let Some(source) = crate::runtime_structural_path_tip(types.clone(), root, path) {
         return reference_source_compatible(types, source.id, reference);
     }
     if let Some(source) = crate::primitive_projection_declaration(types.clone(), root, path) {
@@ -320,9 +333,10 @@ pub fn reference_source_projection_compatible<'types>(
     let Some(field) = crate::runtime_structural_field(types.clone(), root, path) else {
         return false;
     };
-    let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
-        field.field_type.byte_sequence_carrier()
-    else {
+    // The endpoint may be an inline owned byte array or a stored borrowed
+    // descriptor. Lending that descriptor requires its exact carrier; it
+    // neither reads the pointee nor changes its access or provenance.
+    let Some(carrier) = field.field_type.byte_sequence_carrier() else {
         return false;
     };
     let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
@@ -330,12 +344,8 @@ pub fn reference_source_projection_compatible<'types>(
     else {
         return false;
     };
-    crate::structural_declaration(types.clone(), *referent).is_some_and(|row| {
-        row.shape
-            == terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-            )
-    })
+    crate::structural_declaration(types.clone(), *referent)
+        .is_some_and(|row| row.shape == terminal_psi::StructuralTypeShape::ByteSequence(carrier))
 }
 
 /// Authenticate declared access independently of the selected endpoint's

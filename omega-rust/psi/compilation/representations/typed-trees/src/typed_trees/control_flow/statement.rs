@@ -486,6 +486,17 @@ pub struct TableCall {
     pub source_span: SourceSpan,
     pub authored_call_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    /// This call is a typed elaboration of an explicitly selected reflection
+    /// query, rather than a new authored invocation. Keep its original query
+    /// and exact supplying callback together; constant dependency collection
+    /// retains that source query and visits this checked executable body.
+    pub reflected_field_origin: Option<ReflectedFieldCallOrigin>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct ReflectedFieldCallOrigin {
+    pub query: StatementHandle,
+    pub callback: crate::expression::StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -507,6 +518,9 @@ pub struct TableLocalData {
     pub is_operand_capture: bool,
     /// Authored `[erased]` on the binding occurrence -- see the parameter twin.
     pub relevance: language_core::BindingRelevance,
+    /// Original query retained even when an empty schema emits no callbacks.
+    /// This is source dependency custody, never an executable call.
+    pub reflected_query_origin: Option<StatementHandle>,
 }
 
 impl TableLocalData {
@@ -530,6 +544,7 @@ impl Default for TableLocalData {
             type_is_inferred: false,
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
+            reflected_query_origin: None,
         }
     }
 }

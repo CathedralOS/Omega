@@ -1,0 +1,135 @@
+// Expected exit: 0
+// Forty fields of five types are emitted in stable-number order by authored
+// typed traversal and the source library, independently of declaration order.
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data FortyFields {
+    #39 field_0: u8;
+    #38 field_1: u16;
+    #37 field_2: u32;
+    #36 field_3: u64;
+    #35 field_4: bool;
+    #34 field_5: u8;
+    #33 field_6: u16;
+    #32 field_7: u32;
+    #31 field_8: u64;
+    #30 field_9: bool;
+    #29 field_10: u8;
+    #28 field_11: u16;
+    #27 field_12: u32;
+    #26 field_13: u64;
+    #25 field_14: bool;
+    #24 field_15: u8;
+    #23 field_16: u16;
+    #22 field_17: u32;
+    #21 field_18: u64;
+    #20 field_19: bool;
+    #19 field_20: u8;
+    #18 field_21: u16;
+    #17 field_22: u32;
+    #16 field_23: u64;
+    #15 field_24: bool;
+    #14 field_25: u8;
+    #13 field_26: u16;
+    #12 field_27: u32;
+    #11 field_28: u64;
+    #10 field_29: bool;
+    #9 field_30: u8;
+    #8 field_31: u16;
+    #7 field_32: u32;
+    #6 field_33: u64;
+    #5 field_34: bool;
+    #4 field_35: u8;
+    #3 field_36: u16;
+    #2 field_37: u32;
+    #1 field_38: u64;
+    #0 field_39: bool;
+}
+
+machine fields(value: &FortyFields, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<FortyFields, CompactBinary::scalar_field>(value, context);
+}
+machine same(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
+terminates by fuel
+requires fuel > 0u64
+{
+    transition {
+        index == bytes.len && index == expected.len -> true
+        index < bytes.len && index < expected.len && fuel > 1u64 -> compare(bytes, expected, index, fuel)
+        _ -> false
+    }
+    machine compare(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
+    requires index < bytes.len && index < expected.len && fuel > 1u64
+    {
+        transition bytes[index] == expected[index] {
+            true -> same(bytes, expected, index + 1u64, fuel - 1u64)
+            false -> false
+        }
+    }
+}
+machine main() crashes Trap {
+
+    let subject: FortyFields = FortyFields {
+        field_0: 1u8,
+        field_1: 2u16,
+        field_2: 3u32,
+        field_3: 4u64,
+        field_4: true,
+        field_5: 6u8,
+        field_6: 7u16,
+        field_7: 8u32,
+        field_8: 9u64,
+        field_9: false,
+        field_10: 11u8,
+        field_11: 12u16,
+        field_12: 13u32,
+        field_13: 14u64,
+        field_14: true,
+        field_15: 16u8,
+        field_16: 17u16,
+        field_17: 18u32,
+        field_18: 19u64,
+        field_19: true,
+        field_20: 21u8,
+        field_21: 22u16,
+        field_22: 23u32,
+        field_23: 24u64,
+        field_24: false,
+        field_25: 26u8,
+        field_26: 27u16,
+        field_27: 28u32,
+        field_28: 29u64,
+        field_29: true,
+        field_30: 31u8,
+        field_31: 32u16,
+        field_32: 33u32,
+        field_33: 34u64,
+        field_34: true,
+        field_35: 36u8,
+        field_36: 37u16,
+        field_37: 38u32,
+        field_38: 39u64,
+        field_39: false,
+    };
+    let mut output: [u8; 83];
+    output[0u64] = 77u8;
+    output[82u64] = 99u8;
+    let mut scratch: [u8; 128];
+    let mut frames: [EncodedField; 40];
+    let expected: [u8; 81] = [0u8, 0u8, 0u8, 1u8, 39u8, 2u8, 38u8, 3u8, 37u8, 4u8, 36u8, 5u8, 1u8, 6u8, 34u8, 7u8, 33u8, 8u8, 32u8, 9u8, 31u8, 10u8, 1u8, 11u8, 29u8, 12u8, 28u8, 13u8, 27u8, 14u8, 26u8, 15u8, 0u8, 16u8, 24u8, 17u8, 23u8, 18u8, 22u8, 19u8, 21u8, 20u8, 1u8, 21u8, 19u8, 22u8, 18u8, 23u8, 17u8, 24u8, 16u8, 25u8, 1u8, 26u8, 14u8, 27u8, 13u8, 28u8, 12u8, 29u8, 11u8, 30u8, 0u8, 31u8, 9u8, 32u8, 8u8, 33u8, 7u8, 34u8, 6u8, 35u8, 1u8, 36u8, 4u8, 37u8, 3u8, 38u8, 2u8, 39u8, 1u8];
+    let result: EncodeResult = CompactBinary::encode<FortyFields, fields>(&subject, &mut output[1u64..82u64], &mut scratch[..], &mut frames[..], 10000u64);
+    transition result {
+        EncodeResult::Encoded { next } -> check(&output[..], &expected[..], next)
+        _ -> bad()
+    }
+    machine check(output: &[u8], expected: &[u8], next: u64) crashes Trap
+    requires output.len == 83u64
+    {
+        transition next == 81u64 && output[0u64] == 77u8 && output[82u64] == 99u8 && same(&output[1u64..82u64], expected, 0u64, 82u64) {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

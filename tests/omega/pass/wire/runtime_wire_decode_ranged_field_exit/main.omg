@@ -1,6 +1,8 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
 // declared `u32 in WireValue` field; a later in-range 50 must establish it.
 use omega_language_std::console;
+use omega_language_std::wire;
+use omega::language::core::reflect;
 data Msg {
     #0 v: u32;
     #1 delta: i32;
@@ -9,7 +11,7 @@ data Val requires v <= 100 && 0 - 10 <= delta && delta <= 10 {
     v: u32;
     delta: i32;
 }
-data WireVerdict {
+data RangedVerdict {
     case Invalid;
     case Sound;
 }
@@ -17,9 +19,9 @@ data WireVerdict {
 data Main {
     buffer: [u8; 32];
     bad_read: u64;
-    bad_verdict: WireVerdict;
+    bad_verdict: RangedVerdict;
     good_read: u64;
-    good_verdict: WireVerdict;
+    good_verdict: RangedVerdict;
 }
 machine Main::main(main: &mut Main) reaches Console {
     // era 0, tag 0, value 200 (varint C8 01), tag 1, delta -20
@@ -31,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[4] = 1;
     main.buffer[5] = 39;
     let bad: Val = Val { v: 42, delta: 7 };
-    Msg::decode(
+    MsgCodec::decode(
         &mut bad,
         &main.buffer,
         &mut main.bad_read,
@@ -43,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[3] = 1;
     main.buffer[4] = 9;
     let good: Val = Val { v: 42, delta: 7 };
-    Msg::decode(
+    MsgCodec::decode(
         &mut good,
         &main.buffer,
         &mut main.good_read,
@@ -51,9 +53,9 @@ machine Main::main(main: &mut Main) reaches Console {
     );
 
     transition {
-        main.bad_verdict == WireVerdict::Sound -> accepted_hostile(main)
+        main.bad_verdict == RangedVerdict::Sound -> accepted_hostile(main)
         bad.v != 42 || bad.delta != 7 -> corrupted_on_reject(main)
-        main.good_verdict == WireVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven(main)
+        main.good_verdict == RangedVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven(main)
         _ -> broken(main)
     }
     machine accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
@@ -66,4 +68,41 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// Schema, selected codec and established value remain separate. The owner
+// supplies reflection and construction; the library owns the wire grammar.
+data MsgCodec {}
+machine range_plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Msg, CompactBinary::plan_scalar>(context);
+}
+machine range_value(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<Val> {
+    transition fields.len == 2u64 { true -> read(fields) false -> DecodeResult::Invalid }
+    machine read(fields: &[ScalarSlot]) -> DecodeResult<Val>
+    requires fields.len == 2u64
+    {
+        let v: u64 = fields[0u64].unsigned;
+        let delta: i64 = fields[1u64].signed;
+        transition v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64 {
+            true -> create(v, delta)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine create(v: u64, delta: i64) -> DecodeResult<Val>
+    requires v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64
+    {
+        DecodeResult::Sound { value: Val { v: v as u32, delta: delta as i32 } }
+    }
+}
+machine MsgCodec::decode<const N: u64>(value: &mut Val, bytes: &[u8; N], read: &mut u64, verdict: &mut RangedVerdict) {
+    let mut slots: [ScalarSlot; 2];
+    transition CompactBinary::decode_record<Val, range_plan, range_value>(&bytes[..], &mut slots[..], read, 100u64) {
+        DecodeResult::Sound { value as created } -> commit(value, created, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut Val, created: Val, verdict: &mut RangedVerdict) {
+        value = created;
+        verdict = RangedVerdict::Sound;
+    }
+    machine invalid(verdict: &mut RangedVerdict) { verdict = RangedVerdict::Invalid; }
 }

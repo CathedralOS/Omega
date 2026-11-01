@@ -1,0 +1,57 @@
+// Expected exit: 0
+// Parsing validates carriers; the explicit owner constructor separately proves
+// the destination's relation before a Sound value or committed cursor exists.
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data Message { #0 v: u32; #1 delta: i8; }
+data Validated requires v <= 100u32 && delta >= (0i8 - 10i8) && delta <= 10i8 {
+    delta: i8;
+    v: u32;
+}
+machine plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Message, CompactBinary::plan_scalar>(context);
+}
+machine construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<Validated> {
+    transition fields.len == 2u64 { true -> read(fields) false -> DecodeResult::Invalid }
+    machine read(fields: &[ScalarSlot]) -> DecodeResult<Validated>
+    requires fields.len == 2u64
+    {
+        let v: u64 = fields[0u64].unsigned;
+        let delta: i64 = fields[1u64].signed;
+        transition v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64 {
+            true -> create(v, delta)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine create(v: u64, delta: i64) -> DecodeResult<Validated>
+    requires v <= 100u64 && delta >= (0i64 - 10i64) && delta <= 10i64
+    {
+        DecodeResult::Sound { value: Validated { v: v as u32, delta: delta as i8 } }
+    }
+}
+machine rejected(bytes: &[u8]) -> bool {
+    let mut slots: [ScalarSlot; 2];
+    let mut next: u64 = 77u64;
+    transition CompactBinary::decode_record<Validated, plan, construct>(bytes, &mut slots[..], &mut next, 100u64) {
+        DecodeResult::Invalid -> (next == 77u64)
+        _ -> false
+    }
+}
+machine main() crashes Trap {
+    let good: [u8; 5] = [0u8, 0u8, 50u8, 1u8, 9u8];
+    let hostile: [u8; 6] = [0u8, 0u8, 200u8, 1u8, 1u8, 9u8];
+    let mut slots: [ScalarSlot; 2];
+    let mut next: u64 = 77u64;
+    transition CompactBinary::decode_record<Validated, plan, construct>(&good[..], &mut slots[..], &mut next, 100u64) {
+        DecodeResult::Sound { value } -> inspect(value, next, &hostile[..])
+        _ -> bad()
+    }
+    machine inspect(value: Validated, next: u64, hostile: &[u8]) crashes Trap {
+        transition next == 5u64 && value.v == 50u32 && value.delta == (0i8 - 5i8) && rejected(hostile) {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
