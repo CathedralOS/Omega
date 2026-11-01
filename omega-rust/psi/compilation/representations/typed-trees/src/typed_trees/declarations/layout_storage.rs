@@ -72,6 +72,75 @@ impl TypedTrees {
                     .ok_or(reason)
             })
     }
+    /// A native field names its source declaration, independently of the
+    /// concrete data application carrying it. Follow producer-retained origins
+    /// and exact common/payload coordinates; generated names are not parsed.
+    /// The receiving type and owning record retain the application's arguments.
+    pub fn native_data_field_declaration_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<String, String> {
+        use crate::data::DataMember;
+        let invalid = || "native field has no exact declaration correspondence".to_owned();
+        let (mut owner, mut field) = self.any_field_owner(symbol).ok_or_else(invalid)?;
+        for _ in 0..=self.data_definitions().len() {
+            let Some(origin) = owner.generic_instance else {
+                return self.normalized_hermetic_symbol_identity(field.symbol);
+            };
+            let origin = self.type_reference_table.peeled_type_reference(origin);
+            let template_symbol = match self.type_reference_table.type_reference(origin) {
+                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                TypeReferenceNode::Named { symbol, .. } => *symbol,
+                _ => return Err(invalid()),
+            };
+            let template = self
+                .unique_data_definition_by_symbol(template_symbol)
+                .ok_or_else(invalid)?;
+            let source_members = self.data_members(owner);
+            let template_members = self.data_members(template);
+            if source_members.len() != template_members.len() {
+                return Err(invalid());
+            }
+            let mut selected = None;
+            for (member, original) in source_members.iter().zip(template_members) {
+                match (member, original) {
+                    (DataMember::Field(candidate), DataMember::Field(original))
+                        if candidate.symbol == field.symbol =>
+                    {
+                        selected = Some(original);
+                        break;
+                    }
+                    (DataMember::Variant(case), DataMember::Variant(original_case)) => {
+                        if let Some(position) = self
+                            .data_payload_fields(case)
+                            .iter()
+                            .position(|candidate| candidate.symbol == field.symbol)
+                        {
+                            if case.name != original_case.name
+                                || case.identity != original_case.identity
+                            {
+                                return Err(invalid());
+                            }
+                            selected = self.data_payload_fields(original_case).get(position);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let original = selected.ok_or_else(invalid)?;
+            if field.name != original.name
+                || field.identity != original.identity
+                || field.relevance != original.relevance
+            {
+                return Err(invalid());
+            }
+            owner = template;
+            field = original;
+        }
+        Err("native field declaration origin is cyclic".to_owned())
+    }
+
     /// The snapshot operation belongs to the exact sealed Core layout source.
     /// A same-spelled user operation remains an ordinary call. Its result is
     /// checked Source data; only the opaque argument has compiler provenance.

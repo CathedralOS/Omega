@@ -11,6 +11,183 @@ fn definition(symbol: SymbolHandle, name: &str) -> DataDefinition {
     }
 }
 
+fn native_field_declaration_fixture(
+    mismatch: bool,
+) -> (TypedTrees, [SymbolHandle; 2], [SymbolHandle; 2]) {
+    use crate::data::{DataField, DataMember, DataVariant};
+    use crate::types::TypeReferenceNode;
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::{path::PathBuf, sync::Arc};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    let mut sources = SourceMap::default();
+    let source = sources
+        .add_with_metadata(
+            PathBuf::from("package/source.omg"),
+            "Record".into(),
+            PathBuf::from("package"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let data = builder
+        .insert_children(
+            root,
+            [(
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 6))),
+            )],
+        )
+        .handles()
+        .next()
+        .unwrap();
+    let children: Vec<_> = builder
+        .insert_children(
+            data,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("common")),
+                (SymbolKind::Variant, SymbolNameRef::Static("Some")),
+            ],
+        )
+        .handles()
+        .collect();
+    let payload = builder
+        .insert_children(
+            children[1],
+            [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+        )
+        .handles()
+        .next()
+        .unwrap();
+    let mut program = TypedTrees::default();
+    program.symbols = builder.finish();
+    let generated =
+        program
+            .symbols
+            .insert_generated_root_from(data, SymbolKind::Data, "Record<Unit>");
+    let generated_children: Vec<_> = program
+        .symbols
+        .insert_generated_children_from(
+            generated,
+            [
+                (children[0], SymbolKind::Field, "common"),
+                (children[1], SymbolKind::Variant, "Some"),
+            ],
+        )
+        .handles()
+        .collect();
+    let generated_payload = program
+        .symbols
+        .insert_generated_children_from(
+            generated_children[1],
+            [(payload, SymbolKind::Field, "value")],
+        )
+        .handles()
+        .next()
+        .unwrap();
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let arguments = program
+        .type_reference_table
+        .insert_type_reference_handles([unit]);
+    let origin = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: data,
+            base_name: Identifier::generated("Record"),
+            lifetime_arguments: Vec::new(),
+            arguments,
+        });
+    for (symbol, common, case, value, instance) in [
+        (data, children[0], children[1], payload, false),
+        (
+            generated,
+            generated_children[0],
+            generated_children[1],
+            generated_payload,
+            true,
+        ),
+    ] {
+        let field = |symbol, name: &str, identity| DataField {
+            identity: Some(identity),
+            symbol,
+            name: Identifier::generated(name),
+            relevance: Default::default(),
+            type_reference: unit,
+        };
+        let payload = program.data_payload_fields.insert_many(vec![field(
+            value,
+            "value",
+            if instance && mismatch { 99 } else { 2 },
+        )]);
+        let members = program.data_members.insert_many(vec![
+            DataMember::Field(field(common, "common", 0)),
+            DataMember::Variant(DataVariant {
+                identity: Some(1),
+                symbol: case,
+                name: Identifier::generated("Some"),
+                payload,
+                where_facts: arena::HandleSpan::empty(),
+                retired_payload_identities: Vec::new(),
+            }),
+        ]);
+        program.push_data_definition(DataDefinition {
+            members,
+            generic_instance: instance.then_some(origin),
+            ..definition(symbol, if instance { "Record<Unit>" } else { "Record" })
+        });
+    }
+    (
+        program,
+        [children[0], payload],
+        [generated_children[0], generated_payload],
+    )
+}
+
+#[test]
+fn native_field_declaration_identity_preserves_common_and_case_origins() {
+    let (program, original, instance) = native_field_declaration_fixture(false);
+    for (original, instance) in original.into_iter().zip(instance) {
+        assert_ne!(
+            program
+                .normalized_hermetic_symbol_identity(original)
+                .unwrap(),
+            program
+                .normalized_hermetic_symbol_identity(instance)
+                .unwrap()
+        );
+        assert_eq!(
+            program
+                .native_data_field_declaration_identity(original)
+                .unwrap(),
+            program
+                .native_data_field_declaration_identity(instance)
+                .unwrap()
+        );
+    }
+}
+
+#[test]
+fn native_field_declaration_identity_rejects_changed_schema_coordinate() {
+    let (program, _, instance) = native_field_declaration_fixture(true);
+    assert!(
+        program
+            .native_data_field_declaration_identity(instance[0])
+            .is_ok()
+    );
+    assert!(
+        program
+            .native_data_field_declaration_identity(instance[1])
+            .is_err()
+    );
+    assert!(
+        program
+            .native_data_field_declaration_identity(SymbolHandle::invalid())
+            .is_err()
+    );
+}
+
 // The independent roster scan remains the oracle for every indexed operation.
 fn assert_fresh_rows(program: &TypedTrees, symbols: &[SymbolHandle], names: &[&str]) {
     let definitions = program.data_definitions();
