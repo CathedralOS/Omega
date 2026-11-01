@@ -1,6 +1,6 @@
-//! Prepare each target's complete selected execution against immutable checked
-//! source and Build rows. Terminal production borrows that result; converting
-//! it to a checked compilation assembles custody, not another compiler phase.
+//! Select each target's whole providers over the shared Terminal artifact, then
+//! prepare remaining source review and Build correspondence. Converting that
+//! result to a checked compilation assembles custody, not another compiler phase.
 //! Source-dependent selection remains migration work. Actual artifact demand,
 //! receiving permissions and native realization belong to the later native join.
 
@@ -23,8 +23,8 @@ fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> 
     refused.map_err(|error| vec![error])
 }
 
-/// One target's complete provider selection beside the shared source custody.
-/// Terminal production borrows this record to mint the target-neutral artifact.
+/// One target's complete provider selection beside shared portable publication
+/// and remaining source correspondence.
 /// Selection and native declaration preparation are complete; no later
 /// installation phase reopens source or fills in this result. Source-only
 /// consumers request their checked-instance projection at their own boundary.
@@ -418,6 +418,7 @@ fn select_checked_providers(
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_candidates: &providers.provider_candidates,
+            boundary_provider_demands: &providers.boundary_provider_demands,
             selected_provider_plan_facts,
             selected_provider_provenance,
             root_grants: &root_grants,
@@ -476,8 +477,8 @@ fn prepare_target_provider_selection(
     )
 }
 
-/// Prepare this target's complete source-side custody without producing an
-/// artifact or admitting its native execution.
+/// Select this target over shared portable code and prepare remaining source
+/// review inputs, without installing or admitting native execution.
 pub(crate) fn select_product_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,

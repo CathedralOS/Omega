@@ -233,6 +233,7 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     pub calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
+    pub boundary_provider_demands: Vec<ProviderPlan>,
     /// Original authored candidates and their defaults, before native Build
     /// supplies and compiler-minted plans enter the execution inventory.
     pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
@@ -283,6 +284,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
         let Self {
             calling_program,
             selected_provider_publication,
+            boundary_provider_demands,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -305,6 +307,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
         Ok(ProviderSettlement {
             calling_program,
             selected_provider_publication,
+            boundary_provider_demands,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -460,6 +463,7 @@ pub fn settle_checked_providers(
     let provider_selection::SelectedTargetProviders {
         selection: canonical_selection,
         facts: mut selected_provider_plan_facts,
+        demanded_plans: boundary_provider_demands,
         choices,
     } = prepared.select(artifact, canonical_roots.as_deref(), &assumptions)?;
     let selected_provider_plans = choices
@@ -758,6 +762,7 @@ pub fn settle_checked_providers(
         settlement: ProviderSettlement {
             calling_program,
             selected_provider_publication,
+            boundary_provider_demands,
             authored_providers,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,

@@ -52,6 +52,9 @@ pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
 pub struct SelectedTargetProviders<Owner, Origin> {
     pub selection: backend_plan::TerminalTargetProviderSelection,
     pub facts: effects::SelectedProviderPlanFacts,
+    /// The fixed point's required candidate schemas, independently of which
+    /// whole map wins. Later review must not demand dormant source uses.
+    pub demanded_plans: Vec<effects::provider_plan::ProviderPlan>,
     pub choices: Vec<crate::SelectedProvider<CanonicalProviderDeclaration, Owner, Origin>>,
 }
 
@@ -293,6 +296,13 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 return Ok(SelectedTargetProviders {
                     selection,
                     facts,
+                    demanded_plans: self
+                        .candidates
+                        .iter()
+                        .zip(&demanded)
+                        .filter(|(_, demanded)| **demanded)
+                        .map(|(candidate, _)| candidate.choice.plan.clone())
+                        .collect(),
                     choices,
                 });
             }
