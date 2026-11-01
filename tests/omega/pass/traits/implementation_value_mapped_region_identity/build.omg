@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "implementation_value_mapped_region_identity");
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

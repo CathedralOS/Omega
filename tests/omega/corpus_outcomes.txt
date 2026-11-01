@@ -36,6 +36,9 @@ fail/contracts/case_requirement_referent_selector_changed rejected 593ms expecte
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
 	cannot prove requires contract for specification call `only_nonzero` in data `Gated` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
+	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 1637ms expected @34e2f4e01441+wt
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
@@ -3020,6 +3023,7 @@ pass/dependent/runtime_borrowed_coupled_last_store_exit checked 3682ms check-tar
 pass/dependent/runtime_computed_slice_index_relation_exit checked 3178ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/runtime_dependent_subtract_exit checked 16516ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/runtime_dynamic_record_replacement_exit checked 1092ms check-target:macos_arm64 @5c5c178f82c7
+pass/dependent/runtime_index_forwarded_to_inferred_region_callee_exit checked 5258ms check-target:macos_arm64 @68b6f6ba6c2f
 pass/dependent/runtime_requires_guarded_call_exit rejected 14964ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call helper from go: main.a <= main.b (needs fact `main.a <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call helper from go: a_value <= main.b (needs fact `x <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -14099,6 +14103,7 @@ pass/traits/generic_trait_parent_binds_requirement checked 2593ms @ccdb99ca2214
 pass/traits/implementation_argument_category_collision checked 11458ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
+pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
 pass/traits/inherited_region_application_identity_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214

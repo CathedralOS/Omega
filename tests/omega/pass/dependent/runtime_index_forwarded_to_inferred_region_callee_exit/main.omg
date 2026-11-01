@@ -1,0 +1,26 @@
+// Expected exit: 0
+// A value-indexed argument forwarded into a callee whose region is inferred keeps its captured index of 7.
+data View<'storage> [copy] { bytes: &'storage [u8]; }
+data Counted<'storage, Count: u64> [copy]
+requires view.bytes.len == Count
+{ view: View<'storage>; }
+machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
+machine receive<'storage>(selected: Counted<'storage, 7>) -> u64
+ensures result == 7
+{ seven(selected.view.bytes.len) }
+machine forward<'storage>(selected: Counted<'storage, 7>) -> u64
+ensures result == 7
+{ receive(selected) }
+machine count<'storage>(source: View<'storage>) -> Counted<'storage, (source.bytes.len)>
+{ Counted { view: source } }
+machine main() crashes Trap {
+    let storage: [u8; 7] = [49, 50, 51, 52, 53, 54, 55];
+    let view: View = View { bytes: &storage[..] };
+    let observed: u64 = forward(count(view));
+    transition observed == 7 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
