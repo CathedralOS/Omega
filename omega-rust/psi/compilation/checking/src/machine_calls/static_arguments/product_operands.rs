@@ -69,7 +69,10 @@ pub(super) fn validate_parameter_correspondence(
         let application = typed.product_operand_applications.get(handle);
         let Some((name, parameters)) = parameters(program, application) else {
             diagnostics.push(
-                Diagnostic::error("Product nominal application lost its declared telescope")
+                Diagnostic::error(format!(
+                    "Product nominal application lost its declared telescope: `{}` ({:?})",
+                    typed.symbols.name(application.declaration), application.role,
+                ))
                     .with_source_span(application.operand.source_span),
             );
             continue;

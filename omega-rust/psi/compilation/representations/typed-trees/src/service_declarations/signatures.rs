@@ -152,7 +152,6 @@ impl PreparedBoundarySignatures {
         requirement: language_semantics::service_surface::identities::ProviderIdentityId,
     ) -> Result<Vec<semantic_vocabulary::CallingAbiIdentity>, String> {
         let mut keys = Vec::new();
-        let mut open = false;
         for declaration in &self.abi_signatures {
             if !declaration.default_eligible
                 || !declaration.source_templates.contains(&source.symbol)
@@ -181,7 +180,9 @@ impl PreparedBoundarySignatures {
                 })
                 || formals.count() != declaration.operands.len()
             {
-                open = true;
+                // No checked local tuple means no executable ABI request yet.
+                // Keep the open declaration's storage refusal in the canonical
+                // census; a dormant candidate must not invent actual operands.
                 continue;
             }
             let key = semantic_vocabulary::CallingAbiIdentity {
@@ -196,12 +197,6 @@ impl PreparedBoundarySignatures {
             if !keys.contains(&key) {
                 keys.push(key);
             }
-        }
-        if keys.is_empty() && open {
-            return Err(
-                "default ABI request requires complete declaring and non-callback local operands"
-                    .into(),
-            );
         }
         Ok(keys)
     }
