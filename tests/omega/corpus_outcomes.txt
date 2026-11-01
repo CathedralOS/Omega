@@ -2248,7 +2248,7 @@ pass/calls/call_local_reassign checked 4318ms @ccdb99ca2214
 pass/calls/callback_borrowed_record_entry checked 23397ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/callback_borrowed_scalar_entry checked 24473ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/callback_future_registration_cycle checked 22011ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/callback_mixed_formal_entry checked 30463ms check-target:macos_arm64 callback-telescope-controls:match terminal-inspections:match @08ea1d5fbeaf
+pass/calls/callback_mixed_formal_entry checked 55098ms check-target:macos_arm64 callback-telescope-controls:match terminal-inspections:match @5e4954f326d0
 pass/calls/callback_owned_float_record checked 22359ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/callback_owned_float_record_packing checked 21715ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/callback_owned_indirect_float_record checked 22912ms check-target:macos_arm64 @ccdb99ca2214
