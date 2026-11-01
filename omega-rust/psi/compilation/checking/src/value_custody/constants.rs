@@ -375,7 +375,17 @@ mod completed_integer_tests {
 
     #[test]
     fn completed_integer_leaves_require_exact_ready_canonical_carriers() {
-        let encoded = |kind, value| CanonicalConstValue::integer(kind, value).encoding;
+        let encoded = |kind: &str, value| {
+            CanonicalConstValue::from_decoded(
+                &language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    type_name: kind.to_owned(),
+                    value,
+                },
+                value.to_string(),
+            )
+            .expect("test integer has a canonical structural encoding")
+            .encoding
+        };
         for (encoding, pending, copies, expected) in [
             (Some(encoded("u64", 0)), false, 1, Some(0)),
             (
