@@ -1993,13 +1993,13 @@ defines the complete product bar.
 - **BUMP-ALLOCATOR-CANARY.** (Also covers **`VEC-NATIVE-GROWTH`**.) Deliver an
   executable package allocator (`source/library/alloc/bump.omg`) and native
   growable `Vec` (`source/library/alloc/vec.omg`) over qualified `Extent` and
-  **`PLAN-LAID-VIEWS`** end to end (`Psi 04–07` and `Omega 00–09`) under
+  access views end to end (`Psi 04–07` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
   - Complete `ExtentPartition` conservation and every-retired-extent `reset`
     recomposition over real `Vacant`/`Resident` backing in
     `tests/omega/pass/memory/bump_allocator_canary`, replacing fixture-local
-    `ResidentStorage` with **`PLAN-LAID-VIEWS`** establishment, element
+    `ResidentStorage` with `Access` establishment, element
     transfer, and retirement.
   - Connect `Vec` growth/reallocation/drop to the real backing allocator so
     dynamic `Vec` growth executes natively across hosts.

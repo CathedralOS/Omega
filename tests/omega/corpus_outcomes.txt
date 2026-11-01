@@ -1631,6 +1631,8 @@ fail/machines/cyclic_private_arrival_maximum_rejected rejected 383ms expected @f
 	exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/machines/private_where_store_through_cycle_control rejected 1737ms expected @ba463c24b333+wt
 	machine `next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/ownership/completed_case_claim_return_double_consume rejected 2699ms expected @02336e3b5381+wt
+	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
@@ -11397,9 +11399,7 @@ pass/machines/write_state_forward checked 3066ms @ccdb99ca2214
 pass/math/extent_no_wrap_requires_denotation checked 2419ms @ccdb99ca2214
 pass/memory/address_translation_canary rejected 14ms regressed-from:checked @ccdb99ca2214
 	tests/omega/pass/memory/address_translation_canary/cathedral/provider.omg:46:35: expected identifier, found punctuation `::`
-pass/memory/bump_allocator_canary rejected 4777ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	linear state-call result truncation::Truncated.vec.strategy.tail in exercise_shrink::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `exercise_shrink` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 5 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Truncated.vec.strategy.tail in again::entry at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `again` state `entry` statement 0 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 5 TransitionTarget: returned capture omits a declared claim path on an alternative
+pass/memory/bump_allocator_canary checked 5902ms check-target:linux_x86_64 @02336e3b5381+wt
 pass/memory/indexed_resident_bodyless_handback checked 2786ms @ccdb99ca2214
 pass/memory/interrupt_table_canary checked 22479ms @ccdb99ca2214
 pass/memory/resident_content_mutation_transport checked 5340ms @ccdb99ca2214
@@ -11674,6 +11674,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check
 pass/ownership/runtime_case_alternative_custody_exit incomplete 4526ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `apply`, which calls `settle`; `settle` has no executable body: this compiler does not lower a transition of it yet (call operation: structural arguments: parameter source); in state `settle::entry`, statement 1
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/runtime_completed_case_claim_return_exit checked 5843ms check-target:macos_arm64 @02336e3b5381+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 3540ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_constructed_child_claim_frontier_exit checked 4805ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 10924ms check-target:macos_arm64 @ccdb99ca2214
