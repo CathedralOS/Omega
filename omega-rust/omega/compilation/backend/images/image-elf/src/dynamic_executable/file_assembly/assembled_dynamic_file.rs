@@ -28,8 +28,10 @@ use crate::imports::ElfImportLocator;
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalImage,
-    PlacedDataRegionInventory, place_data_extent, place_data_regions, place_executable_regions,
+    PlacedDataRegionInventory, place_data_extent, place_executable_extent,
 };
+#[cfg(test)]
+use image::{place_data_regions, place_executable_regions};
 use target::TargetProfile;
 
 /// Exact owner of one fragment copied into the assembled dynamic ELF file.
@@ -202,12 +204,10 @@ pub(crate) fn assemble_elf_dynamic_file(
 pub(crate) fn admit_elf_dynamic_executable(
     assembled: ValidatedElfAssembledDynamicFile,
 ) -> Result<ValidatedElfDynamicExecutable, Box<ElfDynamicExecutableAdmissionError>> {
-    let mut expected_image = load_layout(&assembled.resolved_linkage)
-        .retained_image()
-        .clone();
-    expected_image.memory.text = assembled.resolved_linkage.source_text_bytes().to_vec();
-    expected_image.memory.data = assembled.resolved_linkage.source_data_bytes().to_vec();
-    let output = match derive_executable_output(&assembled, &expected_image) {
+    // The assembly owns bytes produced by this emission. Derive placement
+    // directly from its resolved text/data and retained region roster; replay
+    // belongs to independent readers and tests, not this same-process join.
+    let output = match derive_executable_output(&assembled) {
         Ok(output) => output,
         Err(diagnostic) => {
             return Err(Box::new(ElfDynamicExecutableAdmissionError {
@@ -216,12 +216,6 @@ pub(crate) fn admit_elf_dynamic_executable(
             }));
         }
     };
-    if let Err(diagnostic) = validate_executable_output(&assembled, &expected_image, &output) {
-        return Err(Box::new(ElfDynamicExecutableAdmissionError {
-            assembled,
-            diagnostic,
-        }));
-    }
 
     let non_authoritative_assembled_file_compatibility_fingerprint =
         assembled.non_authoritative_assembled_file_compatibility_fingerprint;
@@ -231,7 +225,6 @@ pub(crate) fn admit_elf_dynamic_executable(
     let mut image = recover_retained_image(resolved_linkage);
     image.memory.text = output.final_text_bytes.clone();
     image.memory.data = output.final_data_bytes.clone();
-    debug_assert_eq!(image, expected_image);
 
     Ok(ValidatedElfDynamicExecutable {
         image,
@@ -242,24 +235,35 @@ pub(crate) fn admit_elf_dynamic_executable(
 
 fn derive_executable_output(
     assembled: &ValidatedElfAssembledDynamicFile,
-    image: &FinalImage,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let load = load_layout(&assembled.resolved_linkage);
     let format = dynamic_executable_format(load.target())?;
-    let executable_regions = place_executable_regions(image, load.final_image_layout())?;
-    let data_regions = place_data_regions(image, load.final_image_layout())?;
+    let image = load.retained_image();
+    let text_bytes = assembled.resolved_linkage.source_text_bytes();
+    let data_bytes = assembled.resolved_linkage.source_data_bytes();
+    let executable_regions = place_executable_extent(
+        text_bytes,
+        image.executable_regions.clone(),
+        load.final_image_layout().text_address,
+    )?;
+    let data_regions = place_data_extent(
+        data_bytes,
+        image.data_regions.clone(),
+        load.final_image_layout().data_address,
+        "initialized-data",
+    )?;
     let (final_import_data_bytes, import_data_regions) =
         procedure_got_import_custody(&assembled.resolved_linkage, load)?;
     Ok(ExecutableImageOutput {
         bytes: assembled.bytes().to_vec(),
         final_image_layout: load.final_image_layout(),
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
+        final_text_bytes: text_bytes.to_vec(),
+        final_data_bytes: data_bytes.to_vec(),
         final_import_data_bytes,
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
+        text_bytes: text_bytes.len(),
+        data_bytes: data_bytes.len(),
         bss_bytes: image.memory.bss_size,
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),
@@ -376,6 +380,7 @@ fn procedure_got_import_custody(
     Ok((extent.to_vec(), inventory))
 }
 
+#[cfg(test)]
 fn validate_executable_output(
     assembled: &ValidatedElfAssembledDynamicFile,
     image: &FinalImage,

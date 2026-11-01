@@ -98,3 +98,59 @@ fn object_kind_text_symbols_place_as_read_only_data_beside_code() {
     .unwrap();
     assert!(inventory.unclassified_gaps.is_empty());
 }
+
+#[test]
+fn executable_extent_uses_resolved_bytes_and_preserves_placement_refusals() {
+    use crate::{
+        FinalExecutableRegion, FinalExecutableRegionOrigin, place_executable_extent,
+        validate_placed_executable_region_inventory,
+    };
+    let text = [11, 23, 47, 89, 131, 173];
+    let region = FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 2,
+        byte_count: 2,
+        symbol: "resolved".to_owned(),
+        footprint: None,
+    };
+    let inventory = place_executable_extent(&text, vec![region.clone()], 0x4000).unwrap();
+    assert_eq!(inventory.text_byte_count, 6);
+    assert_eq!(inventory.regions[0].address, 0x4002);
+    assert_eq!(inventory.unclassified_gaps.len(), 2);
+    assert_eq!(inventory.unclassified_gaps[0].byte_count, 2);
+    assert_eq!(inventory.unclassified_gaps[1].section_offset, 4);
+    validate_placed_executable_region_inventory(&inventory, &text).unwrap();
+    for index in [0, 2, 5] {
+        let mut changed = text;
+        changed[index] ^= 1;
+        assert!(validate_placed_executable_region_inventory(&inventory, &changed).is_err());
+    }
+    let overlapping = FinalExecutableRegion {
+        section_offset: 3,
+        ..region.clone()
+    };
+    assert!(
+        place_executable_extent(&text, vec![region.clone(), overlapping], 0x4000)
+            .unwrap_err()
+            .to_string()
+            .contains("overlaps")
+    );
+    let outside = FinalExecutableRegion {
+        section_offset: 5,
+        ..region.clone()
+    };
+    assert!(
+        place_executable_extent(&text, vec![outside], 0x4000)
+            .unwrap_err()
+            .to_string()
+            .contains("exceeds .text size")
+    );
+    assert!(
+        place_executable_extent(&text, vec![region], u64::MAX)
+            .unwrap_err()
+            .to_string()
+            .contains("address overflows")
+    );
+    let empty = place_executable_extent(&[], Vec::new(), 0).unwrap();
+    validate_placed_executable_region_inventory(&empty, &[]).unwrap();
+}

@@ -21,7 +21,7 @@ pub use executable_regions::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest,
     PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,
     PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
-    StateFootprintEvidenceDigest, place_executable_regions,
+    StateFootprintEvidenceDigest, place_executable_extent, place_executable_regions,
     validate_placed_executable_region_inventory,
 };
 pub use layout::FinalImageLayout;
