@@ -1,6 +1,7 @@
 # Retained mutable foreign backing
 
-Parent: **NORMALIZED-ABI-LOWERING** in `TASKS.md`.
+Parents: **NORMALIZED-ABI-LOWERING**, **BUILD-OWNED-TARGET-SELECTION**, and
+**BUILD-OWNED-NATIVE-BINDINGS** in [TASKS.md](../../../../TASKS.md).
 
 A mutable foreign registration retains exclusive access to the exact original Buffer backing until completion consumes Pending; completion writes 73 while an earlier copied value remains 37.
 
@@ -103,3 +104,26 @@ protocol, permitted private snapshots, wider resident/view codecs, concurrent
 external access and write-only retention retain their separate obligations.
 Foreign behavior remains an admitted trusted provider premise. These tests do
 not prove arbitrary mathematical postconditions about C implementations.
+
+## Build-owned source migration
+
+The migrated packages record the four existing Writer operations directly in
+Build with inferred locator lengths. Mixed-issuer controls retain separate
+Reader bindings and their shared provider. Existing entry rows, complete
+qualification/preservation contracts, Content projections and issuer lists are
+unchanged. There are no per-symbol native forwarders or target-prefixed bodies.
+
+The target-body place selects ordinary PendingTransferCode for the private
+PendingTransfer requirement. Its result transfers the consumed input's existing
+loan debt; Pending::Retained still names only its original register issuers.
+The match join runs both choices and returns the same owned Pending through its
+selected arm, recording17/23 in a separate scalar. Both complete the original
+37/41/73 protocol and preserve the captured37 value. No private snapshot or new
+issuer is introduced.
+
+Preliminary migrated local/match observations pass on the repaired
+`d3b71168d930` producer with its matching SDK. The selected-body path exposes the
+shared P04 owned-carrier classification prerequisite; final migration acceptance
+is pending that general repair and the complete row/control replay. Historical
+four-host observations and the original Windows timeout above keep their original
+identities. The parent migrations remain open beyond this cohort.
