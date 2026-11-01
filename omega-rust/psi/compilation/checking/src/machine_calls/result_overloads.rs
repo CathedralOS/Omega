@@ -1,7 +1,7 @@
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
-use crate::frozen_program::expression_table;
+use crate::frozen_program::{CheckingContext, expression_table};
 use diagnostics::Diagnostic;
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
@@ -251,16 +251,27 @@ fn record_expression_owner(
 pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-    let boolean_equalities = crate::static_type_boolean_equalities(program);
-    let case_memberships = crate::case_membership_type_facts(program);
+    // Each read-only epoch shares one explicit invocation context. Publishing
+    // contexts, eliding arms or rebinding calls changes later query inputs, so
+    // only owned results cross those mutations; every subsequent epoch starts
+    // fresh. Plain construction retains bare-tree geometry and custody inputs.
+    let (boolean_equalities, case_memberships) = {
+        let context = CheckingContext::new(program);
+        (
+            crate::static_type_boolean_equalities(&context),
+            crate::case_membership_type_facts(&context),
+        )
+    };
     program.prepare_static_type_contexts(&boolean_equalities, case_memberships.clone());
     program.elide_unreachable_case_arms();
     // Full-predicate implications apply under the successful case test to
     // both expression arms and transition targets. Publish them only after
     // independent prefix queries. Do not elide again: a refuted body can
     // still have an effectful reached guard before its final rejecting test.
-    let conditional =
-        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(program);
+    let conditional = {
+        let context = CheckingContext::new(program);
+        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(&context)
+    };
     program.prepare_static_type_contexts(
         &boolean_equalities,
         case_memberships.into_iter().chain(conditional).collect(),
@@ -269,113 +280,137 @@ pub fn resolve_named_result_overloads(
     // and dispatch needs the same admitted subject's possible cases. Compute
     // the whole batch against the preexisting contexts, then publish it once;
     // a goal or receiving annotation cannot become its own premise.
-    let predicate_contexts =
-        crate::proof_contracts::contract_entailment::predicate_type_contexts(program);
+    let predicate_contexts = {
+        let context = CheckingContext::new(program);
+        crate::proof_contracts::contract_entailment::predicate_type_contexts(&context)
+    };
     program.retain_proven_type_contexts(predicate_contexts);
-    let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
-        collect_expected_expression_calls(program)
-            .into_iter()
-            .collect();
-    let expression_owners = expression_owners(program);
-    let machine_overloads = MachineOverloadIndex::new(program);
-    let mut diagnostics = Vec::new();
+    // Expected destinations and every call form read the same published type
+    // contexts. Finish the complete selection batch before applying any update;
+    // neither a selected callee nor its result can become its own premise.
+    let (
+        expression_owners,
+        expression_updates,
+        statement_updates,
+        operator_statement_updates,
+        transition_updates,
+        diagnostics,
+    ) = {
+        let context = CheckingContext::new(program);
+        let program: &dyn crate::CheckingInput = &context;
+        let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
+            collect_expected_expression_calls(program)
+                .into_iter()
+                .collect();
+        let expression_owners = expression_owners(program);
+        let machine_overloads = MachineOverloadIndex::new(program);
+        let mut diagnostics = Vec::new();
 
-    let expression_updates = expression_table(program)
-        .expression_entries()
-        .filter_map(|(handle, expression)| {
-            let ExpressionNode::Call(call) = expression else {
-                return None;
-            };
-            let expected = expected_calls.get(&handle).copied();
-            selected_named_expression_callable_symbol(
-                program,
-                &machine_overloads,
-                call,
-                expression_owners.get(&handle.arena_index()).copied(),
-                expression_owners
-                    .get(&handle.arena_index())
-                    .map(|owner| owner.source_span())
-                    .unwrap_or_else(|| expression_table(program).source_span(handle)),
-                expected,
-                &mut diagnostics,
-            )
-            .map(|selected| (handle, selected))
-        })
-        .collect::<Vec<_>>();
-
-    let mut statement_updates = Vec::new();
-    let mut operator_statement_updates = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(call) = statement.as_call() else {
-                    continue;
+        let expression_updates = expression_table(program)
+            .expression_entries()
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
                 };
-                if let Some(selected) = selected_named_statement_callable_symbol(
+                let expected = expected_calls.get(&handle).copied();
+                selected_named_expression_callable_symbol(
                     program,
                     &machine_overloads,
                     call,
-                    Some(CallOwner::State {
-                        machine: machine.symbol,
-                        state: state.symbol,
-                        source_span: call.source_span,
-                    }),
-                    program
-                        .symbols
-                        .symbol_source_span(machine.symbol)
-                        .unwrap_or(call.source_span),
-                    None,
+                    expression_owners.get(&handle.arena_index()).copied(),
+                    expression_owners
+                        .get(&handle.arena_index())
+                        .map(|owner| owner.source_span())
+                        .unwrap_or_else(|| expression_table(program).source_span(handle)),
+                    expected,
                     &mut diagnostics,
-                ) {
-                    if let Some(operator) = program.operator_definition_by_symbol(selected) {
-                        if !operator.return_type.is_valid() {
+                )
+                .map(|selected| (handle, selected))
+            })
+            .collect::<Vec<_>>();
+
+        let mut statement_updates = Vec::new();
+        let mut operator_statement_updates = Vec::new();
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for (index, statement) in program
+                    .statement_table
+                    .indexed_statements(state.statement_nodes)
+                {
+                    let Some(call) = statement.as_call() else {
+                        continue;
+                    };
+                    if let Some(selected) = selected_named_statement_callable_symbol(
+                        program,
+                        &machine_overloads,
+                        call,
+                        Some(CallOwner::State {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            source_span: call.source_span,
+                        }),
+                        program
+                            .symbols
+                            .symbol_source_span(machine.symbol)
+                            .unwrap_or(call.source_span),
+                        None,
+                        &mut diagnostics,
+                    ) {
+                        if let Some(operator) = program.operator_definition_by_symbol(selected) {
+                            if !operator.return_type.is_valid() {
+                                statement_updates.push((
+                                    machine.symbol,
+                                    state.statement_nodes,
+                                    index,
+                                    selected,
+                                ));
+                                continue;
+                            }
+                            let returns_non_unit = !matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(operator.return_type),
+                                TypeReferenceNode::Unit
+                            );
+                            if returns_non_unit && !call.discards_result {
+                                let path = program.operator_path_string(operator.name);
+                                diagnostics.push(Diagnostic::error(format!(
+                                    "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
+                                    program.display_type_reference_with_constraints(operator.return_type)
+                                )));
+                            } else {
+                                operator_statement_updates.push((
+                                    state.symbol,
+                                    state.statement_nodes,
+                                    index,
+                                    call.clone(),
+                                    selected,
+                                    returns_non_unit,
+                                ));
+                            }
+                        } else {
                             statement_updates.push((
                                 machine.symbol,
                                 state.statement_nodes,
                                 index,
                                 selected,
                             ));
-                            continue;
                         }
-                        let returns_non_unit = !matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(operator.return_type),
-                            TypeReferenceNode::Unit
-                        );
-                        if returns_non_unit && !call.discards_result {
-                            let path = program.operator_path_string(operator.name);
-                            diagnostics.push(Diagnostic::error(format!(
-                                "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
-                                program.display_type_reference_with_constraints(operator.return_type)
-                            )));
-                        } else {
-                            operator_statement_updates.push((
-                                state.symbol,
-                                state.statement_nodes,
-                                index,
-                                call.clone(),
-                                selected,
-                                returns_non_unit,
-                            ));
-                        }
-                    } else {
-                        statement_updates.push((
-                            machine.symbol,
-                            state.statement_nodes,
-                            index,
-                            selected,
-                        ));
                     }
                 }
             }
         }
-    }
 
-    let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+        let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+        (
+            expression_owners,
+            expression_updates,
+            statement_updates,
+            operator_statement_updates,
+            transition_updates,
+            diagnostics,
+        )
+    };
 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
