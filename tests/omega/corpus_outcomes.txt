@@ -30,7 +30,7 @@ fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09
 	calling policy rejected the boundary: normal Terminal rejection
 fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
-fail/calls/array_copy_preserves_declared_extent rejected 16791ms expected @0f29300672c4
+fail/calls/array_copy_preserves_declared_extent rejected 1579ms expected @75edb0705fd6
 	argument `pending` for state `entry` expects `[Condition; 127][in Trapping]`, got `named value`
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -454,7 +454,7 @@ fail/facts/data_decomposition/local/gadt rejected 2040ms expected @0f29300672c4
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
 	match arms produce incompatible values
 	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
-fail/facts/data_decomposition/local/gadt_embedding rejected 2221ms expected @0f29300672c4
+fail/facts/data_decomposition/local/gadt_embedding rejected 1713ms expected @75edb0705fd6
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `i32`
 	match arms produce incompatible values
 	machine `extract$specialized$79ad3cfef68bd4b0$0` state `entry` stores a numeric value into a `bool` return value, which holds a boolean
