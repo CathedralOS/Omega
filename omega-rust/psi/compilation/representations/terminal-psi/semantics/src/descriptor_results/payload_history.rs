@@ -1358,20 +1358,39 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
     *retained = combined;
 }
 
-/// Intersect canonical premise rosters without searching the whole arrival for
-/// every retained premise. The caller publishes sorted, unique snapshots.
+/// Intersect canonical snapshots without cloning a full input to discard most
+/// of it. A subset reuses its published allocation; a proper intersection owns
+/// exactly its retained rows. Old snapshots remain immutable for payload-local
+/// cross terms and earlier cuts, so detaching and retaining their old capacity
+/// can otherwise multiply the ambient theory's peak memory across a large CFG.
 fn retain_common_snapshot(
     retained: &mut Arc<Vec<SharedPremise>>,
-    incoming: &[SharedPremise],
+    incoming: &Arc<Vec<SharedPremise>>,
 ) -> bool {
-    let mut remaining = incoming.iter().peekable();
-    let unchanged = retained
-        .iter()
-        .all(|premise| next_premise_is(&mut remaining, premise));
-    if unchanged {
+    if Arc::ptr_eq(retained, incoming) {
         return false;
     }
-    retain_common_premises(Arc::make_mut(retained), incoming)
+    let mut remaining = incoming.iter().peekable();
+    let common = retained
+        .iter()
+        .filter(|premise| next_premise_is(&mut remaining, *premise))
+        .count();
+    if common == retained.len() {
+        return false;
+    }
+    if common == incoming.len() {
+        *retained = incoming.clone();
+        return true;
+    }
+    let mut intersection = Vec::with_capacity(common);
+    let mut remaining = incoming.iter().peekable();
+    for premise in retained.iter() {
+        if next_premise_is(&mut remaining, premise) {
+            intersection.push(premise.clone());
+        }
+    }
+    *retained = Arc::new(intersection);
+    true
 }
 
 /// Preserve a published allocation when normalization would change no row.
@@ -1656,6 +1675,56 @@ mod tests {
             ScalarTerm::Boolean(true),
             ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
         )
+    }
+
+    #[test]
+    fn premise_snapshot_intersection_reuses_the_subset_without_changing_old_cuts() {
+        let snapshot = |values: &[u64]| {
+            let mut rows = values
+                .iter()
+                .map(|value| SharedPremise::new(condition(*value)))
+                .collect::<Vec<_>>();
+            rows.sort();
+            Arc::new(rows)
+        };
+        let original = snapshot(&[1, 2, 3]);
+        let mut retained = original.clone();
+        let incoming = snapshot(&[2, 3]);
+        assert!(retain_common_snapshot(&mut retained, &incoming));
+        assert!(Arc::ptr_eq(&retained, &incoming));
+        assert_eq!(original.len(), 3);
+        assert!(!retain_common_snapshot(&mut retained, &original));
+        assert!(Arc::ptr_eq(&retained, &incoming));
+        let empty = snapshot(&[]);
+        assert!(retain_common_snapshot(&mut retained, &empty));
+        assert!(Arc::ptr_eq(&retained, &empty));
+    }
+
+    #[test]
+    fn premise_snapshot_intersection_does_not_retain_input_capacity_or_one_sided_facts() {
+        let mut rows = Vec::with_capacity(4096);
+        rows.extend([1, 2, 3].map(|value| SharedPremise::new(condition(value))));
+        rows.sort();
+        let original = Arc::new(rows);
+        let mut retained = original.clone();
+        let mut rows = [2, 3, 4]
+            .map(|value| SharedPremise::new(condition(value)))
+            .to_vec();
+        rows.sort();
+        let incoming = Arc::new(rows);
+        assert!(retain_common_snapshot(&mut retained, &incoming));
+        assert_eq!(retained.capacity(), 2);
+        assert_eq!(
+            retained
+                .iter()
+                .map(AsRef::as_ref)
+                .cloned()
+                .collect::<Vec<_>>(),
+            [condition(2), condition(3)]
+        );
+        assert_eq!(original.capacity(), 4096);
+        assert_eq!(original.len(), 3);
+        assert_eq!(incoming.len(), 3);
     }
 
     fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipContract) {
