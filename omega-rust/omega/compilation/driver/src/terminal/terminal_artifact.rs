@@ -227,11 +227,22 @@ impl<'a> PreparedTerminalProduct<'a> {
     }
 
     fn shares_production(&self, other: &Self) -> bool {
+        // The publication slot is per-target custody, not product identity:
+        // equal fixed Psi projections let the cohort produce through the first
+        // member's slot while each report keeps its own admissions.
         self.request.use_kind == other.request.use_kind
-            && std::ptr::eq(
-                self.request.view.publication,
-                other.request.view.publication,
-            )
+            && self
+                .request
+                .view
+                .publication
+                .optimizations()
+                .project_psi()
+                == other
+                    .request
+                    .view
+                    .publication
+                    .optimizations()
+                    .project_psi()
             && Arc::ptr_eq(self.request.view.program, other.request.view.program)
             && self.request.view.sources == other.request.view.sources
             && self.request.selections.project_psi() == other.request.selections.project_psi()
