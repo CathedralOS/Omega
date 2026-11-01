@@ -976,8 +976,11 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     let protocol = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
     );
+    let projection = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
+    );
     assert_absent(
-        &[execution, protocol],
+        &[execution, protocol, projection],
         "calling activation retains source correspondence",
         &[
             "MaterializedBoundarySignature",
@@ -990,6 +993,9 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     );
     assert!(protocol.contains("BoundarySignatureGeometry"));
     assert!(protocol.contains("CallbackMaterializationContext"));
+    assert!(projection.contains("impl CallingPolicySignature"));
+    assert!(projection.contains("TerminalBoundaryRecipes::new"));
+    assert!(!projection.contains("policy_signature()?"));
     let publication = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
     );

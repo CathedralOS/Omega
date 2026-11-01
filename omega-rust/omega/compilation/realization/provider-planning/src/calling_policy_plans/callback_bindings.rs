@@ -2,6 +2,7 @@
 //! binders and the closure of
 //! outbound and direct callback materializations.
 
+use super::policy_signature::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
 use crate::calling_policy_plans::callback_layout_catalog;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
@@ -12,7 +13,7 @@ use crate::calling_policy_plans::{
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
-    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, NativePlace,
+    CallbackRequirementId, NativeCallbackDemand, NativePlace,
     ValidatedBoundaryEntryPlan, callback_requirement_id,
     validate_boundary_entry_plan_with_callback_materializations,
 };
@@ -441,7 +442,10 @@ fn close_direct_callback_parameters(
     let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
     for direct in &signature.direct_callback_parameters {
         validate_fresh_native_parameter_report_identity(
-            &signature.native_parameters,
+            signature
+                .native_parameters
+                .iter()
+                .map(|parameter| parameter.identity),
             direct.identity,
             direct.native_ordinal,
         )?;
@@ -472,19 +476,6 @@ fn close_direct_callback_parameters(
         }
     }
     Ok(demands)
-}
-
-pub(crate) fn validate_fresh_native_parameter_report_identity(
-    prior: &[BoundaryNativeParameter],
-    identity: NativeParameterId,
-    ordinal: u32,
-) -> Result<(), String> {
-    if prior.iter().any(|parameter| parameter.identity == identity) {
-        return Err(format!(
-            "boundary runtime parameter {ordinal} collides with an earlier exact parameter on one compact native-parameter report identity"
-        ));
-    }
-    Ok(())
 }
 
 pub(crate) fn callback_materialization_context(
