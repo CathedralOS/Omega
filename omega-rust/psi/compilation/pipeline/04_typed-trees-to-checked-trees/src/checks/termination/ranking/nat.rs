@@ -9,6 +9,14 @@ use self::guards::{guard_is_positive_parameter, guard_is_positive_parameter_memb
 use super::DecreaseMeasure;
 use super::patterns;
 
+/// A transient source query, not an executable checked observation. No dummy
+/// arena coordinate is manufactured before admission retains the real inputs.
+pub(super) struct StateRank {
+    pub(super) parameter: symbols::SymbolHandle,
+    pub(super) parameter_position: u32,
+    pub(super) upper: Option<ExpressionHandle>,
+}
+
 /// The measure `edge_decrease_proven` reads, stated over one state's own
 /// parameters: the countdown subject itself (signed or unsigned), or the
 /// distance's unsigned cursor and admitted bound expression.
@@ -18,8 +26,7 @@ pub(super) fn state_rank(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
-) -> Option<checked_trees::CheckedIntegerRankObservation> {
-    use checked_trees::CheckedNaturalRankMeasure;
+) -> Option<StateRank> {
     use typed_trees::types::PrimitiveType;
     let plain = |subject: ExpressionHandle| {
         let name = program.expression_table.name_path_node(subject)?;
@@ -44,18 +51,10 @@ pub(super) fn state_rank(
             ) {
                 return None;
             }
-            Some(checked_trees::CheckedIntegerRankObservation {
-                function: checked_trees::CheckedNaturalRankFunction::Identity,
-                observation: Default::default(),
+            Some(StateRank {
                 parameter: parameter.symbol,
                 parameter_position: position,
-                // This query is comparison scratch only, never inserted as
-                // an executable observation. The admission writer later binds
-                // the exact coordinate, just as it binds observation roots.
-                measure: CheckedNaturalRankMeasure::IntegerValue {
-                    coordinate: Default::default(),
-                    primitive_type,
-                },
+                upper: None,
             })
         }
         DecreaseMeasure::Distance { lower, upper } => {
@@ -67,15 +66,10 @@ pub(super) fn state_rank(
             ) {
                 return None;
             }
-            Some(checked_trees::CheckedIntegerRankObservation {
-                function: checked_trees::CheckedNaturalRankFunction::Identity,
-                observation: Default::default(),
+            Some(StateRank {
                 parameter: lower.symbol,
                 parameter_position: lower_position,
-                measure: CheckedNaturalRankMeasure::BoundedDistance {
-                    primitive_type,
-                    upper,
-                },
+                upper: Some(upper),
             })
         }
     }

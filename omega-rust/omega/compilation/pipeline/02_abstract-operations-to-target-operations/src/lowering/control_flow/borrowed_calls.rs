@@ -3,6 +3,8 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::scalar::element_views::is_element_view_parameter;
+use crate::lowering::structural_layout::{internal_parameter_shape, reference_projection_regions};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -12,6 +14,7 @@ use target_operations::{
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use terminal_semantics::borrowed_referent_matches;
 
 /// Present a referent whole: no projection, byte offset or runtime selector,
 /// so primitive storage and descriptor sources share one guard and one literal.
@@ -23,7 +26,7 @@ fn direct_referent(
     source: TargetStructuralArgumentSource,
     types: &StructuralTypeLookup<'_>,
 ) -> Option<TargetStructuralArgument> {
-    terminal_semantics::borrowed_referent_matches(
+    borrowed_referent_matches(
         types.values().copied(),
         identity,
         declaration.structural_type,
@@ -138,14 +141,10 @@ pub(super) fn argument(
         // Only an inline projection remains inside the aggregate's storage.
         // A reference or view crossing selects a separate live backing region;
         // its pointer and selector bounds belong to the canonical path walk.
-        let inline = crate::lowering::structural_layout::reference_projection_regions(
-            home.structural_type(),
-            &argument.path,
-            types,
-        )
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-        .pointer_slots
-        .is_empty();
+        let inline = reference_projection_regions(home.structural_type(), &argument.path, types)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+            .pointer_slots
+            .is_empty();
         // Psi checks the formal's memberships against this exact occurrence.
         // Borrowing retains the owner's storage and claims; domain rows and
         // establishment receipts add no address or ABI words. The same layout
@@ -302,12 +301,7 @@ pub(super) fn storage_argument(
     if !allowed
         || selected != declaration.structural_type
         || destination.shape
-            != crate::lowering::structural_layout::internal_parameter_shape(
-                selected,
-                referent,
-                declaration.access,
-                types,
-            )
+            != internal_parameter_shape(selected, referent, declaration.access, types)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -574,10 +568,7 @@ pub(super) fn byte_argument(
     };
     if argument.access != declaration.access
         || (!crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
-            && !crate::lowering::scalar::element_views::is_element_view_parameter(
-                declaration,
-                types,
-            ))
+            && !is_element_view_parameter(declaration, types))
         || destination.shape != ValueShape::borrowed_reference(carrier_size, 8)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

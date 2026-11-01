@@ -1,4 +1,6 @@
 //! Functions, source and implementation blocks, and explicitly identified successor edges.
+use super::SelectedInstructionId;
+use super::SelectedMemoryAccessRole::{ReadIndexedPrimitive, ReadPlace};
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
 use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
@@ -52,10 +54,7 @@ impl SelectedFunction {
     }
 
     /// The call contract covering `instruction`, when the function carries one.
-    pub fn call(
-        &self,
-        instruction: super::SelectedInstructionId,
-    ) -> Option<&super::SelectedCallContract> {
+    pub fn call(&self, instruction: SelectedInstructionId) -> Option<&super::SelectedCallContract> {
         self.calls
             .iter()
             .find(|call| call.instruction == instruction)
@@ -64,7 +63,7 @@ impl SelectedFunction {
     /// The memory-access row covering `instruction`, when carried.
     pub fn memory_access(
         &self,
-        instruction: super::SelectedInstructionId,
+        instruction: SelectedInstructionId,
     ) -> Option<&super::SelectedMemoryAccess> {
         self.memory_accesses
             .iter()
@@ -90,7 +89,7 @@ impl SelectedFunction {
             VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => true,
             VirtualRegisterOrigin::AbiTransport {
-                instruction: super::SelectedInstructionId(0),
+                instruction: SelectedInstructionId(0),
                 place,
                 byte_offset: 0,
             } => {
@@ -139,15 +138,12 @@ pub enum SelectedBlockOrigin {
 
 impl SelectedBlock {
     /// The instruction keyed `instruction`, when the block carries it.
-    pub fn instruction(
-        &self,
-        instruction: super::SelectedInstructionId,
-    ) -> Option<&SelectedInstruction> {
+    pub fn instruction(&self, instruction: SelectedInstructionId) -> Option<&SelectedInstruction> {
         self.instructions.iter().find(|row| row.id == instruction)
     }
 
     /// The position of the instruction keyed `instruction`.
-    pub fn instruction_index(&self, instruction: super::SelectedInstructionId) -> Option<usize> {
+    pub fn instruction_index(&self, instruction: SelectedInstructionId) -> Option<usize> {
         self.instructions
             .iter()
             .position(|row| row.id == instruction)
@@ -269,20 +265,14 @@ impl SelectedStructuralBinding {
     pub fn source_read_roles(&self) -> impl Iterator<Item = super::SelectedMemoryAccessRole> + '_ {
         self.source_indices
             .iter()
-            .map(
-                |index| super::SelectedMemoryAccessRole::ReadIndexedPrimitive {
-                    index: index.operand.value,
-                    stride: index.stride,
-                    extent: index.extent,
-                    obligation: index.obligation,
-                    accepted_fact: index.accepted_fact,
-                },
-            )
-            .chain(
-                self.source_indices
-                    .is_empty()
-                    .then_some(super::SelectedMemoryAccessRole::ReadPlace),
-            )
+            .map(|index| ReadIndexedPrimitive {
+                index: index.operand.value,
+                stride: index.stride,
+                extent: index.extent,
+                obligation: index.obligation,
+                accepted_fact: index.accepted_fact,
+            })
+            .chain(self.source_indices.is_empty().then_some(ReadPlace))
     }
 }
 

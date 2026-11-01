@@ -79,11 +79,11 @@ windows_x86_64 machine Main::main() reaches Pick crashes Trap {
 }
 
 FirstProviderPickImplementation satisfies Pick {
-    Pick::choose = FirstProvider::choose;
-    Pick::spare = FirstProvider::spare;
+    machine choose() -> i32 { FirstProvider::choose() }
+    machine spare() -> i32 { FirstProvider::spare() }
 }
 
 SecondProviderPickImplementation satisfies Pick {
-    Pick::choose = SecondProvider::choose;
-    Pick::spare = SecondProvider::spare;
+    machine choose() -> i32 { SecondProvider::choose() }
+    machine spare() -> i32 { SecondProvider::spare() }
 }

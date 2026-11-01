@@ -269,11 +269,19 @@ pub(crate) fn pending_const_initializer_leaves(
                     ),
                 }
             }
-            // A constrained carrier keeps its declared constraints for
-            // downstream discharge; the leaf itself evaluates at the base
-            // carrier, matching canonicalization's `Constrained` recursion.
+            // Scalar leaves use the base carrier's evaluator. A complete
+            // structured computation must instead return its exact qualified
+            // destination: erasing that type here would make the probe forget
+            // the very membership its authored cast or call establishes.
             TypeReferenceNode::Constrained { base_type, .. } => {
-                collect(syntax, selection, expression, *base_type, substitution, leaves)
+                let start = leaves.len();
+                collect(syntax, selection, expression, *base_type, substitution, leaves)?;
+                for leaf in &mut leaves[start..] {
+                    if leaf.structured && leaf.expression == expression {
+                        leaf.destination = type_reference;
+                    }
+                }
+                Ok(())
             }
             _ => Err(
                 "computed constant requires a closed array, nominal literal, or builtin scalar carrier"
@@ -282,7 +290,7 @@ pub(crate) fn pending_const_initializer_leaves(
         }
     }
 
-    /// A call, match, or evaluated constant reference is one structured leaf at
+    /// A call, match, cast, or evaluated constant reference is one structured leaf at
     /// a closed destination: the checked interpreter supplies its result and
     /// admission checks it against the exact destination carrier. A bare case
     /// or an unresolved spelling is not this leaf and keeps its literal route.
@@ -292,7 +300,7 @@ pub(crate) fn pending_const_initializer_leaves(
         expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Call(_) | ExpressionNode::Match(_) => true,
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) | ExpressionNode::Cast(_) => true,
             ExpressionNode::Name(path) => name_selects_const(syntax, selection, *path),
             _ => false,
         }
@@ -310,6 +318,55 @@ pub(crate) fn pending_const_initializer_leaves(
         });
     }
 
+    // Materialization can spell the prepared closed instance while this
+    // receiver still owns the generic template and its complete substitution.
+    // Rejoin the producer's exact template/argument identity; neither pointer
+    // equality nor a generated instance name describes that semantic join.
+    fn same_constructor_application(
+        syntax: &SyntaxTrees,
+        selection: &crate::preparation::declaration_selection::ConstantSelection,
+        declared: &DataDefinition,
+        constructed: &DataDefinition,
+        substitution: &GenericApplicationSubstitution,
+    ) -> bool {
+        use crate::preparation::generic_data::{
+            ClosedArgumentIdentity, closed_argument_identity, closed_parameter_argument_identity,
+        };
+        if std::ptr::eq(declared, constructed) {
+            return true;
+        }
+        let Some(origin) = constructed.generic_instance else {
+            return false;
+        };
+        let Some(ClosedArgumentIdentity::Instance(template, actual)) =
+            closed_argument_identity(syntax, Some(selection), origin, false)
+        else {
+            return false;
+        };
+        if !syntax
+            .root_item(template)
+            .as_data()
+            .is_some_and(|template| std::ptr::eq(template, declared))
+        {
+            return false;
+        }
+        let expected = syntax
+            .items
+            .type_parameters(declared.type_parameters)
+            .iter()
+            .map(|parameter| {
+                let argument = *substitution.get(parameter.name.as_str(syntax))?;
+                closed_parameter_argument_identity(
+                    syntax,
+                    Some(selection),
+                    argument,
+                    &parameter.kind,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        expected.as_ref() == Some(&actual)
+    }
+
     fn collect_literal_fields(
         syntax: &SyntaxTrees,
         selection: &crate::preparation::declaration_selection::ConstantSelection,
@@ -319,7 +376,7 @@ pub(crate) fn pending_const_initializer_leaves(
         leaves: &mut Vec<PendingConstInitializerLeaf>,
     ) -> Result<(), String> {
         let (constructed, case) = selection.constructor(syntax, &literal.constructor_name)?;
-        if !std::ptr::eq(declared, constructed) {
+        if !same_constructor_application(syntax, selection, declared, constructed, substitution) {
             return Err(
                 "computed constant constructor differs from its declared nominal carrier"
                     .to_owned(),

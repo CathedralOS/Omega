@@ -1,14 +1,15 @@
-//! In-process diagnostic attribution, never semantic or admission evidence.
+//! Source-completion diagnostic attribution, never semantic or admission evidence.
 //!
 //! Psi projects source names and spans while it owns the checked source. A
 //! policy can attribute a rejected Terminal site without retaining that source
-//! or depending on a lowering implementation. This companion is not serialized.
+//! or depending on a lowering implementation. Source-completion storage retains
+//! this companion; it is not part of canonical Terminal semantics.
 
 use semantic_vocabulary::MachineId;
 use source::SourceSpan;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalMachineProvenance {
     machines: BTreeMap<MachineId, (String, Option<SourceSpan>)>,
     callers: BTreeMap<MachineId, MachineId>,

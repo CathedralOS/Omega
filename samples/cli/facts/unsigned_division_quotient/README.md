@@ -68,15 +68,3 @@ This row establishes that unsigned integer division (`400u64 / 4u64`) produces a
 The row is verified by `samples/cli/facts/unsigned_division_quotient` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow \`u64\``.
 Pinned record at `b1493daf54dd+wt` on macOS arm64 (shared opt-level 1 producer): the root and nine places exit 0 under `omega run --both` (native exit 0, interpreter exit 0; 10/10) and `sample_gate.py --cli` reports the row's 10 positive projects and 9 intended-invalid controls checked with all 9 rejections matched. The nine `_exit` fixtures carry `checked` with `check-target:macos_arm64` and the nine `_rejected` twins carry `rejected ... expected` with their own `may overflow \`u64\`` diagnostic in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows.
 What remains open: Non-constant unsigned divisor interval-set theorem propagation and 128-bit wide unsigned division lowering across target platforms.
-
-## Build-owned target-body migration
-
-The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.

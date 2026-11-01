@@ -252,7 +252,26 @@ pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let boolean_equalities = crate::static_type_boolean_equalities(program);
-    program.prepare_static_type_contexts(&boolean_equalities);
+    let case_memberships = crate::case_membership_type_facts(program);
+    program.prepare_static_type_contexts(&boolean_equalities, case_memberships.clone());
+    program.elide_unreachable_case_arms();
+    // Full-predicate implications apply under the successful case test to
+    // both expression arms and transition targets. Publish them only after
+    // independent prefix queries. Do not elide again: a refuted body can
+    // still have an effectful reached guard before its final rejecting test.
+    let conditional =
+        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(program);
+    program.prepare_static_type_contexts(
+        &boolean_equalities,
+        case_memberships.into_iter().chain(conditional).collect(),
+    );
+    // Result selection needs each arm's independently proved type equation,
+    // and dispatch needs the same admitted subject's possible cases. Compute
+    // the whole batch against the preexisting contexts, then publish it once;
+    // a goal or receiving annotation cannot become its own premise.
+    let predicate_contexts =
+        crate::proof_contracts::contract_entailment::predicate_type_contexts(program);
+    program.retain_proven_type_contexts(predicate_contexts);
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
             .into_iter()

@@ -24,6 +24,8 @@ use super::stack_mutation::{
     ScalarReplay, aarch64_control_flow_instruction, aarch64_unsupported_sp_write,
     replay_scalar_mutation, validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
 };
+use crate::object_artifact::replay::scalar::control_flow::reconstruct_scalar_control_flow;
+use crate::object_artifact::replay::scalar::control_flow::validate_stack;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 pub(crate) fn validate_scalar_stack(
@@ -53,23 +55,12 @@ pub(crate) fn validate_scalar_stack(
             return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset: 0 });
         }
         let reconstructed =
-            crate::object_artifact::replay::scalar::control_flow::reconstruct_scalar_control_flow(
-                architecture,
-                machine,
-                bytes,
-                attribution.iter(),
-            )?;
+            reconstruct_scalar_control_flow(architecture, machine, bytes, attribution.iter())?;
         if reconstructed != *blocks {
             return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset: 0 });
         }
-        return crate::object_artifact::replay::scalar::control_flow::validate_stack(
-            architecture,
-            machine,
-            bytes,
-            evidence,
-            blocks,
-        )
-        .map(|stack| (stack, Vec::new()));
+        return validate_stack(architecture, machine, bytes, evidence, blocks)
+            .map(|stack| (stack, Vec::new()));
     }
     if let ScalarControlFlowEvidence::BooleanSharedConvergence {
         decisions,

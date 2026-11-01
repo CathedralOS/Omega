@@ -5,21 +5,21 @@ boundary trait Pick {
     machine spare() -> i32 reaches;
 }
 FirstMap satisfies Pick {
-    Pick::choose = first;
-    Pick::spare = spare;
+    machine choose() -> i32 { first() }
+    machine spare() -> i32 { spare_realization() }
 }
 SecondMap satisfies Pick {
-    Pick::choose = second;
-    Pick::spare = spare;
+    machine choose() -> i32 { second() }
+    machine spare() -> i32 { spare_realization() }
 }
 OverrideMap satisfies Pick {
-    Pick::choose = override_choice;
-    Pick::spare = spare;
+    machine choose() -> i32 { override_choice() }
+    machine spare() -> i32 { spare_realization() }
 }
 machine first() -> i32 { 1 }
 machine second() -> i32 { 2 }
 machine override_choice() -> i32 { 3 }
-machine spare() -> i32 { 44 }
+machine spare_realization() -> i32 { 44 }
 
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {

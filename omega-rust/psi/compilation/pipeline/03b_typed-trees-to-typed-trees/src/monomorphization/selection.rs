@@ -7,6 +7,8 @@
 //! `static_bindings.rs` infers static, fixed-array and domain bindings.
 
 use crate::tables::expressions_of;
+use const_arguments::collect_type_expressions;
+use typed_trees::operator::declaration_by_symbol;
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 use validation::expression_result_type_reference;
@@ -266,11 +268,7 @@ pub(super) fn collect_call_selections(
             for handle in state.statement_nodes.handles() {
                 match program.statement_table.statement(handle) {
                     StatementNode::Call(call)
-                        if typed_trees::operator::declaration_by_symbol(
-                            program,
-                            call.target_symbol,
-                        )
-                        .is_none() =>
+                        if declaration_by_symbol(program, call.target_symbol).is_none() =>
                     {
                         if let Some(selection) = selection_for_call(
                             program,
@@ -320,16 +318,11 @@ pub(super) fn collect_call_selections(
                         .map(|owned| owned.type_reference),
                 )
             {
-                const_arguments::collect_type_expressions(
-                    program,
-                    reference,
-                    &mut visited_types,
-                    &mut expressions,
-                );
+                collect_type_expressions(program, reference, &mut visited_types, &mut expressions);
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let Some(local) = statement.as_local_data() {
-                    const_arguments::collect_type_expressions(
+                    collect_type_expressions(
                         program,
                         local.type_reference,
                         &mut visited_types,

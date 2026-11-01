@@ -2,6 +2,9 @@
 //! const-generic calls and expressions, initializers, fixed-array lengths,
 //! and named range arguments and endpoints.
 
+use crate::machine_execution::selected_operators::prepare_selected_execution;
+use crate::{BuildTimeAdmissionPlan, PreparedBuildMachineProgram};
+
 pub(crate) mod const_applications;
 pub(crate) mod const_domain_facts;
 pub(crate) mod const_generic_calls;
@@ -28,21 +31,10 @@ pub(crate) fn prepared_admission(
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
-) -> Result<
-    (
-        crate::PreparedBuildMachineProgram,
-        crate::BuildTimeAdmissionPlan,
-    ),
-    Vec<diagnostics::Diagnostic>,
-> {
-    let selected_execution =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            provider_bodies,
-            operators,
-        )
+) -> Result<(PreparedBuildMachineProgram, BuildTimeAdmissionPlan), Vec<diagnostics::Diagnostic>> {
+    let selected_execution = prepare_selected_execution(typed, provider_bodies, operators)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
+    let prepared = PreparedBuildMachineProgram::prepare_in(
         selected_execution.as_ref().unwrap_or(typed),
         domain,
     )?;

@@ -11,6 +11,8 @@ use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
 use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_entry_receipt};
 
+use crate::build_bindings::capture_native_formations;
+
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
     /// Portable publication requires closed declaration owners. Invocation code
@@ -65,12 +67,9 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
-        let native_formations = crate::build_bindings::capture_native_formations(
-            checked,
-            self.machine,
-            &declaration_requests,
-        )
-        .map_err(TerminalArtifactProductionError::BuildContext)?;
+        let native_formations =
+            capture_native_formations(checked, self.machine, &declaration_requests)
+                .map_err(TerminalArtifactProductionError::BuildContext)?;
         let mut lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
@@ -92,12 +91,18 @@ impl<'a> TerminalProductionRequest<'a> {
             )
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         }
-        // Every consumer observes the same unoptimized composition. A target's
-        // refusal cannot erase behavior or reject an independently admitted one.
-        let admissions: Vec<_> = applications
+        lowered.semantic_module.unoptimized_behavior = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+            .collect();
+        // Source joins become ordered data here, not a call into product
+        // policy. Consumers admit their scopes after canonical publication.
+        let prepared_applications: Vec<_> = applications
             .iter()
             .map(|application| {
-                application.admit(
+                application.prepare_roots(
                     checked,
                     &lowered,
                     self.machine,
@@ -111,30 +116,35 @@ impl<'a> TerminalProductionRequest<'a> {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
             .map_err(TerminalArtifactProductionError::Optimization)?;
-        let receipts: Vec<_> = applications
-            .iter()
-            .zip(admissions)
-            .map(|(application, admission)| {
-                let entry_selection = admission?;
-                match (application.entry_identity, entry_selection) {
-                    (Some(source_signature_identity), Some(selection)) => observer
-                        .record_result(PsiCompilationStage::EntryReceipt, || {
-                            prepare_program_entry_receipt(
-                                checked,
-                                selection,
-                                source_signature_identity,
-                                self.exact_toolchain_sources,
-                                optimized.lowered(),
-                            )
-                        })
-                        .map(Some)
-                        .map_err(|error| {
-                            TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                        }),
-                    _ => Ok(None),
-                }
-            })
-            .collect();
+        let receipts: Vec<Result<crate::ProducedTerminalApplication, Vec<Diagnostic>>> =
+            applications
+                .iter()
+                .zip(prepared_applications)
+                .map(|(application, prepared)| {
+                    let prepared = prepared?;
+                    let receipt = match (application.entry_identity, prepared.selection) {
+                        (Some(source_signature_identity), Some(selection)) => observer
+                            .record_result(PsiCompilationStage::EntryReceipt, || {
+                                prepare_program_entry_receipt(
+                                    checked,
+                                    selection,
+                                    source_signature_identity,
+                                    self.exact_toolchain_sources,
+                                    optimized.lowered(),
+                                )
+                            })
+                            .map(Some)
+                            .map_err(|error| {
+                                TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
+                            }),
+                        _ => Ok(None),
+                    };
+                    Ok(crate::ProducedTerminalApplication {
+                        receipt,
+                        roots: prepared.roots,
+                    })
+                })
+                .collect();
         let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
@@ -150,17 +160,18 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Artifact)?;
         let applications = receipts
             .into_iter()
-            .map(|receipt| {
-                let receipt = receipt?;
-                if let Some(receipt) = &receipt {
+            .map(|application| {
+                let mut application = application?;
+                if let Ok(Some(receipt)) = &application.receipt {
                     let artifact = program.portable().map_err(|error| {
                         TerminalArtifactProductionError::Artifact(error).diagnostics()
                     })?;
-                    rejoin_program_entry_receipt(receipt, artifact).map_err(|error| {
-                        TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                    })?;
+                    if let Err(error) = rejoin_program_entry_receipt(receipt, artifact) {
+                        application.receipt =
+                            Err(TerminalArtifactProductionError::EntryReceipt(error).diagnostics());
+                    }
                 }
-                Ok(receipt)
+                Ok(application)
             })
             .collect();
         let build_bindings = crate::TerminalBuildBindings::new(

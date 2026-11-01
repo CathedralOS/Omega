@@ -24,7 +24,7 @@ public boundary trait BoundarySettlement {
     machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 reaches;
 }
 
-BoundarySettler satisfies BoundarySettlement { BoundarySettlement::settle = settle_boundary_settler; }
+BoundarySettler satisfies BoundarySettlement { machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 { settle_boundary_settler(prefix, value, suffix) } }
 machine settle_boundary_settler(prefix: i32, value: Receipt, suffix: i32) -> i32
 satisfies BoundarySettlement::settle
 {
@@ -32,7 +32,7 @@ satisfies BoundarySettlement::settle
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
 }
 
-Observed satisfies Settlement<Receipt> { Settlement::settle = settle_observed; }
+Observed satisfies Settlement<Receipt> { machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 { settle_observed(prefix, value, suffix) } }
 machine settle_observed(prefix: i32, value: Receipt, suffix: i32) -> i32
 satisfies Settlement<Receipt>::settle
 {
@@ -41,7 +41,7 @@ satisfies Settlement<Receipt>::settle
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
 }
 
-Scaled satisfies Settlement<Receipt> { Settlement::settle = settle_scaled; }
+Scaled satisfies Settlement<Receipt> { machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 { settle_scaled(prefix, value, suffix) } }
 machine settle_scaled(prefix: i32, value: Receipt, suffix: i32) -> i32
 satisfies Settlement<Receipt>::settle
 {
@@ -50,7 +50,7 @@ satisfies Settlement<Receipt>::settle
         (((prefix as i32 in Wrapping) + ((code as i32 in Wrapping) * (10 as i32 in Wrapping))) + (suffix as i32 in Wrapping)) as i32
 }
 
-Paired satisfies Settlement<Pair> { Settlement::settle = settle_paired; }
+Paired satisfies Settlement<Pair> { machine settle(prefix: i32, value: Pair, suffix: i32) -> i32 { settle_paired(prefix, value, suffix) } }
 machine settle_paired(prefix: i32, value: Pair, suffix: i32) -> i32
 satisfies Settlement<Pair>::settle
 {
@@ -62,7 +62,7 @@ satisfies Settlement<Pair>::settle
         (((prefix as i32 in Wrapping) + (total as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
 }
 
-Chosen satisfies Settlement<Choice> { Settlement::settle = settle_chosen; }
+Chosen satisfies Settlement<Choice> { machine settle(prefix: i32, value: Choice, suffix: i32) -> i32 { settle_chosen(prefix, value, suffix) } }
 machine settle_chosen(prefix: i32, value: Choice, suffix: i32) -> i32
 satisfies Settlement<Choice>::settle
 {
@@ -70,7 +70,7 @@ satisfies Settlement<Choice>::settle
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
 }
 
-Copied satisfies Settlement<Sample> { Settlement::settle = settle_copied; }
+Copied satisfies Settlement<Sample> { machine settle(prefix: i32, value: Sample, suffix: i32) -> i32 { settle_copied(prefix, value, suffix) } }
 machine settle_copied(prefix: i32, value: Sample, suffix: i32) -> i32
 satisfies Settlement<Sample>::settle
 {

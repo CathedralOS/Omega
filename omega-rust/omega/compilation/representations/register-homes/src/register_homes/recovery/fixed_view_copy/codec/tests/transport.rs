@@ -1,7 +1,6 @@
 //! Wire and strong-identity custody of explicit edge transport; no rewrite admission is inferred.
-use crate::FixedViewCopyPlan;
-use crate::FixedViewCopyPolicy;
 use crate::register_homes::recovery::fixed_view_copy::codec::tests::plan;
+use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 use selected_instructions::{
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };

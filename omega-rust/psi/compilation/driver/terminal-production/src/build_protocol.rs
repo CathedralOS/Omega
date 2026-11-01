@@ -1,33 +1,31 @@
 //! Source provenance and emitted-operation custody shared by Build protocols.
 
+use crate::build_bindings::emitted_boundary;
+use checked_trees::CheckedTrees;
+use diagnostics::Diagnostic;
+use language_semantics::build_requests::is_build_protocol;
+use lowered_psi::LoweredPsi;
+use semantic_vocabulary::{BoundaryMachineId, InvocationSite, OperationId};
+use source::SourceSpan;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
+
 pub(super) fn capture<Action: Copy>(
-    checked: &checked_trees::CheckedTrees,
-    lowered: &lowered_psi::LoweredPsi,
+    checked: &CheckedTrees,
+    lowered: &LoweredPsi,
     protocol: &str,
     action: impl Fn(&str) -> Option<Action>,
-) -> Result<
-    Vec<(
-        semantic_vocabulary::OperationId,
-        semantic_vocabulary::BoundaryMachineId,
-        Action,
-        source::SourceSpan,
-    )>,
-    diagnostics::Diagnostic,
-> {
+) -> Result<Vec<(OperationId, BoundaryMachineId, Action, SourceSpan)>, Diagnostic> {
     let mut declarations = Vec::new();
     for definition in checked.traits() {
         if !definition.is_boundary
-            || !language_semantics::build_requests::is_build_protocol(
-                &checked.symbols,
-                definition.symbol,
-                protocol,
-            )
+            || !is_build_protocol(&checked.symbols, definition.symbol, protocol)
         {
             continue;
         }
         for signature in checked.trait_machine_signatures(definition) {
             let selected = action(signature.name.as_str()).ok_or_else(|| {
-                diagnostics::Diagnostic::error(format!(
+                Diagnostic::error(format!(
                     "unknown toolchain {protocol} operation `{}`",
                     signature.name
                 ))
@@ -41,15 +39,13 @@ pub(super) fn capture<Action: Copy>(
         let (target, source_span) = match occurrence.source_site {
             Some(Site::Statement(statement)) => {
                 match checked.statement_table.statement(statement) {
-                    typed_trees::statement::StatementNode::Call(call) => {
-                        (call.target_symbol, call.source_span)
-                    }
+                    StatementNode::Call(call) => (call.target_symbol, call.source_span),
                     _ => continue,
                 }
             }
             Some(Site::Expression(expression)) => {
                 match checked.expression_table.expression(expression) {
-                    typed_trees::expression::ExpressionNode::Call(call) => (
+                    ExpressionNode::Call(call) => (
                         call.target_symbol,
                         checked.expression_table.source_span(expression),
                     ),
@@ -61,15 +57,14 @@ pub(super) fn capture<Action: Copy>(
         let Some((_, action)) = declarations.iter().find(|(symbol, _)| *symbol == target) else {
             continue;
         };
-        let semantic_vocabulary::InvocationSite::Operation(operation) = occurrence.terminal_site
-        else {
-            return Err(diagnostics::Diagnostic::error(format!(
+        let InvocationSite::Operation(operation) = occurrence.terminal_site else {
+            return Err(Diagnostic::error(format!(
                 "{protocol} lost its ordinary boundary operation"
             )));
         };
         calls.push((
             operation,
-            crate::build_bindings::emitted_boundary(lowered, operation)?,
+            emitted_boundary(lowered, operation)?,
             *action,
             source_span,
         ));

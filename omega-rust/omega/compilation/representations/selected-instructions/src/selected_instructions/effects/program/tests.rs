@@ -26,6 +26,8 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 
 use super::encoding::*;
+use crate::AtomicOperation::FetchXor;
+use terminal_psi::ByteSequencePredicate::NoNul;
 
 macro_rules! round_trip {
     ($plan:expr) => {
@@ -192,9 +194,7 @@ fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
         encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         if matches!(
             form.operation,
-            crate::AtomicOperation::FetchAnd
-                | crate::AtomicOperation::FetchOr
-                | crate::AtomicOperation::FetchXor
+            crate::AtomicOperation::FetchAnd | crate::AtomicOperation::FetchOr | FetchXor
         ) {
             encoded.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
         }
@@ -278,9 +278,7 @@ fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
 fn byte_sequence_scan_and_compare_codecs_round_trip() {
     let mut scan = plan();
     let instruction = &mut scan.functions[0].blocks[0].instructions[0];
-    instruction.kind = SelectedInstructionKind::ScanByteSequence {
-        predicate: terminal_psi::ByteSequencePredicate::NoNul,
-    };
+    instruction.kind = SelectedInstructionKind::ScanByteSequence { predicate: NoNul };
     instruction.memory = MachineMemoryEffect::ScanByteSequenceV1;
     instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
     instruction.alternatives.truncate(1);

@@ -2,6 +2,7 @@
 
 use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
 
+use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use super::scalar_wire::{decode_integer_type, encode_integer_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
@@ -17,7 +18,7 @@ pub(crate) fn encode_integer_math_term(
     match term {
         IntegerMathTerm::Embed(term) => {
             writer.u8(7);
-            super::scalar_term_wire::encode_scalar_term(writer, term, depth + 1)?;
+            encode_scalar_term(writer, term, depth + 1)?;
         }
         IntegerMathTerm::IntegerLiteral(literal) => {
             writer.u8(1);
@@ -58,10 +59,7 @@ pub(crate) fn decode_integer_math_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     Ok(match reader.u8()? {
-        7 => IntegerMathTerm::Embed(Box::new(super::scalar_term_wire::decode_scalar_term(
-            reader,
-            depth + 1,
-        )?)),
+        7 => IntegerMathTerm::Embed(Box::new(decode_scalar_term(reader, depth + 1)?)),
         1 => IntegerMathTerm::IntegerLiteral(
             IntegerMathLiteral::new(
                 match reader.u8()? {

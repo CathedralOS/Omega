@@ -1,4 +1,5 @@
 use crate::tables::expression_table;
+use crate::type_reference::domain_constraints::normalize_domain_constraints_for_type;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
@@ -6,6 +7,7 @@ use language_semantics::declaration_selection::{
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::domain::indexed_domain_instance_name;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -84,10 +86,12 @@ pub(crate) fn normalize_qualification_casts(
             ));
         };
         if authored_selection.source_span().span.start >= authored_selection.source_span().span.end
-            || authored_selection.target()
-                != AuthoredDeclarationSelectionTarget::LateBound(
-                    AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
-                )
+            || !matches!(
+                authored_selection.target(),
+                AuthoredDeclarationSelectionTarget::LateBound(
+                    AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership
+                ) | AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
         {
             return Err(
                 Diagnostic::error(
@@ -127,12 +131,8 @@ pub(crate) fn normalize_qualification_casts(
                 arguments.len(),
             )));
         }
-        let instance_name = typed_trees::domain::indexed_domain_instance_name(
-            program,
-            domain,
-            index_parameters,
-            &arguments,
-        )?;
+        let instance_name =
+            indexed_domain_instance_name(program, domain, index_parameters, &arguments)?;
         let semantic_id = if arguments.is_empty() {
             domain.semantic_id
         } else {
@@ -144,6 +144,20 @@ pub(crate) fn normalize_qualification_casts(
     let mut selections = program.authored_declaration_selections().clone();
     for (_, authored_occurrence, domain, _) in &updates {
         if !domain.is_valid() {
+            continue;
+        }
+        // Several compiler copies can retain one authored lookup occurrence.
+        // Finalize that occurrence once, and require every copy (including a
+        // seeded continuation) to select exactly the retained declaration.
+        if let Some(resolved) = selections
+            .get(*authored_occurrence)
+            .and_then(|selection| selection.target().as_resolved().copied())
+        {
+            if resolved.selected_symbol() != *domain {
+                return Err(Diagnostic::error(
+                    "copied qualification cast changes its authored domain declaration",
+                ));
+            }
             continue;
         }
         selections
@@ -192,9 +206,7 @@ pub(crate) fn normalize_qualification_casts(
                     base_type: authored.target_type,
                     constraints,
                 });
-            crate::type_reference::domain_constraints::normalize_domain_constraints_for_type(
-                source, program, result,
-            )?;
+            normalize_domain_constraints_for_type(source, program, result)?;
             result
         } else {
             TypeReferenceHandle::invalid()

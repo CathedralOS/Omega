@@ -186,6 +186,7 @@ pub use rewrite::{
     spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
     spill_selected_runtime_value_with_span_policy,
 };
+use std::collections::BTreeSet;
 
 /// How far a block's still-open shared reload interval may reach. The
 /// entrypoint fixes this once per rewrite so the proposal and the
@@ -356,9 +357,9 @@ pub(crate) fn next_chunk(byte_size: u32, offset: u32) -> Option<u8> {
 pub(crate) fn surviving_home_exists(
     environment: &ValidatedTargetRegisterEnvironment,
     class: RegisterClassId,
-    implicit_use_units: &std::collections::BTreeSet<RegisterUnitId>,
-    pinned_units: &std::collections::BTreeSet<RegisterUnitId>,
-    written_units: &std::collections::BTreeSet<RegisterUnitId>,
+    implicit_use_units: &BTreeSet<RegisterUnitId>,
+    pinned_units: &BTreeSet<RegisterUnitId>,
+    written_units: &BTreeSet<RegisterUnitId>,
 ) -> bool {
     let reserved = environment.reservations().reserved_units();
     let physical = environment.physical().model();
@@ -586,7 +587,7 @@ pub(super) struct RuntimeSpillDerivation<'source> {
     /// tied use takes a dedicated pair so the write's tied home is a
     /// register no other operand reads. Consulted only where `shared_reload`
     /// holds: a private-pair block already leaves every use unshared.
-    pub dedicated_tie_uses: Vec<std::collections::BTreeSet<(usize, u16)>>,
+    pub dedicated_tie_uses: Vec<BTreeSet<(usize, u16)>>,
     /// Per block: the source instruction indices that close the still-open
     /// shared reload — every instruction redefining the victim, whose later
     /// `Def` or `UseDef` operand makes the held value stale the way a unit
@@ -603,7 +604,7 @@ pub(super) struct RuntimeSpillDerivation<'source> {
     pub span_closes: Vec<Vec<usize>>,
     pub crossed_unit_write: bool,
     // Establishment retains its exact address operand; only later uses reload.
-    pub retained_uses: std::collections::BTreeSet<(SelectedInstructionId, u16)>,
+    pub retained_uses: BTreeSet<(SelectedInstructionId, u16)>,
     pub victim: &'source VirtualRegister,
     /// What the spill restates. A scalar victim keeps its source `ValueId`;
     /// a structural victim — an ABI live-in's incoming pointer, a field
@@ -871,31 +872,22 @@ pub(super) fn derive_runtime_spill<'source>(
     // into the register, so each gains its own following store and each ends
     // the still-open shared reload: the value that register held no longer
     // restates the victim.
-    let mut redefinitions: Vec<std::collections::BTreeSet<usize>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut redefinitions: Vec<BTreeSet<usize>> =
+        function.blocks.iter().map(|_| BTreeSet::new()).collect();
     // The same per-block granularity for instructions whose recorded writer
     // is a `UseDef` operand: its store reads the operand's emitted register,
     // so a second victim-writing operand in the same instruction — in either
     // order — leaves the slot without a defined last writer and rejects.
-    let mut usedef_writes: Vec<std::collections::BTreeSet<usize>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut usedef_writes: Vec<BTreeSet<usize>> =
+        function.blocks.iter().map(|_| BTreeSet::new()).collect();
     // Per block: `(instruction index, operand ordinal)` of each victim use
     // whose tied `Def` is early-clobber while an unpinned co-operand could
     // read the same reload register. The flag alone is no hazard — the write
     // can land only in the home its tie names — so the tied use takes a
     // dedicated pair where the block's sharing answer leaves a co-reader on
     // that register.
-    let mut dedicated_tie_uses: Vec<std::collections::BTreeSet<(usize, u16)>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut dedicated_tie_uses: Vec<BTreeSet<(usize, u16)>> =
+        function.blocks.iter().map(|_| BTreeSet::new()).collect();
     let mut defined = definition.is_none();
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
@@ -937,7 +929,7 @@ pub(super) fn derive_runtime_spill<'source>(
             .and_then(|idx| function.blocks[block_index].instructions.get(idx))
             .is_some_and(|inst| matches!(inst.kind, SelectedInstructionKind::FrameAddress { .. }))
     });
-    let establishing: std::collections::BTreeSet<(OperationId, PlaceId)> = if is_frame_address {
+    let establishing: BTreeSet<(OperationId, PlaceId)> = if is_frame_address {
         definition
             .into_iter()
             .flat_map(|definition| {
@@ -953,12 +945,10 @@ pub(super) fn derive_runtime_spill<'source>(
             })
             .collect()
     } else {
-        std::collections::BTreeSet::new()
+        BTreeSet::new()
     };
-    let established_stores: std::collections::BTreeSet<SelectedInstructionId> = if establishing
-        .is_empty()
-    {
-        std::collections::BTreeSet::new()
+    let established_stores: BTreeSet<SelectedInstructionId> = if establishing.is_empty() {
+        BTreeSet::new()
     } else {
         function
             .memory_accesses
@@ -972,7 +962,7 @@ pub(super) fn derive_runtime_spill<'source>(
             })
             .collect()
     };
-    let mut retained_uses = std::collections::BTreeSet::new();
+    let mut retained_uses = BTreeSet::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         if !function
             .blocks
@@ -1504,8 +1494,8 @@ pub(super) fn derive_runtime_spill<'source>(
     // function precolors an interval that may reach across a span, so every
     // unit such a view occupies is excluded too.
     let any_flexible = flexible_uses.iter().any(|&flexible| flexible);
-    let mut implicit_use_units = std::collections::BTreeSet::new();
-    let mut pinned_units = std::collections::BTreeSet::new();
+    let mut implicit_use_units = BTreeSet::new();
+    let mut pinned_units = BTreeSet::new();
     let mut base_excluded_mask = 0u128;
     let mut can_use_unit_mask = false;
     if any_flexible {
@@ -1698,7 +1688,7 @@ pub(super) fn derive_runtime_spill<'source>(
     // a clobber or implicit definition closes it at rewrite time, so under
     // `UnitWriteBounded` no produced interval ever reaches across a call and
     // demands a callee-saved home recovery may not have.
-    let empty_writes = std::collections::BTreeSet::new();
+    let empty_writes = BTreeSet::new();
     let base_surviving_home = any_flexible
         && if can_use_unit_mask {
             surviving_home_exists_mask(base_excluded_mask)
@@ -1733,11 +1723,8 @@ pub(super) fn derive_runtime_spill<'source>(
     // victim itself, so the held register's value no longer restates it.
     // Where no view survives, the instruction still closes the span and the
     // produced shape degrades to the bounded one.
-    let mut crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut crossed_unit_writes: Vec<BTreeSet<usize>> =
+        function.blocks.iter().map(|_| BTreeSet::new()).collect();
     if span_policy == RuntimeSpillSpanPolicy::UnitWriteCrossing {
         for &block_index in &use_blocks {
             if !shared_reload[block_index] {
@@ -1755,7 +1742,7 @@ pub(super) fn derive_runtime_spill<'source>(
                 .copied();
             let mut open = false;
             let mut written_mask = 0u128;
-            let mut written = std::collections::BTreeSet::new();
+            let mut written = BTreeSet::new();
             if let Some(start_idx) = first_unpinned {
                 for (offset, instruction) in block.instructions[start_idx..].iter().enumerate() {
                     let index = start_idx + offset;

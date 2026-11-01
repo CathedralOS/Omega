@@ -19,6 +19,52 @@ pub(crate) fn lower(
 ) -> Result<ScalarTerm, LoweringError> {
     let mut lower_operand = |operand| lower(operand, runtime_requirements, leaf);
     match expression {
+        CheckedScalarExpression::IntegerWiden {
+            primitive_type,
+            operand,
+        } => {
+            let target_type = integer_scalar_type(*primitive_type)?.as_integer().ok_or(
+                LoweringError::Unsupported("integer predicate widening has no integer target"),
+            )?;
+            let operand = lower_operand(operand)?;
+            let source_type =
+                operand
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or(LoweringError::Unsupported(
+                        "integer predicate widening has no integer operand",
+                    ))?;
+            ScalarTerm::integer_widen(source_type, target_type, operand)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            formation_decided,
+            ..
+        } => {
+            let target_type = integer_scalar_type(*primitive_type)?.as_integer().ok_or(
+                LoweringError::Unsupported("integer predicate exact cast has no integer target"),
+            )?;
+            let operand = lower_operand(operand)?;
+            let source_type =
+                operand
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or(LoweringError::Unsupported(
+                        "integer predicate exact cast has no integer operand",
+                    ))?;
+            // The clause being translated cannot establish its own partial
+            // operand. Full-carrier inclusion is total; other exact casts need
+            // the independently retained source occurrence decision.
+            if !*formation_decided && !source_type.can_widen_to(target_type) {
+                return unsupported(
+                    "integer predicate exact cast lacks independent formation evidence",
+                );
+            }
+            ScalarTerm::integer_exact_cast(source_type, target_type, operand)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,

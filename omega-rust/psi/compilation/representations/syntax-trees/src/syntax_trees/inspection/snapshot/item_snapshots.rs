@@ -2,8 +2,9 @@
 //! conformances, propositions, proof facts and external bindings.
 
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, ExternalBinding,
-    GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause, TypeParameter,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, ConformanceMember, CrashCause,
+    DataMember, ExternalBinding, GenericConformanceBound, Item, MachineParameterContract,
+    ProofFact, PropositionBody, SatisfiesClause, TypeParameter, TypeParameterKind,
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
@@ -222,11 +223,6 @@ pub enum ConformanceMemberSnapshot {
         requirement_ordinal: usize,
         declaration: Box<ItemSnapshot>,
     },
-    Reference {
-        declaring_trait: IdentifierSnapshot,
-        requirement: IdentifierSnapshot,
-        target: Vec<IdentifierSnapshot>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -415,15 +411,13 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .conformance_members(value.members)
                 .iter()
                 .map(|member| match member {
-                    crate::item::ConformanceMember::Machine(machine) => {
-                        ConformanceMemberSnapshot::Machine {
-                            declaration: Box::new(snapshot_item(
-                                syntax_trees,
-                                &Item::Machine(machine.clone()),
-                            )),
-                        }
-                    }
-                    crate::item::ConformanceMember::Synthesized(machine) => {
+                    ConformanceMember::Machine(machine) => ConformanceMemberSnapshot::Machine {
+                        declaration: Box::new(snapshot_item(
+                            syntax_trees,
+                            &Item::Machine(machine.clone()),
+                        )),
+                    },
+                    ConformanceMember::Synthesized(machine) => {
                         ConformanceMemberSnapshot::Synthesized {
                             declaration: Box::new(snapshot_item(
                                 syntax_trees,
@@ -431,7 +425,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                             )),
                         }
                     }
-                    crate::item::ConformanceMember::TraitDefault {
+                    ConformanceMember::TraitDefault {
                         declaring_trait,
                         requirement_ordinal,
                         machine,
@@ -442,18 +436,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                             syntax_trees,
                             &Item::Machine(machine.clone()),
                         )),
-                    },
-                    crate::item::ConformanceMember::Reference {
-                        declaring_trait,
-                        requirement,
-                        target,
-                    } => ConformanceMemberSnapshot::Reference {
-                        declaring_trait: snapshot_identifier(syntax_trees, declaring_trait),
-                        requirement: snapshot_identifier(syntax_trees, requirement),
-                        target: snapshot_identifier_slice(
-                            syntax_trees,
-                            syntax_trees.items.identifier_path_members(*target),
-                        ),
                     },
                 })
                 .collect(),
@@ -756,11 +738,9 @@ pub(crate) fn snapshot_type_parameter(
 ) -> TypeParameterSnapshot {
     let (kind, const_type, machine_contract, machine_requirement, proposition_contract) =
         match &parameter.kind {
-            crate::item::TypeParameterKind::Type => ("type", None, None, None, None),
-            crate::item::TypeParameterKind::Implementation => {
-                ("implementation", None, None, None, None)
-            }
-            crate::item::TypeParameterKind::Const { type_reference } => (
+            TypeParameterKind::Type => ("type", None, None, None, None),
+            TypeParameterKind::Implementation => ("implementation", None, None, None, None),
+            TypeParameterKind::Const { type_reference } => (
                 "const",
                 Some(snapshot_type_reference_handle(
                     syntax_trees,
@@ -770,7 +750,7 @@ pub(crate) fn snapshot_type_parameter(
                 None,
                 None,
             ),
-            crate::item::TypeParameterKind::Value { type_reference } => (
+            TypeParameterKind::Value { type_reference } => (
                 "value",
                 Some(snapshot_type_reference_handle(
                     syntax_trees,
@@ -780,18 +760,18 @@ pub(crate) fn snapshot_type_parameter(
                 None,
                 None,
             ),
-            crate::item::TypeParameterKind::Machine { contract } => match contract {
-                Some(crate::item::MachineParameterContract::RequirementIdentity) => {
+            TypeParameterKind::Machine { contract } => match contract {
+                Some(MachineParameterContract::RequirementIdentity) => {
                     ("machine_requirement", None, None, None, None)
                 }
-                Some(crate::item::MachineParameterContract::Structural(signature)) => (
+                Some(MachineParameterContract::Structural(signature)) => (
                     "machine",
                     None,
                     Some(snapshot_state_signature(syntax_trees, signature)),
                     None,
                     None,
                 ),
-                Some(crate::item::MachineParameterContract::Nominal { requirement, .. }) => (
+                Some(MachineParameterContract::Nominal { requirement, .. }) => (
                     "machine",
                     None,
                     None,
@@ -803,7 +783,7 @@ pub(crate) fn snapshot_type_parameter(
                 ),
                 None => ("machine", None, None, None, None),
             },
-            crate::item::TypeParameterKind::Proposition { contract } => (
+            TypeParameterKind::Proposition { contract } => (
                 "proposition",
                 None,
                 None,
@@ -910,8 +890,8 @@ pub(crate) fn snapshot_capability_contract(
             CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
             CapabilityContractKind::Crashes { cause } => CapabilityContractKindSnapshot::Crashes {
                 cause: match cause {
-                    crate::item::CrashCause::Trap => "Trap",
-                    crate::item::CrashCause::Abort => "Abort",
+                    CrashCause::Trap => "Trap",
+                    CrashCause::Abort => "Abort",
                 },
             },
         },

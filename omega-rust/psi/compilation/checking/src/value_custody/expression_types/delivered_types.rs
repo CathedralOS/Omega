@@ -423,6 +423,9 @@ fn delivered_type_conflict(
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
+    if program.static_type_context_is_unreachable(value) {
+        return None;
+    }
     if let Some(dispatch) = expression_table(program).match_node(value) {
         return expression_table(program)
             .match_arms(dispatch.arms)

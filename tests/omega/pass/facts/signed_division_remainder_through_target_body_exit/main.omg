@@ -1,37 +1,15 @@
 // Fact: computing the signed remainder (%) of a non-negative bounded i64 dividend by a positive bounded i64 divisor (divisor == 4i64) establishes the remainder bound (0 <= rem < 4) to safely index a 4-element array across all nine places.
-// Place: another target body. Each of four target-scoped machine bodies indexes the array via remainder.
+// Place: another target body. Ordinary named implementations selected by Build preserve the remainder bound.
 // Expected exit: 0
 
-boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+boundary trait SelectedComputation {
+    machine compute_target(dividend: i64, divisor: i64) -> u8 reaches
+        requires dividend >= 0i64 && divisor == 4i64;
 }
 
-X86BodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
-
-ArmBodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
-
-boundary trait SelectedComputeTarget {
+X86Computation satisfies SelectedComputation {
     machine compute_target(dividend: i64, divisor: i64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 0i64 && divisor == 4i64;
-}
-
-X86ComputeTarget satisfies SelectedComputeTarget {
-    machine compute_target(dividend: i64, divisor: i64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 0i64 && divisor == 4i64
-    {
-        SelectedBodyCheck::require_tag(17u64);
+        requires dividend >= 0i64 && divisor == 4i64 {
         let rem: i64 = dividend % divisor;
         let idx: u64 = rem as u64;
         let arr: [u8; 4] = [10, 20, 30, 40];
@@ -39,11 +17,9 @@ X86ComputeTarget satisfies SelectedComputeTarget {
     }
 }
 
-ArmComputeTarget satisfies SelectedComputeTarget {
+ArmComputation satisfies SelectedComputation {
     machine compute_target(dividend: i64, divisor: i64) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 0i64 && divisor == 4i64
-    {
-        SelectedBodyCheck::require_tag(29u64);
+        requires dividend >= 0i64 && divisor == 4i64 {
         let rem: i64 = dividend % divisor;
         let idx: u64 = rem as u64;
         let arr: [u8; 4] = [10, 20, 30, 40];
@@ -51,23 +27,15 @@ ArmComputeTarget satisfies SelectedComputeTarget {
     }
 }
 
-machine probe() -> u8 {
-    SelectedComputeTarget::compute_target(14i64, 4i64)
+machine probe() -> u8 reaches SelectedComputation {
+    SelectedComputation::compute_target(14i64, 4i64)
 }
 
-machine main() crashes Trap {
+machine main() reaches SelectedComputation crashes Trap {
     transition probe() == 30 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-machine x86_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(17u64);
-    main();
-}
-machine arm_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(29u64);
-    main();
 }

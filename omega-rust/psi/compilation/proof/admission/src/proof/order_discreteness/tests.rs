@@ -2,6 +2,7 @@ use super::{IntegerValue, Proposition, ScalarTerm, adjacent};
 use crate::proof::semantic_axiom_proof;
 use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId};
+use std::slice::from_ref;
 
 #[test]
 fn a_strict_bound_moves_one_literal_endpoint_inward() {
@@ -32,8 +33,7 @@ fn a_strict_bound_moves_one_literal_endpoint_inward() {
                     relation: Box::new(semantic_axiom_proof(premise.clone(), 0)),
                 },
             };
-            check_certificate(&context, &goal, &[], std::slice::from_ref(&premise), &proof)
-                .unwrap();
+            check_certificate(&context, &goal, &[], from_ref(&premise), &proof).unwrap();
             assert!(check_certificate(&context, &goal, &[], &[], &proof).is_err());
             // Two steps inward, the unmoved endpoint, or a strict conclusion
             // are not the adjacent non-strict bound.
@@ -47,14 +47,7 @@ fn a_strict_bound_moves_one_literal_endpoint_inward() {
                 let mut altered = proof.clone();
                 altered.conclusion = wrong.clone();
                 assert!(
-                    check_certificate(
-                        &context,
-                        &wrong,
-                        &[],
-                        std::slice::from_ref(&premise),
-                        &altered
-                    )
-                    .is_err(),
+                    check_certificate(&context, &wrong, &[], from_ref(&premise), &altered).is_err(),
                     "{wrong:?}"
                 );
             }

@@ -1,0 +1,5 @@
+module routines;
+public machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}

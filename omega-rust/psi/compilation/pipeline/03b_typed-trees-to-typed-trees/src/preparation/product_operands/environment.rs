@@ -1,11 +1,9 @@
 //! Reify captured static actuals through their exact original declaration scope.
 //! This changes neither the source-issued request nor its activation custody.
 use super::*;
+use source::SourceSpan;
 
-fn rejoin_owner(
-    program: &TypedTrees,
-    owner: source::SourceSpan,
-) -> Result<SymbolHandle, Vec<Diagnostic>> {
+fn rejoin_owner(program: &TypedTrees, owner: SourceSpan) -> Result<SymbolHandle, Vec<Diagnostic>> {
     typed_trees::product_operand::resolve_build_request_author(program, owner)
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }

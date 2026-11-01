@@ -17,8 +17,10 @@
 use crate::tables::expressions_of;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::references::DeclarationSelection;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::TypeReferenceHandle;
 use validation::expression_result_type_reference;
 
@@ -63,19 +65,14 @@ fn apply_updates(program: &mut TypedTrees, mut updates: Vec<InferredUpdate>) -> 
             continue;
         };
         if local.type_reference == update.type_reference
-            || typed_trees::type_identity::applied_type_identity(
-                program,
-                local.type_reference,
-                update.owner,
-                &[],
-            )
-            .zip(typed_trees::type_identity::applied_type_identity(
-                program,
-                update.type_reference,
-                update.owner,
-                &[],
-            ))
-            .is_some_and(|(previous, current)| previous == current)
+            || applied_type_identity(program, local.type_reference, update.owner, &[])
+                .zip(applied_type_identity(
+                    program,
+                    update.type_reference,
+                    update.owner,
+                    &[],
+                ))
+                .is_some_and(|(previous, current)| previous == current)
         {
             continue;
         }
@@ -257,9 +254,7 @@ pub(super) fn refresh_generic_call_results(
     if !changed_owners.is_empty() {
         // Open result substitution is also a graph producer. Settle its owned
         // constraints before another selection reads the newly inferred type.
-        let roots = typed_trees::references::DeclarationSelection::from_symbols(
-            changed_owners.iter().copied(),
-        );
+        let roots = DeclarationSelection::from_symbols(changed_owners.iter().copied());
         super::finalize_domain_instance_identities(program, &roots)
             .map_err(|diagnostic| vec![diagnostic])?;
     }

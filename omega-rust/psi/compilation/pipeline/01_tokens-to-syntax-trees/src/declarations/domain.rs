@@ -1,12 +1,17 @@
 use crate::contracts::facts::parse_logical_proof_facts_until;
+use crate::expressions::parse_postfix::try_parse_static_symbol_application;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::tables::{exprs, items, type_refs_of};
+use crate::type_syntax::parse_type::parse_domain_argument_handles;
 use arena::HandleSpan;
+use language_core::DomainPredicatePresence;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact};
+use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -15,11 +20,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DomainDefinition> {
     let (generic_parameters, input) =
-        crate::parameters::parse_generic_parameters::parse_generic_parameters(
-            syntax_trees,
-            input,
-            GenericParameterSyntax::TypeAndConst,
-        )?;
+        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::TypeAndConst)?;
     if !generic_parameters.lifetime_parameters.is_empty() {
         return Err(input.error_here(
             "domain families take a carrier type and proof-static const parameters, not lifetime parameters",
@@ -53,15 +54,13 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     // single-parent refinement of the prefix domain `A::B`; each `::Segment`
     // continues the chain and may carry its own indexed application.
     let (first_segment, mut input) = input.take_identifier()?;
-    let (first_arguments, rest) =
-        crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)?;
+    let (first_arguments, rest) = parse_domain_argument_handles(syntax_trees, input)?;
     let mut name_segments = vec![(first_segment, first_arguments)];
     input = rest;
     while input.at_punctuation(PunctuationKind::ColonColon) {
         let rest = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (segment, rest) = rest.take_identifier()?;
-        let (arguments, rest) =
-            crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, rest)?;
+        let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
         name_segments.push((segment, arguments));
         input = rest;
     }
@@ -154,7 +153,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (
             Some(alias),
             Vec::new(),
-            language_core::DomainPredicatePresence::Absent,
+            DomainPredicatePresence::Absent,
             HandleSpan::empty(),
             HandleSpan::empty(),
             0,
@@ -174,7 +173,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             parse_domain_requires(syntax_trees, input)?;
         let (predicate_presence, facts) = match parent_fact {
             Some(handle) => (
-                language_core::DomainPredicatePresence::Present,
+                DomainPredicatePresence::Present,
                 HandleSpan::from_parts(handle, 1 + authored_facts.count()),
             ),
             None => (predicate_presence, authored_facts),
@@ -247,22 +246,10 @@ fn parse_domain_classification<'tokens, 'source>(
 fn parse_domain_requires<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        language_core::DomainPredicatePresence,
-        HandleSpan<ProofFact>,
-        usize,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (DomainPredicatePresence, HandleSpan<ProofFact>, usize)> {
     if !input.at_contextual("requires") {
         return Ok((
-            (
-                language_core::DomainPredicatePresence::Absent,
-                HandleSpan::empty(),
-                0,
-            ),
+            (DomainPredicatePresence::Absent, HandleSpan::empty(), 0),
             input,
         ));
     }
@@ -274,11 +261,7 @@ fn parse_domain_requires<'tokens, 'source>(
         return Err(input.error_here("domain `requires` must contain at least one proposition"));
     }
     Ok((
-        (
-            language_core::DomainPredicatePresence::Present,
-            facts,
-            token_count,
-        ),
+        (DomainPredicatePresence::Present, facts, token_count),
         input,
     ))
 }
@@ -330,10 +313,7 @@ fn parse_domain_alias<'tokens, 'source>(
 /// A readable label for a domain TARGET type, used to build the domain's name
 /// (`[u8]::Utf8`). Covers the carriers an encoding domain attaches to; a named
 /// target uses its identifier.
-fn type_reference_target_label(
-    syntax_trees: &SyntaxTrees,
-    handle: syntax_trees::types::TypeReferenceHandle,
-) -> String {
+fn type_reference_target_label(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
     match type_refs_of(syntax_trees).type_reference(handle) {
         TypeReferenceNode::Slice { element_type } => {
             format!(
@@ -475,19 +455,15 @@ pub(super) fn parse_cleanup_selection<'tokens, 'source>(
     }
     let input = input.take_contextual("dropped")?.take_contextual("by")?;
     let (path, input) = parse_authored_route(input)?;
-    let (application, input) =
-        match crate::expressions::parse_postfix::try_parse_static_symbol_application(
-            syntax_trees,
-            input,
-        )? {
-            Some((application, input)) => (Some(application), input),
-            None if input.at_punctuation(PunctuationKind::Less) => {
-                return Err(
-                    input.error_here("dropped by requires a complete static machine application")
-                );
-            }
-            None => (None, input),
-        };
+    let (application, input) = match try_parse_static_symbol_application(syntax_trees, input)? {
+        Some((application, input)) => (Some(application), input),
+        None if input.at_punctuation(PunctuationKind::Less) => {
+            return Err(
+                input.error_here("dropped by requires a complete static machine application")
+            );
+        }
+        None => (None, input),
+    };
     Ok((
         Some(syntax_trees::expression::StaticMachineArgument {
             type_reference: Default::default(),

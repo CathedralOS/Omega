@@ -7,11 +7,13 @@
 //! Unknown predicates stay in the roster; a useful consequence is insufficient.
 
 use super::{FactSpelling, carrier_bounds};
+use crate::proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
     CheckedMemberIdentity, CheckedOperatorFacts, CheckedScalarExpression as Scalar,
     CheckedStructuralCaseRoot, CheckedStructuralPredicatePathSegment as Segment,
 };
+use numerics::bignum::BigInt;
 use typed_trees::data::{DataDefinition, DataVariant};
 
 pub(super) fn imply_declaration(
@@ -47,6 +49,10 @@ pub(super) fn imply_declaration(
         let Some(intervals) = crate::case_where_field_intervals(program, case) else {
             return false;
         };
+        let intervals = intervals
+            .into_iter()
+            .map(|(symbol, low, high)| (symbol, Interval { low, high }))
+            .collect::<Vec<_>>();
         let carriers = CaseCarriers {
             program,
             case,
@@ -63,7 +69,7 @@ struct CaseCarriers<'a> {
     program: &'a dyn crate::CheckingInput,
     case: &'a DataVariant,
     identity: CheckedMemberIdentity,
-    intervals: &'a [(symbols::SymbolHandle, Option<i64>, Option<i64>)],
+    intervals: &'a [(symbols::SymbolHandle, Interval)],
 }
 
 impl CaseCarriers<'_> {
@@ -83,8 +89,10 @@ impl CaseCarriers<'_> {
             Boolean::Or { left, right } => Some(self.boolean(left)? || self.boolean(right)?),
             Boolean::Equal { left, right } => Some(self.boolean(left)? == self.boolean(right)?),
             Boolean::IntegerComparison { kind, left, right } => {
-                let (left_low, left_high) = self.integer(left)?;
-                let (right_low, right_high) = self.integer(right)?;
+                let left = self.integer(left)?;
+                let right = self.integer(right)?;
+                let (left_low, left_high) = (&left.minimum, &left.maximum);
+                let (right_low, right_high) = (&right.minimum, &right.maximum);
                 match kind {
                     Comparison::LessOrEqual if left_high <= right_low => Some(true),
                     Comparison::LessOrEqual if left_low > right_high => Some(false),
@@ -107,14 +115,14 @@ impl CaseCarriers<'_> {
         }
     }
 
-    fn integer(&self, expression: &Scalar) -> Option<(i128, i128)> {
+    fn integer(&self, expression: &Scalar) -> Option<facts::IntegerRange> {
         match expression {
             Scalar::IntegerLiteral { literal } => {
                 let value = literal
                     .value_i64()
                     .map(i128::from)
                     .or_else(|| literal.value_u64().map(i128::from))?;
-                Some((value, value))
+                BigIntInterval::constant(BigInt::from_i128(value)).into_closed()
             }
             Scalar::StructuralParameterField {
                 parameter_position: 0,
@@ -141,20 +149,22 @@ impl CaseCarriers<'_> {
                 {
                     return None;
                 }
-                let (mut low, mut high) = carrier_bounds(*primitive_type)?;
-                if let Some((_, lower, upper)) = self
+                let (low, high) = carrier_bounds(*primitive_type)?;
+                let mut interval = BigIntInterval {
+                    low: Some(BigInt::from_i128(low)),
+                    high: Some(BigInt::from_i128(high)),
+                };
+                if let Some((_, bounds)) = self
                     .intervals
                     .iter()
-                    .find(|(symbol, _, _)| *symbol == field.symbol)
+                    .find(|(symbol, _)| *symbol == field.symbol)
                 {
-                    if let Some(lower) = lower {
-                        low = low.max(i128::from(*lower));
-                    }
-                    if let Some(upper) = upper {
-                        high = high.min(i128::from(*upper));
-                    }
+                    interval = interval.intersect(&BigIntInterval {
+                        low: bounds.low.map(BigInt::from_i64),
+                        high: bounds.high.map(BigInt::from_i64),
+                    });
                 }
-                (low <= high).then_some((low, high))
+                interval.into_closed()
             }
             _ => None,
         }
@@ -201,7 +211,13 @@ mod tests {
             ..Default::default()
         };
         let identity = CheckedMemberIdentity::of_member(case.identity, case.name.clone());
-        let intervals = [(field_symbol, None, Some(256))];
+        let intervals = [(
+            field_symbol,
+            Interval {
+                low: None,
+                high: Some(256),
+            },
+        )];
         let carriers = CaseCarriers {
             program: &program,
             case: &case,

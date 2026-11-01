@@ -9,6 +9,7 @@ use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
+use typed_trees::expression::ExpressionNode::SavedSubject;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValuePlans {
@@ -681,9 +682,7 @@ impl CheckedStructuralValuePlans {
         if !expressions.expression_is_valid(expression) {
             return None;
         }
-        if let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-            expressions.expression(expression)
-        {
+        if let SavedSubject(saved) = expressions.expression(expression) {
             active_captures.push(saved.capture);
             expression = expressions.saved_subject_source(saved)?;
         }
@@ -691,8 +690,7 @@ impl CheckedStructuralValuePlans {
             if !expressions.expression_is_valid(expression) {
                 return None;
             }
-            if let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-                expressions.expression(expression)
+            if let SavedSubject(saved) = expressions.expression(expression)
                 && active_captures.contains(&saved.capture)
             {
                 return None;
@@ -723,9 +721,7 @@ impl CheckedStructuralValuePlans {
                     && self.nodes.get(root.root).expression == expression)
                     .then_some(root);
             }
-            let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-                expressions.expression(expression)
-            else {
+            let SavedSubject(saved) = expressions.expression(expression) else {
                 return None;
             };
             if active_captures.contains(&saved.capture) {

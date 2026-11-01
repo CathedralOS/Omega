@@ -1,8 +1,7 @@
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::signatures::parameters::state_parameter;
-use crate::tables::expression_table_mut;
-use crate::tables::resolved_expressions;
+use crate::tables::{expression_table_mut, resolved_expressions};
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 

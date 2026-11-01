@@ -36,6 +36,7 @@ use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::view_locals::ViewCarrier;
 use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
@@ -149,6 +150,10 @@ pub(crate) struct Evaluation {
     /// for captured aliases. They do not bind a new occurrence of a source name
     /// or grant access to a retired home.
     pub(crate) previous_parameter_homes: Vec<StructuralParameterDeclaration>,
+    /// Actual enclosing block arrivals, retaining the block identity lost by
+    /// the source-home projection. A private branch borrows these declarations
+    /// without copying its parent's executable blocks or granting availability.
+    pub(crate) enclosing_structural_arrivals: Vec<(BlockId, StructuralParameterDeclaration)>,
     pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     pub structural_cases: Vec<StructuralCaseBinding>,
     /// The enclosing signature's erased scalar formals, for `ErasedParameter`
@@ -199,6 +204,7 @@ pub(crate) struct StructuralSourceFrontier {
     views: Vec<ViewLocalBinding>,
     parameters: Vec<(u32, StructuralParameterDeclaration)>,
     previous_parameters: Vec<StructuralParameterDeclaration>,
+    enclosing_arrivals: Vec<(BlockId, StructuralParameterDeclaration)>,
     fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     cases: Vec<StructuralCaseBinding>,
 }
@@ -576,6 +582,25 @@ impl Evaluation {
             )
     }
 
+    pub(crate) fn structural_arrivals(
+        &self,
+    ) -> impl Iterator<Item = (BlockId, &StructuralParameterDeclaration)> {
+        self.enclosing_structural_arrivals
+            .iter()
+            .map(|(block, parameter)| (*block, parameter))
+            .chain(
+                self.block_structural_parameters
+                    .iter()
+                    .map(|parameter| (self.current, parameter)),
+            )
+            .chain(self.blocks.iter().flat_map(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .map(move |parameter| (block.id, parameter))
+            }))
+    }
+
     /// Snapshot the current source namespace for an operation. This changes
     /// bindings only: already captured operands keep their historical homes.
     pub(crate) fn current_parameters<'parameters>(
@@ -657,6 +682,10 @@ impl Evaluation {
                         .flat_map(|block| block.structural_parameters.iter()),
                 )
                 .cloned()
+                .collect(),
+            enclosing_structural_arrivals: self
+                .structural_arrivals()
+                .map(|(block, parameter)| (block, parameter.clone()))
                 .collect(),
             structural_fields: self.structural_fields.clone(),
             structural_cases: self.structural_cases.clone(),
@@ -860,6 +889,7 @@ impl Evaluation {
             views: self.view_locals.clone(),
             parameters: self.structural_parameters.clone(),
             previous_parameters: self.previous_parameter_homes.clone(),
+            enclosing_arrivals: self.enclosing_structural_arrivals.clone(),
             fields: self.structural_fields.clone(),
             cases: self.structural_cases.clone(),
         }
@@ -884,6 +914,7 @@ impl Evaluation {
         self.view_locals = frontier.views;
         self.structural_parameters = frontier.parameters;
         self.previous_parameter_homes = frontier.previous_parameters;
+        self.enclosing_structural_arrivals = frontier.enclosing_arrivals;
         self.structural_fields = frontier.fields;
         self.structural_cases = frontier.cases;
         Ok(())
@@ -1112,6 +1143,7 @@ impl Evaluation {
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             previous_parameter_homes: Vec::new(),
+            enclosing_structural_arrivals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
             entry,
@@ -1443,12 +1475,31 @@ impl Evaluation {
                 }
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        let needs_control = arguments.iter().any(|argument| match argument {
-            CheckedCallScalarArgument::Computation(_) => true,
-            CheckedCallScalarArgument::Pure(expression) => source_bindings
-                .expression(identities, &checked.facts.proven_scalar_indexes, expression)
-                .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
-        });
+        // A checked module callee's scalar formals decide the type each actual
+        // arrives as. An actual that lacks a formal's tag crosses a
+        // qualification edge, so that operand takes the ordered control path.
+        let formals =
+            self.module_scalar_formals(checked, call, argument_ordinal_start, arguments.len());
+        let arrival_types = argument_types
+            .iter()
+            .enumerate()
+            .map(|(index, actual)| {
+                received_scalar_type(
+                    formals
+                        .as_deref()
+                        .and_then(|types| types.get(index))
+                        .copied(),
+                    *actual,
+                )
+            })
+            .collect::<Vec<_>>();
+        let needs_control = arrival_types != argument_types
+            || arguments.iter().any(|argument| match argument {
+                CheckedCallScalarArgument::Computation(_) => true,
+                CheckedCallScalarArgument::Pure(expression) => source_bindings
+                    .expression(identities, &checked.facts.proven_scalar_indexes, expression)
+                    .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
+            });
         if !needs_control {
             return arguments
                 .iter()
@@ -1488,6 +1539,7 @@ impl Evaluation {
             argument_ordinal_start,
             &source_bindings,
             &source_types,
+            formals.as_deref(),
             0,
         )?;
         let states = expansion.finish();
@@ -1496,7 +1548,7 @@ impl Evaluation {
             checked,
             &states,
             entry_index,
-            &argument_types,
+            &arrival_types,
             values,
             next_value,
             next_block,
@@ -1506,6 +1558,30 @@ impl Evaluation {
             environment,
         )
         .map(Some)
+    }
+
+    /// The scalar formals of the checked module body `call` enters, for the
+    /// `count` operands that start at dense scalar ordinal `first`. Boundary,
+    /// dynamic and activation-storage routes hand their operands to a contract
+    /// of their own. A signature the shared namespace cannot name leaves every
+    /// actual unchanged, so the call binding still refuses any disagreement.
+    fn module_scalar_formals(
+        &self,
+        checked: &CheckedTrees,
+        call: &checked_trees::CheckedUnitCallPlan,
+        first: usize,
+        count: usize,
+    ) -> Option<Vec<QualifiedScalarType>> {
+        if !call.is_module() {
+            return None;
+        }
+        let (formals, _) = self
+            .shared_qualifications
+            .scalar_state_types(checked, call.target.state)
+            .ok()?;
+        formals
+            .get(first..first.checked_add(count)?)
+            .map(<[QualifiedScalarType]>::to_vec)
     }
 
     /// Finish the selected RHS without changing the destination or source slots.

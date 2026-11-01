@@ -10,6 +10,7 @@ use crate::review::{
     render_package_policy_review,
 };
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
+use state::{LIMITS, read, review_name, review_path, text, write};
 use std::path::PathBuf;
 
 pub(super) struct Choices<'a> {
@@ -41,19 +42,19 @@ pub(super) fn prepare<'a>(
     }
     let mut total_bytes = 0usize;
     for review in reviews {
-        let name = state::review_name(review.target());
+        let name = review_name(review.target());
         if !resume {
-            let text = render_package_policy_review(review.changes(), state::LIMITS.maximum_bytes)
+            let text = render_package_policy_review(review.changes(), LIMITS.maximum_bytes)
                 .map_err(failure)?;
             total_bytes = total_bytes
                 .checked_add(text.len())
-                .filter(|total| *total <= state::LIMITS.maximum_bytes)
+                .filter(|total| *total <= LIMITS.maximum_bytes)
                 .ok_or_else(|| {
                     failure("combined package review documents exceed the byte limit")
                 })?;
-            state::write(files, &name, &text)?;
+            write(files, &name, &text)?;
         }
-        let read = state::read(files, &name)?.ok_or_else(|| {
+        let read = read(files, &name)?.ok_or_else(|| {
             failure(format!(
                 "missing review document {name}; discard the proposal and regenerate findings"
             ))
@@ -61,13 +62,13 @@ pub(super) fn prepare<'a>(
         if resume {
             total_bytes = total_bytes
                 .checked_add(read.bytes().len())
-                .filter(|total| *total <= state::LIMITS.maximum_bytes)
+                .filter(|total| *total <= LIMITS.maximum_bytes)
                 .ok_or_else(|| {
                     failure("combined package review documents exceed the byte limit")
                 })?;
         }
-        let text = state::text(&read)?;
-        match recover_package_policy_review(review.changes(), text, state::LIMITS.maximum_bytes) {
+        let text = text(&read)?;
+        match recover_package_policy_review(review.changes(), text, LIMITS.maximum_bytes) {
             Ok(resolution) => {
                 if !resolution.all_required_changes_accepted() {
                     result.blocked = true;
@@ -88,9 +89,7 @@ pub(super) fn prepare<'a>(
             }
         }
         result.reads.push(read);
-        result
-            .paths
-            .push(state::review_path(transaction, review.target()));
+        result.paths.push(review_path(transaction, review.target()));
         result.report.push_str(&format!(
             "{}: checked {} source packages.\n",
             review.target().target_name(),

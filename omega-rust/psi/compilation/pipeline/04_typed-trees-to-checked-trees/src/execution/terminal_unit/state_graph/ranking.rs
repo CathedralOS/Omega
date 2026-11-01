@@ -117,9 +117,11 @@ pub(super) fn natural_rank_plans_for_fused(
                             rank.parameter == state.parameter
                                 && rank.parameter_position == state.parameter_position
                                 && rank.function == state.function
-                                && match (state.observation, rank.measure) {
+                                && match (&state.observation, rank.measure) {
                                     (
-                                        validation::RankPremiseObservation::Value,
+                                        validation::RuntimeRankInput::Value(
+                                            validation::RankPremiseObservation::Value,
+                                        ),
                                         checked_trees::CheckedNaturalRankMeasure::DeclaredMeasure {
                                             measure,
                                             bindings,
@@ -154,7 +156,9 @@ pub(super) fn natural_rank_plans_for_fused(
                                                 == Some(state.entry_indexes.as_slice())
                                     }
                                     (
-                                        validation::RankPremiseObservation::Value,
+                                        validation::RuntimeRankInput::Value(
+                                            validation::RankPremiseObservation::Value,
+                                        ),
                                         checked_trees::CheckedNaturalRankMeasure::IntegerValue {
                                             coordinate,
                                             primitive_type,
@@ -168,7 +172,9 @@ pub(super) fn natural_rank_plans_for_fused(
                                                 == Some(state.coordinate.path.as_slice())
                                     }
                                     (
-                                        validation::RankPremiseObservation::Length,
+                                        validation::RuntimeRankInput::Value(
+                                            validation::RankPremiseObservation::Length,
+                                        ),
                                         checked_trees::CheckedNaturalRankMeasure::SequenceLength {
                                             coordinate,
                                         },
@@ -177,6 +183,29 @@ pub(super) fn natural_rank_plans_for_fused(
                                         coordinate.parameter == state.coordinate.parameter
                                             && admitted.path_segments.span(coordinate.path)
                                                 == Some(state.coordinate.path.as_slice())
+                                    }
+                                    (
+                                        validation::RuntimeRankInput::Distance {
+                                            lower_observation,
+                                            lower_primitive,
+                                            upper: expected_upper,
+                                        },
+                                        checked_trees::CheckedNaturalRankMeasure::Distance {
+                                            lower,
+                                            upper,
+                                        },
+                                    ) => {
+                                        let expected_lower =
+                                            validation::RuntimeRankOperand::Coordinate {
+                                                parameter: state.parameter,
+                                                coordinate: state.coordinate.clone(),
+                                                entry_indexes: state.entry_indexes.clone(),
+                                                primitive_type: *lower_primitive,
+                                                observation: *lower_observation,
+                                            };
+                                        !state.measure.is_valid()
+                                            && expected_lower.matches_checked(admitted, lower)
+                                            && expected_upper.matches_checked(admitted, upper)
                                     }
                                     _ => false,
                                 }

@@ -38,9 +38,9 @@ ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 }
 
 Canonical satisfies IndexAdd<i32> {
-    IndexAdd::add = plus_index;
-    IndexAdd::add_comm = plus_index_comm;
-    IndexAdd::add_assoc = plus_index_assoc;
+    machine add(a: i32, b: i32) -> i32 { plus_index(a, b) }
+    machine add_comm(a: i32, b: i32) ensures add(a, b) == add(b, a) { plus_index_comm(a, b) }
+    machine add_assoc(a: i32, b: i32, c: i32) ensures add(add(a, b), c) == add(a, add(b, c)) { plus_index_assoc(a, b, c) }
 }
 
 data Open<const A: i32, const B: i32> {

@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
 }
 
 InlineSchedulerImplementation satisfies Scheduler {
-    Scheduler::advance = InlineScheduler::advance;
+    machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 { InlineScheduler::advance(value, forwarded, stored, constructed) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -5,6 +5,7 @@ use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConst
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
+use typed_trees::typed_trees::canonical_const_declaration_value;
 use typed_trees::types::TypeReferenceNode;
 
 mod closed_applications;
@@ -33,9 +34,7 @@ pub(crate) fn normalize_const_argument_carriers(
             // Pending initializer evaluation remains an ordinary const name.
             continue;
         };
-        let Some(value) =
-            typed_trees::typed_trees::canonical_const_declaration_value(program, symbol)
-        else {
+        let Some(value) = canonical_const_declaration_value(program, symbol) else {
             return Err(Diagnostic::error(
                 "selected constant has no canonical static carrier value",
             ));

@@ -1,0 +1,2 @@
+module distance;
+public boundary trait Distance { machine absolute(value: i32) -> i32 reaches Distance; }

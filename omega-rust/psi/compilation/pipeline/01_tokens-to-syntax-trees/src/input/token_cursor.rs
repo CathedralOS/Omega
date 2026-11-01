@@ -3,6 +3,7 @@ use crate::diagnostics::render_diagnostic as diagnostics;
 use crate::input::delimited::find_top_level_punctuation;
 use crate::input::literals::{parse_integer_literal, validate_float_literal};
 use arena::{Handle, HandleSpan};
+use language_core::ReferenceAccess;
 use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, Span};
 use syntax_trees::FloatSpelling;
@@ -436,21 +437,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     /// The reference-access modifier after `&`: `mut` for Mutable, `write`
     /// for WriteOnly, otherwise Shared (consuming nothing).
-    pub(crate) fn take_reference_access(
-        self,
-    ) -> Result<(language_core::ReferenceAccess, Self), ParseError> {
+    pub(crate) fn take_reference_access(self) -> Result<(ReferenceAccess, Self), ParseError> {
         if self.at_contextual("mut") {
-            Ok((
-                language_core::ReferenceAccess::Mutable,
-                self.take_contextual("mut")?,
-            ))
+            Ok((ReferenceAccess::Mutable, self.take_contextual("mut")?))
         } else if self.at_contextual("write") {
-            Ok((
-                language_core::ReferenceAccess::WriteOnly,
-                self.take_contextual("write")?,
-            ))
+            Ok((ReferenceAccess::WriteOnly, self.take_contextual("write")?))
         } else {
-            Ok((language_core::ReferenceAccess::Shared, self))
+            Ok((ReferenceAccess::Shared, self))
         }
     }
 

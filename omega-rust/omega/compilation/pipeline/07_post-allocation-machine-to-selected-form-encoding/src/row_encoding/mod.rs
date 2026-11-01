@@ -29,8 +29,19 @@
 //! effects. `validation::row` checks the produced rows again with its own
 //! kind matching and does not read these routes.
 
-use isa_aarch64::encode_aarch64_selected_form;
-use isa_x86_64::encode_x86_64_selected_form;
+use isa_aarch64::{
+    AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
+    AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
+    encode_aarch64_selected_frame_form, encode_aarch64_selected_hosted_exit_process_form,
+    encode_aarch64_selected_hosted_read_byte_form, encode_aarch64_selected_hosted_write_byte_form,
+    encode_aarch64_selected_memory_form,
+};
+use isa_x86_64::{
+    X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET, encode_x86_64_selected_form,
+    encode_x86_64_selected_frame_form, encode_x86_64_selected_hosted_exit_process_form,
+    encode_x86_64_selected_hosted_read_byte_form, encode_x86_64_selected_hosted_write_byte_form,
+    encode_x86_64_selected_memory_form,
+};
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -39,10 +50,11 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget};
 
-use super::OptimizedSelectedFormEncodingError;
+use super::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+    DeferredControlEncodingReason, ImageAddressFields, ResolvedPhysicalAddress,
+    SelectedFormDecodedFootprint, SelectedFormEncodedRowStore, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormImageAddressFixup, SelectedFormMachineDisposition,
 };
 
 mod normalized_foreign;
@@ -110,12 +122,9 @@ impl SelectedFormEncodedRowDraft {
 
     /// Restate an encoded draft under the unresolved field its route owns.
     /// The bytes and footprint are the ones the ISA already produced.
-    pub(super) fn retagged(
-        self,
-        state: SelectedFormEncodingState,
-    ) -> Result<Self, OptimizedSelectedFormEncodingError> {
+    pub(super) fn retagged(self, state: SelectedFormEncodingState) -> Result<Self, Error> {
         if !matches!(self.state, SelectedFormEncodingState::Encoded) {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
         Ok(Self { state, ..self })
     }
@@ -127,9 +136,9 @@ pub(super) fn encode_row(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
-    address: Option<machine_code::ResolvedPhysicalAddress>,
+    address: Option<ResolvedPhysicalAddress>,
     encoded: &mut SelectedFormEncodedRowStore,
-) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodingRow, Error> {
     let alternative = machine.alternative.key;
     let route = route::route_of(selected.kind);
     let draft = match route {
@@ -138,9 +147,9 @@ pub(super) fn encode_row(
             // symbolic operation family: a missing address, or one naming a
             // family the kind does not declare, is malformed input rather
             // than an encoding choice.
-            let address = address.ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            let address = address.ok_or(Error::ArtifactMismatch)?;
             if !operation.admits(address.symbolic) {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             encode_address_routed(
                 target,
@@ -215,9 +224,9 @@ fn image_address(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, Error> {
     let SelectedInstructionKind::ImageAddress { reference } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     };
     encode_scalar(
         target,
@@ -229,7 +238,7 @@ fn image_address(
         physical,
     )?
     .retagged(SelectedFormEncodingState::UnresolvedImageAddress {
-        fixup: machine_code::SelectedFormImageAddressFixup {
+        fixup: SelectedFormImageAddressFixup {
             reference,
             fields: image_address_fields(target.architecture),
         },
@@ -237,17 +246,15 @@ fn image_address(
 }
 
 /// The row-relative address field(s) of a byte-literal image address.
-pub(super) fn image_address_fields(architecture: Architecture) -> machine_code::ImageAddressFields {
+pub(super) fn image_address_fields(architecture: Architecture) -> ImageAddressFields {
     match architecture {
-        Architecture::X86_64 => machine_code::ImageAddressFields::X86_64Relative32 {
-            patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
+        Architecture::X86_64 => ImageAddressFields::X86_64Relative32 {
+            patch_offset: u64::from(X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
         },
-        Architecture::Aarch64 => machine_code::ImageAddressFields::Aarch64PageAddress {
-            page_patch_offset: u64::from(
-                isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
-            ),
+        Architecture::Aarch64 => ImageAddressFields::Aarch64PageAddress {
+            page_patch_offset: u64::from(AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET),
             page_offset_patch_offset: u64::from(
-                isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
+                AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
             ),
         },
     }
@@ -256,11 +263,9 @@ pub(super) fn image_address_fields(architecture: Architecture) -> machine_code::
 /// Routes declaring no address operation reject a resolved address on the
 /// machine row: presence would attach frame geometry to a row whose selected
 /// kind never asked for one.
-fn reject_unrouted_address(
-    address: Option<machine_code::ResolvedPhysicalAddress>,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+fn reject_unrouted_address(address: Option<ResolvedPhysicalAddress>) -> Result<(), Error> {
     if address.is_some() {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(())
 }
@@ -284,8 +289,8 @@ fn encode_address_routed(
     alternative: MachineAlternativeKey,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    address: machine_code::ResolvedPhysicalAddress,
-) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+    address: ResolvedPhysicalAddress,
+) -> Result<SelectedFormEncodedRowDraft, Error> {
     let views = operand_views(machine);
     let displacement = address.displacement;
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
@@ -298,7 +303,7 @@ fn encode_address_routed(
                             | SelectedInstructionKind::Store64 { .. }
                     ) =>
                 {
-                    isa_x86_64::encode_x86_64_selected_frame_form(
+                    encode_x86_64_selected_frame_form(
                         physical,
                         kind,
                         alternative,
@@ -307,39 +312,35 @@ fn encode_address_routed(
                         address.frame_alignment_bytes,
                     )
                 }
-                HostedChannel::None => isa_x86_64::encode_x86_64_selected_memory_form(
+                HostedChannel::None => encode_x86_64_selected_memory_form(
                     physical,
                     kind,
                     alternative,
                     &views,
                     displacement,
                 ),
-                HostedChannel::WriteByteI32 => {
-                    isa_x86_64::encode_x86_64_selected_hosted_write_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        displacement,
-                    )
-                }
-                HostedChannel::ReadByte => {
-                    isa_x86_64::encode_x86_64_selected_hosted_read_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        displacement,
-                    )
-                }
+                HostedChannel::WriteByteI32 => encode_x86_64_selected_hosted_write_byte_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
+                HostedChannel::ReadByte => encode_x86_64_selected_hosted_read_byte_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
                 // The exit channel is declared only on ordinary routes.
                 HostedChannel::ExitProcessI32 => {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    return Err(Error::ArtifactMismatch);
                 }
             }
-            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+            .map_err(Error::X86_64)?;
             selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
@@ -351,56 +352,51 @@ fn encode_address_routed(
                             | SelectedInstructionKind::Store64 { .. }
                     ) =>
                 {
-                    isa_aarch64::encode_aarch64_selected_frame_form(
+                    encode_aarch64_selected_frame_form(
                         physical,
                         kind,
                         alternative,
                         &views,
-                        u32::try_from(displacement)
-                            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?,
+                        u32::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?,
                         address.frame_alignment_bytes,
                     )
                 }
-                HostedChannel::None => isa_aarch64::encode_aarch64_selected_memory_form(
+                HostedChannel::None => encode_aarch64_selected_memory_form(
                     physical,
                     kind,
                     alternative,
                     &views,
                     displacement,
                 ),
-                HostedChannel::WriteByteI32 => {
-                    isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        displacement,
-                    )
-                }
-                HostedChannel::ReadByte => {
-                    isa_aarch64::encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        displacement,
-                    )
-                }
+                HostedChannel::WriteByteI32 => encode_aarch64_selected_hosted_write_byte_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
+                HostedChannel::ReadByte => encode_aarch64_selected_hosted_read_byte_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
                 // The exit channel is declared only on ordinary routes.
                 HostedChannel::ExitProcessI32 => {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    return Err(Error::ArtifactMismatch);
                 }
             }
-            .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+            .map_err(Error::Aarch64)?;
             selected_encoded_parts!(encoded)
         }
     };
     let footprint =
         validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
     if encoded_effects != machine.alternative.encoded {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(SelectedFormEncodedRowDraft::encoded(
@@ -419,58 +415,54 @@ fn encode_scalar(
     alternative: MachineAlternativeKey,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, Error> {
     let views = operand_views(machine);
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
             let encoded = match channel {
-                HostedChannel::ExitProcessI32 => {
-                    isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                    )
-                }
+                HostedChannel::ExitProcessI32 => encode_x86_64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                ),
                 HostedChannel::None => {
                     encode_x86_64_selected_form(physical, kind, alternative, &views)
                 }
                 // Byte channels are declared only on resolved-address routes.
                 HostedChannel::WriteByteI32 | HostedChannel::ReadByte => {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    return Err(Error::ArtifactMismatch);
                 }
             }
-            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+            .map_err(Error::X86_64)?;
             selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
-                HostedChannel::ExitProcessI32 => {
-                    isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                    )
-                }
+                HostedChannel::ExitProcessI32 => encode_aarch64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                ),
                 HostedChannel::None => {
                     encode_aarch64_selected_form(physical, kind, alternative, &views)
                 }
                 // Byte channels are declared only on resolved-address routes.
                 HostedChannel::WriteByteI32 | HostedChannel::ReadByte => {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    return Err(Error::ArtifactMismatch);
                 }
             }
-            .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+            .map_err(Error::Aarch64)?;
             selected_encoded_parts!(encoded)
         }
     };
     let footprint =
         validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
     if encoded_effects != machine.alternative.encoded {
-        return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
+        return Err(Error::ImplicitFootprintMismatch(instruction));
     }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(SelectedFormEncodedRowDraft::encoded(
@@ -485,20 +477,20 @@ fn encode_scalar(
 fn decoded_footprint(
     machine: &PostAllocationMachineInstruction,
     effects: &MachineEncodedEffects,
-) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormDecodedFootprint, Error> {
     let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let register_reads = effects
         .external_operand_reads
         .iter()
         .map(|operand| resolve(*operand))
         .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
+        .ok_or(Error::OperandFootprintMismatch(machine.instruction))?;
     let register_writes = effects
         .external_operand_writes
         .iter()
         .map(|operand| resolve(*operand))
         .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
+        .ok_or(Error::OperandFootprintMismatch(machine.instruction))?;
     Ok(SelectedFormDecodedFootprint {
         register_reads,
         register_writes,
@@ -516,7 +508,7 @@ fn validated_encoded_draft(
     effects: &selected_instructions::MachineEncodedEffects,
     bytes: Vec<u8>,
     state: SelectedFormEncodingState,
-) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, Error> {
     let footprint = decoded_footprint(machine, effects)?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(SelectedFormEncodedRowDraft::encoded(
@@ -532,10 +524,10 @@ fn validate_operand_footprint(
     encoded: &MachineEncodedEffects,
     reads: &[RegisterViewId],
     writes: &[RegisterViewId],
-) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormDecodedFootprint, Error> {
     let expected = decoded_footprint(machine, encoded)?;
     if expected.register_reads != reads || expected.register_writes != writes {
-        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
+        return Err(Error::OperandFootprintMismatch(instruction));
     }
     Ok(expected)
 }

@@ -75,6 +75,7 @@ pub use artifact_admission::{
     TerminalAccessViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
+pub use callback_settlement::settle_native_callback_placements;
 pub(crate) use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
 };

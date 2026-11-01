@@ -8,12 +8,13 @@
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::digest_encoder::DomainDigestEncoder;
+use task_plans::{SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment};
 use terminal_psi_to_abstract_operations::{
     AdmittedNativeComponentCall,
     provider_admission::{NativeBoundaryRealization, NativeProviderSettlement},
 };
 
-use super::component_exports::ComponentExportImage;
+use super::component_exports::{ComponentExportImage, component_export_slot};
 
 pub struct ComponentNativeCall<'input> {
     image: &'input ComponentExportImage<'input>,
@@ -62,10 +63,7 @@ impl<'input> ComponentNativeCall<'input> {
             || application.target != profile.native_target()
             || application.recomputed_commitment().ok() != Some(application.commitment)
             || image.image().slot_commitment()
-                != &super::component_exports::component_export_slot(
-                    selection.provider(),
-                    &application.commitment,
-                )
+                != &component_export_slot(selection.provider(), &application.commitment)
         {
             return Err(invalid(
                 "component native call does not retain its exact checked export and complete calling application",
@@ -112,9 +110,8 @@ impl<'input> ComponentNativeCall<'input> {
         digest.u32(demand.stack_alignment());
         let commitment = digest.finish();
         let report = compact_report(&commitment);
-        let receipt =
-            task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(report)
-                .map_err(|error| invalid(&format!("component stack receipt: {error}")))?;
+        let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(report)
+            .map_err(|error| invalid(&format!("component stack receipt: {error}")))?;
         let requirement = identities
             .index_of(&application.requirement_identity)
             .ok_or_else(|| {
@@ -122,9 +119,8 @@ impl<'input> ComponentNativeCall<'input> {
                     "component requirement is absent from the receiver selection identity table",
                 )
             })?;
-        let plan_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
-            *plan.identity_digest().as_bytes(),
-        );
+        let plan_commitment =
+            SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
         let same_stack = task_plans::admit_same_stack_contribution(
             task_plans::SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity: plan.report_fingerprint(),

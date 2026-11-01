@@ -10,6 +10,7 @@
 //! construction-level difference between schemes is the declarations
 //! themselves.
 
+use super::signature::Declaration;
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
 #[derive(Clone)]
@@ -57,8 +58,8 @@ pub(super) fn define(
     level_arity: u32,
     statement: &Syntax,
     body: &Syntax,
-) -> super::signature::Declaration {
-    super::signature::Declaration::definition(
+) -> Declaration {
+    Declaration::definition(
         level_arity,
         build(arena, &mut Vec::new(), statement),
         build(arena, &mut Vec::new(), body),
@@ -66,12 +67,8 @@ pub(super) fn define(
 }
 
 /// `define` without a body — assumptions declare the statement alone.
-pub(super) fn assume(
-    arena: &mut TermArena,
-    level_arity: u32,
-    statement: &Syntax,
-) -> super::signature::Declaration {
-    super::signature::Declaration::assumption(level_arity, build(arena, &mut Vec::new(), statement))
+pub(super) fn assume(arena: &mut TermArena, level_arity: u32, statement: &Syntax) -> Declaration {
+    Declaration::assumption(level_arity, build(arena, &mut Vec::new(), statement))
 }
 
 pub(super) fn build(

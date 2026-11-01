@@ -11,6 +11,6 @@ machine settle(
 )
 reaches MachineControl + PortIo
 {
-    InterruptMaskGuard::restore(guard);
+    InterruptMaskRestore::restore(guard);
     InterruptAcknowledgementCompletion::complete(acknowledgement);
 }

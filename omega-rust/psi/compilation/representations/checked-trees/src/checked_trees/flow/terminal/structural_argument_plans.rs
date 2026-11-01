@@ -7,6 +7,7 @@ use crate::checked_trees::flow::terminal::{
 use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 
@@ -138,9 +139,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// An already evaluated structural expression. The enclosing operation
     /// sequence establishes its storage before a consumer observes it; this
     /// identity never authorizes evaluating the expression again.
-    StructuralExpression {
-        expression: typed_trees::expression::ExpressionHandle,
-    },
+    StructuralExpression { expression: ExpressionHandle },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -159,7 +158,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         root: CheckedStorageRoot,
         /// Logical source declaration before its selected collection path.
         root_type_identity: TypeIdentityId,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
         /// The authored range is `start..=end`. Lowering normalizes the end
@@ -188,7 +187,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         root: CheckedStorageRoot,
         /// Logical source declaration before its selected collection path.
         root_type_identity: TypeIdentityId,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
         end_inclusive: bool,

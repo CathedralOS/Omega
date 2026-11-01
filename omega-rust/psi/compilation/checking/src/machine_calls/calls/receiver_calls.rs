@@ -93,7 +93,9 @@ pub(super) fn validate_receiver_call(
 
 /// Result-use and argument validation every resolved receiver signature
 /// shares; the boundary rung adds native-callback destination selection on
-/// top of it.
+/// top of it. The formals are compared in the call's own type application: an
+/// explicit operand, including a binder of the generic caller, and the
+/// arguments fix the requirement's `Type` binders before any formal is read.
 #[allow(clippy::too_many_arguments)]
 fn validate_signature_result_and_arguments(
     program: &dyn crate::CheckingInput,
@@ -114,6 +116,20 @@ fn validate_signature_result_and_arguments(
         signature.return_type,
         diagnostics,
     );
+    let Some(bindings) = super::type_arguments::requirement_call_type_arguments(
+        program,
+        current_machine,
+        current_state,
+        signature,
+        &call.machine_arguments,
+        arguments,
+    ) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "call `{}` has an invalid static type argument correspondence",
+            signature.name.as_str()
+        )));
+        return;
+    };
     validate_call_arguments(
         program,
         current_machine,
@@ -126,7 +142,7 @@ fn validate_signature_result_and_arguments(
         writable_roots.statements,
         false,
         &[],
-        call_carrier_matcher(program, current_machine.symbol, &[]),
+        call_carrier_matcher(program, current_machine.symbol, &bindings),
         diagnostics,
         formation_obligations,
     );

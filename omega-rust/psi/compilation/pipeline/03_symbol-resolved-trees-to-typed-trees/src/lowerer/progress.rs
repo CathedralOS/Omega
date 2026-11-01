@@ -2,6 +2,7 @@ use diagnostics::Diagnostic;
 use language_semantics::{
     ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
 };
+use typed::machine::resolve_satisfied_declaration;
 use typed_trees as typed;
 
 /// Complete the public termination records of every trait requirement in the
@@ -213,9 +214,7 @@ fn inherited_guarantee(
     machine: &typed::machine::Machine,
 ) -> Result<Option<TerminationGuarantee>, Diagnostic> {
     for conformance in program.machine_trait_conformances(machine) {
-        let Some(declaration) =
-            typed::machine::resolve_satisfied_declaration(program, machine, conformance)
-        else {
+        let Some(declaration) = resolve_satisfied_declaration(program, machine, conformance) else {
             continue;
         };
         let (mut guarantee, required_parameters, requirement_name) = match declaration {

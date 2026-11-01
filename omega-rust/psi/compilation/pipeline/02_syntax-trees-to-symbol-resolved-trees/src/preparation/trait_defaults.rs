@@ -7,7 +7,7 @@
 //! and both execution engines reuse the ordinary member path.
 //!
 //! A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
-//! member or reference row receives a compiler-emitted `equals` member whose
+//! member receives a compiler-emitted `equals` member whose
 //! body compares its two operands with `==`; typed lowering expands that
 //! comparison structurally for `T` (core equality acquisition in
 //! `wiki/spec/language/conformances.md`). The row belongs to the named
@@ -434,7 +434,7 @@ fn replace_closed_members(
 const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 
 /// The `equals` member a closed `Equatable<T>` implementation receives when it
-/// authors neither an `equals` member nor a reference row for it: the trait's
+/// authors no `equals` member for it: the trait's
 /// requirement signature instantiated at `T`, with the body `left == right`
 /// over its two parameters. Typed lowering expands that comparison
 /// structurally and routes every use of this row to the same expansion. A
@@ -452,9 +452,6 @@ fn synthesized_equality_member(
     if equatable.parameter_names.len() != 1
         || members.iter().any(|member| match member {
             ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == EQUALS,
-            ConformanceMember::Reference { requirement, .. } => {
-                requirement.as_str(syntax) == EQUALS
-            }
             ConformanceMember::Synthesized(_) => true,
             ConformanceMember::TraitDefault { .. } => false,
         })

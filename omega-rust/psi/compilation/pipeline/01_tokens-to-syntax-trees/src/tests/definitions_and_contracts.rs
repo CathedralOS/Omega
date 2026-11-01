@@ -1,7 +1,11 @@
 use crate::parser::parse_syntax_trees;
+use language_core::DomainPredicatePresence;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
+use std::sync::Arc;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::Item;
+use syntax_trees::item::ProofFact;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
@@ -14,7 +18,7 @@ fn machine_first_call_argument(
     let machine = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .find(|machine| machine.name.as_str(parsed) == machine_name)
@@ -52,20 +56,14 @@ fn parses_domain_definition_surface() {
     assert!(domains[0].target_type.is_valid());
     assert_eq!(
         domains[0].predicate_presence,
-        language_core::DomainPredicatePresence::Present
+        DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
     assert!(domains[0].semantic_clause_token_count > 3);
 
     let facts = parsed.items.proof_facts(domains[0].facts);
-    assert!(matches!(
-        facts[0],
-        syntax_trees::item::ProofFact::Membership(_)
-    ));
-    assert!(matches!(
-        facts[1],
-        syntax_trees::item::ProofFact::Expression(_)
-    ));
+    assert!(matches!(facts[0], ProofFact::Membership(_)));
+    assert!(matches!(facts[1], ProofFact::Expression(_)));
     let source_slices = domains[0]
         .facts
         .handles()
@@ -94,10 +92,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
     let parsed = super::parse_source(source, "parse should succeed");
     let domain = super::root_domain(&parsed, "domain");
 
-    assert_eq!(
-        domain.predicate_presence,
-        language_core::DomainPredicatePresence::Present
-    );
+    assert_eq!(domain.predicate_presence, DomainPredicatePresence::Present);
     assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
     assert_eq!(
         domain
@@ -245,7 +240,7 @@ fn domain_semicolon_preserves_following_mathematical_declarations() {
         let domain = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Domain(domain) => Some(domain),
+                Item::Domain(domain) => Some(domain),
                 _ => None,
             })
             .expect("domain declaration remains present");
@@ -288,16 +283,13 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
 
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {
-        assert_eq!(
-            domain.predicate_presence,
-            language_core::DomainPredicatePresence::Absent
-        );
+        assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
         assert!(domain.facts.is_empty());
         assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
         domains[2].predicate_presence,
-        language_core::DomainPredicatePresence::Present
+        DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
     assert!(domains[2].semantic_clause_token_count > 0);
@@ -329,10 +321,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
         })
         .collect::<Vec<_>>();
     assert_eq!(paths, ["Socket::Connected", "Socket::Authenticated"]);
-    assert_eq!(
-        domain.predicate_presence,
-        language_core::DomainPredicatePresence::Absent
-    );
+    assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
     assert!(domain.facts.is_empty());
     assert!(domain.operators.is_empty());
 }
@@ -743,7 +732,7 @@ fn parses_target_scoped_bodyless_boundary_machine() {
     let machine = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .find(|machine| machine.name.as_str(&parsed) == "ConsoleNativeProvider::exit_process")
@@ -804,11 +793,7 @@ fn retains_nominal_machine_parameter_trait_application() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "walk" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "walk" => Some(machine),
             _ => None,
         })
         .expect("generic machine");
@@ -990,9 +975,7 @@ fn parses_proof_quotient_data_declaration() {
     let quotient = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) if data.name.as_str(&parsed) == "Quotient" => {
-                data.quotient.as_ref()
-            }
+            Item::Data(data) if data.name.as_str(&parsed) == "Quotient" => data.quotient.as_ref(),
             _ => None,
         })
         .expect("Quotient metadata");
@@ -1030,9 +1013,7 @@ fn parses_static_machine_symbol_call_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(handle, expression)| match expression {
-            syntax_trees::expression::ExpressionNode::Call(call)
-                if !call.machine_arguments.is_empty() =>
-            {
+            ExpressionNode::Call(call) if !call.machine_arguments.is_empty() => {
                 Some((handle, call))
             }
             _ => None,
@@ -1086,11 +1067,7 @@ fn parses_nested_static_conformance_application() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            syntax_trees::expression::ExpressionNode::Call(call)
-                if call.target.as_str(&parsed) == "send" =>
-            {
-                Some(call)
-            }
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "send" => Some(call),
             _ => None,
         })
         .expect("generic call expression");
@@ -1128,11 +1105,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            syntax_trees::expression::ExpressionNode::Call(call)
-                if call.target.as_str(&parsed) == "consume" =>
-            {
-                Some(call)
-            }
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "consume" => Some(call),
             _ => None,
         })
         .expect("generic call expression");
@@ -1198,11 +1171,7 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "consume" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "consume" => Some(machine),
             _ => None,
         })
         .expect("consume machine");
@@ -1238,17 +1207,12 @@ fn retired_generated_proof_package_has_directed_migration() {
     );
 }
 
-fn parse_domain_facts(
-    source: &str,
-) -> (
-    syntax_trees::SyntaxTrees,
-    Vec<syntax_trees::item::ProofFact>,
-) {
+fn parse_domain_facts(source: &str) -> (syntax_trees::SyntaxTrees, Vec<ProofFact>) {
     let parsed = super::parse_source(source, "parse should succeed");
     let facts = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain.facts),
+            Item::Domain(domain) => Some(domain.facts),
             _ => None,
         })
         .expect("one domain");
@@ -1266,8 +1230,8 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
         "#,
     );
     let [
-        syntax_trees::item::ProofFact::Membership(granted),
-        syntax_trees::item::ProofFact::Membership(resident),
+        ProofFact::Membership(granted),
+        ProofFact::Membership(resident),
     ] = facts.as_slice()
     else {
         panic!("an `&` chain lowers to one membership fact per domain, got {facts:?}");
@@ -1354,7 +1318,7 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
         let established = trees.expressions.insert(ExpressionNode::Boolean(true));
         trees.roots.constant_extent_probes.push((established, true));
         let roots = trees.roots.clone();
-        let source_owners = std::sync::Arc::strong_count(&retained_source);
+        let source_owners = Arc::strong_count(&retained_source);
         let mut untouched = trees.clone();
         let expected_next = untouched.expressions.insert(ExpressionNode::Boolean(false));
         drop(untouched);
@@ -1373,10 +1337,7 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
                 trees.expressions.expression(established),
                 ExpressionNode::Boolean(true)
             ));
-            assert_eq!(
-                std::sync::Arc::strong_count(&retained_source),
-                source_owners
-            );
+            assert_eq!(Arc::strong_count(&retained_source), source_owners);
         }
         let next = trees.expressions.insert(ExpressionNode::Boolean(false));
         assert_eq!(next, expected_next, "private probe handles must not escape");
@@ -1400,7 +1361,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
     let requirement = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .expect("boundary trait");

@@ -126,6 +126,7 @@ mod tests {
 
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire_fields::{BoundaryPackage, Field};
 use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
@@ -147,7 +148,7 @@ pub(super) fn encode_requirement(
 ) -> Result<(), CodecError> {
     writer.u32(requirement.declaration().identity().0);
     writer.string("boundary requirement overload", requirement.overload())?;
-    encode_package(writer, requirement.package());
+    BoundaryPackage::write(writer, &requirement.package())?;
     Ok(())
 }
 
@@ -206,7 +207,7 @@ pub(super) fn decode_requirement(
     BoundaryOperatorRequirement::new(
         declaration,
         reader.string("boundary requirement overload")?,
-        decode_package(reader)?,
+        BoundaryPackage::read(reader)?,
     )
     .map_err(CodecError::MalformedStructuralFoundation)
 }
@@ -238,26 +239,6 @@ fn decode_application(reader: &mut Reader<'_>) -> Result<BoundaryApplication, Co
     Ok(application)
 }
 
-fn encode_package(writer: &mut Writer, package: Option<semantic_vocabulary::PackageKeyIdentity>) {
-    writer.boolean(package.is_some());
-    if let Some(package) = package {
-        writer.bytes(&package.digest());
-    }
-}
-
-fn decode_package(
-    reader: &mut Reader<'_>,
-) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, CodecError> {
-    if !reader.boolean()? {
-        return Ok(None);
-    }
-    semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?)
-        .map(Some)
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "empty boundary package identity",
-        ))
-}
-
 pub(super) fn encode_candidate(
     writer: &mut Writer,
     candidate: &terminal_psi::BoundaryApplicationCandidate,
@@ -265,7 +246,7 @@ pub(super) fn encode_candidate(
     encode_requirement(writer, &candidate.requirement)?;
     encode_application(writer, &candidate.application)?;
     writer.u32(candidate.selection_identity.0);
-    encode_package(writer, candidate.selection_package);
+    BoundaryPackage::write(writer, &candidate.selection_package)?;
     writer.boolean(candidate.target.is_some());
     if let Some(target) = &candidate.target {
         writer.string("boundary candidate target", target)?;
@@ -279,7 +260,7 @@ pub(super) fn decode_candidate(
     let requirement = decode_requirement(reader)?;
     let application = decode_application(reader)?;
     let selection_identity = TerminalIdentityIndex(reader.u32()?);
-    let selection_package = decode_package(reader)?;
+    let selection_package = BoundaryPackage::read(reader)?;
     let target = if reader.boolean()? {
         Some(reader.string("boundary candidate target")?)
     } else {

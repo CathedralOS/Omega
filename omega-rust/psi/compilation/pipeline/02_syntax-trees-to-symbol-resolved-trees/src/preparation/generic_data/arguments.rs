@@ -384,7 +384,7 @@ fn closed_argument_identities(
 /// Close an argument under its receiving declaration's actual parameter kind.
 /// Implementations do not enter the data namespace; unsupported static operand
 /// categories stay on the ordinary resolver/checker path.
-pub(in crate::preparation::generic_data) fn closed_parameter_argument_identity(
+pub(crate) fn closed_parameter_argument_identity(
     syntax: &SyntaxTrees,
     selection: Option<&declaration_selection::ConstantSelection>,
     handle: TypeReferenceHandle,

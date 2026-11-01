@@ -13,7 +13,7 @@ ensures result < 91
         _ -> 90
     }
 }
-Conservative satisfies Threshold { Threshold::limit = cap; }
+Conservative satisfies Threshold { machine limit(value: u32) -> u32 requires value <= 100 ensures result <= 100 { cap(value) } }
 machine main() crashes Trap {
     let selected: dyn Threshold = Conservative as dyn Threshold;
     let value: u32 = Threshold::limit(selected, 100);

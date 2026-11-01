@@ -1,7 +1,13 @@
 use crate::parser::parse_syntax_trees;
+use language_core::BindingRelevance;
+use language_core::atomic::AtomicExpressionResultCustody;
+use source::Span;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::PropositionBody;
+use syntax_trees::statement::StatementHandle;
 use syntax_trees::statement::StatementNode;
+use syntax_trees::statement::TransitionGuardNode;
 
 #[test]
 fn name_expression_source_custody_retains_complete_authored_paths() {
@@ -22,10 +28,7 @@ fn name_expression_source_custody_retains_complete_authored_paths() {
         let start = source.find(expression).expect("authored name expression");
         assert_eq!(
             parsed.expressions.source_span(local.initial_value),
-            source::SourceSpan::new(
-                source_id,
-                source::Span::new(start, start + expression.len())
-            )
+            source::SourceSpan::new(source_id, Span::new(start, start + expression.len()))
         );
     }
 }
@@ -53,7 +56,7 @@ fn name_expression_source_custody_survives_nested_constant_leaves() {
         let name = occurrence.split_once(' ').expect("name after prefix").1;
         let start = source.find(occurrence).expect("authored constant leaf") + occurrence.len()
             - name.len();
-        source::SourceSpan::new(source_id, source::Span::new(start, start + name.len()))
+        source::SourceSpan::new(source_id, Span::new(start, start + name.len()))
     });
     assert_eq!(names, expected);
 }
@@ -92,13 +95,9 @@ fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
         "compare_exchange(0, operand(), NoOrdering, NoOrdering)",
     ] {
         for (binding, mutable, relevance) in [
-            ("prior", false, language_core::BindingRelevance::Relevant),
-            ("mut prior", true, language_core::BindingRelevance::Relevant),
-            (
-                "prior [erased]",
-                false,
-                language_core::BindingRelevance::Erased,
-            ),
+            ("prior", false, BindingRelevance::Relevant),
+            ("mut prior", true, BindingRelevance::Relevant),
+            ("prior [erased]", false, BindingRelevance::Erased),
         ] {
             let source =
                 format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
@@ -182,9 +181,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
     ));
 }
 
-fn first_machine_statements(
-    parsed: &syntax_trees::SyntaxTrees,
-) -> &[syntax_trees::statement::StatementHandle] {
+fn first_machine_statements(parsed: &syntax_trees::SyntaxTrees) -> &[StatementHandle] {
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -270,7 +267,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         else {
             panic!("first authored arm");
         };
-        let syntax_trees::statement::TransitionGuardNode::When(expression) = first_arm.guard else {
+        let TransitionGuardNode::When(expression) = first_arm.guard else {
             panic!("first arm tests the subject");
         };
         let ExpressionNode::Binary(comparison) = parsed.expressions.expression(expression) else {
@@ -285,10 +282,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[1]) else {
             panic!("second authored arm");
         };
-        assert!(matches!(
-            last_arm.guard,
-            syntax_trees::statement::TransitionGuardNode::Always
-        ));
+        assert!(matches!(last_arm.guard, TransitionGuardNode::Always));
     }
 }
 
@@ -313,10 +307,7 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
                 panic!("authored transition");
             };
             assert!(
-                matches!(
-                    transition.guard,
-                    syntax_trees::statement::TransitionGuardNode::When(_)
-                ),
+                matches!(transition.guard, TransitionGuardNode::When(_)),
                 "{body}"
             );
         }
@@ -382,10 +373,7 @@ fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
         atomic.ordering,
         language_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
     ));
-    assert_eq!(
-        atomic.result_custody,
-        language_core::atomic::AtomicExpressionResultCustody::Scalar
-    );
+    assert_eq!(atomic.result_custody, AtomicExpressionResultCustody::Scalar);
 }
 
 #[test]
@@ -843,10 +831,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     assert_eq!(propositions.len(), 3);
     assert!(propositions[0].is_public);
     assert!(!propositions[1].is_public);
-    assert!(matches!(
-        propositions[0].body,
-        syntax_trees::item::PropositionBody::Primitive
-    ));
+    assert!(matches!(propositions[0].body, PropositionBody::Primitive));
     assert_eq!(
         parsed
             .items
@@ -863,11 +848,11 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     );
     assert!(matches!(
         propositions[1].body,
-        syntax_trees::item::PropositionBody::Witness { .. }
+        PropositionBody::Witness { .. }
     ));
     assert!(matches!(
         propositions[2].body,
-        syntax_trees::item::PropositionBody::Transparent { proposition }
+        PropositionBody::Transparent { proposition }
             if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
     ));
     assert!(propositions[0].transparent_formula_source_span.is_none());
@@ -917,10 +902,7 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let start = source.find(initializer).unwrap();
         assert_eq!(
             parsed.expressions.source_span(declaration.value),
-            source::SourceSpan::new(
-                source_id,
-                source::Span::new(start, start + initializer.len())
-            ),
+            source::SourceSpan::new(source_id, Span::new(start, start + initializer.len())),
             "{initializer}"
         );
     }

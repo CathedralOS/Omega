@@ -2195,12 +2195,44 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.record_case_access_places(expression, constraints, places)
     }
 
+    /// Where `expression`'s place leaves the descriptor it reads through. A
+    /// Case segment inside that descriptor's own home was the obligation of
+    /// the read that loaded the descriptor; a read through the loaded
+    /// descriptor proves only the cases on its pointee path, and an external
+    /// view with no placeable pointee owes none.
+    fn pointee_segments_start(&mut self, expression: ExpressionHandle) -> usize {
+        let mut current = expression;
+        loop {
+            let receiver = match self.program.expression_table.expression(current) {
+                ExpressionNode::Member(member) => member.receiver,
+                ExpressionNode::Indexed(indexed) => indexed.collection,
+                ExpressionNode::Borrow(borrow) => borrow.target,
+                _ => return 0,
+            };
+            let crosses = self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, receiver)
+                .is_some_and(|reference| self.is_view_type(reference));
+            if crosses {
+                return place_at(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    receiver,
+                )
+                .map_or(0, |home| home.segments.len());
+            }
+            current = receiver;
+        }
+    }
+
     fn record_case_access_places(
         &mut self,
         expression: ExpressionHandle,
         constraints: HandleSpan<FlowConstraintRef>,
         places: HandleSpan<checked_trees::FlowOperandReferent>,
     ) -> Handle<checked_trees::FlowCaseAccessFact> {
+        let pointee_start = self.pointee_segments_start(expression);
         let source_has_case = place_at(
             self.program,
             self.state.symbol,
@@ -2211,6 +2243,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             place
                 .segments
                 .iter()
+                .skip(pointee_start)
                 .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
         });
         let observed_has_case = self.captured_referent_places(places).iter().any(|place| {

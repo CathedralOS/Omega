@@ -1,7 +1,9 @@
 data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 machine consume(receipt: Receipt) -> i32 {
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     17
 }
 machine incomplete(choice: bool) -> i32 {

@@ -869,6 +869,48 @@ pub(super) fn account<'calls>(
                 // Reference returns additionally admit an exact reborrow,
                 // whose custody is counted below rather than booked twice
                 // as a synthetic unrestricted disposition.
+                // Selecting a case retires the sum's other alternatives. A
+                // terminal arm that moves every claim-bearing child of the
+                // selected case therefore leaves nothing of a sum that owns
+                // no whole claim of its own: the same disposition a successor
+                // edge books as a whole transfer, written as projected
+                // operands of the arm's own call. Source checking admitted
+                // those child moves; partial moves keep residual custody.
+                let selected_case_exhausted =
+                    |case: &checked_trees::CheckedClosedSumCasePlan, arm: &ReturnArm| {
+                        let no_nominal_cleanup = shapes
+                            .types
+                            .get(&result.type_identity)
+                            .is_some_and(|declaration| !declaration.owns_linear_claim);
+                        let selects =
+                            |path: &[checked_trees::CheckedUnitStructuralPathSegment]| {
+                                matches!(
+                                    path.first(),
+                                    Some(checked_trees::CheckedUnitStructuralPathSegment::Case(identity))
+                                        if *identity == case.case_identity
+                                )
+                            };
+                        let moved = arm
+                            .operation_dependencies()
+                            .flat_map(OperationPlan::with_value_calls)
+                            .flat_map(OperationPlan::structural_operands)
+                            .filter(|argument| {
+                                moves_occurrence(argument)
+                                    && !argument.path.is_empty()
+                                    && selects(&argument.path)
+                            })
+                            .map(|argument| argument.path.clone())
+                            .collect::<Vec<_>>();
+                        no_nominal_cleanup
+                            && !moved.is_empty()
+                            && producer_claim_paths(program, facts, operation).is_some_and(
+                                |claims| {
+                                    claims.iter().filter(|claim| selects(claim)).all(|claim| {
+                                        moved.iter().any(|path| claim.starts_with(path))
+                                    })
+                                },
+                            )
+                    };
                 let mut return_uses = return_construction_uses.iter();
                 let complete_partition = !cases.is_empty()
                         && cases.iter().all(|case| match &case.outcome {
@@ -882,7 +924,9 @@ pub(super) fn account<'calls>(
                                             .established_reference_source(&facts.values.structural_values)
                                             .is_some_and(|source| exact_view_reborrow(source, operations.len())));
                                 return_uses.next().is_some_and(|uses| {
-                                    exact_reborrow || return_arm_owns(arm, uses)
+                                    exact_reborrow
+                                        || return_arm_owns(arm, uses)
+                                        || selected_case_exhausted(case, arm)
                                 })
                             }
                         });

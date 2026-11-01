@@ -2,6 +2,7 @@
 use super::super::{ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject};
 use super::schemas::Key;
 use language_semantics::declaration_selection::ProductOperandRole;
+use source::DependencyScope;
 use typed_trees::TypedTrees;
 
 pub(super) struct Declaration<'source> {
@@ -17,11 +18,9 @@ impl<'source> Declaration<'source> {
                 validate_identity(program, identity, ProductOperandRole::BoundarySubject)?
             }
             ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                let errors =
-                    family.replay_against_typed(super::super::ProviderPlanningContext::new(
-                        program,
-                        source::DependencyScope::Product,
-                    ));
+                let errors = family.replay_against_typed(
+                    super::super::ProviderPlanningContext::new(program, DependencyScope::Product),
+                );
                 if !errors.is_empty() {
                     return Err(errors.join("\n"));
                 }

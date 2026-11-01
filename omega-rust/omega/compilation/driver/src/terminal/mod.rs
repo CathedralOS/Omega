@@ -10,7 +10,9 @@
 //! attaches those retained proposals; it never reopens typed provider selection.
 
 mod behavior_exclusions;
+mod calling_policy_code;
 mod terminal_artifact;
+pub(crate) use calling_policy_code::retain_calling_policy_code;
 
 pub(crate) use terminal_artifact::{
     ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,

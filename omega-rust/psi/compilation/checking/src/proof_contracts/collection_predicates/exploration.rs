@@ -27,7 +27,7 @@
 //! exploration inside the work budget is itself the termination witness for
 //! these exact arguments.
 
-use super::integer_sets::IntegerSet;
+use super::IntegerSet;
 use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;

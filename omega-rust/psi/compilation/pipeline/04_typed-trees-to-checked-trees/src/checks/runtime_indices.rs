@@ -7,6 +7,11 @@
 //! independent snapshots. CurrentScalarValues owns assignment/effect transfer
 //! and checked equality, so changing the source variable never retags an old
 //! object. These are erased checking obligations, not runtime proof storage.
+//!
+//! Region operands of an application compare by their identity in the current
+//! machine. A call that authors no lifetime rows does not name such regions in
+//! its signature types: inference instantiates the callee's binders to the
+//! regions of the arguments, which `region_operand` reads back from them.
 
 use super::current_scalar_values::CurrentScalarValues;
 use crate::flow::state_statements;
@@ -67,6 +72,23 @@ impl Application<'_> {
             position: None,
         }
     }
+}
+
+/// A region operand as this comparison sees it.
+enum Region {
+    /// Names a region of the current machine.
+    Known(typed_trees::type_identity::NormalizedTypeIdentity),
+    /// Instantiated by call inference to no single region the arguments name,
+    /// so no obligation compares it here.
+    Inferred,
+}
+
+/// One edge followed from a type reference to a node that binds region operands.
+#[derive(Clone, Copy)]
+enum RegionStep {
+    Pointee,
+    Element,
+    Argument(usize),
 }
 
 struct Scope<'a> {
@@ -621,6 +643,173 @@ impl Scope<'_> {
         )
     }
 
+    /// The region operand `ordinal` of `reference` in this machine's terms.
+    ///
+    /// A call that authors no lifetime rows leaves its callee's region binders
+    /// to inference: its formal types and its result type name regions of the
+    /// callee's scope, so resolving them here would match them against nothing
+    /// (the application may carry no binding declaration at all). Inference
+    /// instantiates a binder to the regions of the arguments it types, so the
+    /// operand is read from those arguments instead. A binder that no
+    /// argument types, or that arguments type with different regions, is left
+    /// to the borrow checker and carries no obligation to this comparison.
+    /// Authored rows, declared types and locals keep their exact identity.
+    fn region_operand(
+        &self,
+        application: &Application<'_>,
+        reference: TypeReferenceHandle,
+        ordinal: usize,
+        depth: usize,
+    ) -> Option<Region> {
+        let rowless_call = application.call.is_some()
+            && self
+                .application_source(application)
+                .is_none_or(|(handle, _)| self.application_lifetimes(handle).is_empty());
+        if !rowless_call {
+            return self
+                .application_lifetime_identity(application, reference, ordinal)
+                .map(Region::Known);
+        }
+        let site = application.call?;
+        let TypeReferenceNode::Generic {
+            lifetime_arguments, ..
+        } = self.program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        let name = lifetime_arguments.get(ordinal)?;
+        if depth > 16 {
+            return Some(Region::Inferred);
+        }
+        let parameters =
+            validation::call_target_parameters(self.program, site.target_symbol(self.program))?;
+        let arguments = validation::call_site_argument_expressions(self.program, &site);
+        let mut supplied: Option<typed_trees::type_identity::NormalizedTypeIdentity> = None;
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            let mut occurrences = Vec::new();
+            self.region_binder_paths(
+                parameter.type_reference,
+                name.as_str(),
+                &mut Vec::new(),
+                &mut occurrences,
+            );
+            if occurrences.is_empty() {
+                continue;
+            }
+            let Some(actual) = self.actual(*argument) else {
+                continue;
+            };
+            for (path, binder_ordinal) in occurrences {
+                let Some(node) = self.region_node_at(actual.reference, &path) else {
+                    continue;
+                };
+                match self.region_operand(&actual, node, binder_ordinal, depth + 1) {
+                    Some(Region::Known(identity)) => match supplied {
+                        Some(earlier) if earlier != identity => return Some(Region::Inferred),
+                        _ => supplied = Some(identity),
+                    },
+                    Some(Region::Inferred) | None => {}
+                }
+            }
+        }
+        Some(supplied.map_or(Region::Inferred, Region::Known))
+    }
+
+    /// Every generic node of `reference` that binds the region operand `name`,
+    /// as the path of edges reaching it and the operand's ordinal there.
+    fn region_binder_paths(
+        &self,
+        reference: TypeReferenceHandle,
+        name: &str,
+        path: &mut Vec<RegionStep>,
+        occurrences: &mut Vec<(Vec<RegionStep>, usize)>,
+    ) {
+        if path.len() > 16 {
+            return;
+        }
+        let table = &self.program.type_reference_table;
+        match table.type_reference(self.region_carrier(reference)) {
+            TypeReferenceNode::Generic {
+                lifetime_arguments,
+                arguments,
+                ..
+            } => {
+                for (ordinal, argument) in lifetime_arguments.iter().enumerate() {
+                    if argument.as_str() == name {
+                        occurrences.push((path.clone(), ordinal));
+                    }
+                }
+                for (position, argument) in
+                    table.type_reference_handles(*arguments).iter().enumerate()
+                {
+                    path.push(RegionStep::Argument(position));
+                    self.region_binder_paths(*argument, name, path, occurrences);
+                    path.pop();
+                }
+            }
+            TypeReferenceNode::Reference { referee, .. } => {
+                path.push(RegionStep::Pointee);
+                self.region_binder_paths(*referee, name, path, occurrences);
+                path.pop();
+            }
+            TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::FixedArray { element_type, .. } => {
+                path.push(RegionStep::Element);
+                self.region_binder_paths(*element_type, name, path, occurrences);
+                path.pop();
+            }
+            _ => {}
+        }
+    }
+
+    /// The node reached by following `path` from `reference`, if the types
+    /// have the same shape along it.
+    fn region_node_at(
+        &self,
+        reference: TypeReferenceHandle,
+        path: &[RegionStep],
+    ) -> Option<TypeReferenceHandle> {
+        let table = &self.program.type_reference_table;
+        let mut current = self.region_carrier(reference);
+        for step in path {
+            current = self.region_carrier(match (step, table.type_reference(current)) {
+                (RegionStep::Pointee, TypeReferenceNode::Reference { referee, .. }) => *referee,
+                (
+                    RegionStep::Element,
+                    TypeReferenceNode::Slice { element_type }
+                    | TypeReferenceNode::FixedArray { element_type, .. },
+                ) => *element_type,
+                (RegionStep::Argument(position), TypeReferenceNode::Generic { arguments, .. }) => {
+                    *table.type_reference_handles(*arguments).get(*position)?
+                }
+                _ => return None,
+            });
+        }
+        Some(current)
+    }
+
+    /// `reference` without domain constraints or the specialization wrapper
+    /// of a generic data instance, matching what `compare` looks through.
+    fn region_carrier(&self, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        let table = &self.program.type_reference_table;
+        for _ in 0..16 {
+            reference = table.unconstrained_type_reference(reference);
+            let TypeReferenceNode::Named { symbol, .. } = table.type_reference(reference) else {
+                break;
+            };
+            let Some(origin) = self
+                .program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|data| data.generic_instance)
+                .filter(|origin| *origin != reference)
+            else {
+                break;
+            };
+            reference = origin;
+        }
+        reference
+    }
+
     fn compare(
         &self,
         actual: &Application<'_>,
@@ -723,14 +912,16 @@ impl Scope<'_> {
                 // operands, including phantom regions on selected code.
                 if left_lifetimes.len() != right_lifetimes.len()
                     || !(0..left_lifetimes.len()).all(|ordinal| {
-                        let left =
-                            self.application_lifetime_identity(actual, actual_reference, ordinal);
-                        let right = self.application_lifetime_identity(
-                            required,
-                            required_reference,
-                            ordinal,
-                        );
-                        left.is_some() && left == right
+                        match (
+                            self.region_operand(actual, actual_reference, ordinal, 0),
+                            self.region_operand(required, required_reference, ordinal, 0),
+                        ) {
+                            (Some(Region::Known(left)), Some(Region::Known(right))) => {
+                                left == right
+                            }
+                            (Some(_), Some(_)) => true,
+                            _ => false,
+                        }
                     })
                 {
                     return false;

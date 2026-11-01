@@ -7,10 +7,11 @@ use crate::obligations::{
 use crate::typed_expressions::statement_table;
 use language_core::{place_field, place_label};
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::dependent_ranges::DependentBoundClass;
+use typed_trees::dependent_ranges::{DependentBoundClass, dependent_bound_class};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
+use typed_trees::statement::TransitionTargetNode;
 
 /// The single dependent-maximum atom of a constraint set (R1a mints at most
 /// one: the declared range's own bound).
@@ -92,7 +93,7 @@ fn guard_conjunct_proves_dependent_upper(
         return false;
     }
     let Some(DependentBoundClass::SelfField(bound)) =
-        typed_trees::dependent_ranges::dependent_bound_class(&proof_plan.program, bound_side)
+        dependent_bound_class(&proof_plan.program, bound_side)
     else {
         return false;
     };
@@ -219,12 +220,12 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
             if (row.target.is_valid()
                 && matches!(
                     program.statement_table.transition_target(row.target),
-                    typed_trees::statement::TransitionTargetNode::Value(_)
+                    TransitionTargetNode::Value(_)
                 ))
                 || (row.continuation.is_valid()
                     && matches!(
                         program.statement_table.transition_target(row.continuation),
-                        typed_trees::statement::TransitionTargetNode::Value(_)
+                        TransitionTargetNode::Value(_)
                     ))
             {
                 return false;
@@ -267,9 +268,7 @@ fn target_enters_state(
         return false;
     }
     match proof_plan.program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-            path.symbol == state.symbol
-        }
+        TransitionTargetNode::Named { path, .. } => path.symbol == state.symbol,
         _ => false,
     }
 }
@@ -577,18 +576,17 @@ fn sibling_conjunct_proves(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) =
-        typed_trees::dependent_ranges::dependent_bound_class(&proof_plan.program, bound_side)
-            .and_then(|class| match class {
-                DependentBoundClass::SiblingLen(bound) => Some((bound.sibling, bound.offset)),
-                _ => None,
-            })
-            .or_else(|| {
-                // The guard names the CALLER's expression (`self.buf.len`), not the
-                // callee's param -- recognize `<expr>.len + k` with the RECEIVER
-                // display-matched below instead of the bare-name rule.
-                len_of_expression_bound(proof_plan, bound_side)
-            })
+    let Some(bound) = dependent_bound_class(&proof_plan.program, bound_side)
+        .and_then(|class| match class {
+            DependentBoundClass::SiblingLen(bound) => Some((bound.sibling, bound.offset)),
+            _ => None,
+        })
+        .or_else(|| {
+            // The guard names the CALLER's expression (`self.buf.len`), not the
+            // callee's param -- recognize `<expr>.len + k` with the RECEIVER
+            // display-matched below instead of the bare-name rule.
+            len_of_expression_bound(proof_plan, bound_side)
+        })
     else {
         return false;
     };

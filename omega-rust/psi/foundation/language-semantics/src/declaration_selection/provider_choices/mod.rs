@@ -4,6 +4,11 @@
 //! selection. Adapters own exact declaration, coverage and receiver-contract
 //! correspondence. Choosing a description grants no checking, ABI, supply or
 //! installation authority; those remain obligations of the receiving owner.
+//!
+//! A slot is settled by the first of: an explicit override, a target default,
+//! a covering candidate that a Build row keys to the selected target, or the
+//! one covering candidate in scope. Candidates in scope for every target stay
+//! checked but do not compete with a row that names this target.
 
 mod identities;
 pub use identities::{ApplicationKey, selected_application_slots};
@@ -18,6 +23,10 @@ pub trait Candidate {
     fn slot(&self) -> &Self::Slot;
     fn provider(&self) -> &Self::Provider;
     fn target(&self) -> &str;
+    /// Whether the candidate exists because an authored Build row names the
+    /// selected target (a native binding), rather than because an
+    /// implementation is merely in scope for every target.
+    fn build_keyed(&self) -> bool;
     fn has_requirements(&self) -> bool;
     fn covers_requirements(&self) -> bool;
     fn receiver_count(&self) -> usize;

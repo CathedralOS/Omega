@@ -19,6 +19,7 @@ use super::product_providers::PRODUCT_PROVIDER_DESCRIPTION_TYPE;
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
+use validation::product_queries::describe_schema;
 
 /// The marker type name carried by issued `ProductTypeSchema` values. An
 /// authored `ProductTypeSchema {}` has the declared type name instead and is
@@ -140,12 +141,8 @@ impl<'program> Evaluator<'program> {
         path: &[u8],
         occurrence: source::SourceSpan,
     ) -> EvalResult<Value> {
-        let selected = validation::product_queries::describe_schema(
-            self.product_declarations,
-            occurrence,
-            path,
-        )
-        .map_err(Halt::Trap)?;
+        let selected =
+            describe_schema(self.product_declarations, occurrence, path).map_err(Halt::Trap)?;
         let index = self.product_schema_descriptions.len();
         self.product_schema_descriptions
             .try_reserve(1)

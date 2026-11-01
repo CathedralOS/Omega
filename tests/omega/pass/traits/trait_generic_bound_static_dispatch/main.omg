@@ -20,7 +20,7 @@ machine Counter::increment(counter: &mut Counter) satisfies Incrementable<Counte
     counter.value = counter.value + 1;
 }
 CounterIncrementable satisfies Incrementable<Counter> {
-    Incrementable::increment = Counter::increment;
+    machine increment(counter: &mut Counter) { Counter::increment(counter) }
 }
 
 machine step<T, machine Increment>(subject: &mut T)

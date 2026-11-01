@@ -1,15 +1,7 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "case_dependent_default_domain_target_body");
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
-    Build::select_provider<SelectedConsume, X86Consume>(builder, linux_x86_64);
-    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
-    Build::select_provider<SelectedConsume, ArmConsume>(builder, linux_arm64);
-    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
-    Build::select_provider<SelectedConsume, ArmConsume>(builder, macos_arm64);
-    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
-    Build::select_provider<SelectedConsume, X86Consume>(builder, windows_x86_64);
+    Build::application(builder, "case_predicate_target_body");
+    Build::bind(builder, windows_x86_64::ProgramEntry, windows_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, linux_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, linux_arm_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, mac_entry);
 }

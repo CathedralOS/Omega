@@ -48,5 +48,5 @@ arm for 22.
 - Runtime falsifier: both sums are checked. A constant 42 fails the second call.
   Match join exercises both arms.
 
-Open under STATIC-MACHINE-MIGRATION: repository-wide reference-row retirement,
+Open under STATIC-MACHINE-MIGRATION: reference-row retirement in the Omega-written producer,
 `dropped by`, and source-visible `Binding<R>`.

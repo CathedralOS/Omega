@@ -1,6 +1,6 @@
 //! One whole-provider choice policy for invocation and canonical declarations.
 
-use crate::{ProviderDeclaration, ProviderSubject, SelectionProvenance};
+use crate::{ProviderCandidate, ProviderDeclaration, ProviderSubject, SelectionProvenance};
 use effects::provider_plan::ProviderPlan;
 
 type ProviderSelectionKey =
@@ -74,14 +74,16 @@ pub(crate) struct SelectedProviderPlanIndex<Declaration, Origin> {
 /// remains with this adapter and admission, outside the shared chooser.
 struct NativeCandidate<'plan> {
     plan: &'plan ProviderPlan,
+    native_build: bool,
     slot: ProviderSelectionKey,
     provider: ProviderSelectionKey,
 }
 
 impl<'plan> NativeCandidate<'plan> {
-    fn new(plan: &'plan ProviderPlan) -> Self {
+    fn new(plan: &'plan ProviderPlan, native_build: bool) -> Self {
         Self {
             plan,
+            native_build,
             slot: provider_slot_key(plan),
             provider: provider_plan_key(plan),
         }
@@ -101,6 +103,12 @@ impl language_semantics::declaration_selection::provider_choices::Candidate
     }
     fn target(&self) -> &str {
         &self.plan.target
+    }
+    // Every plan names the selected target, so the plan's target field cannot
+    // tell an authored Build row from an implementation in scope. Native Build
+    // plans exist only for targets that a `Build::bind` row names.
+    fn build_keyed(&self) -> bool {
+        self.native_build
     }
     fn has_requirements(&self) -> bool {
         !self.plan.schema.declaration.methods.is_empty()
@@ -156,16 +164,20 @@ impl<Declaration: PartialEq, Origin>
     }
 }
 
-pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Origin: Clone + Eq>(
-    plans: &[&effects::provider_plan::ProviderPlan],
+pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
+    provider_candidates: &[ProviderCandidate<Declaration, Owner>],
     selected_target: target::TargetProfile,
     defaults: &[ProviderDeclaration<Declaration, Origin>],
     requested: &[ProviderDeclaration<Declaration, Origin>],
 ) -> Result<Vec<SelectedProviderPlanIndex<Declaration, Origin>>, Vec<diagnostics::Diagnostic>> {
     use language_semantics::declaration_selection::provider_choices::{self, Error, Reason, Tier};
-    let candidates = plans
+    let plans = provider_candidates
         .iter()
-        .map(|plan| NativeCandidate::new(plan))
+        .map(|candidate| &candidate.plan)
+        .collect::<Vec<_>>();
+    let candidates = provider_candidates
+        .iter()
+        .map(|candidate| NativeCandidate::new(&candidate.plan, candidate.native_build))
         .collect::<Vec<_>>();
     let prepared_defaults = defaults
         .iter()

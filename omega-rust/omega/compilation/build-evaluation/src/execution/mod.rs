@@ -1,7 +1,8 @@
 //! Prepare one admitted Terminal Build and settle its exact normal-return output.
 //! The caller owns execution stepping and dependency work between those operations.
 
-use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
+use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
+use build_declarations::BuildRequest;
 use diagnostics::Diagnostic;
 use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use std::sync::Arc;
@@ -98,10 +99,7 @@ impl PreparedBuildExecution {
         .map_err(|reason| self.refuse(&reason))
     }
 
-    pub(crate) fn validate_return(
-        &self,
-        returned: &crate::ReturnedBuild,
-    ) -> Result<(), Vec<Diagnostic>> {
+    pub(crate) fn validate_return(&self, returned: &ReturnedBuild) -> Result<(), Vec<Diagnostic>> {
         if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
             return Err(self.refuse("Build completion belongs to another invocation"));
         }
@@ -117,12 +115,10 @@ impl PreparedBuildExecution {
         // A graph is not settlement by itself. The retained return must carry
         // the exact join of its issued requests and acquired selections.
         if completed.source_join.is_none()
-            && completed.requests.iter().any(|issued| {
-                matches!(
-                    issued.request(),
-                    build_declarations::BuildRequest::Dependency { .. }
-                )
-            })
+            && completed
+                .requests
+                .iter()
+                .any(|issued| matches!(issued.request(), BuildRequest::Dependency { .. }))
         {
             return Err(self.refuse(
                 "dependency requests require coordinator settlement before Product compilation",

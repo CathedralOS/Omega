@@ -11,7 +11,7 @@ use machine_code::{
     SelectedFormMachineDisposition,
 };
 
-use super::super::OptimizedResolvedSelectedFormLayoutError;
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::branch::conditional_branch_descriptor;
 
 pub(in super::super) struct LayoutPlan {
@@ -28,7 +28,7 @@ pub(in super::super) fn derive(
     architecture: Architecture,
     blocks: &[&SelectedBlock],
     pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
-) -> Result<LayoutPlan, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<LayoutPlan, Error> {
     // AArch64 conditional branches widen by four bytes when the taken edge
     // leaves the `B.cond` imm19 range; widening grows later offsets, so the
     // widened set is monotone across iterations and this loop converges.
@@ -46,11 +46,7 @@ pub(in super::super) fn derive(
             if grown.contains(&descriptor.terminator.id) {
                 continue;
             }
-            let missing = || {
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
-                    descriptor.terminator.id,
-                )
-            };
+            let missing = || Error::MissingInstruction(descriptor.terminator.id);
             let row = pre_rows
                 .get(&descriptor.terminator.id)
                 .ok_or_else(missing)?;
@@ -82,7 +78,7 @@ fn derive_once(
     blocks: &[&SelectedBlock],
     pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
     widened: &BTreeSet<SelectedInstructionId>,
-) -> Result<LayoutPlan, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<LayoutPlan, Error> {
     let mut block_offsets = BTreeMap::new();
     let mut block_sizes = BTreeMap::new();
     let mut instruction_offsets = BTreeMap::new();
@@ -92,12 +88,12 @@ fn derive_once(
         let start = offset;
         for instruction in instructions(block) {
             instruction_offsets.insert(instruction.id, offset);
-            let pre = pre_rows.get(&instruction.id).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-            )?;
+            let pre = pre_rows
+                .get(&instruction.id)
+                .ok_or(Error::MissingInstruction(instruction.id))?;
             offset = offset
                 .checked_add(instruction_size(architecture, instruction, pre, widened)?)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                .ok_or(Error::OffsetOverflow)?;
         }
         block_sizes.insert(block.id, offset - start);
     }
@@ -130,12 +126,8 @@ pub(crate) fn widening_candidate(
     )
 }
 
-pub(crate) fn byte_displacement(
-    target: u64,
-    base: u64,
-) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
-    i64::try_from(i128::from(target) - i128::from(base))
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
+pub(crate) fn byte_displacement(target: u64, base: u64) -> Result<i64, Error> {
+    i64::try_from(i128::from(target) - i128::from(base)).map_err(|_| Error::OffsetOverflow)
 }
 
 pub(in super::super) fn instructions(
@@ -151,7 +143,7 @@ fn instruction_size(
     instruction: &SelectedInstruction,
     row: &SelectedFormEncodingRow,
     widened: &BTreeSet<SelectedInstructionId>,
-) -> Result<u64, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<u64, Error> {
     match &row.machine_disposition {
         SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. } => {
             if architecture == Architecture::Aarch64
@@ -216,9 +208,7 @@ fn instruction_size(
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
         } => {
             if row.instruction != instruction.id {
-                return Err(
-                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-                );
+                return Err(Error::MissingInstruction(instruction.id));
             }
             Ok(
                 if matches!(instruction.kind, SelectedInstructionKind::Jump) {
@@ -243,8 +233,6 @@ pub(crate) const fn branch_size(architecture: Architecture) -> u64 {
     }
 }
 
-pub(crate) fn unexpected<T>(
-    instruction: SelectedInstructionId,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
+pub(crate) fn unexpected<T>(instruction: SelectedInstructionId) -> Result<T, Error> {
+    Err(Error::UnexpectedEncodingState(instruction))
 }

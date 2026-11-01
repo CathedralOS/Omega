@@ -33,11 +33,15 @@
 use std::path::{Path, PathBuf};
 
 use crate::ExecutableContainerDigest;
+use crate::digest_encoder::DomainDigestEncoder;
+use crate::publication;
 use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
+use platform_custody::file_publication::make_executable;
+use std::process::id;
 
 /// Digest one installed package member's exact bytes under its own domain.
 fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
-    PackageComponentDigest::from_digest(crate::digest_encoder::DomainDigestEncoder::content(
+    PackageComponentDigest::from_digest(DomainDigestEncoder::content(
         b"omega.published-package-component.sha256.v1\0",
         bytes,
     ))
@@ -55,9 +59,7 @@ fn native_package_evidence_digest(
     executable_container_digest: ExecutableContainerDigest,
     components: &[PackagePublicationComponent],
 ) -> NativePackageEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-package-evidence.sha256.v1\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.native-package-evidence.sha256.v1\0");
     let root = package_root.as_os_str().as_encoded_bytes();
     digest.u64(root.len() as u64);
     digest.raw(&root);
@@ -284,9 +286,7 @@ pub fn publish_macos_application_package(
     executable_bytes: &[u8],
     executable_container_digest: ExecutableContainerDigest,
 ) -> Result<NativePackagePublicationReceipt, String> {
-    if crate::publication::executable_container_digest(executable_bytes)
-        != executable_container_digest
-    {
+    if publication::executable_container_digest(executable_bytes) != executable_container_digest {
         return Err(
             "macOS package executable bytes do not match the container commitment".to_owned(),
         );
@@ -325,10 +325,7 @@ pub fn publish_macos_application_package(
         .collect();
     expected_shape.sort();
     let app_root = build_dir.join(format!("{application_name}.app"));
-    let staged = build_dir.join(format!(
-        ".{application_name}.app.{}.tmp",
-        std::process::id()
-    ));
+    let staged = build_dir.join(format!(".{application_name}.app.{}.tmp", id()));
     let _ = std::fs::remove_dir_all(&staged);
     let stage_result = (|| -> Result<(), String> {
         for (relative, bytes) in &members {
@@ -363,9 +360,7 @@ pub fn publish_macos_application_package(
         let _ = std::fs::remove_dir_all(&staged);
         return Err(format!("failed to publish {}: {error}", app_root.display()));
     }
-    if let Err(error) =
-        platform_custody::file_publication::make_executable(&app_root.join(&executable_leaf))
-    {
+    if let Err(error) = make_executable(&app_root.join(&executable_leaf)) {
         let _ = std::fs::remove_dir_all(&app_root);
         return Err(error);
     }

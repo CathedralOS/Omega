@@ -12,13 +12,14 @@ pub use source_join::BuildDependencySelection;
 
 use evaluation_accounting::EvaluationInvocationAccount;
 use language_semantics::declaration_selection::{
-    ExecutedBuildSelection, ExecutedProductSelection, ExecutedRootBinding,
-    ProductDeclarationRequest,
+    ExecutedBuildSelection, ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection,
+    ExecutedRootBinding, NativeBindingFormation, ProductDeclarationRequest,
 };
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
 use psi_compiler::ProducedTerminalProgram;
+use std::sync::Arc;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
@@ -40,20 +41,17 @@ pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdent
 pub struct ReturnedBuild {
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) declaration: build_declarations::BuildDeclaration,
-    pub(crate) source_join:
-        Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
+    pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
-    pub(crate) native_formations:
-        Vec<language_semantics::declaration_selection::NativeBindingFormation>,
-    pub(crate) native_bindings:
-        Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
-    pub(crate) exclusions: Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
-    pub(crate) declared_product_selections: Vec<std::sync::Arc<ProductDeclarationRequest>>,
+    pub(crate) native_formations: Vec<NativeBindingFormation>,
+    pub(crate) native_bindings: Vec<ExecutedNativeBinding>,
+    pub(crate) exclusions: Vec<ExecutedEnumExclusion>,
+    pub(crate) declared_product_selections: Vec<Arc<ProductDeclarationRequest>>,
     pub(crate) log: crate::terminal_requests::BuildLog,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
@@ -83,26 +81,26 @@ impl ReturnedBuild {
 /// Host custody is retained by the interpreter's owned adapters. One host starts
 /// one activation; dropping a paused activation cannot start its effects again.
 pub struct TerminalBuildHost {
-    produced: std::sync::Arc<ProducedTerminalProgram>,
+    produced: Arc<ProducedTerminalProgram>,
     account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
-    requests: std::sync::Arc<TerminalBuildRequestHost>,
-    bindings: std::sync::Arc<TerminalBuildBindingHost>,
-    filesystem: std::sync::Arc<crate::terminal_filesystem::TerminalBuildFilesystemHost>,
+    requests: Arc<TerminalBuildRequestHost>,
+    bindings: Arc<TerminalBuildBindingHost>,
+    filesystem: Arc<crate::terminal_filesystem::TerminalBuildFilesystemHost>,
     started: std::sync::atomic::AtomicBool,
     execution_profile: Option<target::TargetProfile>,
     value_admission: BuildValueAdmission,
-    machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
+    machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
 }
 
 impl TerminalBuildHost {
     pub(crate) fn new(
-        produced: std::sync::Arc<ProducedTerminalProgram>,
+        produced: Arc<ProducedTerminalProgram>,
         account: &EvaluationInvocationAccount,
-        machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
+        machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
         execution_profile: Option<target::TargetProfile>,
-    ) -> Result<std::sync::Arc<Self>, String> {
+    ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
         let entry = program.entry().map_err(describe)?;
@@ -134,7 +132,7 @@ impl TerminalBuildHost {
             filesystem_scope,
             &machine.name,
         )?;
-        Ok(std::sync::Arc::new(Self {
+        Ok(Arc::new(Self {
             produced,
             account: account.clone(),
             original,
@@ -148,7 +146,7 @@ impl TerminalBuildHost {
         }))
     }
 
-    pub fn start(self: &std::sync::Arc<Self>) -> Result<TerminalBuildActivation, String> {
+    pub fn start(self: &Arc<Self>) -> Result<TerminalBuildActivation, String> {
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err("Build host has already started its activation".into());
         }
@@ -258,7 +256,7 @@ impl TerminalBuildHost {
             TerminalFuelMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
-            host: std::sync::Arc::clone(self),
+            host: Arc::clone(self),
             fuel,
             state: ActivationState::Running,
             requests: Vec::new(),
@@ -278,7 +276,7 @@ enum ActivationState {
 /// account. The caller owns scheduling between advances; no callback hides it.
 pub struct TerminalBuildActivation {
     instance: TerminalInstance<'static, 'static>,
-    host: std::sync::Arc<TerminalBuildHost>,
+    host: Arc<TerminalBuildHost>,
     fuel: TerminalFuelMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
@@ -290,7 +288,7 @@ pub struct TerminalBuildStep<'step> {
     pub requests: &'step [IssuedBuildRequest],
     pub returned: bool,
     pub awaiting_provider: Option<crate::terminal_bindings::BuildProviderRequest>,
-    pub awaiting_query: Option<std::sync::Arc<crate::terminal_bindings::BuildProductQuery>>,
+    pub awaiting_query: Option<Arc<crate::terminal_bindings::BuildProductQuery>>,
 }
 
 impl TerminalBuildActivation {

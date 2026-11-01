@@ -3,6 +3,7 @@
 use super::super::failed;
 use super::{CallSite, Diagnostic, TypedTrees, invocations};
 use crate::tables::expressions_of;
+use invocations::machine_demands;
 
 /// Requirement closure substitutes the source demand after provider tuples
 /// have settled. Derive its checking view from that same occurrence's retained
@@ -34,10 +35,8 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
         let (_, signature) = program
             .trait_machine_signature(closed.template)
             .ok_or_else(|| failed("closed requirement demand lost its source declaration"))?;
-        let source_demands = invocations::machine_demands(
-            program,
-            program.state_signature_type_parameters(signature),
-        );
+        let source_demands =
+            machine_demands(program, program.state_signature_type_parameters(signature));
         if source_demands.len() != invocation.requirements.len() {
             return Err(vec![Diagnostic::error(
                 "closed requirement demand changed its machine binder roster",

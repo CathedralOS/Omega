@@ -15,7 +15,6 @@ pub(crate) use extraction::extract_build_dependency_projection;
 
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
-use build_declarations::BuildDeclaration;
 /// Which authorized context one direct dependency edge serves.
 ///
 /// `depend`/`depend_as` rows authorize product imports. `build_depend`/
@@ -24,6 +23,7 @@ use build_declarations::BuildDeclaration;
 /// falls back to the other. The vocabulary lives in `build_declarations`
 /// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
+use build_declarations::{BuildDeclaration, BuildRequest};
 pub(crate) use extraction::extract_scoped_from_source;
 pub(crate) use projection::validate_static_dependency_source;
 
@@ -96,7 +96,7 @@ impl DependencyProjections {
     /// Retain exactly the issued dependency ledger, preserving ordinal order
     /// within each purpose. No source syntax or unselected branch contributes.
     pub(crate) fn from_executed_requests<'request>(
-        requests: impl IntoIterator<Item = &'request build_declarations::BuildRequest>,
+        requests: impl IntoIterator<Item = &'request BuildRequest>,
     ) -> Result<Self, String> {
         use build_declarations::{BuildDependencySource, BuildRequest};
         let mut product = Vec::new();
@@ -194,10 +194,7 @@ impl From<ProjectedDependencies> for DependencyProjections {
 
 impl DependencySourceRequest {
     /// Retain acquisition's exact request in the shared executed vocabulary.
-    pub(crate) fn build_request(
-        &self,
-        purpose: DependencyPurpose,
-    ) -> Result<build_declarations::BuildRequest, String> {
+    pub(crate) fn build_request(&self, purpose: DependencyPurpose) -> Result<BuildRequest, String> {
         use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
         let alias = self
             .explicit_alias()

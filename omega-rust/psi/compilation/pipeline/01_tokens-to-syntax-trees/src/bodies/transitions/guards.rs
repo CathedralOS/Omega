@@ -4,8 +4,8 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::tables::{exprs, exprs_of};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableMemberExpression,
-    TableMembershipExpression, UnaryOperator,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
+    TableMemberExpression, TableMembershipExpression, UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
@@ -526,7 +526,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .iter()
         .map(|field| {
             let binding = match &field.action {
-                syntax_trees::expression::MatchFieldAction::Bind(binding) => Some(binding.clone()),
+                MatchFieldAction::Bind(binding) => Some(binding.clone()),
                 _ => None,
             };
             (field.member.clone(), binding)
@@ -536,9 +536,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .fields
         .iter()
         .filter_map(|field| match field.action {
-            syntax_trees::expression::MatchFieldAction::Equal(value) => {
-                Some((field.member.clone(), value))
-            }
+            MatchFieldAction::Equal(value) => Some((field.member.clone(), value)),
             _ => None,
         })
         .collect::<Vec<_>>();

@@ -53,9 +53,9 @@ pub(crate) use uses::{statement_call_inputs, statement_type_inputs};
 
 use crate::preparation::module_normalization::validate_with_const_resolution_mode;
 pub(crate) use arguments::{
-    DomainCarrier, DomainHead, closed_argument_identity, domain_application_head,
-    domain_index_telescope, monomorphizable_argument_slugs, normalize_domain_head_positions,
-    selected_domain_family, type_reference_slug,
+    DomainCarrier, DomainHead, closed_argument_identity, closed_parameter_argument_identity,
+    domain_application_head, domain_index_telescope, monomorphizable_argument_slugs,
+    normalize_domain_head_positions, selected_domain_family, type_reference_slug,
 };
 pub(in crate::preparation::generic_data) use arguments::{
     canonicalize_monomorphizable_argument_handles, complete_argument_tuple,

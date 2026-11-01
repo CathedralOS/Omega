@@ -1,5 +1,6 @@
 //! Fixed-extent byte mutation through an exact mutable loan or established owner.
 
+use crate::structural_inputs::byte_arrays::byte_array_length;
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
@@ -10,6 +11,8 @@ use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
+use terminal_semantics::descriptor_results::result_access;
+use terminal_semantics::view_descriptor_parameter;
 
 pub(crate) enum MutableByteSequenceStorage {
     /// A frame-local bounded owner, written in its own activation.
@@ -49,10 +52,8 @@ impl TerminalExecution<'_> {
                 // A completed readable descriptor carries the same backing
                 // permission whether established here or returned by a call.
                 // Its exact live affine home and binding are still required.
-                if terminal_semantics::descriptor_results::result_access(
-                    self.structural_types().values(),
-                    result,
-                ) != Some(StructuralAccess::MutableBorrow)
+                if result_access(self.structural_types().values(), result)
+                    != Some(StructuralAccess::MutableBorrow)
                     || result.place != place
                     || result.structural_type != structural_type
                     || result.multiplicity != StructuralMultiplicity::Affine
@@ -73,10 +74,7 @@ impl TerminalExecution<'_> {
                 let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
                 if parameter.access != StructuralAccess::MutableBorrow
                     || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        && !terminal_semantics::view_descriptor_parameter(
-                            parameter,
-                            self.structural_types().values(),
-                        ))
+                        && !view_descriptor_parameter(parameter, self.structural_types().values()))
                 {
                     return Err(malformed());
                 }
@@ -118,11 +116,8 @@ impl TerminalExecution<'_> {
             ..
         } = binding
         {
-            let length = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.structural_types(),
-                *array_type,
-            )
-            .ok_or_else(malformed)?;
+            let length =
+                byte_array_length(&self.structural_types(), *array_type).ok_or_else(malformed)?;
             if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
                 return Err(malformed());
             }

@@ -11,8 +11,8 @@ machine Worker::run(job: Job) -> i32 {
     job.value
 }
 
-machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
-    suspend block Task::finish(task)
+machine settle<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block TaskLifecycle::finish<T>(task)
 }
 
 data Main {
@@ -21,7 +21,7 @@ data Main {
 machine Main::probe(main: &mut Main) reaches TaskRuntime {
     let job: Job = Job { value: 7 };
     let task: Task<i32> = TaskRuntime::start<i32, Job, Worker::run>(job);
-    _ = suspend block Task::settle(task);
+    _ = suspend block settle(task);
 }
 
 machine Main::main() { }

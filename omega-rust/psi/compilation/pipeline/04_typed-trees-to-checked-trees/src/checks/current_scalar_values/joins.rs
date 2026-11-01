@@ -66,22 +66,20 @@ pub(super) fn joined_values(
             validation::scoped_arithmetic_value_bounds(program, machine, hypotheses, value)
         })
         .collect::<Option<Vec<_>>>()?;
-    let minimum = bounds
+    // Preserve this client's finite-envelope admission rule. The domain owns
+    // the hull; an unknown arm endpoint still declines this capture.
+    if bounds
         .iter()
-        .map(|bound| bound.low.clone())
-        .collect::<Option<Vec<_>>>()?
+        .any(|bound| bound.low.is_none() || bound.high.is_none())
+    {
+        return None;
+    }
+    let interval = bounds
         .into_iter()
-        .min()?;
-    let maximum = bounds
-        .iter()
-        .map(|bound| bound.high.clone())
-        .collect::<Option<Vec<_>>>()?
-        .into_iter()
-        .max()?;
-    let unsigned = minimum >= BigInt::zero();
+        .reduce(|left, right| left.union(&right))?;
+    let unsigned = interval.low.as_ref()? >= &BigInt::zero();
     Some(ScopedArithmeticValue::BoundedInteger {
         value: Box::new(ScopedArithmeticValue::Atom { identity, unsigned }),
-        minimum: Some(minimum),
-        maximum: Some(maximum),
+        interval,
     })
 }

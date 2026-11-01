@@ -198,8 +198,12 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     primitive_type,
                 }
             }
-            (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
-            (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
+            (RankingOrder::BoundedDistance, [lower, upper]) => {
+                exact_distance_measure(program, admitted, root.symbol, *lower, *upper)?
+            }
+            (RankingOrder::IncreasingTo(upper), [_]) => {
+                increasing_to_measure(primitive()?, *upper)?
+            }
             _ => return None,
         };
         let components = admitted.observation_components.insert_many([
@@ -219,14 +223,55 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     Some(observations)
 }
 
-fn distance_measure(primitive_type: PrimitiveType, upper: ExpressionHandle) -> Option<RankMeasure> {
+fn exact_distance_measure(
+    program: &dyn validation::CheckingInput,
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    state: symbols::SymbolHandle,
+    lower: ExpressionHandle,
+    upper: ExpressionHandle,
+) -> Option<RankMeasure> {
+    let primitive = |expression| {
+        program.primitive_type_reference(
+            validation::mathematical_applications::operand_type_reference(program, expression)?,
+        )
+    };
+    let lower_type = primitive(lower)?;
+    let upper_type = primitive(upper)?;
+    if !matches!(
+        lower_type,
+        typed_trees::unsigned_integer_primitive_pattern!()
+    ) || !upper_type.is_fixed_integer()
+    {
+        return None;
+    }
+    let lower = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: lower,
+            primitive_type: lower_type,
+        });
+    let upper = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: upper,
+            primitive_type: upper_type,
+        });
+    Some(RankMeasure::Distance { lower, upper })
+}
+
+fn increasing_to_measure(
+    primitive_type: PrimitiveType,
+    upper: ExpressionHandle,
+) -> Option<RankMeasure> {
     if !matches!(
         primitive_type,
         typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }
-    Some(RankMeasure::BoundedDistance {
+    Some(RankMeasure::IncreasingTo {
         primitive_type,
         upper,
     })

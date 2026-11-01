@@ -5,6 +5,7 @@ use semantic_vocabulary::{
     PlaceId, Proposition, ScalarTerm, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, TerminalMachine, TerminalModule};
+use terminal_semantics::{canonical_structural_path_tip, structural_read_scalar_type};
 
 pub(super) fn machine(
     module: &TerminalModule,
@@ -246,7 +247,7 @@ fn validate(
                     let Some(root) = root_type(subject.root()) else {
                         return malformed("structural identity has no readable declared root");
                     };
-                    let Some(endpoint) = terminal_semantics::canonical_structural_path_tip(
+                    let Some(endpoint) = canonical_structural_path_tip(
                         module.structural_types.iter(),
                         root,
                         subject.path(),
@@ -326,11 +327,8 @@ fn validate_terms(
                 .cloned()
                 .map(semantic_vocabulary::ScalarReadProjection::from)
                 .collect::<Vec<_>>();
-            if terminal_semantics::structural_read_scalar_type(
-                module.structural_types.iter(),
-                root,
-                &projections,
-            ) != Some(term.scalar_type())
+            if structural_read_scalar_type(module.structural_types.iter(), root, &projections)
+                != Some(term.scalar_type())
             {
                 return malformed(
                     "scalar field predicate disagrees with its declaration path or scalar carrier",
@@ -346,11 +344,8 @@ fn validate_terms(
             let Some(root) = root_type(*root) else {
                 return malformed("structural read predicate has no readable declared root");
             };
-            if terminal_semantics::structural_read_scalar_type(
-                module.structural_types.iter(),
-                root,
-                path,
-            ) != Some(*scalar_type)
+            if structural_read_scalar_type(module.structural_types.iter(), root, path)
+                != Some(*scalar_type)
             {
                 return malformed(
                     "structural read predicate disagrees with its declaration path or scalar carrier",

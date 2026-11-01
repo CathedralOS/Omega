@@ -34,7 +34,8 @@ pub use typed_trees::evidence::{
 };
 pub use typed_trees::inspection::snapshot;
 pub use typed_trees::names::{identity, name};
-pub use typed_trees::type_system::{closed_numeric, type_identity, types};
+pub use typed_trees::type_system::type_predicates::ProvenTypeContext;
+pub use typed_trees::type_system::{CaseMembershipTypeFacts, closed_numeric, type_identity, types};
 pub use typed_trees::values::const_integer;
 pub use typed_trees::values::expression;
 

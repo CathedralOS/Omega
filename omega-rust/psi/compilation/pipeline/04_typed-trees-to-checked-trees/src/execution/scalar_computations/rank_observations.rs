@@ -4,6 +4,8 @@
 //! captured formals; it does not infer descent from the executable expression.
 //! A mutable formal here denotes its arrival value, never a later StorageRead.
 
+mod operands;
+
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
 use crate::places::place_at;
 use checked_trees::{
@@ -139,6 +141,11 @@ pub(super) fn record(
             else {
                 continue;
             };
+            let Some(declaration_parameters) =
+                operands::declaration_parameters(program, admitted, &rank.measure, &inputs)
+            else {
+                continue;
+            };
             let statement_nodes_start = plans.nodes.storage_slice().len();
             let mut builder = Builder {
                 program,
@@ -155,7 +162,7 @@ pub(super) fn record(
                 statement_index: 0,
                 parameters: &parameters,
                 authored_parameters: &inputs,
-                declaration_parameters: &inputs,
+                declaration_parameters: &declaration_parameters,
                 declaration_scope: None,
                 declaration_values: Vec::new(),
                 declaration_bindings: &declaration_bindings,
@@ -349,7 +356,10 @@ fn observation<'program>(
                 CheckedScalarComputationKind::Value(expression),
             ))
         }
-        RankMeasure::BoundedDistance { primitive_type, .. } => {
+        RankMeasure::Distance { lower, upper } => {
+            operands::difference(builder, admitted, lower, upper)
+        }
+        RankMeasure::IncreasingTo { primitive_type, .. } => {
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
@@ -361,7 +371,8 @@ fn observation<'program>(
                 RankMeasure::SequenceLength { .. } => PrimitiveType::U64,
                 RankMeasure::DeclaredMeasure { primitive_type, .. }
                 | RankMeasure::IntegerValue { primitive_type, .. }
-                | RankMeasure::BoundedDistance { primitive_type, .. } => primitive_type,
+                | RankMeasure::IncreasingTo { primitive_type, .. } => primitive_type,
+                RankMeasure::Distance { .. } => return None,
             };
             distance(builder, observed, primitive)
         }

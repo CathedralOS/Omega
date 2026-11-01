@@ -1,7 +1,10 @@
 use crate::parser::parse_syntax_trees;
+use language_core::BindingRelevance;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::Item;
+use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
@@ -19,9 +22,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "console_write_byte" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "console_write_byte" => {
                 Some(machine)
             }
             _ => None,
@@ -62,11 +63,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "read" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "read" => Some(machine),
             _ => None,
         })
         .expect("realizing machine");
@@ -122,9 +119,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "kernel32_write_file" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "kernel32_write_file" => {
                 Some(machine)
             }
             _ => None,
@@ -264,9 +259,9 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
         panic!("one payload field");
     };
 
-    assert_eq!(value.relevance, language_core::BindingRelevance::Relevant);
-    assert_eq!(proof.relevance, language_core::BindingRelevance::Erased);
-    assert_eq!(witness.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(value.relevance, BindingRelevance::Relevant);
+    assert_eq!(proof.relevance, BindingRelevance::Erased);
+    assert_eq!(witness.relevance, BindingRelevance::Erased);
     let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
     assert!(snapshot.contains("\"relevance\":\"relevant\""));
     assert!(snapshot.contains("\"relevance\":\"erased\""));
@@ -316,12 +311,9 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [receiver, n, bound] = parameters.as_slice() else {
         panic!("three parameters");
     };
-    assert_eq!(
-        receiver.relevance,
-        language_core::BindingRelevance::Relevant
-    );
-    assert_eq!(n.relevance, language_core::BindingRelevance::Relevant);
-    assert_eq!(bound.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(receiver.relevance, BindingRelevance::Relevant);
+    assert_eq!(n.relevance, BindingRelevance::Relevant);
+    assert_eq!(bound.relevance, BindingRelevance::Erased);
 
     let locals = parsed
         .items
@@ -335,9 +327,9 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [x, y] = locals.as_slice() else {
         panic!("two locals");
     };
-    assert_eq!(x.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(x.relevance, BindingRelevance::Erased);
     assert!(!x.is_mutable);
-    assert_eq!(y.relevance, language_core::BindingRelevance::Relevant);
+    assert_eq!(y.relevance, BindingRelevance::Relevant);
     assert!(y.is_mutable);
 
     for (source, expected) in [
@@ -401,9 +393,7 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "zero_is_none" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "zero_is_none" => {
                 Some(machine)
             }
             _ => None,
@@ -620,16 +610,13 @@ fn parses_name_owned_generic_conformance_telescope() {
     let parameters = parsed.items.type_parameters(conformance.type_parameters);
     assert_eq!(parameters.len(), 3);
     assert_eq!(parameters[0].name.as_str(&parsed), "Source");
-    assert!(matches!(
-        parameters[0].kind,
-        syntax_trees::item::TypeParameterKind::Type
-    ));
+    assert!(matches!(parameters[0].kind, TypeParameterKind::Type));
     assert_eq!(parameters[1].name.as_str(&parsed), "Width");
     assert!(matches!(
         parameters[1].kind,
-        syntax_trees::item::TypeParameterKind::Const { .. }
+        TypeParameterKind::Const { .. }
     ));
-    let syntax_trees::item::TypeParameterKind::Machine {
+    let TypeParameterKind::Machine {
         contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[2].kind
     else {
@@ -732,64 +719,103 @@ fn parses_closed_conformance_block_members() {
         PowerOrder satisfies Ranked<Card> {
             machine before(value: &Card, other: &Card) -> bool { }
 
-            Ranked::rank_value = Card::stable_rank_value;
+            machine rank_value(value: &Card) -> u32 { Card::stable_rank_value(value) }
         }
     "#;
 
     let parsed = super::parse_source(source, "closed conformance block should parse");
     let conformance = super::root_conformance(&parsed, "conformance root item");
-    let [inline, reference] = parsed.items.conformance_members(conformance.members) else {
+    let [before, rank_value] = parsed.items.conformance_members(conformance.members) else {
         panic!("two retained conformance members");
     };
-    assert!(matches!(
-        inline,
-        syntax_trees::item::ConformanceMember::Machine(machine)
-            if machine.name.as_str(&parsed) == "before"
-    ));
-    let syntax_trees::item::ConformanceMember::Reference {
-        declaring_trait,
-        requirement,
-        target,
-    } = reference
-    else {
-        panic!("second row is an explicit machine reference");
-    };
-    assert_eq!(declaring_trait.as_str(&parsed), "Ranked");
-    assert_eq!(requirement.as_str(&parsed), "rank_value");
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(*target)
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
-        ["Card", "stable_rank_value"]
-    );
+    for (member, expected) in [(before, "before"), (rank_value, "rank_value")] {
+        assert!(
+            matches!(
+                member,
+                syntax_trees::item::ConformanceMember::Machine(machine)
+                    if machine.name.as_str(&parsed) == expected
+            ),
+            "member `{expected}` is an inline machine"
+        );
+    }
 }
 
 #[test]
-fn closed_conformance_member_cannot_repeat_satisfaction() {
+fn reference_rows_are_retired() {
     let source = r#"
-        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
-        data Card { }
+        trait Ranked<Item> { machine rank_value(value: &Item) -> u32; }
+        data Card { power: u32; }
+        machine Card::stable_rank_value(value: &Card) -> u32 { }
         PowerOrder satisfies Ranked<Card> {
-            machine before(value: &Card, other: &Card) -> bool
-                satisfies Ranked::before
-            { }
+            Ranked::rank_value = Card::stable_rank_value;
         }
     "#;
 
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let diagnostic = parse_syntax_trees(&tokens).expect_err("nested satisfaction must reject");
+    let diagnostic = parse_syntax_trees(&tokens).expect_err("a reference row must reject");
     assert!(
         diagnostic
             .message
-            .contains("already belongs to its enclosing conformance"),
+            .contains("reference row (`Trait::member = Existing::machine;`) is retired"),
         "unexpected diagnostic: {}",
         diagnostic.message
     );
+}
+
+#[test]
+fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
+    let source = r#"
+        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
+        data Card { }
+        PowerOrder satisfies Ranked<Card> {
+            machine before(value: &Card, other: &Card) -> bool
+                satisfies Ranked<Card>::before
+            { }
+        }
+    "#;
+
+    let parsed = super::parse_source(source, "an exact edge on a member should parse");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
+    let [member] = parsed.items.conformance_members(conformance.members) else {
+        panic!("one retained conformance member");
+    };
+    let syntax_trees::item::ConformanceMember::Machine(machine) = member else {
+        panic!("the member is an inline machine");
+    };
+    let [edge] = parsed.items.satisfies_clauses(machine.satisfies) else {
+        panic!("the member retains its one exact edge");
+    };
+    assert_eq!(edge.trait_name.as_str(&parsed), "Ranked");
+}
+
+#[test]
+fn closed_conformance_member_edge_must_name_its_own_requirement() {
+    for edges in [
+        "satisfies Ranked<Card>::after",
+        "satisfies Ranked<Card>::before as Primary",
+    ] {
+        let source = format!(
+            r#"
+            trait Ranked<Item> {{ machine before(value: &Item, other: &Item) -> bool; }}
+            data Card {{ }}
+            PowerOrder satisfies Ranked<Card> {{
+                machine before(value: &Card, other: &Card) -> bool {edges} {{ }}
+            }}
+        "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let diagnostic = parse_syntax_trees(&tokens)
+            .expect_err("a mismatched or repeated member edge must reject");
+        assert!(
+            diagnostic.message.contains("may carry only one exact edge"),
+            "unexpected diagnostic for `{edges}`: {}",
+            diagnostic.message
+        );
+    }
 }
 
 #[test]
@@ -939,9 +965,7 @@ fn parses_trait_header_evidence_binder() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(trait_definition)
-                if trait_definition.name.as_str(&parsed) == "Calling" =>
-            {
+            Item::Trait(trait_definition) if trait_definition.name.as_str(&parsed) == "Calling" => {
                 Some(trait_definition)
             }
             _ => None,

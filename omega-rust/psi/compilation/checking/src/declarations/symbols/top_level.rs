@@ -81,6 +81,12 @@ struct MachineSymbol<'program> {
     name: &'program str,
     machine: &'program Machine,
     symbol: SymbolHandle,
+    /// Declared inside another machine. Lexical scope alone makes such a name
+    /// visible (resolution has already stamped every in-scope use with its
+    /// symbol), so the bare-name lookups below must never select it: a
+    /// spelling that matches another machine's private helper is an unresolved
+    /// name here, exactly like a spelling that matches nothing.
+    nested: bool,
 }
 
 #[derive(Debug)]
@@ -199,10 +205,13 @@ impl<'program> TopLevelSymbols<'program> {
                 )));
             }
 
+            let parent = program.symbols.get(machine.symbol).parent;
             symbols.machines.push(MachineSymbol {
                 name: machine.name.as_str(),
                 machine,
                 symbol: machine.symbol,
+                nested: parent.is_valid()
+                    && program.symbols.get(parent).kind == SymbolKind::Machine,
             });
             machines_by_name
                 .entry(machine.name.as_str())
@@ -314,7 +323,15 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
-        super::named_value(&self.machines, name, |e| e.name, |e| e.machine)
+        self.nameable_machine(name).map(|entry| entry.machine)
+    }
+
+    /// The machine a bare spelling names from outside any enclosing machine:
+    /// free and attached declarations, never a nested helper.
+    fn nameable_machine(&self, name: &str) -> Option<&MachineSymbol<'program>> {
+        self.machines
+            .iter()
+            .find(|entry| !entry.nested && entry.name == name)
     }
 
     pub fn attached_machine_state(
@@ -340,7 +357,8 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     fn machine_symbol(&self, name: &str) -> SymbolHandle {
-        super::named_symbol(&self.machines, name, |e| e.name, |e| e.symbol)
+        self.nameable_machine(name)
+            .map_or_else(SymbolHandle::invalid, |entry| entry.symbol)
     }
 
     pub fn trait_definition(&self, name: &str) -> Option<&'program TraitDefinition> {

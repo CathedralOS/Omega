@@ -10,6 +10,14 @@ pub(super) fn collect_expression_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,
     expression: ExpressionHandle,
 ) {
+    // A completed prefix with no arrival contains no loan occurrence. In
+    // particular an earlier covering arm can retire a later guard entirely.
+    if collection
+        .program
+        .static_type_context_is_unreachable(expression)
+    {
+        return;
+    }
     // Normalize one expression occurrence once, even when several DAG edges
     // use its value. Borrow and semantic lookup must assign the same call
     // ordinal; distinct authored handles still establish distinct loans.

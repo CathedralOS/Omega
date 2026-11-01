@@ -13,9 +13,14 @@
 //! dependency context goes through ordinary checking, including helper bodies;
 //! a declaration's visibility never substitutes for its contract proof.
 
+use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
 use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
+use psi_compiler::RetainedCheck;
+use source::DependencyScope;
+use target::TargetProfile;
 
 pub(crate) fn prepare_checked_build(
     typed: &mut typed_trees::TypedTrees,
@@ -24,15 +29,9 @@ pub(crate) fn prepare_checked_build(
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-    priors: &[&psi_compiler::RetainedCheck],
+    priors: &[&RetainedCheck],
     retain: bool,
-) -> Result<
-    (
-        PreparedBuildMachineProgram,
-        Option<psi_compiler::RetainedCheck>,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(PreparedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
     // Pure compiler evaluation settles type-dependent storage before ordinary
     // ownership and contract checking. Its existing admission floor forbids
     // service effects and retains exact declaration-selection authority; it
@@ -61,10 +60,7 @@ pub(crate) fn prepare_checked_build(
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
     };
-    let context = provider_planning::ProviderPlanningContext::new(
-        &provisional,
-        source::DependencyScope::Build,
-    );
+    let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
     let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         &typed_trees::provider_declarations::provider_target_declarations(
@@ -72,7 +68,7 @@ pub(crate) fn prepare_checked_build(
             context.scope,
         ),
         &defaults,
-        execution_profile.unwrap_or_else(target::TargetProfile::host),
+        execution_profile.unwrap_or_else(TargetProfile::host),
     );
     let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
         context,
@@ -85,16 +81,14 @@ pub(crate) fn prepare_checked_build(
     let service_catalog =
         typed_trees::service_declarations::PreparedServiceCatalog::prepare(context);
     let services = service_catalog.bind(context).map_err(|error| vec![error])?;
-    let candidates = provider_planning::derive_satisfies_plans(
-        provider_planning::ProviderPlanDerivation::evaluated(
-            services,
-            &body_declarations,
-            &[],
-            execution_profile.map(target::TargetProfile::target_name),
-            &bindings,
-            &declarations.origins,
-        ),
-    )?;
+    let candidates = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::evaluated(
+        services,
+        &body_declarations,
+        &[],
+        execution_profile.map(TargetProfile::target_name),
+        &bindings,
+        &declarations.origins,
+    ))?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())
@@ -117,7 +111,7 @@ pub(crate) fn prepare_checked_build(
         let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             services,
-            execution_profile.unwrap_or_else(target::TargetProfile::host),
+            execution_profile.unwrap_or_else(TargetProfile::host),
             &[],
             &operator_selections,
             &selected_provider_plan_facts,
@@ -129,33 +123,30 @@ pub(crate) fn prepare_checked_build(
     // plus sibling rows whose projections arrived equal. Psi still admits
     // this invocation's declaration authority; provider/comparison settlement
     // and executor grants remain fresh below.
-    let outcome = timings.record_result(
-        artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
-        || {
-            let started = std::time::Instant::now();
-            let program = if had_pending {
-                validation::execution_projection::project_build_program(typed, entry)?
-            } else {
-                provisional
-            };
-            let result = psi_compiler::CheckRequest {
-                program,
-                admission: psi_compiler::SourceAdmission {
-                    declarations: packages
-                        .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                    ..Default::default()
-                },
-                previous: priors,
-                retain,
-            }
-            .check();
-            artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_settled_check(started.elapsed());
-            }
-            result
-        },
-    )?;
+    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
+        let started = std::time::Instant::now();
+        let program = if had_pending {
+            validation::execution_projection::project_build_program(typed, entry)?
+        } else {
+            provisional
+        };
+        let result = psi_compiler::CheckRequest {
+            program,
+            admission: psi_compiler::SourceAdmission {
+                declarations: packages
+                    .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                ..Default::default()
+            },
+            previous: priors,
+            retain,
+        }
+        .check();
+        artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
+        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
+            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+        }
+        result
+    })?;
     let psi_compiler::CheckedSource {
         program: checked,
         retained,
@@ -167,7 +158,7 @@ pub(crate) fn prepare_checked_build(
         std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
     selected_dispatch::settle_selected_comparison_execution(
         &mut checked,
-        source::DependencyScope::Build,
+        DependencyScope::Build,
         &provenance,
     )?;
     // Only successful Build admission discharges this continuation's Build

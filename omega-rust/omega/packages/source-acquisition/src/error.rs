@@ -347,3 +347,17 @@ pub(crate) fn git_tree_invalid(
         message: message.into(),
     }
 }
+
+pub(crate) fn too_many_files(limit: usize) -> SourceResolveError {
+    SourceResolveError::TooManyFiles { limit }
+}
+
+pub(crate) fn too_many_bytes(limit: u64) -> SourceResolveError {
+    SourceResolveError::TooManyBytes { limit }
+}
+
+pub(crate) fn local_source_changed(path: &Path) -> SourceResolveError {
+    SourceResolveError::LocalSourceChanged {
+        path: path.to_path_buf(),
+    }
+}

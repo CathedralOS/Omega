@@ -101,7 +101,12 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
 pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
-pub use proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
+pub use proof_contracts::arithmetic_domains::{
+    BigIntInterval, ExpressionInterval, IntegerBound, IntegerOrderingRelation, Interval,
+    StatedOrderingPremise, expression_interval, folded_integer_binary, integer_binary_range,
+    integer_bound_offset, integer_bound_terms_equal, premise_chain_proves, premise_proves,
+    propagate_integer_upper_bounds, prove_integer_ordering,
+};
 pub use proof_contracts::arithmetic_domains::{
     SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
     frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
@@ -265,8 +270,9 @@ pub use crate::declarations::selection_authority::{
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
-    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, RuntimeRankInput,
+    RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
+    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
@@ -570,10 +576,10 @@ pub use frozen_program::{
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
-    DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, FrozenDependencyBody,
-    OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
+    DependencyBodyJudgment, ExactIntegerCastFact, FrozenDependencyBody, OpaquePropertyValidation,
+    ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
     admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
-    dependency_entailment_totals, expression_interval, prepare_specialized_program,
+    dependency_entailment_totals, prepare_specialized_program,
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
     validate_program,
 };
@@ -681,7 +687,9 @@ pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
 
-pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalities;
+pub use proof_contracts::bound_expression_meaning::{
+    case_membership_type_facts, static_type_boolean_equalities,
+};
 pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;

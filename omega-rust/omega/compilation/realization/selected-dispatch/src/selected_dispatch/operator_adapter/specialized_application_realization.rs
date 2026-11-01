@@ -10,6 +10,7 @@ use super::{
     requirement_overload_identity, resolve_checked_adapter_for_operator,
     resolve_exact_selected_plan,
 };
+use checked_trees::CheckedBoundaryOperatorApplicationDemand;
 use checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationUseSite,
     CheckedOperatorResolutionStatus, CheckedTrees,
@@ -42,9 +43,7 @@ pub struct CheckedSpecializedOperatorApplicationRealization {
 pub fn derive_checked_specialized_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    applications: impl IntoIterator<
-        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
-    >,
+    applications: impl IntoIterator<Item = &'application CheckedBoundaryOperatorApplicationDemand>,
 ) -> Result<Vec<CheckedSpecializedOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     let mut diagnostics = Vec::new();
@@ -67,7 +66,7 @@ pub fn derive_checked_specialized_operator_application_realizations<'application
 fn derive_one(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    application: &CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<CheckedSpecializedOperatorApplicationRealization, Diagnostic> {
     let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
         application.site
@@ -233,7 +232,7 @@ fn exact_authored_uses(
 
 pub(super) fn applications_match(
     checked: &CheckedTrees,
-    demand_row: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    demand_row: &CheckedBoundaryOperatorApplicationDemand,
     realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
 ) -> bool {
     validation::checked_operator_application_matches_realization(checked, demand_row, realization)

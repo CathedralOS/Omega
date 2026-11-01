@@ -14,11 +14,10 @@ use selected_instructions::{
 };
 use semantic_vocabulary::IntegerValue;
 
-use super::{
-    NativeTarget, OptimizedSelectedFormEncodingError, SelectedFormEncodingRow,
-    SelectedFormEncodingState, encode_row,
+use super::{Error, NativeTarget, SelectedFormEncodingRow, SelectedFormEncodingState, encode_row};
+use machine_code::{
+    ResolvedPhysicalAddress, SelectedFormEncodedRowStore, SelectedFormMachineDisposition,
 };
-use machine_code::SelectedFormMachineDisposition;
 
 pub(super) fn fixture() -> (
     ValidatedPhysicalRegisterModel,
@@ -112,9 +111,9 @@ pub(super) fn encode_fixture_row(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    address: Option<machine_code::ResolvedPhysicalAddress>,
-    encoded: &mut machine_code::SelectedFormEncodedRowStore,
-) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
+    address: Option<ResolvedPhysicalAddress>,
+    encoded: &mut SelectedFormEncodedRowStore,
+) -> Result<SelectedFormEncodingRow, Error> {
     encode_row(
         target,
         selected,
@@ -134,8 +133,8 @@ pub(super) fn replay_fixture_row(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
-    encoded: &machine_code::SelectedFormEncodedRowStore,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+    encoded: &SelectedFormEncodedRowStore,
+) -> Result<(), Error> {
     crate::validation::row::validate(
         target,
         &selected_function(),
@@ -149,7 +148,7 @@ pub(super) fn replay_fixture_row(
 
 #[test]
 fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_dispositions() {
-    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
+    let mut encoded = SelectedFormEncodedRowStore::new();
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let row =
@@ -176,7 +175,7 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
 
 #[test]
 fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
-    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
+    let mut encoded = SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let ordinary =
@@ -201,14 +200,14 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
 /// selected kind, and a deferred control row additionally states its wait and
 /// replays without the address, because it owns no bytes.
 fn unrouted_address_refuses_in_producer_and_replay(kind: Option<SelectedInstructionKind>) {
-    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
+    let mut encoded = SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     let deferred = kind.is_some();
     if let Some(kind) = kind {
         selected.kind = kind;
     }
     let target = target::NativeTarget::linux_x64();
-    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
+    let unrouted = Some(ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Load64 {
             base_operand: 0,
             byte_offset: 0,
@@ -225,7 +224,7 @@ fn unrouted_address_refuses_in_producer_and_replay(kind: Option<SelectedInstruct
             unrouted,
             &mut encoded
         ),
-        Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        Err(Error::ArtifactMismatch)
     ));
     let row =
         encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();

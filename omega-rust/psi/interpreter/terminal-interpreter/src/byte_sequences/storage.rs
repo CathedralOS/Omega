@@ -123,6 +123,7 @@ impl ByteSequenceStorage {
 mod tests {
     use super::ByteSequenceStorage;
     use crate::byte_sequences::ByteSequenceView;
+    use crate::errors::malformed;
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
@@ -228,12 +229,7 @@ mod tests {
             .begin_invocation(sponsor.measurement(), 100)
             .unwrap();
         assert!(
-            ByteSequenceStorage::from_values(
-                2,
-                [Ok(1), Err(crate::errors::malformed())],
-                Some(&account)
-            )
-            .is_err()
+            ByteSequenceStorage::from_values(2, [Ok(1), Err(malformed())], Some(&account)).is_err()
         );
         assert_eq!(sponsor.live_payload_bytes(), 0);
         assert!(ByteSequenceStorage::from_values(2, [Ok(1)], Some(&account)).is_err());

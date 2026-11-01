@@ -1,8 +1,11 @@
 use super::*;
+use crate::effects::TerminalEffectRejection;
+use compiler_storage::{RecordLimits, decode, encode};
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
+use semantic_vocabulary::IntegerType;
 
 fn sponsor(cells: u64) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
@@ -127,23 +130,16 @@ struct OriginalCell {
 }
 
 impl crate::scalar_storage::TerminalScalarBacking for OriginalCell {
-    fn read(&self) -> Result<TerminalScalarValue, crate::effects::TerminalEffectRejection> {
+    fn read(&self) -> Result<TerminalScalarValue, TerminalEffectRejection> {
         if self.faulted.get() {
-            return Err(crate::effects::TerminalEffectRejection::new(
-                "original cell unavailable",
-            ));
+            return Err(TerminalEffectRejection::new("original cell unavailable"));
         }
         Ok(self.value.get())
     }
 
-    fn write(
-        &self,
-        value: TerminalScalarValue,
-    ) -> Result<(), crate::effects::TerminalEffectRejection> {
+    fn write(&self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection> {
         if self.faulted.get() {
-            return Err(crate::effects::TerminalEffectRejection::new(
-                "original cell unavailable",
-            ));
+            return Err(TerminalEffectRejection::new("original cell unavailable"));
         }
         self.value.set(value);
         Ok(())
@@ -152,11 +148,7 @@ impl crate::scalar_storage::TerminalScalarBacking for OriginalCell {
 
 fn byte(value: u8) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
-        scalar_type: semantic_vocabulary::IntegerType::new(
-            semantic_vocabulary::IntegerSign::Unsigned,
-            8,
-        )
-        .unwrap(),
+        scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).unwrap(),
         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)),
     }
 }
@@ -290,15 +282,11 @@ fn retained_packed_cells_keep_the_scalar_wire_format_and_decode_as_local_snapsho
         .install_resident(0, ScalarCell::resident(byte(7), home.clone()).unwrap())
         .unwrap();
     home.value.set(byte(37));
-    let limits = compiler_storage::RecordLimits::default();
+    let limits = RecordLimits::default();
     let portable = value.snapshot().unwrap();
-    let encoded = compiler_storage::encode(portable.elements.as_ref(), limits).unwrap();
-    assert_eq!(
-        encoded,
-        compiler_storage::encode(&vec![byte(37), byte(1)], limits).unwrap()
-    );
-    let restored: ScalarArrayStorage<TerminalScalarValue> =
-        compiler_storage::decode(&encoded, limits).unwrap();
+    let encoded = encode(portable.elements.as_ref(), limits).unwrap();
+    assert_eq!(encoded, encode(&vec![byte(37), byte(1)], limits).unwrap());
+    let restored: ScalarArrayStorage<TerminalScalarValue> = decode(&encoded, limits).unwrap();
     home.value.set(byte(41));
     assert_eq!(restored.elements(), [byte(37), byte(1)]);
     assert_eq!(value.element(0).unwrap(), Some(byte(41)));
@@ -364,10 +352,8 @@ fn portable_array_transfer_reuses_its_lease_and_runtime_snapshot_is_send() {
     assert_eq!(sponsor.live_storage_cells(), 4);
     assert_eq!(portable.storage_identity, None);
     assert_eq!(portable.elements(), [byte(59), byte(1)]);
-    let bytes =
-        compiler_storage::encode(&portable, compiler_storage::RecordLimits::default()).unwrap();
-    let restored: TerminalScalarArrayValue =
-        compiler_storage::decode(&bytes, compiler_storage::RecordLimits::default()).unwrap();
+    let bytes = encode(&portable, RecordLimits::default()).unwrap();
+    let restored: TerminalScalarArrayValue = decode(&bytes, RecordLimits::default()).unwrap();
     home.value.set(byte(61));
     assert_eq!(portable.elements(), restored.elements());
     assert_eq!(restored.elements()[0], byte(59));

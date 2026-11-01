@@ -547,6 +547,23 @@ pub struct CheckingMemos {
             crate::CapturedNumericObservations,
         >,
     >,
+    /// One exact-operation operand-fit verdict per (machine, expression),
+    /// published by a single per-machine population instead of a fresh
+    /// prefix walk per occurrence. `None` retains "processed, no
+    /// observation" so a later query does not walk again.
+    pub(crate) operand_fit_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+            ),
+            Option<crate::proof_contracts::contract_entailment::OperandFitOutcome>,
+        >,
+    >,
+    /// Machines whose operand-fit expressions were already enumerated;
+    /// even a machine with no qualifying expression populates only once.
+    pub(crate) operand_fit_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
@@ -566,7 +583,7 @@ pub struct CheckingMemos {
                 symbols::SymbolHandle,
                 symbols::SymbolHandle,
                 u8,
-                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
+                Vec<(symbols::SymbolHandle, crate::proof_contracts::arithmetic_domains::Interval)>,
             ),
             Option<(
                 crate::proof_contracts::arithmetic_domains::Interval,

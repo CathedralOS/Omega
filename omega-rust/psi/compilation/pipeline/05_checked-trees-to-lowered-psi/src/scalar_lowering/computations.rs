@@ -20,6 +20,7 @@ use crate::emission::operation_emission::buffer::{SourceCallCoordinate, SourceIn
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::computation_graph::reachable_nodes;
+use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::lower_scalar_call;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
@@ -276,6 +277,9 @@ impl<'a> Expansion<'a> {
     /// Retain the caller prefix while completing each operand in source order.
     /// The target receives that prefix followed by the dense scalar arguments.
     /// A slice retains its original dense scalar ordinal for source custody.
+    /// `formals` names the scalar formal each argument is handed to when the
+    /// call enters a checked module body; the target receives each actual as
+    /// `received_scalar_type` says.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn call_arguments(
         &mut self,
@@ -286,6 +290,7 @@ impl<'a> Expansion<'a> {
         argument_ordinal_start: usize,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
+        formals: Option<&[QualifiedScalarType]>,
         target: usize,
     ) -> Result<usize, LoweringError> {
         let site = Site {
@@ -317,9 +322,10 @@ impl<'a> Expansion<'a> {
                 }
             });
         }
-        self.sequence(
+        self.sequence_arriving(
             identities,
             &operands,
+            formals,
             source_types,
             target,
             &site,
@@ -518,11 +524,42 @@ impl<'a> Expansion<'a> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
+        self.sequence_arriving(
+            identities,
+            arguments,
+            None,
+            input_types,
+            target,
+            site,
+            active,
+        )
+    }
+
+    /// `sequence` for the actuals of a direct module call. `formals` names the
+    /// scalar formal each argument is handed to; one whose formal adds only
+    /// membership crosses a qualification edge, so the prefix the target sees
+    /// carries the formal's type rather than the actual's.
+    #[allow(clippy::too_many_arguments)]
+    fn sequence_arriving(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        arguments: &[Argument],
+        formals: Option<&[QualifiedScalarType]>,
+        input_types: &[QualifiedScalarType],
+        target: usize,
+        site: &Site<'_>,
+        active: &mut Vec<Computation>,
+    ) -> Result<usize, LoweringError> {
         let mut prefixes = vec![input_types.to_vec()];
-        for argument in arguments {
+        let mut arrivals = Vec::with_capacity(arguments.len());
+        for (index, argument) in arguments.iter().enumerate() {
+            let actual = self.argument_type(identities, argument, site, input_types)?;
+            let arrival =
+                received_scalar_type(formals.and_then(|types| types.get(index)).copied(), actual);
             let mut next = prefixes.last().expect("input prefix").clone();
-            next.push(self.argument_type(identities, argument, site, input_types)?);
+            next.push(arrival);
             prefixes.push(next);
+            arrivals.push((actual, arrival));
         }
         let mut continuation = target;
         for (index, argument) in arguments.iter().enumerate().rev() {
@@ -539,6 +576,10 @@ impl<'a> Expansion<'a> {
                             Argument::Value(_) => None,
                         }),
                 );
+            let (actual, arrival) = arrivals[index];
+            if actual != arrival {
+                continuation = self.qualification_edge(&prefixes[index], actual, continuation);
+            }
             continuation = self.argument(
                 identities,
                 argument,

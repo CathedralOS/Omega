@@ -4,8 +4,9 @@
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use terminal_psi::{
-    TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
-    TerminalAccessLifecyclePlan, TerminalAccessStorage, TerminalIdentityIndex,
+    NominalDeclarationIdentity, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+    TerminalAccessLifecyclePlan, TerminalAccessProfileRequirement, TerminalAccessStorage,
+    TerminalIdentityIndex,
 };
 
 /// Retain the exact whole-value operation contracts in native program identity.
@@ -104,11 +105,9 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecycleP
             };
             let profile_requirement = match reader.u8()? {
                 0 => None,
-                1 => Some(terminal_psi::TerminalAccessProfileRequirement {
+                1 => Some(TerminalAccessProfileRequirement {
                     boundary: reader.id("placement profile requirement")?,
-                    owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
-                        reader.u32()?,
-                    )),
+                    owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
                     callable: TerminalIdentityIndex(reader.u32()?),
                 }),
                 tag => {

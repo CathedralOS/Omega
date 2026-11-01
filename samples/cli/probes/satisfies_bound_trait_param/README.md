@@ -3,7 +3,7 @@
 First sample on `satisfies`-bounded trait parameters:
 `trait Service<Policy satisfies Decider>` requires the
 type argument to carry a named Decider implementation,
-wired by the `X satisfies T { T::member = Impl::member; }`
+filled by the `X satisfies T { machine member(..) { Impl::member(..) } }`
 roster.
 
 Compile-checked only: no standard-library dependency and
@@ -14,7 +14,7 @@ no `Main::exit` — run a check target, not native.
 - An implementation names a map of machines, not a type
   ([data and code are independent](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent)),
   so it is named apart from the data whose machine it binds:
-  `RegistrarDecider satisfies Decider { Decider::pick = Registrar::pick; }`.
+  `RegistrarDecider satisfies Decider { machine pick(value: u64) -> u64 { Registrar::pick(value) } }`.
 - "Every whole-trait use names its evidence ... There is no unique-visible,
   most-specific, ambient default, or attached-machine search"
   ([declaration and selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection)).

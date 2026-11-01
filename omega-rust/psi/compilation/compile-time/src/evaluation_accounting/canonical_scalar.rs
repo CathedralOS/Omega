@@ -1,29 +1,24 @@
 //! Source-free inputs and actual charges for canonical scalar entry jobs.
 //! Descriptive provider inputs are retained, never a serialized admission.
 
-use std::sync::Arc;
-
-use compiler_storage::Record;
-use semantic_vocabulary::{ScalarApplicationId, ScalarType, ValueId};
-use terminal_codec::CanonicalTerminalArtifact;
-use terminal_installation::{AssumedBindingSelection, ProviderInstallationSelection};
-
 use super::{PURE_TERMINAL_FUEL_CEILING, PureTerminalEvaluationOutcome};
+use compiler_storage::{Record, RecordError, RecordReader};
+use semantic_vocabulary::{ScalarApplicationId, ScalarType, ValueId};
+use std::sync::Arc;
+use terminal_codec::CanonicalTerminalArtifact;
+use terminal_installation::{
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalScalarValue,
+};
 
 #[derive(Debug, Clone)]
 struct RecordedArtifact(Arc<CanonicalTerminalArtifact>);
 
 impl Record for RecordedArtifact {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
+    fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
         self.0.to_bytes().write(output)
     }
 
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         let bytes = Vec::<u8>::read(input)?;
         let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
             .map_err(|error| input.error(error.to_string()))?;
@@ -99,10 +94,7 @@ impl CanonicalScalarScope {
 pub struct CanonicalScalarEvaluationReceipt {
     scope: Arc<CanonicalScalarScope>,
     application: ScalarApplicationId,
-    values: Vec<(
-        ScalarApplicationId,
-        terminal_installation::TerminalScalarValue,
-    )>,
+    values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
     captures: Vec<(ValueId, ScalarType)>,
     outcome: PureTerminalEvaluationOutcome,
     usage: terminal_fuel::TerminalFuelUsage,
@@ -112,10 +104,7 @@ impl CanonicalScalarEvaluationReceipt {
     pub(crate) fn new(
         scope: Arc<CanonicalScalarScope>,
         application: ScalarApplicationId,
-        values: Vec<(
-            ScalarApplicationId,
-            terminal_installation::TerminalScalarValue,
-        )>,
+        values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
         captures: Vec<(ValueId, ScalarType)>,
         outcome: PureTerminalEvaluationOutcome,
         usage: terminal_fuel::TerminalFuelUsage,

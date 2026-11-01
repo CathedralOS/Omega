@@ -26,9 +26,13 @@
 use crate::expression_roots::{append_statement_roots, visit_post_order};
 use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+use validation::canonical_place_source_type_application;
+use validation::native_locators::unused_coordinate_widths;
 
 mod call_results;
 
@@ -78,12 +82,7 @@ impl ValueTypeOwner {
                     usize::MAX,
                     expression,
                 )?;
-                match validation::canonical_place_source_type_application(
-                    program,
-                    state,
-                    usize::MAX,
-                    &place,
-                ) {
+                match canonical_place_source_type_application(program, state, usize::MAX, &place) {
                     Some((_, applications)) => Some(applications),
                     None if place.segments.is_empty() => Some(Vec::new()),
                     None => None,
@@ -339,10 +338,8 @@ pub(crate) fn retain_constructed_result_types(
         let Some(reference) = reference else {
             // A private execution graph may be prepared again after call
             // rebinding. Unresolved new children cannot retain the old type.
-            expressions_of_mut(program).set_constructed_value_type_reference(
-                expression,
-                typed_trees::types::TypeReferenceHandle::invalid(),
-            );
+            expressions_of_mut(program)
+                .set_constructed_value_type_reference(expression, TypeReferenceHandle::invalid());
             continue;
         };
         expressions_of_mut(program).set_constructed_value_type_reference(expression, reference);
@@ -362,17 +359,11 @@ fn selected_constructor_field<'program>(
         .data_members(owner)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(declared) if declared.symbol == field => {
-                Some(declared)
-            }
-            typed_trees::data::DataMember::Variant(case)
-                if Some(case.symbol) == literal.case_symbol =>
-            {
-                program
-                    .data_payload_fields(case)
-                    .iter()
-                    .find(|declared| declared.symbol == field)
-            }
+            DataMember::Field(declared) if declared.symbol == field => Some(declared),
+            DataMember::Variant(case) if Some(case.symbol) == literal.case_symbol => program
+                .data_payload_fields(case)
+                .iter()
+                .find(|declared| declared.symbol == field),
             _ => None,
         })
 }
@@ -458,11 +449,7 @@ fn retain_constructor_result_type(
     let defaults = expressions_of(program)
         .struct_literal_node(expression)
         .and_then(|literal| {
-            validation::native_locators::unused_coordinate_widths(
-                program,
-                literal.type_symbol,
-                literal.case_symbol?,
-            )
+            unused_coordinate_widths(program, literal.type_symbol, literal.case_symbol?)
         });
     let zero = if defaults.is_some_and(|defaults| defaults.into_iter().any(|unused| unused)) {
         let retained = program.type_reference_table.named_references().find_map(
@@ -605,16 +592,10 @@ fn retain_constructor_result_type(
             continue;
         }
         let first = *proposals.first()?;
-        let identity =
-            typed_trees::type_identity::applied_type_identity(program, first, scope.symbol(), &[])?;
+        let identity = applied_type_identity(program, first, scope.symbol(), &[])?;
         if proposals.iter().any(|reference| {
-            typed_trees::type_identity::applied_type_identity(
-                program,
-                *reference,
-                scope.symbol(),
-                &[],
-            )
-            .is_none_or(|candidate| candidate != identity)
+            applied_type_identity(program, *reference, scope.symbol(), &[])
+                .is_none_or(|candidate| candidate != identity)
         }) {
             return None;
         }

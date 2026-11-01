@@ -3,11 +3,13 @@
 //! therefore use the declared multiplicity rather than inferring copy permission
 //! from a descriptor layout or requiring an owned referent parameter.
 use crate::LoweringError;
+use crate::lowering::structural_layout::structural_sum_layout;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_semantics::{canonical_static_projection, view_descriptor_parameter};
 
 /// Resolve a consumed value from its live storage, independent of whether a
 /// constructor or a replacement receives it. Static projections select owned
@@ -85,10 +87,7 @@ pub(super) fn value_input(
         })?;
         if parameter.access != terminal_psi::StructuralAccess::Owned
             && (!argument.path.is_empty()
-                || !terminal_semantics::view_descriptor_parameter(
-                    parameter,
-                    types.values().copied(),
-                )
+                || !view_descriptor_parameter(parameter, types.values().copied())
                 || live.structural_observation_type(function, argument.place)
                     != Some(parameter.structural_type))
         {
@@ -98,13 +97,9 @@ pub(super) fn value_input(
         }
         (parameter.structural_type, parameter.multiplicity)
     };
-    let selected = terminal_semantics::canonical_static_projection(
-        types.values().copied(),
-        root,
-        &argument.path,
-    )
-    .map(|(_, declaration)| declaration.id)
-    .ok_or_else(|| invalid("the value projection does not select a declared owned child"))?;
+    let selected = canonical_static_projection(types.values().copied(), root, &argument.path)
+        .map(|(_, declaration)| declaration.id)
+        .ok_or_else(|| invalid("the value projection does not select a declared owned child"))?;
     Ok((selected, multiplicity))
 }
 
@@ -120,7 +115,7 @@ fn sum_layout(
     ) {
         return Err(invalid());
     }
-    crate::lowering::structural_layout::structural_sum_layout(
+    structural_sum_layout(
         structural_type,
         types,
         &mut BTreeMap::new(),

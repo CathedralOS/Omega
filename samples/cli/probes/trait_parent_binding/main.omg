@@ -1,8 +1,8 @@
 // A child trait pins its parent's arguments:
 // `trait IntSink<S>: Sink<S, i32>` inherits `put`
 // already specialized to `i32`, so satisfying the
-// child names the parent's member — `Sink::put =
-// Counter::put` inside `satisfies IntSink<Counter>`.
+// child fills the parent's member with an inline `put` that
+// calls `Counter::put` inside `satisfies IntSink<Counter>`.
 //
 //   * The implementing machine still carries
 //     `satisfies Sink<Counter, i32>::put` — the
@@ -25,7 +25,7 @@ data Counter {
 }
 
 CounterIntSink satisfies IntSink<Counter> {
-    Sink::put = Counter::put;
+    machine put(sink: &mut Counter, value: i32) { Counter::put(sink, value) }
 }
 
 machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, i32>::put {

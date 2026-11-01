@@ -10,7 +10,9 @@ use std::path::PathBuf;
 
 mod dynamic_elf;
 mod preparation;
+use crate::digest_encoder::DomainDigestEncoder;
 pub use dynamic_elf::{DynamicElfPublicationReceipt, PreparedDynamicElfPublication};
+use image::CompilerFunctionValidationDigest;
 pub use preparation::PreparedExecutablePublication;
 
 #[cfg(test)]
@@ -49,9 +51,8 @@ pub fn executable_installation_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> ExecutableInstallationEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.installed-executable-publication-evidence.sha256.v1\0",
-    );
+    let mut digest =
+        DomainDigestEncoder::new(b"omega.installed-executable-publication-evidence.sha256.v1\0");
     digest.raw(publication_evidence_digest.as_bytes());
     digest.raw(&callback_placement_identity_report_fingerprint.to_le_bytes());
     // The fixed v1 flat-destination tag preserves existing installation digests.
@@ -74,14 +75,12 @@ pub(crate) fn native_publication_certificate_digest(
     final_image_symbol_digest: image::FinalImageSymbolDigest,
     boundary_contract_report_fingerprint: Option<u64>,
     text_validation_digest: image::CompilerTextDerivationDigest,
-    function_validation_digest: image::CompilerFunctionValidationDigest,
+    function_validation_digest: CompilerFunctionValidationDigest,
     function_validation_report_fingerprint: u64,
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
 ) -> NativePublicationCertificateDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-publication-certificate.sha256.v1\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.native-publication-certificate.sha256.v1\0");
     digest.raw(native_artifact_identity);
     digest.u64(semantic_bytes.len() as u64);
     digest.raw(&semantic_bytes);
@@ -109,14 +108,12 @@ pub(crate) fn native_publication_evidence_digest(
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
     text_validation_digest: image::CompilerTextDerivationDigest,
-    function_validation_digest: image::CompilerFunctionValidationDigest,
+    function_validation_digest: CompilerFunctionValidationDigest,
     function_validation_report_fingerprint: u64,
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> NativePublicationEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-publication-evidence.sha256.v1\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.native-publication-evidence.sha256.v1\0");
     digest.raw(native_artifact_identity);
     digest.raw(certificate_digest.as_bytes());
     digest.raw(function_validation_digest.as_bytes());
@@ -135,7 +132,7 @@ pub(crate) fn native_publication_evidence_digest(
 }
 
 pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
-    ExecutableContainerDigest::from_digest(crate::digest_encoder::DomainDigestEncoder::content(
+    ExecutableContainerDigest::from_digest(DomainDigestEncoder::content(
         b"omega.published-executable-container.sha256.v1\0",
         bytes,
     ))
@@ -164,7 +161,7 @@ pub struct ExecutablePublicationReceipt {
     /// `inventory_digest`.
     pub(crate) inventory_report_fingerprint: u64,
     pub(crate) compiler_text_validation_digest: image::CompilerTextDerivationDigest,
-    pub(crate) compiler_function_validation_digest: image::CompilerFunctionValidationDigest,
+    pub(crate) compiler_function_validation_digest: CompilerFunctionValidationDigest,
     /// Compact report compatibility only. The validation digest preserves this
     /// summary's custody, while exact text and inventory commitments retain the
     /// underlying publication and replay authority.
@@ -185,7 +182,7 @@ impl ExecutablePublicationReceipt {
         inventory_digest: image::PlacedExecutableRegionInventoryDigest,
         inventory_report_fingerprint: u64,
         compiler_text_validation_digest: image::CompilerTextDerivationDigest,
-        compiler_function_validation_digest: image::CompilerFunctionValidationDigest,
+        compiler_function_validation_digest: CompilerFunctionValidationDigest,
         compiler_function_validation_report_fingerprint: u64,
         publication_evidence_digest: NativePublicationEvidenceDigest,
         container_byte_count: usize,
@@ -246,9 +243,7 @@ impl ExecutablePublicationReceipt {
         self.compiler_function_validation_report_fingerprint
     }
 
-    pub const fn compiler_function_validation_digest(
-        &self,
-    ) -> image::CompilerFunctionValidationDigest {
+    pub const fn compiler_function_validation_digest(&self) -> CompilerFunctionValidationDigest {
         self.compiler_function_validation_digest
     }
 

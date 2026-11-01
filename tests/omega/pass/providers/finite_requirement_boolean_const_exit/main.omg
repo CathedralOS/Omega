@@ -6,8 +6,8 @@ public boundary trait Service {
     where Selected == true || Selected == false
     crashes Trap value < 0;
 }
-Provider satisfies Service { Service::echo = echo; }
-machine echo<const Selected: bool>(value: i32) -> i32 {
+Provider satisfies Service { machine echo<const Selected: bool>(value: i32) -> i32 reaches where Selected == true || Selected == false crashes Trap value < 0 { echo_realization<Selected>(value) } }
+machine echo_realization<const Selected: bool>(value: i32) -> i32 {
     transition Selected { true -> (18 as i32) _ -> (27 as i32) }
 }
 data Providers {}

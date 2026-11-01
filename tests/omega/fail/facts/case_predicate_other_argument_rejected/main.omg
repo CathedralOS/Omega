@@ -1,0 +1,62 @@
+// Case membership and the complete predicate recover the payload type and ordered bounds through the transported value.
+// Expected exit: 0.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+        || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+data NamedValue [copy] {
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+domain<T> NamedValue::Typed<T>
+    requires ((self in NamedValue::Integer) && T == i32)
+        || ((self in NamedValue::Boolean) && T == bool);
+data Interval [copy]
+    requires (self in Interval::Empty)
+        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+data NamedInterval [copy] {
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+domain<const Bound: u64> NamedInterval::Ordered<Bound>
+    requires (self in NamedInterval::Empty)
+        || ((self in NamedInterval::Range) && self.lo <= self.hi && self.hi <= Bound);
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+machine pick<T>(value: Value<T>) -> T {
+    match value {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+    match value {
+        NamedValue::Integer { value } -> value
+        NamedValue::Boolean { value } -> value
+    }
+}
+machine width(span: Interval) -> u64 {
+    match span {
+        Interval::Empty -> 77
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine width_named(span: NamedInterval in Ordered<32>) -> u64 {
+    match span {
+        NamedInterval::Empty -> 77
+        NamedInterval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+    let qualified: u64 in AtMost<32> = lo as u64 in AtMost<32>;
+    hi - (qualified as u64)
+}
+
+machine invalid(value: NamedInterval in Ordered<64>) -> u64 { match value { NamedInterval::Empty -> 77 NamedInterval::Range { lo, hi } -> width_range(lo, hi) } }
+machine main() {}

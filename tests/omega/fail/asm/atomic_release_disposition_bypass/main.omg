@@ -22,7 +22,7 @@ reaches MachineControl
  asm where ensures acknowledged(ack, word) { mov marker, marker }
  }
 }
-CompletionProvider satisfies Completion { Completion::complete = finish; }
+CompletionProvider satisfies Completion { machine complete(ack: Ack, word: &Cell) reaches MachineControl { finish(ack, word) } }
 machine main() reaches Completion, MachineControl crashes Trap {
  let mut word: Cell;
  let ack: Ack = Ack { nonce: 37 };

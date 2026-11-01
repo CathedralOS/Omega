@@ -1,14 +1,17 @@
+use crate::mathematical_core::verification_workers_started;
 use crate::proof::{assumption_proof, semantic_axiom_proof};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType,
 };
+use std::slice::from_ref;
 
 use super::{
     AcceptedPremise, AcceptedProofRule, BTreeSet, IntegerAffineBoundConversionError,
     IntegerAffineWitnessError, IntegerCastBoundConversionError, IntegerCastChainWitnessError,
     IntegerCorrelatedForbiddenRootConversionError, IntegerCorrelatedForbiddenRootWitnessError,
-    ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ValueId, accept_certificate,
-    accept_certificate_with_machine_parameters, check_certificate, lift_fixed_integer_relation,
+    MathematicalCoreDecision, ProofError, ProofNode, ProofRule, Proposition, PropositionContext,
+    ValueId, accept_certificate, accept_certificate_with_machine_parameters, check_certificate,
+    lift_fixed_integer_relation,
 };
 use crate::IntegerAffineWitness;
 use crate::{
@@ -46,7 +49,7 @@ fn transport_certificate() -> (PropositionContext, Vec<Proposition>, ProofNode) 
 fn certificate_receipt_reuses_admission_verification_stack() {
     super::run_on_verification_stack(|| {
         let (context, axioms, proof) = transport_certificate();
-        let before = crate::mathematical_core::verification_workers_started();
+        let before = verification_workers_started();
         let accepted = super::accept_certificate_on_current_thread(
             &context,
             &proof.conclusion,
@@ -59,10 +62,10 @@ fn certificate_receipt_reuses_admission_verification_stack() {
         assert_eq!(accepted.semantic_axioms.len(), 2);
         assert!(matches!(
             accepted.mathematical_core,
-            super::MathematicalCoreDecision::Judged(_)
+            MathematicalCoreDecision::Judged(_)
         ));
         assert_eq!(
-            crate::mathematical_core::verification_workers_started(),
+            verification_workers_started(),
             before,
             "receipt traversal already owns the admission stack"
         );
@@ -83,15 +86,12 @@ fn standalone_certificate_receipt_reserves_stack_and_matches_admission() {
         &mut crate::Budget::default(),
     )
     .expect("independent denotation and kernel check");
-    let before = crate::mathematical_core::verification_workers_started();
+    let before = verification_workers_started();
     let receipt = denoted.receipt();
-    assert_eq!(
-        crate::mathematical_core::verification_workers_started(),
-        before + 1
-    );
+    assert_eq!(verification_workers_started(), before + 1);
     assert_eq!(
         accepted.mathematical_core,
-        super::MathematicalCoreDecision::Judged(receipt)
+        MathematicalCoreDecision::Judged(receipt)
     );
 }
 
@@ -110,14 +110,9 @@ fn measure_repeated_transport_certificate_admission() {
 
 #[test]
 fn existing_assumption_rule_checks_fixed_carrier_normalization_to_math() {
-    let integer_type =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 16)
-            .expect("i16");
-    let value_id = semantic_vocabulary::ValueId::new(88).expect("value");
-    let value = ScalarTerm::value(
-        value_id,
-        semantic_vocabulary::ScalarType::Integer(integer_type),
-    );
+    let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let value_id = ValueId::new(88).expect("value");
+    let value = ScalarTerm::value(value_id, ScalarType::Integer(integer_type));
     let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("zero");
     let assumption = Proposition::LessOrEqual(zero, value);
     let goal = lift_fixed_integer_relation(&assumption).expect("mathematical carrier relation");
@@ -139,10 +134,7 @@ fn existing_assumption_rule_checks_fixed_carrier_normalization_to_math() {
             &wrong,
             &[Proposition::LessOrEqual(
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("zero"),
-                ScalarTerm::value(
-                    value_id,
-                    semantic_vocabulary::ScalarType::Integer(integer_type)
-                ),
+                ScalarTerm::value(value_id, ScalarType::Integer(integer_type)),
             )],
             &[],
             &tampered
@@ -263,14 +255,9 @@ fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
         },
     };
     let context = integer_context(integer, &[1]);
-    let acceptance = accept_certificate(
-        &context,
-        &goal,
-        &[],
-        std::slice::from_ref(&negative_two_bound),
-        &proof,
-    )
-    .expect("the tighter negative bound proves the canonical negative arm");
+    let acceptance =
+        accept_certificate(&context, &goal, &[], from_ref(&negative_two_bound), &proof)
+            .expect("the tighter negative bound proves the canonical negative arm");
     assert_eq!(
         acceptance.rules,
         vec![
@@ -308,7 +295,7 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
         check_certificate(
             &context,
             &expected,
-            std::slice::from_ref(&first),
+            from_ref(&first),
             &[],
             &proof(
                 Proposition::LessOrEqual(literal(-3), literal(-1)),
@@ -325,7 +312,7 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
         check_certificate(
             &context,
             &expected,
-            std::slice::from_ref(&first),
+            from_ref(&first),
             &[],
             &proof(
                 Proposition::LessOrEqual(wider_literal(-2), wider_literal(-1)),
@@ -340,7 +327,7 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
         check_certificate(
             &context,
             &wrong_conclusion,
-            std::slice::from_ref(&first),
+            from_ref(&first),
             &[],
             &proof(
                 Proposition::LessOrEqual(literal(-2), literal(-1)),
@@ -354,7 +341,7 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
         check_certificate(
             &context,
             &expected,
-            std::slice::from_ref(&first),
+            from_ref(&first),
             &[],
             &proof(
                 Proposition::Equal(literal(-2), literal(-2)),
@@ -389,7 +376,7 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
         &context,
         &positive,
         &[],
-        std::slice::from_ref(&positive_equality),
+        from_ref(&positive_equality),
         &positive_proof,
     )
     .expect("a literal equality transports the right endpoint");
@@ -422,7 +409,7 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
     let accepted = accept_certificate(
         &context,
         &negative,
-        std::slice::from_ref(&reverse_negative_equality),
+        from_ref(&reverse_negative_equality),
         &[],
         &negative_proof,
     )
@@ -473,7 +460,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
         check(
             &proof(relation_child(), equality_child(), 2, conclusion.clone()),
             &conclusion,
-            std::slice::from_ref(&equality),
+            from_ref(&equality),
         ),
         Err(ProofError::UnknownIntegerOrderEndpoint(2)),
     );
@@ -488,7 +475,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
                 changed_other_endpoint.clone(),
             ),
             &changed_other_endpoint,
-            std::slice::from_ref(&equality),
+            from_ref(&equality),
         ),
         Err(ProofError::IntegerOrderUnchangedEndpointMismatch),
     );
@@ -503,7 +490,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
                 conclusion.clone(),
             ),
             &conclusion,
-            std::slice::from_ref(&unrelated),
+            from_ref(&unrelated),
         ),
         Err(ProofError::IntegerOrderSubstitutionMismatch),
     );
@@ -516,7 +503,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
         check(
             &proof(truth.clone(), equality_child(), 1, conclusion.clone()),
             &conclusion,
-            std::slice::from_ref(&equality),
+            from_ref(&equality),
         ),
         Err(ProofError::RulePremiseMismatch(
             "integer order substitution relation"
@@ -536,7 +523,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
         check(
             &proof(relation_child(), equality_child(), 1, Proposition::Truth),
             &Proposition::Truth,
-            std::slice::from_ref(&equality),
+            from_ref(&equality),
         ),
         Err(ProofError::RuleConclusionMismatch(
             "integer order substitution"
@@ -551,7 +538,7 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
                 conclusion.clone(),
             ),
             &conclusion,
-            std::slice::from_ref(&equality),
+            from_ref(&equality),
         ),
         Err(ProofError::UnknownSemanticAxiom(1)),
     );
@@ -590,7 +577,7 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
     let accepted = accept_certificate(
         &context,
         &conclusion,
-        std::slice::from_ref(&root_bound),
+        from_ref(&root_bound),
         &semantic_axioms,
         &proof(vec![1], vec![Some(0)], conclusion.clone()),
     )
@@ -613,7 +600,7 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
         check_certificate(
             &context,
             &conclusion,
-            std::slice::from_ref(&root_bound),
+            from_ref(&root_bound),
             &semantic_axioms,
             &proof(vec![2], vec![Some(0)], conclusion.clone()),
         ),
@@ -626,7 +613,7 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
         check_certificate(
             &context,
             &wrong_conclusion,
-            std::slice::from_ref(&root_bound),
+            from_ref(&root_bound),
             &semantic_axioms,
             &proof(vec![1], vec![Some(0)], wrong_conclusion.clone()),
         ),
@@ -652,7 +639,7 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
         check_certificate(
             &context,
             &conclusion,
-            std::slice::from_ref(&root_bound),
+            from_ref(&root_bound),
             &semantic_axioms,
             &non_order_proof,
         ),
@@ -702,8 +689,8 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     let accepted = accept_certificate(
         &context,
         &conclusion,
-        std::slice::from_ref(&root_bound),
-        std::slice::from_ref(&definition),
+        from_ref(&root_bound),
+        from_ref(&definition),
         &proof(vec![0], conclusion.clone()),
     )
     .expect("one cast maps the independently proved root bound");
@@ -731,7 +718,7 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     let accepted = accept_certificate(
         &context,
         &conclusion,
-        std::slice::from_ref(&root_bound),
+        from_ref(&root_bound),
         &multi_axioms,
         &proof(vec![0, 1], conclusion.clone()),
     )
@@ -747,8 +734,8 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
         check_certificate(
             &context,
             &conclusion,
-            std::slice::from_ref(&root_bound),
-            std::slice::from_ref(&definition),
+            from_ref(&root_bound),
+            from_ref(&definition),
             &proof(vec![1], conclusion.clone()),
         ),
         Err(ProofError::IntegerCastChainWitness(
@@ -763,8 +750,8 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
         check_certificate(
             &context,
             &wrong_conclusion,
-            std::slice::from_ref(&root_bound),
-            std::slice::from_ref(&definition),
+            from_ref(&root_bound),
+            from_ref(&definition),
             &proof(vec![0], wrong_conclusion.clone()),
         ),
         Err(ProofError::IntegerCastBoundConversion(
@@ -806,7 +793,7 @@ fn accepted_trust_closure_binds_the_exact_cited_premise() {
     let accepted = accept_certificate(
         &PropositionContext::default(),
         &cited,
-        std::slice::from_ref(&cited),
+        from_ref(&cited),
         &[],
         &proof,
     )
@@ -936,10 +923,8 @@ fn correlated_division_fixture() -> (
     BTreeSet<ValueId>,
     ProofNode,
 ) {
-    let integer_type =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 8)
-            .expect("signed carrier");
-    let scalar_type = semantic_vocabulary::ScalarType::Integer(integer_type);
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("signed carrier");
+    let scalar_type = ScalarType::Integer(integer_type);
     let value = |raw| ScalarTerm::value(ValueId::new(raw).expect("value"), scalar_type);
     let integer =
         |raw| ScalarTerm::integer(integer_type, IntegerValue::Signed(raw)).expect("literal");

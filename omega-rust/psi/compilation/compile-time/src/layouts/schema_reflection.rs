@@ -2,7 +2,8 @@
 
 use crate::build_time_evaluation::type_reference_table;
 use typed_trees::TypedTrees;
-use typed_trees::types::PrimitiveType;
+use typed_trees::data::DataDefinition;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod schema_value;
 pub(crate) use schema_value::{build_schema_value, build_selected_schema_value};
@@ -68,14 +69,14 @@ pub(crate) fn schema_fields(
 
 pub(crate) fn schema_fields_for(
     typed: &TypedTrees,
-    data: &typed_trees::data::DataDefinition,
+    data: &DataDefinition,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
     schema_fields_for_target(typed, data, None)
 }
 
 pub(crate) fn schema_fields_for_target(
     typed: &TypedTrees,
-    data: &typed_trees::data::DataDefinition,
+    data: &DataDefinition,
     target: Option<&layout_plans::LayoutTargetFacts>,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
     let schema_data = data.name.as_str();
@@ -163,10 +164,7 @@ pub(crate) fn schema_fields_for_target(
     Ok((fields, normalized_schema_report_fingerprint(typed, data)))
 }
 
-fn scalar_leaf_width_bits(
-    typed: &TypedTrees,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<u16> {
+fn scalar_leaf_width_bits(typed: &TypedTrees, mut reference: TypeReferenceHandle) -> Option<u16> {
     loop {
         if let Some(primitive) = typed.primitive_type_reference(reference) {
             return u16::try_from(primitive_byte_size(primitive)?.checked_mul(8)?).ok();
@@ -181,10 +179,7 @@ fn scalar_leaf_width_bits(
     }
 }
 
-pub fn normalized_schema_report_fingerprint(
-    typed: &TypedTrees,
-    data: &typed_trees::data::DataDefinition,
-) -> u64 {
+pub fn normalized_schema_report_fingerprint(typed: &TypedTrees, data: &DataDefinition) -> u64 {
     typed_trees::identity::normalized_schema_report_fingerprint(typed, data)
 }
 
@@ -193,7 +188,7 @@ pub fn normalized_schema_report_fingerprint(
 /// predicates or authorizing a write that cannot satisfy its physical codec.
 fn declared_source_bits(
     typed: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     primitive: PrimitiveType,
     byte_size: u64,
     stated: Option<(Option<i64>, Option<i64>)>,
@@ -253,7 +248,7 @@ type ReflectedFieldLayout = (
 
 pub(super) fn reflected_field_layout(
     typed: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
     target: Option<&layout_plans::LayoutTargetFacts>,
     stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<ReflectedFieldLayout> {
@@ -301,12 +296,12 @@ pub(super) fn reflected_field_layout(
     ))
 }
 
-/// Walk the exact closed field telescope. Lifetimes and qualifications remain
-/// semantic evidence; references contribute their descriptor geometry without
-/// recursively demanding storage of the referent.
+/// Walk the exact prepared field telescope and establish each by-value geometry.
+/// Lifetimes and qualifications remain semantic evidence; references contribute
+/// their descriptor geometry without demanding storage of the referent.
 fn reflected_member_layout(
     typed: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
     target: Option<&layout_plans::LayoutTargetFacts>,
     visiting: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Option<(u64, u64)> {
@@ -319,15 +314,7 @@ fn reflected_member_layout(
     match typed.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { referee, .. } => {
             let target = target?;
-            let referent = type_reference_table(typed).unconstrained_type_reference(*referee);
-            let words = if matches!(
-                typed.type_reference_table.type_reference(referent),
-                TypeReferenceNode::Slice { .. }
-            ) {
-                2
-            } else {
-                1
-            };
+            let words = typed.reference_descriptor_word_count(*referee)?;
             Some((
                 target.pointer_size.checked_mul(words)?,
                 target.pointer_alignment,
@@ -354,7 +341,7 @@ fn reflected_member_layout(
             if typed.layout_storage_arguments(carrier).is_some() {
                 return None;
             }
-            let data = typed.closed_data_definition(carrier)?;
+            let data = typed.data_field_definition(carrier)?;
             let identity = typed.normalized_type_identity(carrier);
             if data.quotient.is_some()
                 || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape

@@ -12,6 +12,9 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::EntryClaim;
+use terminal_psi::StructuralPlaceDeclaration;
+use terminal_psi::StructuralTypeDeclaration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ValidatorStructuralRootKey {
@@ -59,18 +62,12 @@ pub(crate) fn structural_root_key(kind: StructuralPlaceKind) -> ValidatorStructu
 pub(crate) fn validate_function_structural_catalog(
     function: &PsiOptimizationFunction,
     identities: &terminal_psi::TerminalIdentityTable,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<
     (
-        Vec<(
-            terminal_psi::StructuralPlaceDeclaration,
-            terminal_psi::StructuralTypeDeclaration,
-        )>,
-        Vec<(
-            terminal_psi::StructuralPlaceDeclaration,
-            terminal_psi::StructuralTypeDeclaration,
-        )>,
+        Vec<(StructuralPlaceDeclaration, StructuralTypeDeclaration)>,
+        Vec<(StructuralPlaceDeclaration, StructuralTypeDeclaration)>,
     ),
     OptimizationUnitValidationError,
 > {
@@ -240,7 +237,7 @@ pub(crate) fn validate_function_structural_catalog(
             || resolve_structural_path(types, parameter.structural_type, &claim.path).is_none()
             || claim_inputs
                 .iter()
-                .any(|previous: &&terminal_psi::EntryClaim| {
+                .any(|previous: &&EntryClaim| {
                     previous.input == claim.input
                         && (previous.path.starts_with(&claim.path)
                             || claim.path.starts_with(&previous.path))
@@ -272,13 +269,11 @@ pub(crate) fn validate_function_structural_catalog(
         if parameter.access != terminal_psi::StructuralAccess::Owned
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             || resolve_structural_path(types, parameter.structural_type, &claim.path).is_none()
-            || block_claim_inputs
-                .iter()
-                .any(|previous: &&terminal_psi::EntryClaim| {
-                    previous.input == claim.input
-                        && (previous.path.starts_with(&claim.path)
-                            || claim.path.starts_with(&previous.path))
-                })
+            || block_claim_inputs.iter().any(|previous: &&EntryClaim| {
+                previous.input == claim.input
+                    && (previous.path.starts_with(&claim.path)
+                        || claim.path.starts_with(&previous.path))
+            })
         {
             return Err(mismatch());
         }

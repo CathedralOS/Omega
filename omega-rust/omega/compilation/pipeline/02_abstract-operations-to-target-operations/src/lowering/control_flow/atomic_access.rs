@@ -6,6 +6,7 @@
 
 use super::RowSite;
 use crate::LoweringError;
+use crate::lowering::structural_layout::reference_projection_regions;
 use abstract_operations::AbstractAtomicEvent;
 use semantic_vocabulary::OperationId;
 use target_operations::TargetUnitOperation;
@@ -128,12 +129,8 @@ pub(super) fn lower(
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let integer = target_operations::operations::atomic_storage_integer_type(access, scalar_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let regions = crate::lowering::structural_layout::reference_projection_regions(
-        root,
-        &location.path,
-        types,
-    )
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let regions = reference_projection_regions(root, &location.path, types)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if !regions.readable
         || regions
             .pointer_slots

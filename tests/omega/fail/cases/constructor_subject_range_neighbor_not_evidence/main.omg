@@ -1,0 +1,9 @@
+// A bounded neighboring field cannot establish this field's predicate.
+data Bound requires self.value >= 0 && self.value <= 255 {
+    neighbor: i32;
+    value: i32;
+}
+machine make(value: i32) -> Bound {
+    Bound { neighbor: 17, value: value }
+}
+machine main() { let invalid: Bound = make(-1); }

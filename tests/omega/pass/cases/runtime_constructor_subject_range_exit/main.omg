@@ -1,0 +1,78 @@
+// Expected exit: 0.
+// Completed u8 operands retain their 0..255 range when widened into
+// constructor fields selected by bare names or the exact logical subject.
+use omega::language::core::numeric_conversion;
+
+data ByteRead [copy]
+    requires (self in ByteRead::Eof)
+        || ((self in ByteRead::Byte) && self.value >= 0 && self.value <= 255)
+{
+    case Eof;
+    case Byte(value: i32);
+}
+data BareBound [copy] requires value >= 0 && value <= 255 { value: i32; }
+data MirroredBound [copy] requires 0 <= self.value && 255 >= self.value {
+    left: u64; value: i32; right: u64;
+}
+data SignedBound [copy] requires self.value >= -128 && self.value <= 127 { value: i16; }
+data WordBound [copy] requires self.value >= 0 && self.value <= 4294967295 { value: i64; }
+data Source { left: u64; value: u8; right: u64; }
+data GenericBound<T> [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
+
+machine from_parameter(value: u8) -> ByteRead {
+    ByteRead::Byte { value: value as i32 }
+}
+machine from_call(cell: i32) -> ByteRead {
+    let value: u8 = narrow_i32_to_u8_wrapping(cell);
+    ByteRead::Byte { value: value as i32 }
+}
+machine from_field(source: &Source) -> MirroredBound {
+    MirroredBound { left: 73, value: source.value as i32, right: 91 }
+}
+machine saved_before_write(source: &mut Source) -> BareBound {
+    let captured: i32 = source.value as i32;
+    source.value = 31;
+    BareBound { value: captured }
+}
+machine bare(value: u8) -> BareBound {
+    BareBound { value: value as i32 }
+}
+machine generic(value: u8) -> GenericBound<bool> {
+    GenericBound { value: value as i32 }
+}
+machine signed(value: i8) -> SignedBound { SignedBound { value: value as i16 } }
+machine word(value: u32) -> WordBound { WordBound { value: value as i64 } }
+machine unpack(result: ByteRead) -> i32 {
+    match result {
+        ByteRead::Byte { value } -> value
+        ByteRead::Eof -> -1
+    }
+}
+machine main() crashes Trap {
+    let low: ByteRead = from_parameter(0);
+    let high: ByteRead = from_parameter(255);
+    let wrapped: ByteRead = from_call(-1);
+    let source: Source = Source { left: 11, value: 17, right: 29 };
+    let projected: MirroredBound = from_field(&source);
+    let plain: BareBound = bare(23);
+    let applied: GenericBound<bool> = generic(29);
+    let signed_low: SignedBound = signed(-128);
+    let signed_high: SignedBound = signed(127);
+    let word_high: WordBound = word(4294967295);
+    let mut changed: Source = Source { left: 41, value: 43, right: 47 };
+    let captured: BareBound = saved_before_write(&mut changed);
+    transition unpack(low) == 0 && unpack(high) == 255
+        && unpack(wrapped) == 255 && projected.value == 17 && plain.value == 23
+        && projected.left == 73 && projected.right == 91
+        && source.left == 11 && source.value == 17 && source.right == 29
+        && applied.value == 29 && signed_low.value == -128
+        && signed_high.value == 127 && word_high.value == 4294967295
+        && captured.value == 43 && changed.value == 31
+        && changed.left == 41 && changed.right == 47 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine entry_start() crashes Trap { main(); }

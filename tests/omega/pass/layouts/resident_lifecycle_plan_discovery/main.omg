@@ -90,11 +90,12 @@ machine decline(storage: Extent in Granted & Vacant, value: Word)
 }
 
 boundary machine uncalled_extraction(storage: Extent in Granted & Resident<WordPlacement, Word>)
-    -> AccessExtraction<Extent in Granted & Vacant, Word>;
+    -> AccessExtraction<Extent in Granted & Vacant, Word>
+    satisfies AccessLifecycle<WordPlacement, Word>::move_out;
 
 Selected satisfies AccessLifecycle<WordPlacement, Word> {
-    AccessLifecycle::initialize = decline;
-    AccessLifecycle::move_out = uncalled_extraction;
+    machine initialize( storage: Extent in Granted & Vacant, value: Word ) -> AccessOutcome< Extent in Granted & Resident<WordPlacement, Word>, AccessReturn<Extent in Granted & Vacant, Word>, AccessInitializationFailure > reaches ResourceProfileSupply { decline(storage, value) }
+    machine move_out(storage: Extent in Granted & Resident<WordPlacement, Word>) -> AccessExtraction<Extent in Granted & Vacant, Word> reaches ResourceProfileSupply { uncalled_extraction(storage) }
 }
 
 machine selected(storage: Extent in Granted & Vacant, value: Word)

@@ -287,16 +287,12 @@ impl Engine<'_> {
                     _ => None,
                 }
             }
-            (
-                PreparedConstantMeaning::IntegerEmbedding {
-                    minimum, maximum, ..
-                },
-                [argument],
-            ) => {
+            (PreparedConstantMeaning::IntegerEmbedding { interval, .. }, [argument]) => {
                 let value =
                     self.normalize_mathematical_term(view, *argument, captures, depth + 1)?;
-                self.bounds.push((value.clone(), minimum.clone()));
-                if let Some(maximum) = maximum {
+                self.bounds
+                    .push((value.clone(), interval.low.as_ref()?.clone()));
+                if let Some(maximum) = &interval.high {
                     self.bounds.push((value.neg(), maximum.negate()));
                 } else {
                     let bound = self.address_model_bound()?;

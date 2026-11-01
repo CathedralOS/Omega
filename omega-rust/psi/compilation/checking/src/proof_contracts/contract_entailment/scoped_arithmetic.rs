@@ -21,6 +21,7 @@ mod formation;
 pub use formation::scoped_declared_integer_application_formation;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 
 use super::strict_arithmetic::StrictArithmeticImplicationJudgment;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -49,8 +50,7 @@ pub enum ScopedArithmeticValue {
     /// identity is transported. These bounds do not form the source operand.
     BoundedInteger {
         value: Box<Self>,
-        minimum: Option<numerics::bignum::BigInt>,
-        maximum: Option<numerics::bignum::BigInt>,
+        interval: BigIntInterval,
     },
     /// An exact mathematical integer supplied by the binding's owner, such as
     /// a checked closed domain index. This does not establish executable

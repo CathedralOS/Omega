@@ -2,7 +2,10 @@ use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
     Value, expression_table, statement_table, trap, unsupported,
 };
+use typed_trees::state::state_by_symbol;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use validation::checked_shape_data_declaration;
+use validation::exact_byte_read_result_type;
 
 /// The host operations the interpreter serves directly, named by the selected
 /// requirement (or exact intrinsic leaf) the caller resolved. The name is read
@@ -407,11 +410,8 @@ impl<'program> Evaluator<'program> {
     /// `u64` field named `count`. Mirrors the `ByteRead` shape check the
     /// validation crate applies to `read_byte`.
     fn line_read_result_shape(&self, return_type: TypeReferenceHandle) -> Option<SymbolHandle> {
-        let (data, symbol) = validation::checked_shape_data_declaration(
-            self.program,
-            return_type,
-            "LineReadResult",
-        )?;
+        let (data, symbol) =
+            checked_shape_data_declaration(self.program, return_type, "LineReadResult")?;
         let [
             DataMember::Variant(invalid),
             DataMember::Variant(line_complete),
@@ -518,11 +518,7 @@ impl<'program> Evaluator<'program> {
             validation::exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
         let realization = self.program.machines().iter().find(|machine| {
             machine.attached_data_symbol == provider_symbol
-                && typed_trees::state::state_by_symbol(
-                    self.program.machine_states(machine),
-                    target_symbol,
-                )
-                .is_some()
+                && state_by_symbol(self.program.machine_states(machine), target_symbol).is_some()
         })?;
         let (provider_name, trait_name) = match realization.name.as_str() {
             "ConsoleNativeProvider::read_byte"
@@ -549,11 +545,8 @@ impl<'program> Evaluator<'program> {
                     .program
                     .state_signature_parameters(requirement)
                     .is_empty()
-                    && validation::exact_byte_read_result_type(
-                        self.program,
-                        requirement.return_type,
-                    )
-                    .is_some() =>
+                    && exact_byte_read_result_type(self.program, requirement.return_type)
+                        .is_some() =>
             {
                 Some("read_byte")
             }

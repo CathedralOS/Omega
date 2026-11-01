@@ -7,6 +7,7 @@ use crate::FixedViewCopyError;
 use selected_instructions::VirtualFixedConstraintSite;
 
 use super::FixedViewCopy;
+use crate::rewrites::selected_operands::selected_operand;
 
 pub(super) fn combined_usage(
     evidence: OptimizationWorkUsage,
@@ -146,14 +147,8 @@ pub(super) fn apply_fixed_view_copy(
             kind: selected_instructions::SelectedInstructionKind::CopyI64,
             constraint: copy.copy_constraint,
             operands: vec![
-                crate::rewrites::selected_operands::selected_operand(
-                    &row.operands[0],
-                    copy.source_virtual_register,
-                ),
-                crate::rewrites::selected_operands::selected_operand(
-                    &row.operands[1],
-                    copy.result_virtual_register,
-                ),
+                selected_operand(&row.operands[0], copy.source_virtual_register),
+                selected_operand(&row.operands[1], copy.result_virtual_register),
             ],
             implicit_uses: row.implicit_uses.clone(),
             implicit_defs: row.implicit_defs.clone(),

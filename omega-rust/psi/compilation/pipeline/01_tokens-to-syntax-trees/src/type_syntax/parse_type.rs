@@ -4,12 +4,14 @@
 //! A direct name remains ambiguous between a type and a value until resolution;
 //! every other value tree is retained without parser-side evaluation.
 
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::type_refs;
 use arena::HandleSpan;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
@@ -167,10 +169,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     if input.at_contextual("dyn") {
         let input = input.take_contextual("dyn")?;
         let ((trait_name, lifetime_arguments, trait_arguments), input) =
-            crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                syntax_trees,
-                input,
-            )?;
+            parse_conformance_trait_application(syntax_trees, input)?;
         if !lifetime_arguments.is_empty() {
             return Err(input
                 .error_here("a dynamic selector takes no lifetime arguments; it borrows nothing"));
@@ -400,9 +399,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
             }));
         } else {
             constraints.push(
-                match numerics::arithmetic::ArithmeticDomain::from_name(
-                    domain_name.as_str(syntax_trees),
-                ) {
+                match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
                     Some(domain) if arguments.is_empty() => {
                         TypeConstraintNode::ArithmeticDomain(domain)
                     }

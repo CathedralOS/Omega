@@ -1,5 +1,6 @@
 //! Current-CFG custody of a bounded field's live-length observation.
 //! Original Terminal provenance cannot authorize a stale observation after a rewrite.
+use super::super::structural_catalog::resolve_structural_path;
 use super::structural_freshness::{structural_metadata_may_change, unchanged_since};
 use crate::unit_validation::catalog_mismatch;
 use crate::{OperationSite, OptimizationUnitValidationError};
@@ -95,11 +96,7 @@ pub(super) fn field_carrier(
 ) -> Option<StructuralTypeId> {
     for (position, segment) in path.iter().enumerate() {
         if matches!(segment, StructuralPathSegment::FixedIndex(_)) {
-            let parent = super::super::structural_catalog::resolve_structural_path(
-                types,
-                root,
-                &path[..position],
-            )?;
+            let parent = resolve_structural_path(types, root, &path[..position])?;
             if matches!(
                 types.get(&parent)?.shape,
                 StructuralTypeShape::ElementView { .. }
@@ -108,7 +105,7 @@ pub(super) fn field_carrier(
             }
         }
     }
-    super::super::structural_catalog::resolve_structural_path(types, root, path)
+    resolve_structural_path(types, root, path)
 }
 
 pub(super) fn field_path(

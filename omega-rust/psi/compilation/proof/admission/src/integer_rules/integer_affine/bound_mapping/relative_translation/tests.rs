@@ -7,6 +7,7 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
+use std::iter::once;
 
 fn value(carrier: IntegerType, raw: u64) -> ScalarTerm {
     ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::Integer(carrier))
@@ -108,11 +109,7 @@ fn bounded_root(root: &ScalarTerm, guards: &[Proposition]) -> Proposition {
     if guards.is_empty() {
         base
     } else {
-        Proposition::Conjunction(
-            std::iter::once(base)
-                .chain(guards.iter().cloned())
-                .collect(),
-        )
+        Proposition::Conjunction(once(base).chain(guards.iter().cloned()).collect())
     }
 }
 

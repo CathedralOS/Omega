@@ -34,14 +34,18 @@
 //! a maximal run formed by adjoining a crash, return or another source block.
 //! Runtime control still tries the admitted arms in order.
 
+use crate::expressions::call_results::declared_call_return;
 use crate::tables::{resolved_expressions, resolved_statements};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
-use resolved::data::{DataDefinition, DataMember};
-use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use resolved::data::{DataDefinition, DataMember, DataVariant};
+use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath};
+use resolved::name::DiagnosticName;
 use resolved::statement::{StatementNode, TransitionGuardNode};
 use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
 
 pub(crate) fn validate_case_dispatch_exhaustiveness_in(
     program: &SymbolResolvedTrees,
@@ -412,10 +416,7 @@ fn possible_case_indexes(program: &SymbolResolvedTrees, definition: &DataDefinit
         .collect()
 }
 
-fn variant_is_impossible(
-    program: &SymbolResolvedTrees,
-    variant: &resolved::data::DataVariant,
-) -> bool {
+fn variant_is_impossible(program: &SymbolResolvedTrees, variant: &DataVariant) -> bool {
     program
         .proof_facts(variant.where_facts)
         .iter()
@@ -837,7 +838,7 @@ fn classify_membership_leaf(
 /// Anything else over a case-bearing target is a predicate domain.
 fn classify_declared_domain(
     scope: &DispatchScope<'_>,
-    domain_symbol: symbols::SymbolHandle,
+    domain_symbol: SymbolHandle,
 ) -> LeafContribution {
     let program = scope.program;
     let Some(domain) = program.domain_definition_by_symbol(domain_symbol) else {
@@ -975,7 +976,7 @@ fn find_case(
 /// first-match scan.
 pub(crate) fn data_definition_index(
     program: &SymbolResolvedTrees,
-    type_name: &resolved::name::DiagnosticName,
+    type_name: &DiagnosticName,
 ) -> Option<usize> {
     if type_name.is_source_backed() {
         let symbol = program
@@ -999,7 +1000,7 @@ pub(crate) fn data_definition_index(
 fn variant_index(
     program: &SymbolResolvedTrees,
     definition: &DataDefinition,
-    matches: impl Fn(&resolved::data::DataVariant) -> bool,
+    matches: impl Fn(&DataVariant) -> bool,
 ) -> Option<usize> {
     program
         .data_members(definition.members)
@@ -1161,10 +1162,7 @@ fn expressions_structurally_equal(
     }
 }
 
-fn name_paths_equal(
-    left: &[resolved::name::DiagnosticName],
-    right: &[resolved::name::DiagnosticName],
-) -> bool {
+fn name_paths_equal(left: &[DiagnosticName], right: &[DiagnosticName]) -> bool {
     left.len() == right.len()
         && left
             .iter()
@@ -1213,11 +1211,7 @@ fn subject_declared_type(
         }
         ExpressionNode::Name(path) => name_declared_type(scope, path),
         ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
-            crate::expressions::call_results::declared_call_return(
-                scope.program,
-                call.target_symbol,
-            )
-            .cloned()
+            declared_call_return(scope.program, call.target_symbol).cloned()
         }
         ExpressionNode::SavedSubject(saved) => {
             subject_declared_type(scope, expressions.match_subject(saved.capture).subject)
@@ -1230,10 +1224,7 @@ fn subject_declared_type(
 /// The declared type a bare case-subject name resolves to: a state
 /// parameter, a local `data` binding, a constant, or a field the name
 /// spells inside its scope.
-fn name_declared_type(
-    scope: &DispatchScope<'_>,
-    path: &resolved::expression::TableNamePath,
-) -> Option<TypeReference> {
+fn name_declared_type(scope: &DispatchScope<'_>, path: &TableNamePath) -> Option<TypeReference> {
     for symbol in [path.symbol, path.head_symbol] {
         if !symbol.is_valid() {
             continue;
@@ -1278,10 +1269,7 @@ fn name_declared_type(
 
 /// The declared type a field or owned-data symbol carries, found across
 /// machine-owned `data` members, record fields and case payload fields.
-fn field_declared_type(
-    scope: &DispatchScope<'_>,
-    symbol: symbols::SymbolHandle,
-) -> Option<TypeReference> {
+fn field_declared_type(scope: &DispatchScope<'_>, symbol: SymbolHandle) -> Option<TypeReference> {
     if !symbol.is_valid() {
         return None;
     }
@@ -1347,7 +1335,7 @@ fn data_index_for_type(
 
 /// The template symbol a synthesized closed instance records as its
 /// generic application base.
-fn generic_base_symbol(definition: &DataDefinition) -> Option<symbols::SymbolHandle> {
+fn generic_base_symbol(definition: &DataDefinition) -> Option<SymbolHandle> {
     match &definition.generic_instance {
         Some(TypeReference::Generic(application)) => Some(application.base_symbol),
         _ => None,
@@ -1360,8 +1348,8 @@ fn generic_base_symbol(definition: &DataDefinition) -> Option<symbols::SymbolHan
 /// unrefuted case list.
 fn type_arguments_equal(
     program: &SymbolResolvedTrees,
-    left: arena::HandleSpan<TypeReference>,
-    right: arena::HandleSpan<TypeReference>,
+    left: HandleSpan<TypeReference>,
+    right: HandleSpan<TypeReference>,
 ) -> bool {
     let left = program.child_type_references(left);
     let right = program.child_type_references(right);

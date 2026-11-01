@@ -25,8 +25,8 @@ machine Item::bumped<Width: u32>(item: &mut Item, packet: Packet) -> Packet sati
     let width: u32 in Wrapping = Width as u32 in Wrapping;
     Packet { token: packet.token, marker: (width + 1) as u32 }
 }
-Primary satisfies Shape { Shape::code = Item::code; }
-Bumped satisfies Shape { Shape::code = Item::bumped; }
+Primary satisfies Shape { machine code<Width: u32>(subject: &mut Item, packet: Packet) -> Packet where Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject, packet) } }
+Bumped satisfies Shape { machine code<Width: u32>(subject: &mut Item, packet: Packet) -> Packet where Width == 16 || Width == 32 || Width == 64 { Item::bumped<Width>(subject, packet) } }
 
 machine scan(selected: dyn Shape, item: &mut Item, packet: Packet, width: u32) -> Packet
 requires width == 16 || width == 32 || width == 64

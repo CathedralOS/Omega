@@ -15,7 +15,7 @@ mod build_provider;
 mod build_queries;
 mod build_requests;
 mod calling_signatures;
-mod composition_admission;
+mod composition_roots;
 mod custody;
 mod observation;
 pub use checked_trees::PreparedProviderInventory;
@@ -40,10 +40,10 @@ pub use checked_trees_to_lowered_psi::{
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
+pub use composition_roots::{TerminalAdmissionRoot, TerminalCompositionRoots};
 pub use custody::{
-    PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
-    TerminalProductionCustody,
+    PortableTerminalProgram, ProducedTerminalApplication, ProducedTerminalProgram,
+    TerminalApplicationCustody, TerminalProductionCustody,
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{

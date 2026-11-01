@@ -1,0 +1,13 @@
+// A bare call names the machine visible from the call site: the private `hidden` inside `outer`, the free `hidden` anywhere else, and no callee once the free one is absent.
+// Expected exit: 0
+data Frame { prefix: u64; inner: u64; free: u64; suffix: u64; }
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine hidden(value: u64) -> u64 { 107 }
+machine main() crashes Trap {
+    let frame: Frame = Frame { prefix: 19, inner: outer(7), free: hidden(7), suffix: 23 };
+    transition frame.prefix == 19 && frame.inner == 7 && frame.free == 107 && frame.suffix == 23 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

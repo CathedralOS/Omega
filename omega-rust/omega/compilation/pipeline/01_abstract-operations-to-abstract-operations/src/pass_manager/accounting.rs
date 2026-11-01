@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
+use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 use optimization_core::{
-    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationPassManifestRecord,
-    OptimizationUnitIdentity, OptimizationWorkUsage,
+    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationPassIdentity,
+    OptimizationPassManifestRecord, OptimizationUnitIdentity, OptimizationWorkUsage,
 };
 use optimization_unit::PsiOptimizationUnit;
 
@@ -111,19 +112,19 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerArithmetic { .. }
-                    | abstract_operations::AbstractOperation::IntegerShift { .. }
-                    | abstract_operations::AbstractOperation::IntegerExactCast { .. }
-                    | abstract_operations::AbstractOperation::IntegerWiden { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
-                    | abstract_operations::AbstractOperation::BooleanNot { .. }
-                    | abstract_operations::AbstractOperation::BooleanEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessThan { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
+                O::IntegerArithmetic { .. }
+                    | O::IntegerShift { .. }
+                    | O::IntegerExactCast { .. }
+                    | O::IntegerWiden { .. }
+                    | O::IntegerBitwiseNot { .. }
+                    | O::IntegerBitwiseAnd { .. }
+                    | O::IntegerBitwiseOr { .. }
+                    | O::IntegerBitwiseXor { .. }
+                    | O::BooleanNot { .. }
+                    | O::BooleanEqual { .. }
+                    | O::IntegerEqual { .. }
+                    | O::IntegerLessThan { .. }
+                    | O::IntegerLessOrEqual { .. }
             )
         })
         .count()
@@ -142,25 +143,23 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| match &node.operation {
             // Integer arithmetic is total exactly when it carries no
             // obligation.
-            abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
-                arithmetic.obligation().is_none()
-            }
+            O::IntegerArithmetic { arithmetic, .. } => arithmetic.obligation().is_none(),
             operation => matches!(
                 operation,
-                abstract_operations::AbstractOperation::IntegerConstant { .. }
-                    | abstract_operations::AbstractOperation::BooleanConstant { .. }
-                    | abstract_operations::AbstractOperation::BooleanNot { .. }
-                    | abstract_operations::AbstractOperation::BooleanEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessThan { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
-                    | abstract_operations::AbstractOperation::IntegerWiden { .. }
-                    | abstract_operations::AbstractOperation::IntegerShift {
-                        policy: abstract_operations::IntegerShiftPolicy::Wrapping,
+                O::IntegerConstant { .. }
+                    | O::BooleanConstant { .. }
+                    | O::BooleanNot { .. }
+                    | O::BooleanEqual { .. }
+                    | O::IntegerEqual { .. }
+                    | O::IntegerLessThan { .. }
+                    | O::IntegerLessOrEqual { .. }
+                    | O::IntegerBitwiseNot { .. }
+                    | O::IntegerBitwiseAnd { .. }
+                    | O::IntegerBitwiseOr { .. }
+                    | O::IntegerBitwiseXor { .. }
+                    | O::IntegerWiden { .. }
+                    | O::IntegerShift {
+                        policy: IntegerShiftPolicy::Wrapping,
                         ..
                     }
             ),
@@ -173,14 +172,12 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.block_nodes()
         .filter(|node| match &node.operation {
-            abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
-                arithmetic.obligation().is_some()
-            }
+            O::IntegerArithmetic { arithmetic, .. } => arithmetic.obligation().is_some(),
             operation => matches!(
                 operation,
-                abstract_operations::AbstractOperation::IntegerExactCast { .. }
-                    | abstract_operations::AbstractOperation::IntegerShift {
-                        policy: abstract_operations::IntegerShiftPolicy::Exact { .. },
+                O::IntegerExactCast { .. }
+                    | O::IntegerShift {
+                        policy: IntegerShiftPolicy::Exact { .. },
                         ..
                     }
             ),
@@ -218,30 +215,23 @@ pub(super) fn convergence_measure(
     unit: &PsiOptimizationUnit,
     registry: &OrderedRuleRegistry,
 ) -> u64 {
-    let copy_pass = optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.copy-propagation.v1",
-    );
-    let cfg_pass = optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v13",
-    );
-    let dead_scalar_pass = optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+    let copy_pass =
+        OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.copy-propagation.v1");
+    let cfg_pass =
+        OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.control-flow-cleanup.v13");
+    let dead_scalar_pass = OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.dead-pure-scalar-elimination.v2",
     );
-    let proof_elision_pass = optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.proof-check-elision.v12",
+    let proof_elision_pass =
+        OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.proof-check-elision.v12");
+    let global_value_numbering_pass = OptimizationPassIdentity::from_canonical_bytes(
+        b"omega.psi-pass.global-value-numbering.v14",
     );
-    let global_value_numbering_pass =
-        optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v14",
-        );
     let state_specialization_pass =
-        optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.state-specialization.v1",
-        );
-    let representation_specialization_pass =
-        optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.representation-specialization.v1",
-        );
+        OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.state-specialization.v1");
+    let representation_specialization_pass = OptimizationPassIdentity::from_canonical_bytes(
+        b"omega.psi-pass.representation-specialization.v1",
+    );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
@@ -272,8 +262,7 @@ fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
-                    | abstract_operations::AbstractOperation::StructuralScalarFieldRead { .. }
+                O::StructuralCaseMembership { .. } | O::StructuralScalarFieldRead { .. }
             )
         })
         .count() as u64

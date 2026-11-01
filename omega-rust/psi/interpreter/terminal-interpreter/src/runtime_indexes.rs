@@ -13,7 +13,8 @@
 //! the same retained descriptor association.
 
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeShape,
+    Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    StructuralTypeShape,
 };
 
 use crate::custody::resolve_structural_path_type;
@@ -42,10 +43,7 @@ impl TerminalExecution<'_> {
             }
             let root = projection.root;
             let root_type = self.live_structural_type(root)?;
-            let root_type = if matches!(
-                operation.kind,
-                terminal_psi::OperationKind::ElementViewRead { .. }
-            ) {
+            let root_type = if matches!(operation.kind, OperationKind::ElementViewRead { .. }) {
                 match self.structural_declaration(root_type)?.shape {
                     StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return Err(malformed()),

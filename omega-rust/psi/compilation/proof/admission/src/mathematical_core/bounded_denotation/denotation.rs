@@ -1,5 +1,6 @@
 use super::*;
 use crate::term_matchers::TermMatcher;
+use scheme_dsl::build;
 
 /// Proposition and scalar-term denotation state: the arena the judgment's
 /// terms live in, the declaration signature every constant names, and the
@@ -826,7 +827,7 @@ impl Denotation {
     /// order-relation statement shape, two positions.
     pub(super) fn integer_order_relation(&mut self) -> Result<u32, BoundedDenotationError> {
         let integer = self.integer()?;
-        let ty = scheme_dsl::build(
+        let ty = build(
             &mut self.arena,
             &mut Vec::new(),
             &scheme_dsl::pi(
@@ -969,11 +970,7 @@ impl Denotation {
     {
         self.interned_keyed_assumption(laws, law, |this| {
             let statement = statement(this)?;
-            Ok(scheme_dsl::build(
-                &mut this.arena,
-                &mut Vec::new(),
-                &statement,
-            ))
+            Ok(build(&mut this.arena, &mut Vec::new(), &statement))
         })
     }
 

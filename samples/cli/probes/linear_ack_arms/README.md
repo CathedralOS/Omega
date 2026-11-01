@@ -1,11 +1,11 @@
 # Linear Ack Arms
 
-Compile-scope probe: linear values consumed through `boundary
-requirement` — a named consuming sink with no provider — and
+Compile-scope probe: linear values consumed through a boundary-trait
+requirement — a named consuming sink with no provider — and
 decision-21 branch reconciliation. No standard-library dependency.
 
 - `data Receipt [linear]` — must be consumed exactly once.
-- `boundary requirement Receipt::ack(receipt: Receipt)` — the sink; no
+- `ReceiptAck::ack(receipt: Receipt)` — the sink; no
   provider body needed.
 - Either transition arm may transfer the same linear receipt into a
   consuming state — the arms are alternatives, not sequential copies.

@@ -6,6 +6,7 @@
 
 mod evaluation_error;
 mod evaluator;
+use crate::interpreter::evaluator::filesystem::real::RealFs;
 use crate::{
     BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
     InterpretOutcome, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
@@ -466,15 +467,11 @@ fn interpret_on_current_thread(
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
             evaluator.real_fs = Some(
-                crate::interpreter::evaluator::filesystem::real::RealFs::new(None, None)
-                    .expect("unscoped filesystem has no grant configuration"),
+                RealFs::new(None, None).expect("unscoped filesystem has no grant configuration"),
             );
         }
         FilesystemAccess::RealScoped(grants) => {
-            let filesystem = match crate::interpreter::evaluator::filesystem::real::RealFs::new(
-                Some(grants),
-                None,
-            ) {
+            let filesystem = match RealFs::new(Some(grants), None) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
                     return evaluator.error_outcome(message.to_owned());
@@ -486,21 +483,14 @@ fn interpret_on_current_thread(
             inputs,
             grants,
             sponsor,
-        } => {
-            match crate::interpreter::evaluator::filesystem::real::RealFs::with_captured_inputs(
-                grants, sponsor, inputs,
-            ) {
-                Ok(filesystem) => evaluator.real_fs = Some(filesystem),
-                Err(message) => {
-                    return evaluator.error_outcome(message.to_owned());
-                }
+        } => match RealFs::with_captured_inputs(grants, sponsor, inputs) {
+            Ok(filesystem) => evaluator.real_fs = Some(filesystem),
+            Err(message) => {
+                return evaluator.error_outcome(message.to_owned());
             }
-        }
+        },
         FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-            let filesystem = match crate::interpreter::evaluator::filesystem::real::RealFs::new(
-                Some(grants),
-                Some(sponsor),
-            ) {
+            let filesystem = match RealFs::new(Some(grants), Some(sponsor)) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
                     return evaluator.error_outcome(message.to_owned());

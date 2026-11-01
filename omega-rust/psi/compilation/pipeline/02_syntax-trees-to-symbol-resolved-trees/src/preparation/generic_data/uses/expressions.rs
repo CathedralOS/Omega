@@ -203,7 +203,6 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
                         ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)
                         | ConformanceMember::TraitDefault { machine, .. } => machine,
-                        ConformanceMember::Reference { .. } => continue,
                     };
                     enter_machine(machine);
                 }

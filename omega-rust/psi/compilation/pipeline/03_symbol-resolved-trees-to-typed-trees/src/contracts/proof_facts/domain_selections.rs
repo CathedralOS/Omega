@@ -4,6 +4,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding;
 use symbols::{JoinedPath, SymbolHandle};
+use typed_trees::domain::ProofFact;
 use typed_trees::{
     TypedTrees,
     signature::{SignatureContract, StateParameter},
@@ -20,9 +21,7 @@ pub(crate) fn normalize(
      -> Result<(), Diagnostic> {
         for contract in contracts {
             for handle in contract.facts.handles() {
-                let typed_trees::domain::ProofFact::Membership(membership) =
-                    program.proof_facts.get(handle)
-                else {
+                let ProofFact::Membership(membership) = program.proof_facts.get(handle) else {
                     continue;
                 };
                 if membership.domain_symbol.is_valid() {
@@ -139,9 +138,7 @@ pub(crate) fn normalize(
     }
     program.retain_authored_declaration_selections(selections);
     for (handle, _, symbol) in updates {
-        if let typed_trees::domain::ProofFact::Membership(membership) =
-            program.proof_facts.get_mut(handle)
-        {
+        if let ProofFact::Membership(membership) = program.proof_facts.get_mut(handle) {
             membership.domain_symbol = symbol;
         }
     }

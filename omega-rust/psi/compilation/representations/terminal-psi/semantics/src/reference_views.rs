@@ -5,7 +5,11 @@
 //! primitive views additionally require a total storage interpretation here.
 //! Geometry is not source authority, lifetime or qualification evidence.
 
+use crate::descriptor_results::descriptor_value_access;
 use crate::exactly_one::exactly_one;
+use crate::reference_storage_layout;
+use crate::runtime_structural_path_tip;
+use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 /// Materialize a shared element descriptor without copying its backing.
@@ -33,7 +37,7 @@ pub fn shared_descriptor_copy_matches<'types>(
         // Stored declarations retain their access; canonical descriptors carry
         // it on the result occurrence. Both copy the same shared permission.
         // An affine canonical result remains exclusive and cannot be copied.
-        && crate::descriptor_results::descriptor_value_access(
+        && descriptor_value_access(
             types,
             destination.id,
             destination_multiplicity,
@@ -50,13 +54,10 @@ pub fn descriptor_value_transfer_matches<'types>(
     destination: StructuralTypeId,
     multiplicity: terminal_psi::StructuralMultiplicity,
 ) -> bool {
-    let Some(source_access) =
-        crate::descriptor_results::descriptor_value_access(types.clone(), source, multiplicity)
-    else {
+    let Some(source_access) = descriptor_value_access(types.clone(), source, multiplicity) else {
         return false;
     };
-    crate::descriptor_results::descriptor_value_access(types.clone(), destination, multiplicity)
-        == Some(source_access)
+    descriptor_value_access(types.clone(), destination, multiplicity) == Some(source_access)
         && crate::borrowed_referent_presentation(types, source, destination)
             == Some(crate::BorrowedReferentPresentation::Unchanged)
 }
@@ -263,7 +264,7 @@ pub fn reference_source_storage_path<'types, 'path>(
     path: &'path [terminal_psi::StructuralPathSegment],
 ) -> &'path [terminal_psi::StructuralPathSegment] {
     if let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) = path.split_last()
-        && (crate::runtime_structural_path_tip(types.clone(), root, prefix).is_some_and(|tip| {
+        && (runtime_structural_path_tip(types.clone(), root, prefix).is_some_and(|tip| {
             !matches!(
                 tip.shape,
                 terminal_psi::StructuralTypeShape::Reference { .. }
@@ -310,7 +311,7 @@ pub fn reference_source_projection_compatible<'types>(
         return (source == *referent || target.scalar_restriction.is_none())
             && reference_source_compatible(types, source, reference);
     }
-    if let Some(source) = crate::runtime_structural_path_tip(types.clone(), root, path) {
+    if let Some(source) = runtime_structural_path_tip(types.clone(), root, path) {
         return reference_source_compatible(types, source.id, reference);
     }
     if let Some(source) = crate::primitive_projection_declaration(types.clone(), root, path) {
@@ -369,7 +370,7 @@ pub fn reference_source_projection_accessible<'types>(
         match segment {
             StructuralPathSegment::Referent => {
                 let Some(StructuralTypeShape::Reference { access, .. }) =
-                    crate::runtime_structural_path_tip(types.clone(), root, prefix)
+                    runtime_structural_path_tip(types.clone(), root, prefix)
                         .map(|declaration| &declaration.shape)
                 else {
                     return false;
@@ -383,7 +384,7 @@ pub fn reference_source_projection_accessible<'types>(
                 region_start = position + 1;
             }
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
-                let declaration = crate::runtime_structural_path_tip(types.clone(), root, prefix);
+                let declaration = runtime_structural_path_tip(types.clone(), root, prefix);
                 if let Some(StructuralTypeShape::ElementView { access, .. }) =
                     declaration.map(|row| &row.shape)
                 {
@@ -461,7 +462,7 @@ pub fn descriptor_source_projection_accessible<'types>(
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
         .map_or(0, |position| position + 1);
     if let Some(StructuralTypeShape::ElementView { access, .. }) =
-        crate::runtime_structural_path_tip(types.clone(), root, path).map(|row| &row.shape)
+        runtime_structural_path_tip(types.clone(), root, path).map(|row| &row.shape)
     {
         match access {
             Some(access) if !requested.admits_referent(*access) => return false,
@@ -474,9 +475,7 @@ pub fn descriptor_source_projection_accessible<'types>(
     let carrier = crate::runtime_structural_field(types.clone(), root, path)
         .and_then(|field| field.field_type.byte_sequence_carrier())
         .or_else(|| {
-            crate::runtime_structural_path_tip(types.clone(), root, path).and_then(|row| match row
-                .shape
-            {
+            runtime_structural_path_tip(types.clone(), root, path).and_then(|row| match row.shape {
                 StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
                 _ => None,
             })
@@ -576,12 +575,8 @@ pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarT
         return false;
     }
     match (stored.sign(), logical.sign()) {
-        (semantic_vocabulary::IntegerSign::Signed, semantic_vocabulary::IntegerSign::Unsigned) => {
-            false
-        }
-        (semantic_vocabulary::IntegerSign::Unsigned, semantic_vocabulary::IntegerSign::Signed) => {
-            logical.bits() > stored.bits()
-        }
+        (IntegerSign::Signed, IntegerSign::Unsigned) => false,
+        (IntegerSign::Unsigned, IntegerSign::Signed) => logical.bits() > stored.bits(),
         _ => true,
     }
 }
@@ -628,10 +623,7 @@ pub fn reference_storage_export_byte_width(
     // Closed fixed scalar carriers cover byte-aligned integers through 128
     // bits. Check both signs; signedness is not a physical byte footprint.
     for bits in (8..=128).step_by(8) {
-        for sign in [
-            semantic_vocabulary::IntegerSign::Signed,
-            semantic_vocabulary::IntegerSign::Unsigned,
-        ] {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
             let integer = semantic_vocabulary::IntegerType::new(sign, bits).ok()?;
             if !same_width(ScalarType::Integer(integer)) {
                 return None;
@@ -661,7 +653,7 @@ pub fn reference_storage_source_compatible<'types>(
     };
     let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
         if !integer.is_address() && integer.bits() == 8
-            && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            && integer.sign() == IntegerSign::Unsigned);
     let Some(target) = crate::structural_shape(types.clone(), *referent) else {
         return false;
     };
@@ -682,23 +674,20 @@ pub fn reference_storage_source_compatible<'types>(
             plain_storage(types.clone(), *referent, &mut Vec::new())
                 && (byte_endpoint
                     || plain_storage(types.clone(), source, &mut Vec::new())
-                        && crate::reference_storage_layout(types.clone(), source).is_some_and(
-                            |layout| {
-                                let target_layout =
-                                    crate::reference_storage_layout(types.clone(), *referent);
-                                Some(layout) == target_layout
-                                    || storage_scalars_satisfy(
-                                        types.clone(),
-                                        *referent,
-                                        &mut Vec::new(),
-                                        &is_byte_scalar,
-                                    ) && target_layout.is_some_and(|target| {
-                                        layout.0 == target.0
-                                            && target.1 != 0
-                                            && layout.1 % target.1 == 0
-                                    })
-                            },
-                        ))
+                        && reference_storage_layout(types.clone(), source).is_some_and(|layout| {
+                            let target_layout = reference_storage_layout(types.clone(), *referent);
+                            Some(layout) == target_layout
+                                || storage_scalars_satisfy(
+                                    types.clone(),
+                                    *referent,
+                                    &mut Vec::new(),
+                                    &is_byte_scalar,
+                                ) && target_layout.is_some_and(|target| {
+                                    layout.0 == target.0
+                                        && target.1 != 0
+                                        && layout.1 % target.1 == 0
+                                })
+                        }))
         }
         _ => false,
     }
@@ -719,7 +708,7 @@ fn plain_storage<'types>(
 
 fn is_byte_scalar(scalar: ScalarType) -> bool {
     matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
-        && integer.bits() == 8 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+        && integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned)
 }
 
 // Both ordinary aggregate views and byte observations exclude atomic and

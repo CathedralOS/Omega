@@ -6,7 +6,8 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
-    StatementHandle, StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
+    StatementHandle, StatementNode, TableLocalData, TableTransition, TransitionTargetHandle,
+    TransitionTargetNode,
 };
 use tokens::PunctuationKind;
 
@@ -164,31 +165,27 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     }
 
     for (name, initial_value) in subject_captures {
-        let capture = stmts(syntax_trees).insert(StatementNode::LocalData(
-            syntax_trees::statement::TableLocalData {
-                role: language_core::LocalBindingRole::DispatchSubject,
-                name,
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                initial_value,
-                is_mutable: false,
-                relevance: language_core::BindingRelevance::Relevant,
-            },
-        ));
+        let capture = stmts(syntax_trees).insert(StatementNode::LocalData(TableLocalData {
+            role: language_core::LocalBindingRole::DispatchSubject,
+            name,
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            initial_value,
+            is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }));
         let handle = items(syntax_trees).append_statement_handle(capture);
         statements.push(handle);
     }
 
     for (marker_name, subject_place) in pattern_markers {
-        let marker = stmts(syntax_trees).insert(StatementNode::LocalData(
-            syntax_trees::statement::TableLocalData {
-                role: language_core::LocalBindingRole::ArmPattern,
-                name: syntax_trees::identifier::Identifier::generated(marker_name),
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                initial_value: subject_place,
-                is_mutable: false,
-                relevance: language_core::BindingRelevance::Relevant,
-            },
-        ));
+        let marker = stmts(syntax_trees).insert(StatementNode::LocalData(TableLocalData {
+            role: language_core::LocalBindingRole::ArmPattern,
+            name: syntax_trees::identifier::Identifier::generated(marker_name),
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: subject_place,
+            is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }));
         let handle = items(syntax_trees).append_statement_handle(marker);
         statements.push(handle);
     }

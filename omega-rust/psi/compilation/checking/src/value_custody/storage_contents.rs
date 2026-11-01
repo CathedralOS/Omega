@@ -47,6 +47,9 @@ enum ContentType {
     ConstValue,
     /// An admitted value index is an application operand, never a stored type.
     RuntimeIndex,
+    /// A declared implementation slot retains code/evidence, not storage.
+    /// Complete tuple/region admission is independent of contents checking.
+    ImplementationSelection,
     /// An existing provider handle; borrowing it neither installs a provider
     /// nor authorizes erasure. Shape collection retains that separate receipt.
     Provider,
@@ -59,6 +62,7 @@ impl ContentType {
             | Self::Atomic(_)
             | Self::ConstValue
             | Self::RuntimeIndex
+            | Self::ImplementationSelection
             | Self::View
             | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
@@ -382,6 +386,7 @@ fn resolve_parameter_argument(
         // checks. Contents follow the substituted fields, so this marker
         // cannot supply a field type, extent, loan, or cleanup permission.
         TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
+        TypeParameterKind::Implementation => Some(ContentType::ImplementationSelection),
         TypeParameterKind::Type => resolve(program, reference, arguments, requirement),
         TypeParameterKind::Const { .. }
             if matches!(program.type_reference_table.type_reference(reference),
@@ -410,7 +415,10 @@ fn resolve(
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {
-                return Some(argument);
+                // A code operand may fill another implementation slot, but it
+                // cannot become a field's type, including an erased field.
+                return (!matches!(argument, ContentType::ImplementationSelection))
+                    .then_some(argument);
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
                 let atomic = match program.symbols.builtin_type_atom(*symbol) {
@@ -815,9 +823,10 @@ fn check_contents(
             // A view descriptor is a terminal leaf — the member's custody is
             // the descriptor alone.
             ContentType::View | ContentType::Provider => true,
-            // A const parameter named where a member type belongs is not
-            // storage the classifier understands.
-            ContentType::ConstValue | ContentType::RuntimeIndex => false,
+            // Compile-time/application operands are not a member's storage.
+            ContentType::ConstValue
+            | ContentType::RuntimeIndex
+            | ContentType::ImplementationSelection => false,
             ContentType::Data { .. } => unreachable!(),
         };
     };

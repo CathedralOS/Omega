@@ -1,6 +1,9 @@
 //! Hosted runtime scalar custody replay: selected byte output, hosted read and
 //! write byte roots, and process-exit settlement at native boundaries.
 
+use crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes;
+use crate::object_artifact::replay::instruction_loads::aarch64_replay_stack_load;
+use crate::object_artifact::replay::instruction_loads::x86_replay_rsp_load;
 use calling_conventions::{MachineRegister, ValueLocation, ValueShape};
 use machine_code::{
     BoundaryExecutionRecord, BoundarySettlementRecord, InternalUnitScalarArgumentSourceRecord,
@@ -283,11 +286,7 @@ pub(crate) fn hosted_write_byte_custody_is_exact(
                 && (ordinary_home || inspected_payload)
         }
     };
-    let Some(materialization) =
-        crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-            target, argument, 0,
-        )
-    else {
+    let Some(materialization) = expected_foreign_scalar_argument_bytes(target, argument, 0) else {
         return false;
     };
     let suffix = match target.architecture {
@@ -396,14 +395,7 @@ fn structural_payload_source_is_exact(
     let mut expected = Vec::new();
     match target.architecture {
         Architecture::X86_64 => {
-            if crate::object_artifact::replay::instruction_loads::x86_replay_rsp_load(
-                &mut expected,
-                0,
-                tag_offset,
-                4,
-            )
-            .is_none()
-            {
+            if x86_replay_rsp_load(&mut expected, 0, tag_offset, 4).is_none() {
                 return false;
             }
             expected.push(0x3d);
@@ -422,11 +414,7 @@ fn structural_payload_source_is_exact(
             crate::codec_bytes::push_encoded(&mut expected, displacement.to_le_bytes());
         }
         Architecture::Aarch64 => {
-            let Some(load) =
-                crate::object_artifact::replay::instruction_loads::aarch64_replay_stack_load(
-                    9, tag_offset, 4,
-                )
-            else {
+            let Some(load) = aarch64_replay_stack_load(9, tag_offset, 4) else {
                 return false;
             };
             crate::codec_bytes::push_encoded(&mut expected, load.to_le_bytes());
@@ -463,6 +451,7 @@ mod tests {
         ValueShape, decode_selected_byte_output, hosted_i32_argument,
         hosted_write_byte_custody_is_exact,
     };
+    use crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes;
     use machine_code::{BoundarySettlementRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord};
     use semantic_vocabulary::{BoundaryMachineId, IntegerValue, OperationId, ValueId};
     use target_operations::{
@@ -545,11 +534,7 @@ mod tests {
             Architecture::Aarch64 => MachineRegister::Aarch64X(9),
         };
         let mut argument = hosted_i32_argument(source, register, 0, 0);
-        let materialization =
-            crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-                target, &argument, 0,
-            )
-            .unwrap();
+        let materialization = expected_foreign_scalar_argument_bytes(target, &argument, 0).unwrap();
         argument.byte_count = materialization.len();
         let suffix = match target.architecture {
             Architecture::X86_64 => isa_x86_64::encode_hosted_write_byte_i32_from_r11(),
@@ -655,13 +640,12 @@ mod tests {
         };
         settlement.runtime_scalar_arguments[0].source =
             InternalUnitScalarArgumentSourceRecord::Home(home);
-        let materialization =
-            crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-                target,
-                &settlement.runtime_scalar_arguments[0],
-                0,
-            )
-            .unwrap();
+        let materialization = expected_foreign_scalar_argument_bytes(
+            target,
+            &settlement.runtime_scalar_arguments[0],
+            0,
+        )
+        .unwrap();
         settlement.runtime_scalar_arguments[0].byte_count = materialization.len();
         let mut bytes = materialization;
         bytes.extend_from_slice(&isa_x86_64::encode_hosted_write_byte_i32_from_r11());

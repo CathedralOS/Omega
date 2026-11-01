@@ -1,7 +1,9 @@
 //! Normalize exact toolchain query calls at their authored lexical occurrence.
 //! A shared wrapper body would instead give every query the wrapper's scope.
 
+use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
+use language_semantics::build_requests::is_build_protocol;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
@@ -32,11 +34,7 @@ pub(crate) fn operation(
     };
     let protocol = source.traits.iter().find(|definition| {
         definition.is_boundary
-            && language_semantics::build_requests::is_build_protocol(
-                &source.symbols,
-                definition.symbol,
-                "BuildProductOperations",
-            )
+            && is_build_protocol(&source.symbols, definition.symbol, "BuildProductOperations")
     })?;
     source
         .trait_machine_signatures(protocol.machines)
@@ -73,10 +71,7 @@ pub(crate) fn lower(
     let table = &mut target.expression_table;
     let mut members = Default::default();
     let mut symbols = Default::default();
-    table.push_name_path_member(
-        &mut members,
-        crate::lowerer::name::lower_name(&protocol.name),
-    );
+    table.push_name_path_member(&mut members, lower_name(&protocol.name));
     table.push_name_path_member_symbol(&mut symbols, protocol.symbol);
     let receiver = table.insert(ExpressionNode::Name(TableNamePath::new(
         members,
@@ -96,7 +91,7 @@ pub(crate) fn lower(
         receiver,
         target_symbol: operation.target,
         static_machine_parameter: Default::default(),
-        target: crate::lowerer::name::lower_name(&signature.name),
+        target: lower_name(&signature.name),
         static_requirement_dispatch: None,
         machine_arguments: Box::default(),
         quotient_operation: None,
