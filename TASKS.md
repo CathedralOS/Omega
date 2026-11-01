@@ -197,12 +197,15 @@ retired-syntax deletions to completion.
     60-frame bounds; preserve that sample's existing guards and operation.
     [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
     establishes the nine-place captured-read prerequisite after disjoint writes;
-    full GUI qualification remains open. Mixed-predicate restoration windows
-    must still withhold temporarily false bounds from scalar snapshots:
-    `start = -1; let saved = start;` followed by restoring `start >= 0 && start <= end`
-    must not justify `require_nonnegative(saved)`. Both the fixed `225551dd818`
-    baseline and the captured-read repair currently accept that invalid control;
-    the ordinary arithmetic read query remains to repair.
+    full GUI qualification remains open.
+    [Invariant-window snapshots](samples/cli/facts/invariant_window_snapshot/README.md)
+    retain actual negative scalar values across restoration without importing
+    temporarily false mixed predicates, while preserving established entry
+    snapshots. Nine runnable places and nine false-domain twins cover ordinary
+    read-query availability. Scalar-recast source-domain restoration remains open:
+    a `u32` view of `pair.start` can store `0xFFFFFFFFu32` and leave the mixed
+    parent predicate false while Source checking accepts, on both baseline and
+    repair. Carry that alias write into the parent's restoration obligation.
     [Guarded call entry](samples/cli/facts/guarded_call_entry/README.md) establishes
     fresh referent guards and immutable scalar facts at opaque invocations across
     the nine places, with nine fact-sensitive rejects and stale-storage controls.
@@ -354,9 +357,9 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 65 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 7 facts spell it in all nine places
-    (`generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    Frontier: 64 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 6 facts spell it in all nine places
+    (`generic_calling_policy`,
     `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
     `selected_provider_issuance`,
     `target_layout_derived_constant`,
@@ -862,11 +865,7 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete Windows x86_64 execution for the
-    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md) and
-    [explicit nested representations](samples/cli/facts/c_layout_nested_representation/README.md),
-    plus macOS ARM64 execution for the nested row and remaining schema/case
-    composition support;
+  - Complete remaining schema/case composition support;
     migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring

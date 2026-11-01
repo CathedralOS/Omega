@@ -515,6 +515,24 @@ fail/facts/inline_member_helper_through_parameter_rejected rejected 5259ms expec
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/inline_member_helper_through_target_body_rejected rejected 6205ms expected @12a8c9de0dff
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_call_result_rejected rejected 1476ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: supplied >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_const_name_rejected rejected 1496ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_field_rejected rejected 1385ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: note.value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_local_rejected rejected 1409ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_match_join_rejected rejected 1421ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: selected >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_other_machine_rejected rejected 1431ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_other_state_rejected rejected 1414ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_parameter_rejected rejected 1391ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_target_body_rejected rejected 1304ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
@@ -1433,6 +1451,12 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
+	exact arithmetic in machine `subtract_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/completed_guard_two_call_identities_without_refinement rejected 640ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -6467,6 +6491,15 @@ pass/facts/integer_width_truncation_mask_bound_through_other_machine_exit checke
 pass/facts/integer_width_truncation_mask_bound_through_other_state_exit checked 3605ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_parameter_exit checked 3399ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_target_body_exit checked 4886ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/invariant_window_snapshot_through_call_result_exit checked 2472ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_const_name_exit checked 2472ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_field_exit checked 2523ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_local_exit checked 2523ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_match_join_exit checked 2471ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_other_machine_exit checked 2469ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_other_state_exit checked 2388ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_parameter_exit checked 2384ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_target_body_exit checked 2447ms check-target:macos_arm64 @116224fd5359
 pass/facts/length_through_call_result_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/length_through_const_name_exit checked 3491ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/length_through_field_exit checked 4332ms check-target:macos_arm64 @ccdb99ca2214
@@ -7828,26 +7861,16 @@ pass/facts/nested_three_level_record_field_bound_through_other_machine_exit chec
 pass/facts/nested_three_level_record_field_bound_through_other_state_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_parameter_exit checked 3771ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_target_body_exit checked 3212ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_zero_leaf_array_storage_through_call_result_exit rejected 3815ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_const_name_exit rejected 3470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_field_exit rejected 3858ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_local_exit rejected 3533ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_match_join_exit rejected 3517ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit rejected 3294ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_state_exit rejected 4083ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_parameter_exit rejected 3640ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_target_body_exit rejected 3952ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit rejected 4590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit checked 2782ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit checked 2722ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_field_exit checked 2736ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_local_exit checked 2710ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit checked 3007ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit checked 3031ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit checked 2924ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit checked 2745ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit checked 2804ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit checked 2779ms check-target:macos_arm64 @b59d0f8c2783
 pass/facts/nine_arg_stack_calling_plan_through_call_result_exit checked 3563ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_const_name_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_field_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
@@ -11547,6 +11570,9 @@ pass/proofs/case_call_premises checked 701ms @836691c69aa1
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
 pass/proofs/citation_requires_discharged checked 15694ms @ccdb99ca2214
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 15779ms @ccdb99ca2214
+pass/proofs/completed_guard_converted_snapshot checked 3463ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_private_boolean checked 3022ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_two_call_identities checked 3022ms check-target:macos_arm64 @2cede9e14eca
 pass/proofs/completed_qualified_membership_exit checked 3545ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/completed_store_address_and_result_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/constant_boolean_return_join_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
@@ -11781,8 +11807,7 @@ pass/providers/boundary_req_inherit checked 3350ms @ccdb99ca2214
 pass/providers/boundary_scalar_field_store checked 21385ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/build_product_adapter_frontiers_exit rejected 951ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	anonymous source tests/omega/pass/providers/build_product_adapter_frontiers_exit/support/values.omg belongs to a different reconciled package at Product join
-pass/providers/calling_application_region_scopes_exit rejected 3101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	executed provider choice lost its complete static application
+pass/providers/calling_application_region_scopes_exit checked 4336ms check-target:macos_arm64 @5d84e10310e4+wt
 pass/providers/canonical_inherited_provider_instances_exit checked 3219ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 19831ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
@@ -25712,25 +25737,25 @@ fail/facts/nested_three_level_record_field_bound_through_target_body_rejected re
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 2856ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 1759ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 2802ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 1777ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 3466ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 1692ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 3046ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 1907ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 3209ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 1981ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 3277ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 1717ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 2626ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 1696ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 3320ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 1684ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 3534ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 1723ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 3633ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 1693ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
 fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 17971ms expected @60f7e3cd4ee2+wt
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
