@@ -1541,27 +1541,6 @@ defines the complete product bar.
   only established results travel. No implementation completion is claimed by the
   documentation ratification.
 
-- **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
-  lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
-  04–07` and `Omega 00–09`) under
-  [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_accessor_attachment` in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
-  - Extend native publication in
-    `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
-    and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
-    so direct-entry and subordinate placed-view loans establish, access, and
-    retire with exact original backing and qualifications across Terminal Psi
-    and native execution.
-  Acceptance: `tests/omega/pass/layouts/placed_view_source_access_exit`
-  (upgraded from `_compile`) establishes, accesses, and retires a placed view
-  under `python3 tools/corpus_gate.py --both --filter placed_view_source_access`,
-  and stale/substituted plan, backing, range, rights, occurrence, or overlapping
-  exclusive controls reject.
-
 - **DEVICE-EXTENT-ACCESS.** Execute provider-backed lending, completion, and
   restored CPU access end to end (`Psi 04–07` and `Omega 00–09`) in
   `samples/cli/device/device_extent_access` under
