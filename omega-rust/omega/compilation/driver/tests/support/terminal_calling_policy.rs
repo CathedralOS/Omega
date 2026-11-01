@@ -155,6 +155,7 @@ pub(super) fn observe(
             target,
             signature: &signature,
             account,
+            providers: &[],
         })?;
         let expected_locations = [0, 1].map(|index| ValueLocation::Register {
             register: MachineRegister::Aarch64X(index),
@@ -226,6 +227,7 @@ pub(super) fn observe(
             target,
             signature: &false_signature,
             account,
+            providers: &[],
         })
         .err()
         .ok_or("calling policy accepted a false retained scalar predicate")?;
@@ -257,6 +259,7 @@ pub(super) fn observe(
             target,
             signature: &wrong_class,
             account,
+            providers: &[],
         })
         .err()
         .ok_or("calling policy accepted an integer placement for a float input")?;
@@ -291,6 +294,7 @@ pub(super) fn observe(
                 target: selected_target,
                 signature: &signature,
                 account,
+                providers: &[],
             })
             .err()
             .ok_or_else(|| format!("calling policy accepted {control} control"))?;

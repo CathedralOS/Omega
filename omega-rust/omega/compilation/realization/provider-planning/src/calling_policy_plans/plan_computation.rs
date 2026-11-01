@@ -10,7 +10,6 @@ use crate::calling_policy_plans::callback_bindings::{
     close_callback_materializations, validate_retained_callback_binders,
 };
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
-use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{
     CallingPolicy, ValidatedBoundaryEntryPlan, evaluate_ordinary_boundary_entry_plan,
@@ -79,6 +78,7 @@ pub fn prepare_boundary_calling_plans<'checked>(
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    provider_inputs: super::CallingPolicyProviderInputs<'_>,
 ) -> Result<PreparedBoundaryCallingPlans<'checked>, Vec<Diagnostic>> {
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
@@ -163,6 +163,7 @@ pub fn prepare_boundary_calling_plans<'checked>(
             checked,
             pending,
             target: target_profile,
+            providers: Vec::new(),
         });
     }
     // Complete the native telescope and private destinations before invoking
@@ -208,28 +209,44 @@ pub fn prepare_boundary_calling_plans<'checked>(
                 })
         })
         .collect::<Vec<_>>();
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-        typed,
-        package_inputs.map(|inputs| {
+    let providers = super::selected_providers::prepare(
+        checked,
+        services,
+        target_profile,
+        &pending
+            .iter()
+            .map(|policy| policy.policy_symbol)
+            .collect::<Vec<_>>(),
+        &machine_bodies,
+        &provider_inputs,
+    )?;
+    let admissions = build_time_evaluation::SelectedBuildTimeClosureAdmission {
+        program: checked,
+        selection_authority: package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())
                 as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-    )
-    .with_selected_machine_bodies(typed, &machine_bodies)
+        selections: build_time_evaluation::SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &providers.bodies,
+        },
+        machine_bodies: &machine_bodies,
+    }
+    .admit(pending.iter().map(|policy| {
+        (
+            policy.policy_symbol,
+            build_time_evaluation::BuildTimeInvocationCustody::Source(policy.relationship_span),
+        )
+    }))
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    for policy in &mut pending {
-        policy.admission = admission
-            .admitted_program_machine_closure_symbols(
-                BuildTimeProgram::Checked(checked),
-                policy.policy_symbol,
-                build_time_evaluation::BuildTimeInvocationCustody::Source(policy.relationship_span),
-            )
-            .map(|_closure| ());
+    for (policy, admission) in pending.iter_mut().zip(admissions) {
+        policy.admission = admission.map(|_closure| ());
     }
     Ok(PreparedBoundaryCallingPlans {
         checked,
         pending,
         target: target_profile,
+        providers: providers.declarations,
     })
 }
 
@@ -239,6 +256,7 @@ pub struct PreparedBoundaryCallingPlans<'checked> {
     checked: &'checked checked_trees::CheckedTrees,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
+    providers: Vec<backend_plan::TerminalTargetProviderPlan>,
 }
 
 struct PreparedCallingPolicy {
@@ -288,7 +306,7 @@ impl PreparedBoundaryCallingPlans<'_> {
             code.require_owner(self.checked)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             let validated = code
-                .evaluate(policy_symbol, self.target, &signature)
+                .evaluate(policy_symbol, self.target, &signature, &self.providers)
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(relationship_span)]
                 })?;

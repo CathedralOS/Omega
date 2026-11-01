@@ -910,7 +910,8 @@ impl<'program> CallFrameResolver<'program> {
                     // Flat consumers cannot choose the active payload of an
                     // opaque moved value. Capture-aware consumers use the
                     // transport relation and retain that input identity.
-                    super::ReferenceResultTransport::Value { .. } => None,
+                    super::ReferenceResultTransport::Value { .. }
+                    | super::ReferenceResultTransport::UnresolvedReference { .. } => None,
                 })
                 .collect()
         })

@@ -103,27 +103,17 @@ impl SelectedConstantEvaluation {
             };
             // Select this exact method, not the binding kind of a sibling
             // row in the same boundary-trait plan.
-            if let Some((provider, declaration)) =
-                provider_planning::selected_requirement_checked_adapter(services, plan, requirement)
-                    .map_err(|error| vec![error])?
+            if let Some(body) = provider_planning::prepare_selected_build_time_provider_body(
+                services,
+                target_profile,
+                plan,
+                expression,
+                origin,
+                requirement,
+            )
+            .map_err(|error| vec![error])?
             {
-                selected.provider_bodies.push(
-                    SelectedBuildTimeProviderBody::prepare(
-                        typed,
-                        expression,
-                        origin,
-                        requirement,
-                        provider,
-                        plan.provider_type.clone(),
-                        declaration,
-                        plan.provider_type_package_identity,
-                        target_profile.target_name(),
-                        CheckedProviderPlanCommitment::from_digest(
-                            *plan.identity_digest().as_bytes(),
-                        ),
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                );
+                selected.provider_bodies.push(body);
             } else if derive_selected_primitive_float_binary_execution(typed, plan, requirement)
                 .map_err(|error| vec![error])?
                 .is_some()

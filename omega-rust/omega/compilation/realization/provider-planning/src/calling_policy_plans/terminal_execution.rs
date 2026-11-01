@@ -24,6 +24,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub target: target::TargetProfile,
     pub signature: &'input CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
+    pub providers: &'input [backend_plan::TerminalTargetProviderPlan],
 }
 
 /// Execute the selected callable on the supplied signature, decode its actual
@@ -40,6 +41,7 @@ pub fn evaluate_terminal_calling_policy(
         target,
         signature,
         account,
+        providers,
     } = invocation;
     if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
@@ -53,8 +55,12 @@ pub fn evaluate_terminal_calling_policy(
         .ok_or("calling policy target has no layout facts")?;
     let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
-    let providers = terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
-        .map_err(|error| format!("calling policy providers: {error:?}"))?;
+    let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+        providers.to_vec(),
+        artifact.view(),
+    )?
+    .admit(artifact.view(), target.target_name())
+    .map_err(|error| format!("calling policy providers: {error}"))?;
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {

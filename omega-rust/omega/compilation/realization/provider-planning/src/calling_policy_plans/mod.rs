@@ -29,6 +29,8 @@ mod policy_code;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod selected_providers;
+pub use selected_providers::CallingPolicyProviderInputs;
 mod terminal_execution;
 mod terminal_signature;
 mod terminal_values;

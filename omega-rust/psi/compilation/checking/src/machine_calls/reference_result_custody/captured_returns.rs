@@ -15,6 +15,7 @@
 
 mod descriptor_sources;
 mod incoming_origins;
+mod invocation_descriptors;
 mod invocation_returns;
 mod presence;
 
@@ -307,13 +308,28 @@ impl Captures<'_> {
                             }
                         }
                     }
+                    let capture = self.completed_return_value(
+                        state,
+                        statement_index,
+                        transition_target,
+                        expression,
+                    )?;
+                    if let Some(source) =
+                        self.completed_invocation_descriptor(capture, leaf, active)?
+                    {
+                        let returned = CheckedReturnedReferencePlan {
+                            path: leaf.path.clone(),
+                            source,
+                        };
+                        if !output.contains(&returned) {
+                            output.push(returned);
+                            if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                return None;
+                            }
+                        }
+                        captured = true;
+                    }
                     if !captured {
-                        let capture = self.completed_return_value(
-                            state,
-                            statement_index,
-                            transition_target,
-                            expression,
-                        )?;
                         let present = self.expression_leaf_present(
                             state,
                             statement_index,

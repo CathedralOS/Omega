@@ -39,6 +39,7 @@ impl CallingPolicyCode {
         policy: SymbolHandle,
         target: target::TargetProfile,
         signature: &MaterializedBoundarySignature,
+        providers: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<ValidatedBoundaryEntryPlan, String> {
         let entry = self
             .entries
@@ -72,6 +73,7 @@ impl CallingPolicyCode {
             target,
             signature: &signature,
             account,
+            providers,
         })
         .map(|(plan, _usage)| plan)
     }

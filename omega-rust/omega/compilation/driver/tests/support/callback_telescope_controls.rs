@@ -306,6 +306,7 @@ fn execute_policy(
         target,
         signature,
         account,
+        providers: &[],
     })?;
     if plan != application.plan || fuel.total_units() == 0 {
         return Err(
