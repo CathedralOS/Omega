@@ -116,6 +116,7 @@ impl RetainedProviderSelection {
                 .unwrap_or_default();
             Ok::<_, diagnostics::Diagnostic>(ProviderSelectionIdentity {
                 application,
+                applied: retained.is_some(),
                 application_identity: retained.map(|retained| retained.identity.clone()),
                 symbol,
                 package: program.symbols.symbol_package_identity(symbol),
