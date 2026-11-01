@@ -264,7 +264,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (PSI_FACADE,),
         TERMINAL_STAGES,
-        "stages 05-07 are sequenced only by terminal-production",
+        "stages 06-08 are sequenced only by terminal-production",
         (TERMINAL_PRODUCTION,),
     ),
     (

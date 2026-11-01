@@ -305,7 +305,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
             ("omega-rust/omega/compilation/backend/target", "omega-rust/psi/compilation/representations/checked-trees"),
             ("omega-rust/omega/compilation/representations/target-operations", "omega-rust/psi/interpreter/checked-interpreter"),
             ("omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-             "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"),
+             "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi"),
             ("omega-rust/omega/compilation/backend/layout", "omega-rust/psi/compilation/checking/representation-planning"),
         ):
             with self.subTest(owner=owner):

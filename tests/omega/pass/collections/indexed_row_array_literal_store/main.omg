@@ -2,7 +2,7 @@
 // closed-literal store once per element: the destination's fixed or runtime
 // index segment prefixes the leaf roster's literal indices, and the
 // selector's bound re-proves from the same facts an element store uses.
-// (Promoted: the stage-04 repair this pinned has landed and the fixture
+// (Promoted: the stage-05 repair this pinned has landed and the fixture
 // checks on the release bundle.)
 //
 //   main.grid[0] = [1, 2, 3]     checks (fixed index)

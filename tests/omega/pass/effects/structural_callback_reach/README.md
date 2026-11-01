@@ -31,7 +31,7 @@ the direct const-generic callee regression:
 cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_source service_reach --no-fail-fast --no-tests fail
 ```
 
-Stage 04 decides call custody once with
+Stage 05 decides call custody once with
 `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`;
 ordinary binding and completion belong to
 `05_typed-trees-to-checked-trees/src/execution/terminal_unit/control/statement_sequence.rs`.
