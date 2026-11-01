@@ -427,7 +427,7 @@ fn place(
             segment,
             PathSegment::RuntimeIndex(_)
                 | PathSegment::ComputedIndex(_)
-                | PathSegment::FixedByteRange { .. }
+                | PathSegment::FixedRange { .. }
         )
     }) {
         return None;

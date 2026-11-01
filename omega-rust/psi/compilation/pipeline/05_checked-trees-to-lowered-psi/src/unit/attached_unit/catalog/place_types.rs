@@ -504,8 +504,8 @@ fn collect_path(
                 identity = *type_identity;
                 roots.push(identity);
             }
-            Segment::FixedByteRange { .. } if position + 1 == path.len() => return Ok(()),
-            Segment::FixedByteRange { .. } | Segment::AllElements => {
+            Segment::FixedRange { .. } if position + 1 == path.len() => return Ok(()),
+            Segment::FixedRange { .. } | Segment::AllElements => {
                 return unsupported("operation storage path has a non-addressable segment");
             }
             Segment::Referent => {

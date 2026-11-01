@@ -1561,7 +1561,7 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
                 spelling.push_str(&format!("[{index}]"));
             }
             CheckedUnitStructuralPathSegment::Referent => spelling.push_str(".*"),
-            CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
+            CheckedUnitStructuralPathSegment::FixedRange { start, end } => {
                 spelling.push_str(&format!("[{start}..{end}]"));
             }
             CheckedUnitStructuralPathSegment::ComputedIndex(root) => {

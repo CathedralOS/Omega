@@ -699,7 +699,7 @@ pub fn projection_storage_dependencies<'a>(
     // A terminal byte window uses its backing geometry; it is not an owned
     // child type. Window extent and access admission remain with the consumer.
     let backing = match path.split_last() {
-        Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
+        Some((StructuralPathSegment::FixedRange { .. }, backing)) => backing,
         _ => path,
     };
     let tip = walk_primitive_projection_with_policy(
@@ -737,7 +737,7 @@ fn walk_primitive_projection_with_policy<'a>(
     };
     let mut position = Position::Declared(root);
     let mut payload_fields = None;
-    for segment in path {
+    for (ordinal, segment) in path.iter().enumerate() {
         let declared = match position {
             Position::Declared(root) => Some(root),
             _ => None,
@@ -775,6 +775,29 @@ fn walk_primitive_projection_with_policy<'a>(
             return None;
         };
         let declaration = unique(root)?;
+        if let StructuralPathSegment::FixedRange { start, end } = segment {
+            let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = declaration.shape
+            else {
+                return None;
+            };
+            if payload_fields.is_some()
+                || start > end
+                || *end > length
+                || !matches!(
+                    path.get(ordinal + 1),
+                    Some(StructuralPathSegment::RepresentationView { .. })
+                )
+            {
+                return None;
+            }
+            // The original declaration supplies storage. Only the retained
+            // interpretation can introduce a value namespace after a window.
+            step(None);
+            continue;
+        }
         if let StructuralPathSegment::Case(case) = segment {
             if payload_fields.is_some() {
                 return None;

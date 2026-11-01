@@ -898,7 +898,7 @@ pub(super) fn runtime_storage_projection<'types>(
             // an origin recipe must not replace that physical operand path.
             StructuralPathSegment::RepresentationView { .. }
             | StructuralPathSegment::Referent
-            | StructuralPathSegment::FixedByteRange { .. } => {
+            | StructuralPathSegment::FixedRange { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReference(
                     structural_type,
                 ));

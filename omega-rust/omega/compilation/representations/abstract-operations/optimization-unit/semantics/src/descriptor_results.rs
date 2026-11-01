@@ -871,7 +871,7 @@ fn adapt(
                     // on the derivation; the original operation still supplies
                     // the independently checked array type and range bounds.
                     let (path, mut projection) = match source.path.split_last() {
-                        Some((range @ StructuralPathSegment::FixedByteRange { .. }, path))
+                        Some((range @ StructuralPathSegment::FixedRange { .. }, path))
                             if matches!(operation, O::EstablishElementView { .. }) =>
                         {
                             (path, Some(Projection::new(std::slice::from_ref(range))))
@@ -1831,7 +1831,7 @@ pub(crate) fn element_coordinates_preserved<'a>(
     // Its range stays on the loan projection; only declaration lookup strips
     // that final presentation. Byte coordinates require an exact u8 element.
     let path = match source.path.split_last() {
-        Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => {
+        Some((StructuralPathSegment::FixedRange { .. }, backing)) => {
             if !types.clone().any(|declaration| {
                 declaration.id == element
                     && matches!(declaration.shape,

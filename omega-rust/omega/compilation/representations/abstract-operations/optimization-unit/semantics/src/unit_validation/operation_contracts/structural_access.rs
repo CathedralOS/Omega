@@ -534,7 +534,7 @@ where
                 StructuralPathSegment::AllElements
                 | StructuralPathSegment::Referent
                 | StructuralPathSegment::RepresentationView { .. }
-                | StructuralPathSegment::FixedByteRange { .. } => false,
+                | StructuralPathSegment::FixedRange { .. } => false,
             });
         let path_shape_matches = match projection {
             StructuralProjectionPolicy::Unit => {

@@ -89,9 +89,10 @@ fn call_argument_changes(
                 && result.structural_type == contract.structural_type =>
             {
                 let mut backing = source.path.clone();
-                if let Some(range) = backing.iter().position(|segment| {
-                    matches!(segment, StructuralPathSegment::FixedByteRange { .. })
-                }) {
+                if let Some(range) = backing
+                    .iter()
+                    .position(|segment| matches!(segment, StructuralPathSegment::FixedRange { .. }))
+                {
                     // A view-relative index cannot supply an absolute range offset.
                     backing.truncate(range);
                 } else {
