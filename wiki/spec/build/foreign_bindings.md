@@ -25,7 +25,7 @@ Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
 );
 ```
 
-This is the accepted source contract, not implemented reference-compiler syntax.
+This is the accepted source contract.
 `BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks its
 implementation and migration. The existing source-level `via` clause and the
 bodyless per-symbol realization machine that only forwards to a locator are
@@ -107,11 +107,10 @@ crosses this boundary.
 The sum extends only for a genuinely distinct irreducible binding mechanism.
 It has no generic `Value` or `Instruction` case and no `host:` mini-language.
 
-The reference compiler still accepts a wider legacy source-level vocabulary
-(`ExternalBinding`) through `via` that evaluation resolves:
-`Syscall`, `CompilerIntrinsic`, `VtableField`, `TableFunction`, and
-`VtableSlot` (the parser already rejects newly authored `Binding::VtableSlot`).
-These are migration inputs, not supported alternative source binding forms.
+The wider legacy source-level vocabulary (`ExternalBinding`) resolved through
+`via` — `Syscall`, `CompilerIntrinsic`, `VtableField`, `TableFunction`, and
+`VtableSlot` — is a migration input, not a supported alternative source binding
+form.
 Only `DllImport` and `Syscall` reach the current evaluated `Binding` sum above.
 Retiring `via` does not add table or instruction variants to `ForeignBinding`:
 validated typed table/field mechanisms and the sealed intrinsic catalog retain

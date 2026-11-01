@@ -1,9 +1,13 @@
-//! Normal-call transfer of reference slots. A type supplies the slot inventory;
+//! Normal-call transfer of borrow-carrying slots. Pointer descriptors and
+//! nonspatial protocol debt remain distinct kinds in the same relation.
+//! A type supplies the slot inventory;
 //! the complete body supplies its possible exit contents. Identity rows mean
 //! incoming contents survive that route, not that the carrier is its backing.
 //! Unknown new contents, local backing escapes and recursive summaries fail
 //! closed. Rows retain each slot's declared access alongside provenance;
-//! checked stores still own permission and predicate authority.
+//! checked stores still own permission and predicate authority. A logical
+//! destination carries existing lifetime sources, never an address or fresh
+//! retained-custody issuance. Unknown debt differs from a known empty value.
 //!
 //! Slice inventories retain incoming defaults plus exact slot replacements.
 //! Normal-exit summaries refine those defaults across all reachable exits before
@@ -17,8 +21,8 @@ mod slot_relations;
 use slot_relations::{DestinationInventory, SlotInventory};
 pub(super) use slot_relations::{SlotEffect, SlotRelationTransfer, SlotSource};
 pub use slot_relations::{
-    StoredReferenceCallContext, StoredReferenceCallFailure, StoredReferenceEffect,
-    StoredReferenceRelationRefusal, StoredReferenceSource,
+    StoredReferenceCallContext, StoredReferenceCallFailure, StoredReferenceDestinationKind,
+    StoredReferenceEffect, StoredReferenceRelationRefusal, StoredReferenceSource,
 };
 mod slot_inventory;
 pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
@@ -50,6 +54,7 @@ mod opaque_outputs;
 pub(super) use dynamic_outputs::relative_effects as dynamic_effects;
 pub use invocation_contract::ReferenceSlotContract;
 pub(super) use invocation_contract::invocation_contract;
+pub(super) use opaque_outputs::owner_segments;
 pub(super) mod retention;
 
 use super::caller_aliases::{LocalWriteOrigin, LocalWriteSource};
@@ -269,6 +274,12 @@ fn invocation_reference_effects(
                 target,
                 call_expression,
             );
+        }
+        // A static machine parameter has no body until specialization
+        // selects its actual machine. Each closed instance calls that body
+        // and publishes the concrete relation; the template owes none.
+        if program.machine_parameter_signature(target).is_some() {
+            return Some(SlotRelationTransfer::unknown(context, target, true, false));
         }
         // A missing body cannot summarize a nonempty or symbolic frontier.
         return None;

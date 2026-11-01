@@ -1926,25 +1926,3 @@ fn integer_source_identity(program: &dyn CheckingInput, expression: ExpressionHa
         _ => format!("occurrence:{expression:?}"),
     }
 }
-
-/// Compare already-admitted embedding sources using the same carrier and
-/// exact transient identity as arithmetic normalization. No display label or
-/// bare call spelling can establish equality.
-pub fn integer_embedding_sources_equal(
-    program: &dyn CheckingInput,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
-    let Some(left_carrier) =
-        crate::proof_contracts::proof_embeddings::integer_embedding(program, left)
-    else {
-        return false;
-    };
-    let Some(right_carrier) =
-        crate::proof_contracts::proof_embeddings::integer_embedding(program, right)
-    else {
-        return false;
-    };
-    left_carrier.primitive == right_carrier.primitive
-        && integer_source_identity(program, left) == integer_source_identity(program, right)
-}

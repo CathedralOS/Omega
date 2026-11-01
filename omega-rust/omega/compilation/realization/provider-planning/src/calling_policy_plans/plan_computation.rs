@@ -56,6 +56,7 @@ pub(crate) fn evaluate_default_calling_application(
     let materialized = materialize_prepared_signature(
         services,
         declaration,
+        None,
         &[],
         layout_target,
         opaque_representation_selections,
@@ -125,35 +126,43 @@ pub fn prepare_boundary_calling_plans<'checked>(
                         "calling plan lost its exact prepared signature declaration",
                     )]
                 })?;
-                let boundary_signature = materialize_prepared_signature(
-                    services,
-                    declaration,
-                    calling.bindings(application),
-                    layout::LayoutTarget::for_profile(target_profile)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                    opaque_representation_selections,
-                )
-                .map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!(
-                            "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                            request.name, declaration.method, policy_machine.name,
-                        ))
-                        .with_source_span(request.span),
-                    ]
-                })?;
-                pending.push(PreparedCallingPolicy {
-                    boundary_trait: request.boundary,
-                    boundary_arguments: calling.arguments(instance).to_vec(),
-                    argument_owner: instance.argument_owner,
-                    requirement_machine: declaration.symbol,
-                    policy_machine: policy_machine.name.as_str().to_owned(),
-                    policy_symbol: policy_machine.symbol,
-                    signature: boundary_signature,
-                    callback_context_closed: false,
-                    relationship_span: request.span,
-                    admission: Ok(()),
-                });
+                if let Some(reason) = &application.abi_refusal {
+                    return Err(vec![
+                        Diagnostic::error(reason.clone()).with_source_span(request.span),
+                    ]);
+                }
+                for &abi in &application.abi_signatures {
+                    let boundary_signature = materialize_prepared_signature(
+                        services,
+                        declaration,
+                        Some(abi),
+                        calling.bindings(application),
+                        layout::LayoutTarget::for_profile(target_profile)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                        opaque_representation_selections,
+                    )
+                    .map_err(|reason| {
+                        vec![
+                            Diagnostic::error(format!(
+                                "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                                request.name, declaration.method, policy_machine.name,
+                            ))
+                            .with_source_span(request.span),
+                        ]
+                    })?;
+                    pending.push(PreparedCallingPolicy {
+                        boundary_trait: request.boundary,
+                        boundary_arguments: calling.arguments(instance).to_vec(),
+                        argument_owner: instance.argument_owner,
+                        requirement_machine: declaration.symbol,
+                        policy_machine: policy_machine.name.as_str().to_owned(),
+                        policy_symbol: policy_machine.symbol,
+                        signature: boundary_signature,
+                        callback_context_closed: false,
+                        relationship_span: request.span,
+                        admission: Ok(()),
+                    });
+                }
             }
         }
     }

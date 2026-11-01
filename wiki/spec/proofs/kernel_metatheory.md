@@ -526,7 +526,7 @@ identity. The schemes, theorems and bounded denotation are *data* the kernel
 re-decides; a defect in them surfaces as an ordinary rejection, not a false
 judgment.
 
-The reference core's strict layer is implemented: `sEmpty` with ex
+The reference core's strict layer comprises `sEmpty` with ex
 falso into either sort, `Squash`/`sq`/`unsq` (existence without witness
 extraction; the dependent eliminator is derived through irrelevance,
 not primitive), `Box`/`box`/`unbox` (the converse embedding, whose
@@ -535,10 +535,8 @@ strict-motive non-dependent instance is the plain projection
 sEmpty`. Definitional proof irrelevance is governed by the shared
 type's sort, so `Box`'s relevant payload is precisely where a neutral
 proof stays distinct from a canonical `box`. `core::Squash` from
-[mathematical bindings](mathematical_bindings.md) now has a kernel
-counterpart; what still gates the squash cases of
-`PROOF-CONTRACT-MIGRATION` is the source-side migration, which that
-item owns.
+[mathematical bindings](mathematical_bindings.md) has this kernel
+counterpart.
 
 Not claimed: K/UIP, identity eta, `Two` eta, W eta, function
 extensionality, equality reflection, cumulativity, `imax`, impredicativity.

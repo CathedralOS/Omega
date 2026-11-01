@@ -30,6 +30,8 @@ pub(crate) fn project_checked_calling_policy(
                 && candidate.boundary_arguments == realization.boundary_arguments
                 && candidate.argument_owner() == realization.argument_owner()
                 && candidate.requirement_machine == realization.requirement_machine
+                && candidate.materialized_signature().abi()
+                    == realization.materialized_signature().abi()
         })
         .collect::<Vec<_>>();
     if candidates.is_empty() || candidates.iter().any(|candidate| *candidate != realization) {
@@ -38,6 +40,24 @@ pub(crate) fn project_checked_calling_policy(
         ));
     }
     let materialized = realization.materialized_signature();
+    let census = compilation.typed.boundary_signatures();
+    let source_abi = census
+        .abi_signatures()
+        .iter()
+        .find(|row| row.id == materialized.abi().id())
+        .ok_or_else(|| {
+            super::rejected("calling review lost its source-qualified declaration ABI")
+        })?;
+    let source_key = semantic_vocabulary::CallingAbiIdentity {
+        requirement_identity: source_abi.requirement_identity.clone(),
+        declaring_application: source_abi.declaring_application.clone(),
+        operands: source_abi.operands.clone(),
+    };
+    if &source_key != materialized.abi() {
+        return Err(super::rejected(
+            "calling review changed its complete source declaration ABI key",
+        ));
+    }
     if realization.native_parameters != materialized.native_parameters()
         || realization.callback_binders != materialized.callback_binders()
         || realization.callback_demands != materialized.callback_demands()
@@ -87,6 +107,7 @@ pub(crate) fn project_checked_calling_policy(
     let native_parameters = native::project(materialized, &semantic_parameters, &callbacks)?;
     let opaque_uses = opaque::project(compilation, realization, &validated)?;
     let policy = PackagePolicyCallingPlan {
+        abi: source_key,
         boundary_trait: semantic.boundary_trait,
         boundary_arguments: semantic.boundary_arguments,
         boundary_lifetime_parameter_count: semantic.boundary_lifetime_parameter_count,

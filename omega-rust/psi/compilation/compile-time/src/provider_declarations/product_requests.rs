@@ -98,6 +98,7 @@ fn identities(
         };
         Ok(ProviderSelectionIdentity {
             application,
+            applied: operand.application.is_some(),
             application_identity,
             symbol,
             package: context.typed.symbols.symbol_package_identity(symbol),
@@ -144,6 +145,7 @@ pub fn validate_product_provider_description(
         Ok(ProviderSelectionIdentity {
             symbol,
             application: Default::default(),
+            applied: operand.application.is_some(),
             application_identity: None,
             package: context.typed.symbols.symbol_package_identity(symbol),
             canonical_path: context.typed.symbols.display_path(symbol, "::"),

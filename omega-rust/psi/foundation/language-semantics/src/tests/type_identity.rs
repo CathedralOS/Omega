@@ -47,3 +47,26 @@ fn dynamic_trait_identity_reads_generic_arguments() {
     let malformed = r"dynamic-trait(name(compiler-type\(atom\(u8\)\)),conformance(x))";
     assert!(visit_type_identity_package_owners(malformed, &mut counter).is_err());
 }
+
+/// A const generic parameter renders its argument through the index grammar
+/// (`integer(50)`), not as a type identity. A package review of a signature
+/// returning `ForeignBinding<50, 18, 0>` could not encode its lock otherwise.
+#[test]
+fn generic_identity_reads_const_index_arguments() {
+    let identity = concat!(
+        r"generic(name(nominal\(toolchain-source-owner\(32:",
+        "9ced29a4dddb319ba059ac16618d7e595ebb8d643d3a3b9f51c56245361ce613",
+        r"\)\,path\(ForeignBinding\)\)),integer(50),integer(18),integer(0))",
+    );
+    let mut counter = PackageOwnerCounter { owners: 0 };
+    visit_type_identity_package_owners(identity, &mut counter)
+        .expect("const index arguments complete a generic identity");
+    let mixed = concat!(
+        r"generic(name(compiler-type\(atom\(u8\)\)),",
+        r"named(name(type-parameter:0)),integer(3))",
+    );
+    visit_type_identity_package_owners(mixed, &mut counter)
+        .expect("type and const arguments may share one application");
+    let malformed = r"generic(name(compiler-type\(atom\(u8\)\)),conformance(x))";
+    assert!(visit_type_identity_package_owners(malformed, &mut counter).is_err());
+}

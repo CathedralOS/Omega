@@ -11,6 +11,10 @@ pub struct ProviderSelectionIdentity {
     pub symbol: SymbolHandle,
     /// Arena-local prepared source application. Zero is an unapplied declaration.
     pub application: arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
+    /// The authored operand named a nominal static application. A bare operand
+    /// selects its whole declaration family, so a generic declaration's
+    /// missing identity is a family choice, never a dropped application.
+    pub applied: bool,
     /// Canonical complete application projected by its typing owner. None is a
     /// declaration choice with no Type/Const telescope, never an erased tuple.
     pub application_identity: Option<String>,

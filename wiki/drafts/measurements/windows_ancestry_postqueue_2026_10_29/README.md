@@ -72,8 +72,8 @@ formatting passed. The conditional nine-place, malformed-cache, lookup,
 junction and confirmation checks did not run because the screen gate failed.
 This is a completed screen, not full qualification of the candidate.
 
-[Unrounded timings, resources and decision](summary.json) and
-[source, build, qualification receipt and raw observations](evidence.json.gz)
+[Unrounded timings, resources and decision](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_ancestry_postqueue_2026_10_29/summary.json) and
+[source, build, qualification receipt and raw observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_ancestry_postqueue_2026_10_29/evidence.json.gz)
 retain the exact candidate and all evidence. Restore its four Rust files to
 the pre-experiment checkpoint and park this unpublished mechanism. The next
 question is the complete invocation's remaining setup/unattributed cost,

@@ -105,37 +105,27 @@ fn project_inner(
     let calling = if generic_declaration {
         // A declaration publishes its open telescope. It has no supplying
         // conformance and cannot borrow a concrete application's calling plan.
-        if service_schema
-            .calling_plan(method.requirement_identity)
-            .map(|plan| plan.report_fingerprint)
-            .is_some()
-            || service_schema
-                .calling_plan(method.requirement_identity)
-                .map(|plan| plan.commitment)
-                .is_some()
+        if !service_schema
+            .calling_for_requirement(method.requirement_identity)
+            .is_empty()
         {
             return Err(rejected(
                 "uninstantiated generic service carries a closed calling application",
             ));
         }
-        None
+        Vec::new()
     } else {
         calling::project(
             projection,
             schema,
             provider_type,
             requirement,
-            service_schema.calling_plan(method.requirement_identity),
+            service_schema,
+            method.requirement_identity,
         )?
     };
     let signature = if declaration_mode {
-        signature::project_declaration(
-            projection,
-            schema.symbol(),
-            requirement,
-            &identity,
-            calling.as_ref(),
-        )?
+        signature::project_declaration(projection, schema.symbol(), requirement, &identity, None)?
     } else {
         signature::project(
             projection,
@@ -143,7 +133,7 @@ fn project_inner(
             provider_type,
             requirement,
             &identity,
-            calling.as_ref(),
+            None,
         )?
     };
     // Declaration and operator policies retain typed binder coordinates rather

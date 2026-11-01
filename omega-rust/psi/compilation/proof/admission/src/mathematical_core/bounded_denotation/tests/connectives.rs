@@ -431,7 +431,7 @@ fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
             let term = if disjunctive {
                 denotation.disjunction(parts)
             } else {
-                denotation.conjunction(parts)
+                denotation.denote(&proposition)
             }.expect("every ordered member denotes");
             eprintln!("denotation complete; begin independent kernel formation");
             let Term::Sort(expected_sort) = denotation.arena.get(denotation.type_zero) else {
@@ -472,7 +472,7 @@ fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
             let invalid = if disjunctive {
                 denotation.disjunction(&[fresh])
             } else {
-                denotation.conjunction(&[fresh])
+                denotation.denote(&Proposition::Conjunction(vec![fresh]))
             };
             let expected = if disjunctive { "disjunction arity" } else { "conjunction arity" };
             assert!(matches!(invalid, Err(BoundedDenotationError::Certificate(ProofError::RuleConclusionMismatch(actual))) if actual == expected));
@@ -494,7 +494,7 @@ fn connective_denotation_preserves_member_failure_and_declaration_order() {
         let observed = if disjunctive {
             denotation.disjunction(&members)
         } else {
-            denotation.conjunction(&members)
+            denotation.denote(&Proposition::Conjunction(members.to_vec()))
         };
         assert!(matches!(
             observed,
@@ -502,8 +502,8 @@ fn connective_denotation_preserves_member_failure_and_declaration_order() {
                 ProofError::RuleConclusionMismatch("conjunction arity")
             ))
         ));
-        assert!(denotation.denotations.contains_key(&first));
-        assert!(!denotation.denotations.contains_key(&last));
+        assert!(denotation.denotations.cached_atom(&first).is_some());
+        assert!(denotation.denotations.cached_atom(&last).is_none());
         assert_eq!(
             denotation.declarations.len(),
             1,
@@ -760,5 +760,394 @@ fn repeated_disjunction_tags_preserve_the_exact_selected_member() {
         assert_eq!(denoted.assumptions[0].proposition, assumptions[0]);
         verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
             .expect("the full tagged proof checks against the original disjunction");
+    }
+}
+
+#[test]
+fn deep_closed_inhabitants_use_default_stack_and_refuse_false_tail() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        // The deep row isolates construction and traverses every returned pair.
+        // Kernel-check a bounded row of the same construction: checking the
+        // full 8192-member Sigma separately used over 14 GiB in the unchanged
+        // checker, beyond what this constructor regression needs.
+        for (depth, valid) in [(8192, false), (8192, true), (64, true)] {
+            let mut denotation = Denotation::new();
+            let truth = denotation.denote(&Proposition::Truth).unwrap();
+            let mut goal = if valid {
+                truth
+            } else {
+                denotation.denote(&Proposition::Falsehood).unwrap()
+            };
+            for _ in 0..depth {
+                goal = denotation.arena.insert(Term::Sigma {
+                    domain: truth,
+                    codomain: goal,
+                });
+            }
+            infer_sort(
+                &mut denotation.arena,
+                &Context::empty(),
+                goal,
+                &mut Budget::new(2_000_000),
+            )
+            .expect("the complete independently formed goal");
+            eprintln!("{depth}-node Sigma goal formed; begin closed inhabitant valid={valid}");
+            let evidence = denotation.closed_inhabitant(goal).unwrap();
+            eprintln!("closed inhabitant returned valid={valid}");
+            if valid {
+                let mut evidence = evidence.expect("every closed true conjunct is inhabited");
+                if depth == 64 {
+                    let certificate = crate::MathematicalCertificate::with_signature(
+                        denotation.declarations.clone(),
+                        Vec::new(),
+                        evidence,
+                        goal,
+                    );
+                    verify_mathematical_certificate(
+                        &mut denotation.arena,
+                        &certificate,
+                        &mut Budget::new(2_000_000),
+                    )
+                    .expect("independent kernel checks the entire bounded control");
+                }
+                for _ in 0..depth {
+                    let Term::Pair { first, second } = denotation.arena.get(evidence) else {
+                        panic!("one evidence pair per Sigma member");
+                    };
+                    let Term::Refl { ty, value } = denotation.arena.get(first) else {
+                        panic!("every closed Truth member retains reflexive evidence");
+                    };
+                    assert_eq!(ty, denotation.two);
+                    assert_eq!(value, denotation.two_zero);
+                    evidence = second;
+                }
+                assert!(matches!(denotation.arena.get(evidence), Term::Refl { .. }));
+            } else {
+                assert!(
+                    evidence.is_none(),
+                    "the final false conjunct has no inhabitant"
+                );
+            }
+            assert!(
+                denotation.declarations.is_empty(),
+                "no opaque axiom closes the goal"
+            );
+        }
+    })
+    .join()
+    .expect("closed inhabitant construction stays on a default stack");
+}
+
+#[test]
+fn closed_inhabitants_keep_tag_preference_and_dependent_refusals() {
+    use super::super::Denotation;
+    let mut d = Denotation::new();
+    let truth = d.denote(&Proposition::Truth).unwrap();
+    let falsehood = d.denote(&Proposition::Falsehood).unwrap();
+    let bound = d.arena.insert(Term::Variable(0));
+    let dependent = d.arena.insert(Term::Id {
+        ty: d.two,
+        left: bound,
+        right: bound,
+    });
+    for (zero, one, expected) in [
+        (truth, truth, Some(false)),
+        (falsehood, truth, Some(true)),
+        (falsehood, falsehood, None),
+        (dependent, truth, Some(true)),
+        (truth, dependent, Some(false)),
+        (dependent, dependent, None),
+    ] {
+        let goal = d.tagged_sum(zero, one);
+        crate::mathematical_core::infer_sort(
+            &mut d.arena,
+            &crate::mathematical_core::Context::empty(),
+            goal,
+            &mut budget(),
+        )
+        .expect("each independent or dependent branch type forms under its tag binder");
+        let value = d.closed_inhabitant(goal).unwrap();
+        match expected {
+            Some(one) => {
+                let term = value.expect("an independent branch has a closed witness");
+                let Term::Pair { first, .. } = d.arena.get(term) else {
+                    panic!("sum witness retains a tag");
+                };
+                assert_eq!(matches!(d.arena.get(first), Term::TwoOne), one);
+                let certificate = crate::MathematicalCertificate::closed(Vec::new(), term, goal);
+                verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget())
+                    .expect("selected payload checks against the original sum type");
+            }
+            None => assert!(
+                value.is_none(),
+                "false or dependent branches are not closed by this producer"
+            ),
+        }
+    }
+    for goal in [
+        d.arena.insert(Term::Pi {
+            domain: d.two,
+            codomain: dependent,
+        }),
+        d.arena.insert(Term::Sigma {
+            domain: d.two,
+            codomain: dependent,
+        }),
+    ] {
+        assert!(
+            d.closed_inhabitant(goal).unwrap().is_none(),
+            "genuinely dependent families keep their fallback"
+        );
+    }
+    let goal = d.arena.insert(Term::Pi {
+        domain: d.two,
+        codomain: truth,
+    });
+    let term = d
+        .closed_inhabitant(goal)
+        .unwrap()
+        .expect("nondependent function abstracts a closed body");
+    let certificate = crate::MathematicalCertificate::closed(Vec::new(), term, goal);
+    verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget()).unwrap();
+    assert!(d.declarations.is_empty());
+}
+
+#[test]
+fn free_variable_scan_preserves_binder_indices_and_overflow() {
+    use super::super::Denotation;
+    let mut d = Denotation::new();
+    let bound = d.arena.insert(Term::Variable(0));
+    let ambient = d.arena.insert(Term::Variable(1));
+    let largest = d.arena.insert(Term::Variable(u32::MAX));
+    for binder in [
+        Term::Lambda {
+            domain: d.two,
+            body: bound,
+        },
+        Term::Pi {
+            domain: d.two,
+            codomain: bound,
+        },
+        Term::Sigma {
+            domain: d.two,
+            codomain: bound,
+        },
+    ] {
+        let term = d.arena.insert(binder);
+        assert!(
+            !d.occurs_free(term, 0),
+            "the innermost variable is locally bound"
+        );
+    }
+    for binder in [
+        Term::Lambda {
+            domain: d.two,
+            body: ambient,
+        },
+        Term::Pi {
+            domain: d.two,
+            codomain: ambient,
+        },
+        Term::Sigma {
+            domain: d.two,
+            codomain: ambient,
+        },
+    ] {
+        let term = d.arena.insert(binder);
+        assert!(
+            d.occurs_free(term, 0),
+            "an outer variable survives one binder"
+        );
+    }
+    let term = d.arena.insert(Term::Lambda {
+        domain: bound,
+        body: d.two,
+    });
+    assert!(d.occurs_free(term, 0), "the domain is outside the binder");
+    let term = d.arena.insert(Term::Lambda {
+        domain: d.two,
+        body: largest,
+    });
+    assert!(
+        !d.occurs_free(term, u32::MAX),
+        "overflowing body indices stay ineligible"
+    );
+    let term = d.arena.insert(Term::Lambda {
+        domain: largest,
+        body: d.two,
+    });
+    assert!(
+        d.occurs_free(term, u32::MAX),
+        "overflow does not skip the unshifted domain"
+    );
+}
+
+#[test]
+fn nested_logical_denotation_and_exact_cache_identity_use_default_stack() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        fn nested(last: Proposition) -> Proposition {
+            let mut proposition = last;
+            for depth in 0..8192 {
+                proposition = match depth % 3 {
+                    0 => Proposition::Implication {
+                        premise: Box::new(Proposition::Truth),
+                        conclusion: Box::new(proposition),
+                    },
+                    1 => Proposition::Conjunction(vec![Proposition::Truth, proposition]),
+                    _ => Proposition::Disjunction(vec![Proposition::Falsehood, proposition]),
+                };
+            }
+            proposition
+        }
+        let proposition = nested(Proposition::Truth);
+        PropositionContext::default()
+            .validate(&proposition)
+            .expect("the whole logical proposition is admitted");
+        eprintln!("8192 logical nodes admitted; begin denotation");
+        let mut d = Denotation::new();
+        let term = d
+            .denote(&proposition)
+            .expect("the complete logical tree denotes");
+        eprintln!("logical denotation returned; begin formation and exact cache checks");
+        infer_sort(
+            &mut d.arena,
+            &Context::empty(),
+            term,
+            &mut Budget::new(2_000_000),
+        )
+        .expect("the complete denoted logical type independently forms");
+        let duplicate = nested(Proposition::Truth);
+        let allocated = d.arena.len();
+        assert_eq!(
+            d.denote(&duplicate).unwrap(),
+            term,
+            "equal syntax in distinct source storage reuses only its own denotation"
+        );
+        assert_eq!(
+            d.arena.len(),
+            allocated,
+            "a cache hit does not repeat term publication"
+        );
+        let different = nested(Proposition::Falsehood);
+        let changed = d.denote(&different).unwrap();
+        assert_ne!(
+            changed, term,
+            "one changed leaf cannot reuse the old complete result"
+        );
+        assert!(
+            d.declarations.is_empty(),
+            "logical structure adds no assumption authority"
+        );
+        eprintln!("exact cache checks returned; begin ordinary owned teardown");
+    })
+    .join()
+    .expect("logical denotation, cache and owned teardown stay on a default stack");
+}
+
+#[test]
+fn logical_cache_keeps_exact_syntax_when_leaf_denotations_agree() {
+    use super::super::Denotation;
+    let fixed = Proposition::Equal(literal(2), literal(2));
+    let lifted = crate::lift_fixed_integer_relation(&fixed)
+        .expect("fixed integer equality has its mathematical spelling");
+    let first = Proposition::Implication {
+        premise: Box::new(fixed),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let second = Proposition::Implication {
+        premise: Box::new(lifted),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let mut d = Denotation::new();
+    let left = d.denote(&first).unwrap();
+    let right = d.denote(&second).unwrap();
+    assert_ne!(
+        left, right,
+        "different source syntax keeps distinct complete cache entries"
+    );
+    let Term::Pi {
+        domain: left_domain,
+        codomain: left_body,
+    } = d.arena.get(left)
+    else {
+        panic!("the first implication denotes Pi");
+    };
+    let Term::Pi {
+        domain: right_domain,
+        codomain: right_body,
+    } = d.arena.get(right)
+    else {
+        panic!("the second implication denotes Pi");
+    };
+    assert_eq!(
+        left_domain, right_domain,
+        "the leaves have the same denotation despite different syntax"
+    );
+    assert_eq!(left_body, right_body);
+    for term in [left, right] {
+        let certificate = crate::MathematicalCertificate::with_signature(
+            d.declarations.clone(),
+            Vec::new(),
+            term,
+            d.type_zero,
+        );
+        verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget()).unwrap();
+    }
+    let allocated = d.arena.len();
+    assert_eq!(d.denote(&first).unwrap(), left);
+    assert_eq!(d.denote(&second).unwrap(), right);
+    assert_eq!(d.arena.len(), allocated);
+}
+
+#[test]
+fn logical_cache_preserves_arity_and_first_failure_effects() {
+    use super::super::Denotation;
+    for proposition in [
+        Proposition::Conjunction(Vec::new()),
+        Proposition::Conjunction(vec![atom(900)]),
+        Proposition::Disjunction(Vec::new()),
+        Proposition::Disjunction(vec![atom(900)]),
+    ] {
+        let mut d = Denotation::new();
+        let allocated = d.arena.len();
+        assert!(d.denote(&proposition).is_err());
+        assert_eq!(
+            d.arena.len(),
+            allocated,
+            "invalid arity refuses before any member term"
+        );
+        assert!(d.declarations.is_empty());
+    }
+    for disjunctive in [false, true] {
+        let first = atom(901);
+        let untouched = atom(902);
+        let invalid_member = atom(903);
+        let invalid = Proposition::Disjunction(vec![invalid_member.clone()]);
+        let members = vec![first.clone(), invalid, untouched.clone()];
+        let proposition = if disjunctive {
+            Proposition::Disjunction(members)
+        } else {
+            Proposition::Conjunction(members)
+        };
+        let mut d = Denotation::new();
+        assert!(d.denote(&proposition).is_err());
+        assert_eq!(
+            d.declarations.len(),
+            1,
+            "only the first completed atomic member declares"
+        );
+        assert!(d.denotations.cached_atom(&first).is_some());
+        assert!(
+            d.denotations.cached_atom(&untouched).is_none(),
+            "preparing syntax never publishes a later member"
+        );
+        assert!(
+            d.denotations.cached_atom(&invalid_member).is_none(),
+            "bad arity does not inspect its own members"
+        );
     }
 }

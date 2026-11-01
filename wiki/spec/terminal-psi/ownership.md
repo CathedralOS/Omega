@@ -168,9 +168,6 @@ viewed collection; the displaced value carries the element type's own
 multiplicity, so an affine element is disposed before an occupied store and a
 moved-out element is repaired without disposal. A whole-collection view of
 visible owned or borrowed storage instead names that storage's own path.
-`omega run --both tests/omega/pass/ownership/runtime_view_parameter_element_window_exit/main.omg`
-replaces copy and affine elements through view parameters, a forwarded state
-parameter and a subslice, and exits 0 in both engines on macOS ARM64.
 
 Replay checks reads, calls, joins, loan restoration, and exits against the exact
 frontier. Reject missing repair on a returning path, duplicate extraction,

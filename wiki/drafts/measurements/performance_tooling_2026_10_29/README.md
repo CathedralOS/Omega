@@ -17,7 +17,7 @@ Fixed implementation base: `0add3ad35224b3b037f3952d652453236310673c`.
 Branch: `codex/performance-tooling`.
 Host: Windows x86_64, shared with other work; no contention isolation.
 Toolchain: `rustc 1.100.0-nightly (a69a63265 2026-09-03)`.
-[Source identities](source-identities.json) bind the final Rust, configuration,
+[Source identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/source-identities.json) bind the final Rust, configuration,
 plans, Cargo files, and guide. Each journal independently binds its actual
 runner, subject binaries, plan, and declared source/library inputs.
 
@@ -56,8 +56,8 @@ oracle/timeout/overflow reason, rather than accepting any nonzero harness exit.
 
 ## Executable observations
 
-- [Compiler A/A journal](compiler-aa/journal.jsonl) and
-  [report](compiler-aa/report.json): one warmup per role and two measured pairs
+- [Compiler A/A journal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/compiler-aa/journal.jsonl) and
+  [report](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/compiler-aa/report.json): one warmup per role and two measured pairs
   on `samples/cli/facts/length/local/main.omg`. All six images have SHA-256
   `fcd8851bc939f80fbbf33fc476299334f5999603647fec53e4c668860a9ea016`;
   all six executed with exit 0 and empty stdout/stderr. This is a positive
@@ -69,14 +69,14 @@ oracle/timeout/overflow reason, rather than accepting any nonzero harness exit.
   source revision is therefore not inferred from the working checkout or the
   directory from which it was copied. The positive result establishes that
   retained binary's behavior on these exact inputs, not a freshly built main.
-- [Runtime A/A journal](runtime-aa/journal.jsonl) and
-  [report](runtime-aa/report.json): one warmup per role and twelve measured
+- [Runtime A/A journal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/runtime-aa/journal.jsonl) and
+  [report](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/runtime-aa/report.json): one warmup per role and twelve measured
   pairs of the checked wrapping-square-sum fixture. Every observation agreed
   on one million work units and checksum `333332833333500017`. The within-run
   interval crosses zero. This is a Rust instrument fixture, not generated Omega
   code or evidence of a runtime optimization.
-- [Older-producer refusal](old-producer-refusal/journal.jsonl) retains a real
-  compiler exit 1 and the [syntax diagnostic](old-producer-refusal/compiler.stderr).
+- [Older-producer refusal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/old-producer-refusal/journal.jsonl) retains a real
+  compiler exit 1 and the [syntax diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_2026_10_29/old-producer-refusal/compiler.stderr).
   Binary `76c1a318b806fa4eaf2390b10b5f829426fe3a923d5b399f90b5508cb6b2cd6c`
   did not accept the nested-machine sample. No success report was written.
   The source/oracle was preserved and a compatible retained producer supplied

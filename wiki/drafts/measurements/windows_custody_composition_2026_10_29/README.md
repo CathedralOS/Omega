@@ -101,8 +101,8 @@ no input invalidations. Its verified receipt SHA256 is
 `81ba58e71fad4b7d7d44518524cc0d64db2c3fc1638302a48f4b0d12fe7f2990`.
 All 658 captured-output digests matched before the result archive was created.
 
-[Unrounded timings, controls, resources and acceptance calculation](summary.json)
-and [697 source/build/receipt/raw evidence records and exact combined patch](evidence.json.gz)
+[Unrounded timings, controls, resources and acceptance calculation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_composition_2026_10_29/summary.json)
+and [697 source/build/receipt/raw evidence records and exact combined patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_composition_2026_10_29/evidence.json.gz)
 retain the complete experiment. New claim `ac740a390e314f57afb67870454d5d2c`
 registered successfully and released the completed attribution claim; preceding
 uncertain sibling registration was confirmed absent before this claim.

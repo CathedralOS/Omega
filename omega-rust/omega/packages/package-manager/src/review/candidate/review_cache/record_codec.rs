@@ -35,7 +35,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 15;
+const RECORD_VERSION: u16 = 16;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -251,7 +251,7 @@ fn recover_predicate_presence(
 fn encode_service_method(
     method: &ServiceMethod,
     identities: &ProviderIdentityTable,
-    calling: Option<&ServiceCallingPlan>,
+    calling: Vec<&ServiceCallingApplication>,
     out: &mut Vec<u8>,
 ) {
     encode_string(&method.name, out);
@@ -325,22 +325,63 @@ fn encode_service_method(
             encode_string(identities.text(route.requirement_identity), out);
         }
     }
-    encode_optional(
-        calling.map(|plan| plan.report_fingerprint).as_ref(),
-        out,
-        |value, out| push_encoded(out, value.to_le_bytes()),
-    );
-    encode_optional(
-        calling.map(|plan| plan.commitment).as_ref(),
-        out,
-        |commitment, out| push_framed(out, &commitment.as_bytes()),
-    );
+    push_count_u64(out, calling.len());
+    for application in calling {
+        encode_calling_abi(&application.abi, out);
+        push_encoded(out, application.plan.report_fingerprint.to_le_bytes());
+        push_framed(out, &application.plan.commitment.as_bytes());
+    }
+}
+
+fn encode_calling_abi(abi: &semantic_vocabulary::CallingAbiIdentity, out: &mut Vec<u8>) {
+    push_encoded(out, abi.id().get().to_le_bytes());
+    encode_string(&abi.requirement_identity, out);
+    encode_string(&abi.declaring_application, out);
+    push_count_u64(out, abi.operands.len());
+    for operand in &abi.operands {
+        push_encoded(out, operand.ordinal.to_le_bytes());
+        out.push(operand.kind as u8);
+        encode_string(&operand.identity, out);
+    }
+}
+
+fn recover_calling_abi(
+    cursor: &mut ObservationCursor<'_>,
+) -> Option<semantic_vocabulary::CallingAbiIdentity> {
+    use semantic_vocabulary::CallingOperandKind;
+    let coordinate = cursor.u64()?;
+    let abi = semantic_vocabulary::CallingAbiIdentity {
+        requirement_identity: cursor_string(cursor)?.to_owned(),
+        declaring_application: cursor_string(cursor)?.to_owned(),
+        operands: cursor_vec(cursor, |cursor| {
+            let ordinal = cursor.u32()?;
+            let kind = match cursor.u8()? {
+                0 => CallingOperandKind::Type,
+                1 => CallingOperandKind::Const,
+                2 => CallingOperandKind::Value,
+                3 => CallingOperandKind::Machine,
+                4 => CallingOperandKind::Implementation,
+                5 => CallingOperandKind::Proposition,
+                _ => return None,
+            };
+            Some(semantic_vocabulary::CallingStaticOperand {
+                ordinal,
+                kind,
+                identity: cursor_string(cursor)?.to_owned(),
+            })
+        })?,
+    };
+    abi.validate().ok()?;
+    (abi.id().get() == coordinate).then_some(abi)
 }
 
 fn recover_service_method(
     cursor: &mut ObservationCursor<'_>,
     identities: &mut ProviderIdentityTable,
-) -> Option<(ServiceMethod, Option<ServiceCallingPlan>)> {
+) -> Option<(
+    ServiceMethod,
+    Vec<(semantic_vocabulary::CallingAbiIdentity, ServiceCallingPlan)>,
+)> {
     let name = cursor_string(cursor)?.to_owned();
     let requirement_owner = cursor_string(cursor)?.to_owned();
     let requirement_owner_package_identity = recover_optional(cursor, recover_identity)?;
@@ -418,22 +459,17 @@ fn recover_service_method(
             establishment_routes,
         })
     })?;
-    let calling_plan_report_fingerprint = recover_optional(cursor, |cursor| {
-        Some(u64::from_le_bytes(cursor.bytes(8)?.try_into().ok()?))
-    })?;
-    let calling_plan_commitment = recover_optional(cursor, |cursor| {
-        Some(BoundaryCallingPlanCommitment::from_digest(
-            cursor.framed()?.try_into().ok()?,
+    let calling = cursor_vec(cursor, |cursor| {
+        Some((
+            recover_calling_abi(cursor)?,
+            ServiceCallingPlan {
+                report_fingerprint: cursor.u64()?,
+                commitment: BoundaryCallingPlanCommitment::from_digest(
+                    cursor.framed()?.try_into().ok()?,
+                ),
+            },
         ))
     })?;
-    let calling = match (calling_plan_report_fingerprint, calling_plan_commitment) {
-        (Some(report_fingerprint), Some(commitment)) => Some(ServiceCallingPlan {
-            report_fingerprint,
-            commitment,
-        }),
-        (None, None) => None,
-        _ => return None,
-    };
     Some((
         ServiceMethod {
             completion,
@@ -489,7 +525,7 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
         encode_service_method(
             method,
             &schema.declaration.identities,
-            schema.calling_plan(method.requirement_identity),
+            schema.calling_for_requirement(method.requirement_identity),
             out,
         );
     }
@@ -533,9 +569,10 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
         })?,
         methods: cursor_vec(cursor, |cursor| {
             let (method, calling) = recover_service_method(cursor, &mut identities)?;
-            if let Some(plan) = calling {
+            for (abi, plan) in calling {
                 calling_applications.push(ServiceCallingApplication {
                     requirement: method.requirement_identity,
+                    abi,
                     plan,
                 });
             }
@@ -1044,44 +1081,44 @@ mod tests {
             "a decoded record must re-encode to identical bytes"
         );
 
-        // The final two fields remain the historical independent option tags,
-        // even though one paired attachment now owns their in-memory meaning.
-        assert!(encoded.ends_with(&[0, 0]));
-        let prefix = &encoded[..encoded.len() - 2];
         let calling = ServiceCallingPlan {
             report_fingerprint: 73,
             commitment: BoundaryCallingPlanCommitment::from_digest([19; 32]),
         };
-        let mut expected = prefix.to_vec();
-        expected.push(1);
-        crate::codec_bytes::push_encoded(&mut expected, calling.report_fingerprint.to_le_bytes());
-        expected.push(1);
-        push_framed(&mut expected, &calling.commitment.as_bytes());
         let mut attached = schema.clone();
-        attached
-            .calling_applications
-            .push(ServiceCallingApplication {
-                requirement: requirement_identity,
-                plan: calling,
-            });
+        for actual in ["u32", "u64"] {
+            attached
+                .calling_applications
+                .push(ServiceCallingApplication {
+                    requirement: requirement_identity,
+                    abi: semantic_vocabulary::CallingAbiIdentity {
+                        requirement_identity: "omega.test.Trait.method".into(),
+                        declaring_application: "omega.test.Trait".into(),
+                        operands: vec![semantic_vocabulary::CallingStaticOperand {
+                            ordinal: 0,
+                            kind: semantic_vocabulary::CallingOperandKind::Type,
+                            identity: actual.into(),
+                        }],
+                    },
+                    plan: calling,
+                });
+        }
         let mut encoded_attachment = Vec::new();
         encode_service_schema(&attached, &mut encoded_attachment);
-        assert_eq!(encoded_attachment, expected);
-        let recovered = recover_service_schema(&mut ObservationCursor::new(&expected))
+        let recovered = recover_service_schema(&mut ObservationCursor::new(&encoded_attachment))
             .expect("complete calling attachment decodes");
         assert_eq!(recovered, attached);
         let mut reencoded_attachment = Vec::new();
         encode_service_schema(&recovered, &mut reencoded_attachment);
-        assert_eq!(reencoded_attachment, expected);
-
-        let mut fingerprint_only = prefix.to_vec();
-        fingerprint_only.push(1);
-        crate::codec_bytes::push_encoded(&mut fingerprint_only, 73u64.to_le_bytes());
-        fingerprint_only.push(0);
-        assert!(recover_service_schema(&mut ObservationCursor::new(&fingerprint_only)).is_none());
-        let mut commitment_only = prefix.to_vec();
-        commitment_only.extend_from_slice(&[0, 1]);
-        push_framed(&mut commitment_only, &calling.commitment.as_bytes());
-        assert!(recover_service_schema(&mut ObservationCursor::new(&commitment_only)).is_none());
+        assert_eq!(reencoded_attachment, encoded_attachment);
+        assert_eq!(recovered.calling_applications.len(), 2);
+        for byte_count in encoded.len()..encoded_attachment.len() {
+            assert!(
+                recover_service_schema(&mut ObservationCursor::new(
+                    &encoded_attachment[..byte_count]
+                ))
+                .is_none()
+            );
+        }
     }
 }

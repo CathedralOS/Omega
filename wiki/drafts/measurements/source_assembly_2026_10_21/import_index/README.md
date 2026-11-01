@@ -12,7 +12,7 @@ The measured base is `cfc1b266038cb2826cf66cfdf4027d339462406e`. Initial observa
 on `9a8b87b741ffea4782877ecf5878d9fa7b37e41b` were superseded after compiler/library
 movement; those raw observations remain archived separately. Frozen candidate
 binaries contain the measured base plus the implementation patch identified in
-[identities.json](identities.json). Measurements precede the evidence commit;
+[identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/identities.json). Measurements precede the evidence commit;
 landing binds the final SHA in its receipt and claim note. Hardware is Apple M4,
 macOS ARM64, pinned Rust nightly 2026-09-04, optimized dev profile 1, debug 0.
 
@@ -23,7 +23,7 @@ routes. It independently computes the smallest import range from item kinds.
 Across 289 inputs, 6,516 imports occupy 6,518 range entries; two intervening
 non-import declarations remain. `length/local` visits 260 roots before and 28
 after. These are traversal counts, not CPU instruction counts or a claimed 90%
-reduction in assembly time. [trace.json](trace.json) retains per-input counts.
+reduction in assembly time. [trace.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/trace.json) retains per-input counts.
 
 Parsing already has each item in hand. It now records two `usize` bounds while
 publishing root handles, adding 16 bytes to each `ParsedSource` (80 to 96 bytes
@@ -46,8 +46,8 @@ RAM or retained-memory measurements. Equal-length executable aliases prevent
 The initial count with unequal names is retained in the raw archive, not used in
 this table. The preceding custody experiment used unequal names; its byte totals
 include that small harness effect, while its allocation-call reduction remains
-valid. See [allocation-comparison.json](allocation-comparison.json) and
-[recount.py](recount.py).
+valid. See [allocation-comparison.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/allocation-comparison.json) and
+[recount.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/recount.py).
 
 ## Timing and machine code
 
@@ -56,7 +56,7 @@ Eleven alternating baseline/candidate pairs run fresh CLI processes against
 exit 0. Repetition stops after at least ten pairs and five seconds without a new
 minimum for either producer. No own build overlaps this batch. All samples,
 load averages, binary digests, and optimized profiles are retained in
-[cli-observations.json](cli-observations.json). Source assembly includes parsing;
+[cli-observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/cli-observations.json). Source assembly includes parsing;
 its timings must not be summed with the separately reported parser timings.
 
 | Scope | Before min / median / mean / max, ms | After min / median / mean / max, ms |
@@ -76,7 +76,7 @@ slice, advances its starting pointer, and stops at its end. The parser's item-ki
 branch updates the bounds. All these paths survive compilation. Static function
 sizes grow: standalone discovery 3,008 to 3,092 bytes, package discovery 3,940 to
 4,000, parser 680 to 708. The wrapper stays 256 bytes. This is a smaller work
-domain, not smaller static code. [assembly-summary.json](assembly-summary.json)
+domain, not smaller static code. [assembly-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/assembly-summary.json)
 records counts; full disassembly is in the raw archive.
 
 ## Correctness and baseline attribution
@@ -90,7 +90,7 @@ successful compilation claims.
 `mbx nextest run -p tokens-to-syntax-trees -p syntax-trees -p package-compilation`
 runs 302 tests: 295 pass and seven fail. A focused pristine-baseline run reproduces
 all seven failures with identical diagnostics, recorded in
-[test-comparison.json](test-comparison.json). The new test covers empty/no-import,
+[test-comparison.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/test-comparison.json). The new test covers empty/no-import,
 leading/trailing imports, interleaved declarations and mathematical roots through
 both sequential and worker-page parser routes; existing generation and scope
 checks also pass.
@@ -109,7 +109,7 @@ Formatting and `git diff --check` pass. Scoped Clippy with `--no-deps -D warning
 exits 101 on eleven existing findings. Every diagnostic site is byte-identical to
 the measured baseline, and their inspected reference/digest/scalar types are
 unaffected by the new parser metadata. This is source/dependency attribution,
-not a claimed baseline Clippy rerun; [lint-attribution.json](lint-attribution.json)
+not a claimed baseline Clippy rerun; [lint-attribution.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/lint-attribution.json)
 records each site. No new language fact or parent compiler requirement is closed.
 
 ## Research decision and replay
@@ -125,13 +125,13 @@ is made that path handles have been experimentally rejected.
 
 Rebuild the baseline from the recorded base and the candidate from its patch in
 isolated worktrees. Place the retained harness sources/manifest under
-`build/import-index/harness`, adjust the absolute prefix in inputs.txt to the
+`build/import-index/harness`, adjust the absolute prefix in [inputs.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/inputs.txt) to the
 checkout, and use the recorded build/recount/CLI scripts. Build and timing runs
 are serialized; diagnostic tracing and global allocation counting are not timing
 instruments. The final landing script rechecks the measured-base movement,
 rebases only over assessed incoming files, verifies the exact SHA, guards golden
 content, records provenance, and publishes through the repository queue.
-[integration-assessment.json](integration-assessment.json) explains applicable
+[integration-assessment.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_index/integration-assessment.json) explains applicable
 retained evidence for the incoming layout-fixture-only commit.
 
 Raw executables, TSVs, logs, disassembly, scripts, kept native output, and the

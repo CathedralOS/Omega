@@ -2,7 +2,7 @@
 
 [Portable product](product.md) | [Observations](observations.md)
 
-This is the canonical encoding contract, not yet a complete byte-level decoder
+This is the canonical encoding contract; it is not a complete byte-level decoder
 specification. The [documentation index](../../README.md) lists operation subjects.
 [Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
 define semantics; the tables below give the physical layout of every operation,
@@ -1152,8 +1152,7 @@ every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the
 canonical portable artifact or inferring default storage for an unresolved row.
-The family callable/member roster in this reference layout encoding is also
-migration work. Target-dependent geometry remains supported, but its policy
+Target-dependent geometry remains supported, but its policy
 applications must name ordinary checked implementations and join target-keyed
 Build rows, not require target-prefixed source bodies.
 

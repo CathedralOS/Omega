@@ -3,9 +3,8 @@
 This is the normative reference-package contract for checked boundary topology,
 using [scoped build execution](../build/scoped_execution.md). It does not add a
 compiler-owned topology subsystem. Examples are schematic library/build APIs,
-not shipped deployment APIs or new Omega grammar. No implementation or deployment
-enforcement is claimed; [implementation tasks](../../../TASKS.md) and the gates
-below track the remaining work.
+not shipped deployment APIs or new Omega grammar. [Implementation tasks](../../../TASKS.md)
+and the gates below track implementation and deployment enforcement.
 
 ## Contract summary
 
@@ -86,8 +85,7 @@ These are integration boundaries, not arguments that the feature already exists:
 contexts, isolated inputs/staging, and
 required artifact publication. Existing component publication already requires
 closed imports/exports, all entries, outgoing authority, and installation
-obligations. This package consumes those facts; their current specification is
-not a claim that every producer or public consumer API is implemented.
+obligations. This package consumes those facts.
 
 Start with explicitly supplied verified component descriptions. If an essential
 fact cannot be obtained or replayed, identify that exact missing general-purpose
@@ -643,46 +641,11 @@ Test on supported developer hosts; mark remote/OS enforcement tests unavailable
 when their providers are absent, not passed by a graph-only test. The first end-
 to-end customer is the three-component payment example, including an actual
 blocked bypass at the selected runtime boundary. A graph helper test alone does
-not close it.
-
-### Acceptance status
-
-This records current implementation evidence against the required cases; it is
-a status annotation, not a contract amendment.
-
-The disconnected Rust reference crate and its self-contained tests were
-deleted; none of their prior green rows is current product evidence.
-`source/library/topology/{digest,verify}.omg` implements the bounded v1 decode,
-request/roster/component checks, graph normalization, policy coverage and
-independent predicate/certificate replay. That implementation has not yet been
-driven through an ordinary Build or source-free consumer invocation.
-`tests/omega/pending/build/build_scope_topology_plan` remains the acceptance
-customer and currently rejects on stale Build facet call forms. No graph,
-canonical-wire, substitution, policy-selection, installation or confinement row
-is closed until an authored Omega customer exercises the corresponding contract
-and invalid control.
-
-Not yet closed:
-
-- Windows and macOS confinement providers: the private-pipe customer runs on
-  unix only (kernel-attested pipe tokens). The Windows leg needs inheritable
-  handle passing behind `StdPipeEnd`; macOS needs a signed member image. These
-  stay unavailable per the paragraph above, not passed.
-- Co-located versus isolated versus remote realization parity: only the
-  private-pipe leg exists.
-- The demand/supply contract join: `ExportSurface.identity` is an opaque
-  string, so a demanded import cannot yet be checked against an offered
-  export's requirement identity — a `COMPONENT-SUBSTRATE` description gap, not
-  a topology census.
-- Scoped-build refusal of helper authority (home files, network): input
-  confinement is to be exercised by
-  `tests/omega/pending/build/build_scope_topology_plan`, which does not yet
-  check against the current Build facets;
-  the captured-input and artifact-only publication gaps sit under
-  `BUILD-SNAPSHOT-OUTPUTS`.
-- Application-level authorization cases (charge-amount mismatch, request
-  replay) live outside the topology package; the secret-dependent reply row is
-  a negative claim and stays unclaimed by design.
+not close it. No graph, canonical-wire, substitution, policy-selection,
+installation or confinement row is closed until an authored Omega customer
+exercises the corresponding contract and invalid control. Application-level
+authorization cases (charge-amount mismatch, request replay) live outside the
+topology package.
 
 ## Alternatives and scope settlement
 

@@ -102,6 +102,10 @@ pub(crate) struct ShapeCollector<'program> {
     /// stops on that failure reads it to name the program's missing
     /// selection instead of the construct it was planning.
     unselected_opaque: Option<SymbolHandle>,
+    /// The symbol-owning closed declaration settled per structural identity,
+    /// built once on first use: declaration inventory never changes during
+    /// collection, so one index supplies every later route to any identity.
+    canonical_carriers: Option<BTreeMap<TypeIdentityId, DataDefinition>>,
 }
 
 impl<'program> ShapeCollector<'program> {
@@ -117,6 +121,7 @@ impl<'program> ShapeCollector<'program> {
             domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
             unselected_opaque: None,
+            canonical_carriers: None,
         }
     }
 
@@ -1070,6 +1075,46 @@ impl<'program> ShapeCollector<'program> {
         self.add_type(type_reference, binders, &[])
     }
 
+    /// Resolve the one closed declaration that owns a minted symbol for this
+    /// structural identity. Preparation can retain a per-occurrence
+    /// application view that borrows the authored declaration's symbol beside
+    /// the generated carrier; an origin whose `base_symbol` is still the
+    /// candidate's own symbol marks that borrowed view, never the carrier.
+    fn canonical_closed_carrier(
+        &mut self,
+        identity: TypeIdentityId,
+    ) -> Option<DataDefinition> {
+        if self.canonical_carriers.is_none() {
+            let typed = self.program.typed_program();
+            let mut carriers = BTreeMap::new();
+            for candidate in typed.data_definitions().iter() {
+                let Some(origin) = candidate.generic_instance else {
+                    continue;
+                };
+                if matches!(
+                    typed.type_reference_table.type_reference(origin),
+                    TypeReferenceNode::Generic { base_symbol, .. }
+                        if *base_symbol == candidate.symbol
+                ) {
+                    continue;
+                }
+                let origin_identity = typed.normalized_type_identity(origin);
+                carriers
+                    .entry(origin_identity)
+                    .and_modify(|retained: &mut DataDefinition| {
+                        if candidate.symbol.arena_index() < retained.symbol.arena_index() {
+                            *retained = candidate.clone();
+                        }
+                    })
+                    .or_insert_with(|| candidate.clone());
+            }
+            self.canonical_carriers = Some(carriers);
+        }
+        self.canonical_carriers
+            .as_ref()
+            .and_then(|carriers| carriers.get(&identity).cloned())
+    }
+
     pub(in super::super) fn add_data_shape(
         &mut self,
         identity: TypeIdentityId,
@@ -1095,6 +1140,24 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     ) -> Option<TypeIdentityId> {
+        // One structural identity admits one member inventory. Preparation can
+        // retain a per-occurrence application view that borrows the authored
+        // declaration's symbol beside the closed declaration that minted its
+        // own; collecting each spelling separately publishes divergent field
+        // identities and handles. Settle every route — authored declaration,
+        // borrowed view, or generated carrier — onto the symbol-owning closed
+        // declaration for this identity before members are read. A settled
+        // carrier arrives already substituted, so the declaration's local
+        // substitution list is discharged with it.
+        let (mut data, substitutions) = match self.canonical_closed_carrier(identity) {
+            Some(canonical)
+                if canonical.symbol != data.symbol
+                    || canonical.generic_instance != data.generic_instance =>
+            {
+                (canonical, Vec::new())
+            }
+            _ => (data, substitutions),
+        };
         // Copy permission belongs to the logical declaration, never a chosen
         // opaque representation or a quotient's cloned physical carrier.
         let copyable = data.properties.multiplicity == Multiplicity::Unrestricted;
@@ -1129,7 +1192,6 @@ impl<'program> ShapeCollector<'program> {
         // the concrete carrier, and that carrier alone supplies the physical
         // shape collected under the opaque's own identity; an opaque value
         // without a selected application still cannot claim storage.
-        let mut data = data;
         if data.supply_mode == DataSupplyMode::BoundaryOpaque {
             // The layout evaluator lends this context; it is never executable
             // storage that an authored OpaqueRepresentation can manufacture.

@@ -5,7 +5,7 @@ public boundary trait Reading<'first, 'second, Value> {
     machine read<'provider>(value: Value, other: &'provider i32) -> i32 reaches;
 }
 Reader<'provider> satisfies Reading<'provider, 'provider, &'provider i32> {
-    machine read<'provider>(value: &'provider i32, other: &'provider i32) -> i32 { read_realization(value, other) }
+    machine read<'call>(value: &'provider i32, other: &'call i32) -> i32 { read_realization(value, other) }
 }
 machine read_realization<'provider, 'call>(value: &'provider i32, other: &'call i32) -> i32 {
     value as i32

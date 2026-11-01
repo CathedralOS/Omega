@@ -15,7 +15,7 @@ repeats reproduced all counts and captured field totals exactly.
 Each compile also made three syntax-forest clone calls: one before preparation
 and two within it. All captured probe events were on `ThreadId(3)`, so this
 capture's pre-resolution attribution does not cross an untracked worker boundary.
-See [raw observations](observations.json) and [summary](summary.json).
+See [raw observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/observations.json) and [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/summary.json).
 
 **Decision: retain this measurement record, with no production optimization.**
 The next question is whether placed-view applied-result discovery can select its
@@ -99,9 +99,9 @@ needed by placement admission despite retaining identical native bytes.
   tooling, semantic cache, or allocation strategy changed. This is a bounded
   investigation under `ITERATION-PERFORMANCE`, not closure of that board outcome.
 
-Evidence: [controls](controls.json), [baseline engine observations](baseline-preflight.json),
-[baseline profile](baseline-producer.json), [diagnostic profile](instrumented-producer.json),
-[build records](build-record.json), and [temporary probe patch](instrumentation.patch).
+Evidence: [controls](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/controls.json), [baseline engine observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/baseline-preflight.json),
+[baseline profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/baseline-producer.json), [diagnostic profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/instrumented-producer.json),
+[build records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/build-record.json), and [temporary probe patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/instrumentation.patch).
 
 The baseline build took 13m28s and the diagnostic build 7m18s after substantial
 build-slot waiting. Neither duration measures compiler runtime performance.
@@ -116,8 +116,8 @@ public executable path to its artifact fingerprint; the corrected receipt maps
 by identical executable digest before verifying flags. The first preflight used
 `run --both --target macos_arm64`, which published without executing; the runtime
 guard rejected it and the successful host-only invocations replaced it. See
-[initial receipt failure](baseline-receipt-initial.log) and
-[publication-only attempt](baseline-preflight-target-only.json). Neither is
+[initial receipt failure](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/baseline-receipt-initial.log) and
+[publication-only attempt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/baseline-preflight-target-only.json). Neither is
 counted as a runtime pass or a compiler defect.
 
 ## Measurement interpretation
@@ -167,7 +167,7 @@ The local queue wrapper changes only its own poll interval to 0.05 seconds after
 repeated overtaking under contention. It does not change shared slot capacity or
 ownership. `--resume` is only for a completed baseline whose saved digest still
 matches. If a build fails with probes installed, preserve its patch and restore
-exactly the paths in `instrumented-paths.json` before resuming.
+exactly the paths in [`instrumented-paths.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/instrumented-paths.json) before resuming.
 
 The scripts reuse the repository benchmark's compile, timing, RSS and native
 execution helpers, and compiler-profile verification. They do not use a separate

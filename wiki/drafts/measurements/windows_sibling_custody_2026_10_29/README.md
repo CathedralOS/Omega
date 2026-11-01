@@ -58,8 +58,8 @@ outside target bytes unchanged. Refusal is scoped to the cache operation.
 The first qualification amendment rejected an abbreviated base SHA before any
 measurement; the resumed amendment used the full resolved SHA and completed
 source-bound qualification. No rebuild or result replacement was used for that
-command correction. [Unrounded results and resources](summary.json) and
-[source, build, receipt and raw evidence](evidence.json.gz) retain both cohorts.
+command correction. [Unrounded results and resources](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_sibling_custody_2026_10_29/summary.json) and
+[source, build, receipt and raw evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_sibling_custody_2026_10_29/evidence.json.gz) retain both cohorts.
 
 Keep the frozen sibling-only producer as a control for a separately declared
 composition experiment with the parked linear-ancestry patch. This changes the

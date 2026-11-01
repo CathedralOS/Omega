@@ -94,7 +94,7 @@ roster, not a separate induction mechanism.
 The complete group and all operation obligations must check before the module
 grants authority. Missing or duplicate arrivals, wrong scope or carriers, and
 stale edge coordinates reject. Structural-case arrival substitution
-is not implemented by this scalar roster and rejects explicitly.
+is outside this scalar roster and rejects explicitly.
 
 Invariant induction is distinct from ranking. A decreasing rank does not grant
 an arithmetic safety bound. Each partial operation still proves its own safety

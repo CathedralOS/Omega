@@ -794,16 +794,65 @@ impl<'program> StructuralJudge<'program> {
             })
             .map(|(comparison, _)| comparison)
             .collect::<Vec<_>>();
-        for alternative in alternatives {
-            let mut comparisons = admitted.clone();
-            comparisons.extend(alternative);
-            // Intake the complete batch together: an unoriented prior NE must
-            // see the denied branch's bounds, without gaining a direction in
-            // the original context. The admitted engine keeps operation laws
-            // and the exact private captured-value atom namespace.
-            let mut engine = observations.engine.clone();
-            if !engine.integer_comparisons_unsatisfiable(comparisons) {
-                return Some(false);
+        // A retained Boolean premise need not choose one integer alternative.
+        // Every feasible prefix world must contradict every denial of the
+        // goal. Keep these worlds private to entailment: neither a disjunct
+        // nor the denied question may establish an operand's formation.
+        let mut worlds = vec![Vec::<Comparison>::new()];
+        for (premise, truth) in self.rewrites.iter() {
+            if !matches!(
+                premise.semantic_value(),
+                StructuralTerm::ScalarBinary {
+                    operator: BinaryOperator::And | BinaryOperator::Or,
+                    ..
+                }
+            ) {
+                continue;
+            }
+            let Some(holds) = super::value_predicates::boolean_value(
+                &self.integer_projection_value(truth.clone()),
+            ) else {
+                continue;
+            };
+            let mut extended = observations.clone();
+            let first_operation = extended.operations.len();
+            let Some(choices) =
+                self.integer_boolean_alternatives(premise, holds, &mut extended, &mut remaining)
+            else {
+                continue;
+            };
+            if !extended.admitted(first_operation..extended.operations.len()) {
+                continue;
+            }
+            if worlds.len().checked_mul(choices.len())? > 32 {
+                return None;
+            }
+            let mut combined_worlds = Vec::new();
+            for world in &worlds {
+                for choice in &choices {
+                    if world.len().checked_add(choice.len())? > 64 {
+                        return None;
+                    }
+                    let mut combined = world.clone();
+                    combined.extend(choice.iter().cloned());
+                    combined_worlds.push(combined);
+                }
+            }
+            worlds = combined_worlds;
+            observations = extended;
+        }
+        for world in worlds {
+            for alternative in &alternatives {
+                let mut comparisons = admitted.clone();
+                comparisons.extend(world.iter().cloned());
+                comparisons.extend(alternative.iter().cloned());
+                // Intake the complete batch together: an unoriented prior NE
+                // must see the denied branch's bounds, without gaining a
+                // direction in the original context.
+                let mut engine = observations.engine.clone();
+                if !engine.integer_comparisons_unsatisfiable(comparisons) {
+                    return Some(false);
+                }
             }
         }
         Some(true)
@@ -1619,10 +1668,19 @@ impl<'program> StructuralJudge<'program> {
                 let before_bounds = observations.carrier_bounds.len();
                 let before_param_atoms = observations.engine.parameter_atoms.len();
                 let before_engine = observations.engine.integer_projection_registrations();
-                if let (Some(left), Some(right)) = (
-                    self.mathematical_value(predicate, observations, 0),
-                    self.mathematical_value(truth_sem, observations, 0),
-                ) {
+                // An authored equation over executable integer arithmetic,
+                // such as `value + left == 60`, is stored as the rewrite of
+                // its arithmetic side. Project that side as the operation
+                // tree it is, in its own carrier, so the polynomial owner
+                // relates its operands; whole-term resolution would replace
+                // the sum with 60 and erase the relation.
+                let carrier = scalar_arithmetic_carrier(predicate)
+                    .or_else(|| scalar_arithmetic_carrier(truth_sem));
+                let mut side = |term: &StructuralTerm| match carrier {
+                    Some(primitive) => self.integer_value(term, primitive, observations, 0),
+                    None => self.mathematical_value(term, observations, 0),
+                };
+                if let (Some(left), Some(right)) = (side(predicate), side(truth_sem)) {
                     comparisons.push((
                         (BinaryOperator::Equal, left, right),
                         start..observations.operations.len(),
@@ -2101,6 +2159,21 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => None,
         }
+    }
+}
+
+/// The operand carrier of executable integer arithmetic, which integer_value
+/// projects with each node's own formation obligation.
+pub(super) fn scalar_arithmetic_carrier(term: &StructuralTerm) -> Option<PrimitiveType> {
+    match term.semantic_value() {
+        StructuralTerm::ScalarBinary {
+            operator, meaning, ..
+        } if Engine::integer_operation_meaning(*operator, *meaning)
+            || Engine::integer_policy_operation_meaning(*operator, *meaning).is_some() =>
+        {
+            Some(meaning[0].0)
+        }
+        _ => None,
     }
 }
 

@@ -52,7 +52,7 @@ For `length/local`, allocation requests change from
 34,540 to 28,619, and requested
 bytes from 12,970,623 to 11,006,636.
 The final `take_identifier` machine code has no atomic increment; baseline contains
-`ldadd`. [Assembly identities](assembly-identities.json) bind the excerpts to the
+`ldadd`. [Assembly identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/assembly-identities.json) bind the excerpts to the
 actual executables. The harness consumes outputs and black-boxes measured results.
 
 ## Timing
@@ -62,7 +62,7 @@ Apple M4/macOS ARM64, fresh processes with warm filesystem state, 19
 alternating AB/BA pairs. Both use the same explicit library root. No owned build
 or validation workload overlaps the timing batch. All observations, process CPU
 time, page faults, peak RSS, load averages and binary profiles are retained in
-[cli-observations.json](cli-observations.json). No slow observation is discarded.
+[cli-observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/cli-observations.json). No slow observation is discarded.
 
 Assembly wall-step milliseconds:
 
@@ -93,19 +93,19 @@ local archive and are not pooled with this batch.
 
 - The 570-test affected suite at `972eb3d68bd74a4b5d52c2b2045778f6383d0830` has 563 passes and seven failures
   reproduced on a freshly rebuilt baseline with identical diagnostics. Names and
-  attribution are in [baseline-failure-comparison.json](baseline-failure-comparison.json).
+  attribution are in [baseline-failure-comparison.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/baseline-failure-comparison.json).
   Expectations were not changed. The focused namespace regression passes.
 - Final integration changes only Stage 05 match-join descriptor emission. The
   parser dependency closure, executed assembly path, input bytes and source library
   are unchanged. Their observations remain applicable; both
   CLI/corpus producers are rebuilt, and lowering plus affected reverse-dependency
   tests, Clippy, runtime and
-  paired timings are rerun at the final base. [Integration assessment](integration-assessment.json)
-  and [runtime integration commands](runtime-integration-commands.json) record that scope.
+  paired timings are rerun at the final base. [Integration assessment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/integration-assessment.json)
+  and [runtime integration commands](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/runtime-integration-commands.json) record that scope.
 - The additional lowering suite has four passes and two source-architecture
   guard failures, reproduced with identical diagnostics on current main.
   The five affected dependent packages pass their refreshed tests.
-  [Lowering attribution](incoming-failure-comparison.json) records the comparison.
+  [Lowering attribution](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/incoming-failure-comparison.json) records the comparison.
 - Scoped Clippy and compiler checks pass. The warning comparison finds no new
   warning; existing warnings are attributed rather than called a clean baseline.
 - Canonical corpus comparison has no losses or gains for 13 checked fixtures and
@@ -115,7 +115,7 @@ local archive and are not pooled with this batch.
 - Four corpus positives execute in both engines with matching results: one exits
   7 as authored; three exit 0. `length/local` exits 0 with `run --both`. The CLI
   dependency-declaration Build query passes on both producers; two generated-source
-  CLI checks refuse identically. See [runtime validation](runtime-validation.json)
+  CLI checks refuse identically. See [runtime validation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/runtime-validation.json)
   and the adjacent raw observations.
 
 The integrated base and changed production-file hashes identify the measured
@@ -132,7 +132,7 @@ not become production workspaces. Restore one side under
 `build/retained-syntax-ownership/`, remove those suffixes, and use
 `mbx build --manifest-path build/retained-syntax-ownership/<harness>/Cargo.toml`.
 Use the baseline revision for baseline sources and the published candidate for
-candidate sources. Restore `normalize_debug.rs.txt` as `normalize_debug.rs` for
+candidate sources. Restore [`normalize_debug.rs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/retained_syntax/normalize_debug.rs.txt) as `normalize_debug.rs` for
 candidate captures. Freeze binaries before comparing. The scripts, input hashes,
 per-input output digests and source hashes preserve the comparison.
 

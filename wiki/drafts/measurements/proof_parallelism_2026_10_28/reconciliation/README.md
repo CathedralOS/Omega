@@ -75,11 +75,11 @@ or storage versions needs its own correctness argument.
 - Compiler source remains at semantic base
   `456c5e984452a45d977295e254b3ca9ae3cc7750`; worktree commit
   `8150d7c081d` adds only the prior measurement record. The temporary diagnostic
-  patch and executable/lock hashes are in [identity.json](identity.json) and
-  [instrumentation.patch](instrumentation.patch). Both producers report opt level 1.
-- Reused the [same source manifest](../input-manifest.json). Source inputs were
+  patch and executable/lock hashes are in [identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/identity.json) and
+  [instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/instrumentation.patch). Both producers report opt level 1.
+- Reused the [same source manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json). Source inputs were
   checked before and after every run. Each executable used its own normally
-  accepted lock; [policy comparison](producer-policy-comparison.txt) has equal
+  accepted lock; [policy comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/producer-policy-comparison.txt) has equal
   policy fingerprints and zero changed source entries. No policy gate was bypassed.
 - All nine fresh-cache compilations (three timing, two counts, two untouched
   controls and two collection-off controls) executed natively with the authored
@@ -97,7 +97,7 @@ or storage versions needs its own correctness argument.
   Per-operation counters are enabled only in the separate counts runs. Measured
   intervals stop before formatting their observation row.
 - The selected observer test passed: 1 test run, 6 skipped. See
-  [build-and-test.log](build-and-test.log). The analyzer validates disjoint
+  [build-and-test.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/build-and-test.log). The analyzer validates disjoint
   sub-timer accounting, sweep/count invariants and repeated count-run agreement.
 
 The host was shared and busy. Times are elapsed wall times, including possible
@@ -107,7 +107,7 @@ acceptance or a safe cache key.
 
 ## Replay and decision
 
-[measure.py](measure.py) reuses the parent's fixed-workload runner and performs
+[measure.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/measure.py) reuses the parent's fixed-workload runner and performs
 the interleaved controls, fresh-cache runs, output/hash checks and Terminal
 comparison. It expects the archived baseline and a freshly built instrumented
 producer under `build/proof-profile/producers/{baseline,reconcile}/`, with each
@@ -117,8 +117,8 @@ Use the recorded base, source manifest and patch, and a short Windows build
 path as described in the parent record. Existing result directories are refused.
 The separately run `recon-counts-pilot` is the second count observation.
 
-[raw](raw/) retains result records and both output streams, bound by
-[raw-manifest.json](raw-manifest.json). Recompute the summary from the repository:
+[raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/raw) retains result records and both output streams, bound by
+[raw-manifest.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/raw-manifest.json). Recompute the summary from the repository:
 
 ```powershell
 python wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/analyze_results.py wiki/drafts/measurements/proof_parallelism_2026_10_28/reconciliation/raw

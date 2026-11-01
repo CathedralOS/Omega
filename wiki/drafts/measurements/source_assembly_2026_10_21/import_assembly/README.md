@@ -10,7 +10,7 @@ No new index, arena, cache or source-shape exception is introduced.
 
 Base: `30fbbc91026a740ce3e709b51e8bd7b41a1c123e`. Apple M4/macOS ARM64,
 nightly 2026-09-04, optimized dev profile 1. Exact binary, file and environment
-identities are in [observations.json](observations.json). The
+identities are in [observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_assembly/observations.json). The
 [audit](audit.md) records the full route and the work already eliminated.
 
 ## Work removed and correctness
@@ -77,7 +77,7 @@ The four invalid import controls reject with their expected diagnostics.
 The four generated-source positives retain their baseline refusals: two fixed
 byte-length errors and two generated files reaching EOF. This is unchanged
 baseline evidence, not successful generated-source execution. No fixture or
-oracle was rewritten. See [validation.json](validation.json) for exact rows.
+oracle was rewritten. See [validation.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_assembly/validation.json) for exact rows.
 
 Scoped Clippy (`mbx clippy -p package-compilation -- -D warnings`) exits 101 on
 the unchanged dependency `optimization_selections.rs:152`, whose `digest.finish().into()`
@@ -92,8 +92,8 @@ producer identities; the rebased commit still receives exact-SHA verification.
 
 For replay, recreate `build/import-assembly/harness/{Cargo.toml,src/main.rs}`
 from the adjacent text files, and use the original `inputs.txt` and frozen
-binaries from the raw archive. `compare.py` captures baseline, applies the
-ownership change, rebuilds, compares exact outputs and counts; `measure_cli.py`
+binaries from the raw archive. [`compare.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_assembly/compare.py) captures baseline, applies the
+ownership change, rebuilds, compares exact outputs and counts; [`measure_cli.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_assembly/measure_cli.py)
 compares ordinary executables. The complete raw directory is preserved outside
 the managed worktree before cleanup.
 

@@ -47,9 +47,18 @@ ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 
 Canonical satisfies IndexAdd<u64>
 {
-    IndexAdd::add = plus_index;
-    IndexAdd::add_comm = plus_index_comm;
-    IndexAdd::add_assoc = plus_index_assoc;
+    machine add(a: u64, b: u64) -> u64
+    terminates {
+        plus_index(a, b)
+    }
+    machine add_comm(a: u64, b: u64)
+    ensures plus_index(a, b) == plus_index(b, a) {
+        plus_index_comm(a, b);
+    }
+    machine add_assoc(a: u64, b: u64, c: u64)
+    ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c)) {
+        plus_index_assoc(a, b, c);
+    }
 }
 
 machine indexed_left(value: i64) -> i64 in Indexed<1> {

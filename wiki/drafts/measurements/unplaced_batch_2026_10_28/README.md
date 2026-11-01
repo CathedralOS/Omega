@@ -114,16 +114,16 @@ further timeout. The earlier incident is preserved in the evidence.
 After the screen, the same frozen candidate was checked with
 `mbx nextest run --release -p selected-instructions-to-register-homes` and
 `mbx clippy --release -p selected-instructions-to-register-homes --lib`, using
-`build/parallelism-target` and one build-slot hold. Run [qualify.py](qualify.py)
+`build/parallelism-target` and one build-slot hold. Run [qualify.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/unplaced_batch_2026_10_28/qualify.py)
 under a hold for the source/native/reject checks and main comparison, then
-[small_followup.py](small_followup.py) for the small-case concern. The scripts
+[small_followup.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/unplaced_batch_2026_10_28/small_followup.py) for the small-case concern. The scripts
 reuse the original sweep's failure/artifact/profile guards and Windows CPU/job
 accounting; the measurement self-test ran before qualification.
 
-[summary.json](summary.json) contains computed statistics.
-[evidence.json.gz](evidence.json.gz) contains all observations, source hashes,
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/unplaced_batch_2026_10_28/summary.json) contains computed statistics.
+[evidence.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/unplaced_batch_2026_10_28/evidence.json.gz) contains all observations, source hashes,
 producer/build receipts, logs, unit/lint output and native replays.
-[report.py](report.py) regenerates both from ignored
+[report.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/unplaced_batch_2026_10_28/report.py) regenerates both from ignored
 `build/unplaced-batch-experiment`. Frozen baseline/candidate executables and
 PDBs remain in that workbench. Compiler/library inputs have not changed since
 the recorded candidate build; subsequent changes are the experiment scripts and

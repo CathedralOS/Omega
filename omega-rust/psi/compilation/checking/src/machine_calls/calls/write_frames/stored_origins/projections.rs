@@ -632,6 +632,7 @@ pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
 ) -> Option<Vec<super::super::stored_calls::SlotSource>> {
     use super::super::stored_calls::SlotSource;
     let mut origins = Vec::new();
+    let mut selected_leaf = false;
     for leaf in &record.references {
         if may_select.is_some_and(|selected| selected != leaf.may_select)
             || leaf.local_segments.len() != selected.len()
@@ -640,13 +641,18 @@ pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
         {
             continue;
         }
-        for dependency in &leaf.lifetime_dependencies {
+        selected_leaf = true;
+        let dependencies = leaf.lifetime_dependencies.as_ref()?;
+        for dependency in dependencies {
             if !origins.contains(dependency) {
                 origins.push(dependency.clone());
             }
         }
+        if leaf.kind == super::StoredOriginKind::LifetimeDependency {
+            continue;
+        }
         let Some(mut origin) = leaf.origin.clone() else {
-            if leaf.lifetime_dependencies.is_empty() {
+            if dependencies.is_empty() {
                 return None;
             }
             continue;
@@ -666,5 +672,5 @@ pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
             origins.push(source);
         }
     }
-    (!origins.is_empty()).then_some(origins)
+    selected_leaf.then_some(origins)
 }

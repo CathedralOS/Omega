@@ -333,7 +333,8 @@ impl ProviderPlan {
             encoder.service_method(
                 method,
                 &self.schema.declaration.identities,
-                self.schema.calling_plan(method.requirement_identity),
+                self.schema
+                    .calling_for_requirement(method.requirement_identity),
             );
         }
 
@@ -498,9 +499,12 @@ impl ProviderPlan {
             for claim in result_claims {
                 rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry,));
             }
-            if let Some(calling) = self.schema.calling_plan(method.requirement_identity) {
-                let fingerprint = calling.report_fingerprint;
-                rendered.push_str(&format!("/calling:{fingerprint:016x}"));
+            for calling in self
+                .schema
+                .calling_for_requirement(method.requirement_identity)
+            {
+                let fingerprint = calling.plan.report_fingerprint;
+                rendered.push_str(&format!("/calling:{:?}:{fingerprint:016x}", calling.abi));
             }
         }
         let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
@@ -649,8 +653,9 @@ impl ProviderPlan {
             };
             if self
                 .schema
-                .calling_plan(method.requirement_identity)
-                .is_some_and(|plan| plan.commitment.is_zero())
+                .calling_for_requirement(method.requirement_identity)
+                .iter()
+                .any(|application| application.plan.commitment.is_zero())
             {
                 errors.push(format!(
                     "{} retains an empty calling-plan commitment",

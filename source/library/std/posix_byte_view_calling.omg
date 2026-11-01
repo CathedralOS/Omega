@@ -31,6 +31,21 @@ public LinuxX86ByteViewCalling satisfies CallingPolicy {
     }
 }
 
+// The C ABI borrows the same pointer/count value but has ordinary call-return
+// control and the full caller-saved register promise.
+public SystemVByteViewCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan = posix_byte_view_system_v_entry();
+        let accepted: bool = posix_byte_view_parameters(&signature, &mut plan);
+        transition accepted {
+            true -> BoundaryPlanResult::Accepted { plan: plan }
+            _ -> BoundaryPlanResult::Rejected {
+                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" }
+            }
+        }
+    }
+}
+
 public DarwinArm64ByteViewCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
@@ -175,15 +190,16 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
 
 machine posix_byte_view_argument_register(word: u64, convention: &CallingConvention) -> MachineRegister {
     transition convention {
-        CallingConvention::LinuxSyscallX86_64 -> x86(word)
+        CallingConvention::LinuxSyscallX86_64 -> x86(word, MachineRegister::X86R10)
+        CallingConvention::SystemVAMD64 -> x86(word, MachineRegister::X86Rcx)
         _ -> MachineRegister::Aarch64X { index: word }
     }
-    machine x86(word: u64) -> MachineRegister {
+    machine x86(word: u64, fourth: MachineRegister) -> MachineRegister {
         transition word {
             0 -> MachineRegister::X86Rdi
             1 -> MachineRegister::X86Rsi
             2 -> MachineRegister::X86Rdx
-            3 -> MachineRegister::X86R10
+            3 -> fourth
             4 -> MachineRegister::X86R8
             _ -> MachineRegister::X86R9
         }
@@ -192,6 +208,7 @@ machine posix_byte_view_argument_register(word: u64, convention: &CallingConvent
 machine posix_byte_view_result_register(convention: &CallingConvention) -> MachineRegister {
     transition convention {
         CallingConvention::LinuxSyscallX86_64 -> MachineRegister::X86Rax
+        CallingConvention::SystemVAMD64 -> MachineRegister::X86Rax
         _ -> MachineRegister::Aarch64X { index: 0 }
     }
 }
@@ -230,5 +247,45 @@ machine posix_byte_view_linux_x86_entry() -> BoundaryEntryPlan {
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
+    plan
+}
+
+machine posix_byte_view_system_v_entry() -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.call.ordinary_clobbers.register_count = 25;
     plan
 }

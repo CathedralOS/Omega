@@ -459,9 +459,19 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
             expression,
         );
-        if unbound.is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty()) {
+        if unbound
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty())
+        {
             return Ok(Vec::new());
         }
+        // A template-dependent earlier call ends the prefix walk at its
+        // frozen-binding fence. When this operand's own relation is likewise
+        // only template-dependent, the closed instances own the concrete
+        // relation; any failed invocation keeps the prefix obligation.
+        let template_operand = unbound.as_ref().is_some_and(|snapshot| {
+            snapshot.template_dependent && snapshot.incomplete_calls.is_empty()
+        });
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
             self.program,
@@ -471,7 +481,11 @@ impl<'program> CallFrameResolver<'program> {
             statement_index,
             true,
         )
-        .ok_or(Unavailable)?;
+        .ok_or(if template_operand {
+            TemplateDependent
+        } else {
+            Unavailable
+        })?;
         let transfer = super::stored_calls::effects_at_expression(
             self.program,
             machine,
@@ -1436,7 +1450,16 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         expression: ExpressionHandle,
     ) -> NormalizedWriteFrame {
+        let trace_unavailable = |stage: &str| {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT unavailable-operation-write caller={} expression={expression:?} stage={stage}",
+                    current_machine.name,
+                );
+            }
+        };
         let Some(machine_symbols) = self.machine_symbols(current_machine) else {
+            trace_unavailable("caller symbols");
             return NormalizedWriteFrame::opaque();
         };
         // Operands have completed: substitute their captured origins, not the
@@ -1448,9 +1471,11 @@ impl<'program> CallFrameResolver<'program> {
         {
             let Some(origins) = self.expression_call_write_origins(current_machine, expression)
             else {
+                trace_unavailable("completed invocation origins");
                 return NormalizedWriteFrame::opaque();
             };
             if origins.receiver.is_none() {
+                trace_unavailable("completed receiver origin");
                 return NormalizedWriteFrame::opaque();
             }
             Some(
@@ -1479,7 +1504,7 @@ impl<'program> CallFrameResolver<'program> {
             |inference, prefix| {
                 let prefix = prefix?;
                 let mut written = Vec::new();
-                collect_operation_written_paths(
+                let collected = collect_operation_written_paths(
                     self.program,
                     expression,
                     current_machine,
@@ -1489,10 +1514,21 @@ impl<'program> CallFrameResolver<'program> {
                     &mut written,
                     prefix,
                     completed_arguments.as_deref(),
-                )?;
-                prefix.close_observed_paths(self.program, written)
+                );
+                if collected.is_none() {
+                    trace_unavailable("operation write paths");
+                    return None;
+                }
+                let closed = prefix.close_observed_paths(self.program, written);
+                if closed.is_none() {
+                    trace_unavailable("captured write alias closure");
+                }
+                closed
             },
         );
+        if written.is_none() {
+            trace_unavailable("caller prefix or completed write closure");
+        }
         written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 

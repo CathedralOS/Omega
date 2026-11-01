@@ -370,6 +370,5 @@ The correspondence is a checking judgment only. Terminal Psi does not retain
 it, and it grants no executable operation: executable demand follows
 [ordinary checked-body realization](#execution-through-ordinary-checked-bodies).
 [Validation support](../../../omega-rust/psi/compilation/checking/README.md#quotient-correspondence)
-records producer limits; `QUOTIENT-RUNTIME-REALIZATION`, `QUOTIENT-THEOREM-LIFT`
-and `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md)
-own the remaining implementation.
+records producer limits; `QUOTIENT-THEOREM-LIFT` and `PROOF-CONTRACT-MIGRATION`
+on the [execution board](../../../TASKS.md) own the remaining implementation.

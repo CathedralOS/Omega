@@ -38,7 +38,7 @@ ARM64 disassembly confirms a real parse_syntax_trees call in the measured loop. 
 
 ## Validation
 
-Full affected parser suite: 271 pass, seven fail. All seven failures reproduce on the unchanged current baseline with identical normalized diagnostics (see baseline-failures.json); none is hidden or called passing. Scoped Clippy passes with an existing unreachable-pattern warning in language-core. New test independently exercises 4,096 prefix spans/order and 7,167 binary operators repeatedly reaching all six integer precedence levels. Existing operator order/span, membership separation, default-stack nesting and malformed-source coverage remains unchanged.
+Full affected parser suite: 271 pass, seven fail. All seven failures reproduce on the unchanged current baseline with identical normalized diagnostics (see [baseline-failures.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/expression_scratch/baseline-failures.json)); none is hidden or called passing. Scoped Clippy passes with an existing unreachable-pattern warning in language-core. New test independently exercises 4,096 prefix spans/order and 7,167 binary operators repeatedly reaching all six integer precedence levels. Existing operator order/span, membership separation, default-stack nesting and malformed-source coverage remains unchanged.
 
 ## Integrated execution
 

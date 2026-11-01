@@ -28,6 +28,10 @@ impl Execution<'_, '_, '_> {
         };
         let mut values: Vec<CallStore> = Vec::new();
         for effect in effects.iter() {
+            // Logical debts join the borrow roster; they supply no pointer.
+            let Some(access) = effect.reference_access() else {
+                continue;
+            };
             // Exclusive exposure invalidates a descriptor association even
             // when the complete body later proves its incoming value survives.
             // Reinstall that identity from this call-entry inventory below.
@@ -50,7 +54,7 @@ impl Execution<'_, '_, '_> {
                 continue;
             };
             if validation::reference_shell(self.program, reference)
-                .is_none_or(|shell| shell.access != effect.access)
+                .is_none_or(|shell| shell.access != access)
             {
                 continue;
             }
