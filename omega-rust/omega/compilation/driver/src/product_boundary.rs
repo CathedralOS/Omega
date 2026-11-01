@@ -1622,7 +1622,29 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
         assert!(!source.contains("SelectedCallbackPlacement"));
     }
     assert!(!request.contains("pub callback_placements:"));
-    assert!(request.contains("callback_settlement::place_callbacks"));
+    let coordinator =
+        include_str!("../../pipeline/00_terminal-psi-to-abstract-operations/src/lib.rs");
+    let settlement = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement.rs"
+    );
+    let placement = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs"
+    );
+    assert!(
+        coordinator.contains("pub use callback_settlement::settle_native_callback_placements;")
+    );
+    assert!(settlement.contains("pub use placement::settle_native_callback_placements;"));
+    let compact_request = request.split_whitespace().collect::<String>();
+    assert_eq!(compact_request.matches(
+        "crate::settle_native_callback_placements(terminal_module,&selected,&request.boundaries.calling_applications,)"
+    ).count(), 1);
+    assert!(placement.contains("pub fn settle_native_callback_placements("));
+    assert!(placement.contains("module: &TerminalModule"));
+    assert_absent(
+        &[placement],
+        "native callback placement reopens source",
+        &["checked_trees", "typed_trees", "psi_terminal_production"],
+    );
 }
 
 #[test]
