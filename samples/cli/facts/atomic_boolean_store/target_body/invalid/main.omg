@@ -3,16 +3,64 @@
 use omega::language::core::atomic;
 data Cell { value: AtomicBool; }
 machine publish(cell: &Cell, value: bool) { cell.value.store(value, Receive); }
-windows_x86_64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-linux_x86_64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-linux_arm64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-macos_arm64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedObserve {
+    machine observe(cell: &Cell) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Observe satisfies SelectedObserve {
+    machine observe(cell: &Cell) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     cell.value.load(Receive) 
+    }
+}
+
+ArmObserve satisfies SelectedObserve {
+    machine observe(cell: &Cell) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     cell.value.load(Receive) 
+    }
+}
+
+
 machine main() crashes Trap {
     let cell: Cell;
     publish(&cell, true);
     Atomic::fence(FenceOrdering::Receive);
-    let observed: bool = observe(&cell);
+    let observed: bool = SelectedObserve::observe(&cell);
     transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

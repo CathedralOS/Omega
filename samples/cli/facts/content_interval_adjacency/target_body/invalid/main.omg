@@ -12,30 +12,54 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
         end: (embed(region.base) + embed(region.length)) as Nat }
 }
 data Pair { left: Region in Held; right: Region in Held; }
-macos_arm64 machine forward(left: Region in Held, right: Region in Held) -> Pair
-requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures separate(Held::content(old(&left)), Held::content(old(&right)))
-    == separate(Held::content(&result.left), Held::content(&result.right))
-{ Pair { left: left, right: right } }
-linux_x86_64 machine forward(left: Region in Held, right: Region in Held) -> Pair
-requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures separate(Held::content(old(&left)), Held::content(old(&right)))
-    == separate(Held::content(&result.left), Held::content(&result.right))
-{ Pair { left: left, right: right } }
-linux_arm64 machine forward(left: Region in Held, right: Region in Held) -> Pair
-requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures separate(Held::content(old(&left)), Held::content(old(&right)))
-    == separate(Held::content(&result.left), Held::content(&result.right))
-{ Pair { left: left, right: right } }
-windows_x86_64 machine forward(left: Region in Held, right: Region in Held) -> Pair
-requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures separate(Held::content(old(&left)), Held::content(old(&right)))
-    == separate(Held::content(&result.left), Held::content(&result.right))
-{ Pair { left: left, right: right } }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedForward {
+    machine forward(left: Region in Held, right: Region in Held) -> Pair
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) >= embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right));
+}
+
+X86Forward satisfies SelectedForward {
+    machine forward(left: Region in Held, right: Region in Held) -> Pair
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) >= embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right))
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     Pair { left: left, right: right } 
+    }
+}
+
+ArmForward satisfies SelectedForward {
+    machine forward(left: Region in Held, right: Region in Held) -> Pair
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) >= embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right))
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     Pair { left: left, right: right } 
+    }
+}
+
+
 machine exercise(base: u64, length: u64, end: u64, tail: u64, selected: bool)
 requires embed(base) + embed(length) == embed(end)
 crashes Trap {
-    let pair: Pair = forward(Region { base: base, length: length }, Region { base: end, length: tail });
+    let pair: Pair = SelectedForward::forward(Region { base: base, length: length }, Region { base: end, length: tail });
     let correct: bool = pair.left.base == base && pair.left.length == length &&
         pair.right.base == end && pair.right.length == tail;
     let { left, right } = pair;
@@ -51,4 +75,12 @@ machine main() crashes Trap {
     exercise(5, 0, 5, 7, true);
     exercise(5, 7, 12, 0, false);
     exercise(18446744073709551610, 5, 18446744073709551615, 0, true);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

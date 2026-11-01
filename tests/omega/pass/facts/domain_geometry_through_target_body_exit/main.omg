@@ -10,25 +10,62 @@ machine region(base: addr, length: u64, endpoint: addr) -> Region in Bounded
 requires embed(base) + embed(length) <= embed(endpoint)
 ensures result.base == base && result.length == length
 { Region { base: base, length: length } }
-macos_arm64 machine cut(whole: Region in Bounded, requested: u64) -> addr
-requires requested < whole.length
-{ whole.base + requested }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
 
-linux_x86_64 machine cut(whole: Region in Bounded, requested: u64) -> addr
-requires requested < whole.length
-{ whole.base + requested }
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
 
-linux_arm64 machine cut(whole: Region in Bounded, requested: u64) -> addr
-requires requested < whole.length
-{ whole.base + requested }
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
 
-windows_x86_64 machine cut(whole: Region in Bounded, requested: u64) -> addr
-requires requested < whole.length
-{ whole.base + requested }
+boundary trait SelectedCut {
+    machine cut(whole: Region in Bounded, requested: u64) -> addr
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires requested < whole.length;
+}
+
+X86Cut satisfies SelectedCut {
+    machine cut(whole: Region in Bounded, requested: u64) -> addr
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires requested < whole.length
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     whole.base + requested 
+    }
+}
+
+ArmCut satisfies SelectedCut {
+    machine cut(whole: Region in Bounded, requested: u64) -> addr
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires requested < whole.length
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     whole.base + requested 
+    }
+}
+
+
 machine main() crashes Trap {
     let whole: Region in Bounded = region(10, 80, 100);
-    let address: addr = cut(whole, 20);
+    let address: addr = SelectedCut::cut(whole, 20);
     transition address == 30 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

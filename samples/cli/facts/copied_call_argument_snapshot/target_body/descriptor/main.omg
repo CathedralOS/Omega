@@ -11,43 +11,67 @@ machine seven(value: u64) -> u64
 requires value == 7
 ensures result == 7
 { value }
-windows_x86_64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.target.value == 7
-ensures result == 7
-{
-    seven(selected.target.value)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.target.value == 7
-ensures result == 7
-{
-    seven(selected.target.value)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.target.value == 7
-ensures result == 7
-{
-    seven(selected.target.value)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.target.value == 7
-ensures result == 7
-{
-    seven(selected.target.value)
+boundary trait SelectedReceive {
+    machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.target.value == 7 ensures result == 7;
 }
+
+X86Receive satisfies SelectedReceive {
+    machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.target.value == 7 ensures result == 7
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        seven(selected.target.value)
+    }
+}
+
+ArmReceive satisfies SelectedReceive {
+    machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.target.value == 7 ensures result == 7
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        seven(selected.target.value)
+    }
+}
+
 
 machine main() crashes Trap {
     let first: Cell = Cell { value: 7 };
     let second: Cell = Cell { value: 9 };
     let mut original: View = View { target: &first };
-    let observed: u64 = receive(original, overwrite(&mut original, &second));
+    let observed: u64 = SelectedReceive::receive(original, overwrite(&mut original, &second));
     let difference: u64 = observed - 7;
     transition difference == 0 && original.target.value == 9 {
         true -> done() false -> wrong()
     }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

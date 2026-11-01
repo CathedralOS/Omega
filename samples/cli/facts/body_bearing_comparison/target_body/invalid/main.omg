@@ -21,43 +21,70 @@ requires direct == false
     true
 }
 
-linux_x86_64 machine observe() -> bool {
-    let left: f64 in Marked = 1.0;
-    let right: f64 in Marked = 1.0;
-    let direct: bool = compare(left, right);
-    let matched: u64 = choose(left, right);
-    hold(direct) && matched == 11
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine observe() -> bool {
-    let left: f64 in Marked = 1.0;
-    let right: f64 in Marked = 1.0;
-    let direct: bool = compare(left, right);
-    let matched: u64 = choose(left, right);
-    hold(direct) && matched == 11
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine observe() -> bool {
-    let left: f64 in Marked = 1.0;
-    let right: f64 in Marked = 1.0;
-    let direct: bool = compare(left, right);
-    let matched: u64 = choose(left, right);
-    hold(direct) && matched == 11
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine observe() -> bool {
-    let left: f64 in Marked = 1.0;
-    let right: f64 in Marked = 1.0;
-    let direct: bool = compare(left, right);
-    let matched: u64 = choose(left, right);
-    hold(direct) && matched == 11
+boundary trait SelectedObserve {
+    machine observe() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Observe satisfies SelectedObserve {
+    machine observe() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let left: f64 in Marked = 1.0;
+        let right: f64 in Marked = 1.0;
+        let direct: bool = compare(left, right);
+        let matched: u64 = choose(left, right);
+        hold(direct) && matched == 11
+    }
+}
+
+ArmObserve satisfies SelectedObserve {
+    machine observe() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let left: f64 in Marked = 1.0;
+        let right: f64 in Marked = 1.0;
+        let direct: bool = compare(left, right);
+        let matched: u64 = choose(left, right);
+        hold(direct) && matched == 11
+    }
 }
 
 machine main() crashes Trap {
-    transition observe() {
+    transition SelectedObserve::observe() {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

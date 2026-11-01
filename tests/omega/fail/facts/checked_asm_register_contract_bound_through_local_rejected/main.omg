@@ -1,39 +1,59 @@
 // A checked asm block (or target-scoped checked assembly helper) with explicit register operand bindings and contract (result <= 96u64) establishes the post-assembly bound, discharging exact subtraction 96u64 - result.
 // Expected rejection: exact arithmetic in machine main state entry local diff may overflow `u64`.
-linux_x86_64 machine read_asm() -> u64 ensures result <= 97u64 {
-    let mut val: u32 = 0;
-    asm {
-    entry:
-        mov eax, 97;
-        jmp done;
-    done requires eax <= 97:
-        mov val, eax
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    val as u64
 }
 
-windows_x86_64 machine read_asm() -> u64 ensures result <= 97u64 {
-    let mut val: u32 = 0;
-    asm {
-    entry:
-        mov eax, 97;
-        jmp done;
-    done requires eax <= 97:
-        mov val, eax
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    val as u64
 }
 
-linux_arm64 machine read_asm() -> u64 ensures result <= 97u64 {
-    97u64
+boundary trait SelectedReadAsm {
+    machine read_asm() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 97u64;
 }
 
-macos_arm64 machine read_asm() -> u64 ensures result <= 97u64 {
-    97u64
+X86ReadAsm satisfies SelectedReadAsm {
+    machine read_asm() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 97u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let mut val: u32 = 0;
+        asm {
+        entry:
+            mov eax, 97;
+            jmp done;
+        done requires eax <= 97:
+            mov val, eax
+        }
+        val as u64
+    }
 }
+
+ArmReadAsm satisfies SelectedReadAsm {
+    machine read_asm() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 97u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        97u64
+    }
+}
+
 
 machine main() crashes Trap {
-    let val: u64 = read_asm();
+    let val: u64 = SelectedReadAsm::read_asm();
     let diff: u64 = 96u64 - val;
     transition diff == 0u64 {
         true -> done()
@@ -41,4 +61,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
