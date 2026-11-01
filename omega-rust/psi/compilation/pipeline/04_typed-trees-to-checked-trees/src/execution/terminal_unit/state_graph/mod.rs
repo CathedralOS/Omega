@@ -136,6 +136,12 @@ pub(super) fn build_traced(
         &facts.values.scalar_computations,
         &mut natural_ranks,
     )?;
+    ranking::complete_witness_ranks(
+        fused,
+        &facts.termination.rank_arrivals,
+        &natural_ranks,
+        &rank_components,
+    )?;
     drop(_fused_guard);
     let _sig_guard = phase_profile::guard("05.d.8_10.a.3.2c.2.signatures");
     let mut attachment = None;
