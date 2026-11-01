@@ -113,6 +113,17 @@ pub(super) fn enforce_construction_field_obligations(
                 continue;
             }
         }
+        // Construction stores the operand's delivered type just like a local
+        // or assignment. Its complete application cannot be replaced by the
+        // field's destination, even when both policies choose equal geometry.
+        crate::value_custody::expression_types::report_delivered_type_mismatch(
+            program,
+            machine.symbol,
+            field.value,
+            field_type,
+            &slot_context,
+            diagnostics,
+        );
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
         // element-wise against the field's `[T; N]` element type. The scalar guards
         // below no-op on a non-primitive (array) field, so this is the complement.

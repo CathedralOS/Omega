@@ -4,7 +4,7 @@
 
 use super::{
     DeclarationSelection, HashSet, StaticArgumentCall, TypeOccurrence, TypeOccurrences,
-    TypedReferences, visit_declarations, visit_machine, visit_program, visit_trait,
+    TypedReferences, visit_data, visit_declarations, visit_machine, visit_program, visit_trait,
 };
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 use symbols::SymbolHandle;
@@ -23,7 +23,7 @@ pub fn collect_authored_program_type_occurrences(program: &TypedTrees) -> Vec<Ty
 
 /// Re-derive source occurrences for exactly these lexical owners without
 /// making their bodies executable. Current declaration roots supply ordinary
-/// owners and nested signatures. Omitted machines and traits require unique
+/// owners and nested signatures. Omitted machines, data and traits require unique
 /// original declarations; derived sidecars cannot attest their own source inputs.
 pub fn authored_type_occurrences(
     program: &TypedTrees,
@@ -33,6 +33,8 @@ pub fn authored_type_occurrences(
     let mut ancestors = HashSet::default();
     let mut machines = Vec::new();
     let mut machine_owners = HashSet::default();
+    let mut data = Vec::new();
+    let mut data_owners = HashSet::default();
     let mut traits = Vec::new();
     let mut trait_owners = HashSet::default();
     for &owner in owners {
@@ -46,6 +48,7 @@ pub fn authored_type_occurrences(
             current = program.symbols.get(current).parent;
         }
         let mut machine = None;
+        let mut data_definition = None;
         let mut trait_definition = None;
         let mut ambiguous = false;
         for &ancestor in &scope {
@@ -56,6 +59,19 @@ pub fn authored_type_occurrences(
             if program
                 .tables
                 .machines
+                .iter()
+                .any(|(_, declaration)| declaration.symbol == ancestor)
+            {
+                ambiguous = true;
+                break;
+            }
+            if let Some(declaration) = data_declaration_for_lexical_scope(program, ancestor) {
+                data_definition = Some(declaration);
+                break;
+            }
+            if program
+                .tables
+                .data_definitions
                 .iter()
                 .any(|(_, declaration)| declaration.symbol == ancestor)
             {
@@ -86,6 +102,14 @@ pub fn authored_type_occurrences(
         {
             machines.push(machine);
         }
+        if let Some(definition) = data_definition
+            && program
+                .data_definition_by_symbol(definition.symbol)
+                .is_none()
+            && data_owners.insert(definition.symbol)
+        {
+            data.push(definition);
+        }
         if let Some(definition) = trait_definition
             && program
                 .trait_definition_by_symbol(definition.symbol)
@@ -100,10 +124,15 @@ pub fn authored_type_occurrences(
         ..TypeOccurrences::default()
     });
     // Traverse current non-machine roots once, then only the exact requested
-    // machine and trait descriptions. No body or occurrence is collected from
+    // machine, data and trait descriptions. No body or occurrence is collected from
     // unrelated backing declarations, and no application row supplies its own
     // evidence.
     visit_declarations(program, &mut source);
+    for definition in data {
+        if source.declaration(definition.symbol) {
+            visit_data(program, &mut source, definition);
+        }
+    }
     for definition in traits {
         if source.declaration(definition.symbol) {
             visit_trait(program, &mut source, definition);
@@ -118,6 +147,27 @@ pub fn authored_type_occurrences(
         .into_iter()
         .filter(|occurrence| requested.contains(&occurrence.lexical_owner))
         .collect()
+}
+
+/// An omitted data header retains source custody only when all backing copies
+/// agree. A current declaration remains the authoritative description.
+fn data_declaration_for_lexical_scope(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&crate::data::DataDefinition> {
+    if let Some(definition) = program.data_definition_by_symbol(symbol) {
+        return Some(definition);
+    }
+    let mut declarations = program
+        .tables
+        .data_definitions
+        .iter()
+        .map(|(_, definition)| definition)
+        .filter(|definition| definition.symbol == symbol);
+    let definition = declarations.next()?;
+    declarations
+        .all(|copy| copy == definition)
+        .then_some(definition)
 }
 
 /// An omitted trait header remains descriptive custody only when every backing
