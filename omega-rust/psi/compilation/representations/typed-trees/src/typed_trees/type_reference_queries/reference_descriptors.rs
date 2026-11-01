@@ -17,7 +17,8 @@ impl TypedTrees {
             }
             visited.push(referee);
             match self.type_reference_table.type_reference(referee) {
-                TypeReferenceNode::Constrained { base_type, .. } => referee = *base_type,
+                TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::CaseView { subject: base_type } => referee = *base_type,
                 TypeReferenceNode::Slice { .. } => return Some(2),
                 TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Reference { .. }
