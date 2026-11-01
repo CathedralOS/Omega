@@ -289,6 +289,9 @@ fn collect_nominal_symbols(
     }
     use typed_trees::types::TypeReferenceNode;
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_nominal_symbols(program, *subject, symbols)
+        }
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

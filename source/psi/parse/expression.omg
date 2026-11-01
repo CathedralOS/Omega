@@ -1,5 +1,6 @@
 use psi::parse::input;
 use psi::parse::parser;
+use psi::parse::pattern_fields;
 use psi::parse::path;
 use psi::parse::types;
 use psi::syntax::syntax;
@@ -44,6 +45,8 @@ public data ExpressionFrameKind [copy] {
     case RangeEnd;
     // A fixed-array literal's elements.
     case Elements;
+    case MatchPatternValue;
+    case MatchGuard;
 }
 
 // One open bracket. Reductions inside it stop at `operator_base`; its staged
@@ -66,6 +69,12 @@ public data ExpressionFrame [copy] {
     // whether it includes its end (`..=`); `start` is where it begins.
     range_start: bool;
     range_inclusive: bool;
+    pattern_first_field: u64 in Trapping;
+    pattern_field_count: u64 in Trapping;
+    pattern_has_fields: bool;
+    pattern_has_rest: bool;
+    pattern_has_guard: bool;
+    pattern_guard: u64 in Trapping;
 }
 
 // Parse one expression, leaving its handle in `expression_result`. `missing`
@@ -669,8 +678,16 @@ crashes Trap
         let wildcard: bool = Parser::at_word(parser, input, "_");
         let started: ExpressionFrame = Parser::match_arm_frame(frame, token.start);
         Parser::replace_top_frame(parser, started);
+        let positional: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftParen);
+        transition positional {
+            true -> match_fields_open(parser, input, started, 0, true)
+            _ -> match_pattern_operand(parser, input, started, wildcard)
+        }
+    }
+
+    machine match_pattern_operand(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, wildcard: bool) {
         transition wildcard {
-            true -> match_wildcard(parser, input, started)
+            true -> match_wildcard(parser, input, frame)
             _ -> operand(parser, input, ParseDiagnosticCode::ExpectedMatchPattern)
         }
     }
@@ -686,9 +703,206 @@ crashes Trap
         let expression: Expression = SyntaxTrees::expression(&parser.output, pattern);
         let named: bool = Parser::names_declaration(expression.kind);
         transition named {
-            true -> match_arrow(parser, input, frame, ArmPatternKind::Case, pattern)
+            true -> match_named_pattern(parser, input, frame, pattern)
             _ -> match_arrow(parser, input, frame, ArmPatternKind::Literal, pattern)
         }
+    }
+
+    machine match_named_pattern(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, pattern: u64 in Trapping) {
+        let fields: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition fields {
+            true -> match_fields_open(parser, input, frame, pattern, false)
+            _ -> match_arrow(parser, input, frame, ArmPatternKind::Case, pattern)
+        }
+    }
+
+    // Pattern value tests and guards remain on the expression's existing frame
+    // stack. They never restart parse_expression or replay its subject.
+    machine match_fields_open(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, pattern: u64 in Trapping, positional: bool) {
+        let mut next: ExpressionFrame = frame;
+        next.pattern = pattern;
+        next.pattern_kind = match positional { true -> ArmPatternKind::Positional false -> ArmPatternKind::Case };
+        next.pattern_has_fields = true;
+        next.pattern_has_rest = false;
+        next.pattern_first_field = parser.pending_pattern_count as u64 in Trapping;
+        next.pattern_field_count = 0;
+        Parser::replace_top_frame(parser, next);
+        Parser::take_current(parser, input);
+        transition { _ -> match_field_or_end(parser, input, next) }
+    }
+
+    machine match_field_or_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let closing: PunctuationKind = match frame.pattern_kind == ArmPatternKind::Positional { true -> PunctuationKind::RightParen false -> PunctuationKind::RightBrace };
+        let at_end: bool = Parser::at_punctuation(parser, input, closing);
+        let rest: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
+        transition at_end {
+            true -> match_fields_close(parser, input, frame)
+            _ -> match_field_or_rest(parser, input, frame, rest)
+        }
+    }
+
+    machine match_field_or_rest(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, rest: bool) {
+        transition rest {
+            true -> match_field_rest(parser, input, frame)
+            _ -> match_field_name(parser, input, frame)
+        }
+    }
+
+    machine match_field_rest(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let mut next: ExpressionFrame = frame;
+        next.pattern_has_rest = true;
+        Parser::take_current(parser, input);
+        transition { _ -> match_field_delimiter(parser, input, next) }
+    }
+
+    machine match_field_name(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let waived: bool = frame.pattern_kind == ArmPatternKind::Positional && Parser::at_word(parser, input, "_");
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternField);
+        transition parser.output.accepted {
+            true -> match_field_named(parser, input, frame, waived)
+            _ -> done()
+        }
+    }
+
+    machine match_field_named(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, waived: bool) {
+        let mut next: ExpressionFrame = frame;
+        next.field_start = parser.name_start;
+        next.field_end = parser.name_end;
+        let field: PatternField = PatternField {
+            name: Parser::identifier_span(parser, parser.name_start, parser.name_end),
+            has_value: false, value: 0, has_rename: false,
+            rename: Parser::identifier_span(parser, 0, 0), is_waived: waived,
+            source_span: Parser::source_span(parser, parser.name_start, parser.name_end)
+        };
+        let valued: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
+        transition valued && frame.pattern_kind == ArmPatternKind::Positional {
+            true -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
+            _ -> match_field_form(parser, input, next, field, valued)
+        }
+    }
+    machine match_field_form(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, field: PatternField, valued: bool) {
+        transition valued {
+            true -> match_field_value(parser, input, frame)
+            _ -> match_field_binder(parser, input, frame, field)
+        }
+    }
+
+    machine match_field_binder(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, field: PatternField) {
+        let renamed: bool = Parser::at_keyword(parser, input, KeywordKind::As);
+        transition renamed && frame.pattern_kind == ArmPatternKind::Positional {
+            true -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
+            _ -> match_field_binding(parser, input, frame, field, renamed)
+        }
+    }
+    machine match_field_binding(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, field: PatternField, renamed: bool) {
+        transition renamed {
+            true -> match_field_rename(parser, input, frame, field)
+            _ -> match_field_stored(parser, input, frame, field)
+        }
+    }
+
+    machine match_field_rename(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, field: PatternField) {
+        Parser::take_current(parser, input);
+        let waived: bool = Parser::at_word(parser, input, "_");
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternRename);
+        let mut renamed: PatternField = field;
+        renamed.has_rename = true;
+        renamed.rename = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+        renamed.is_waived = waived;
+        renamed.source_span = Parser::source_span(parser, frame.field_start, parser.name_end);
+        transition parser.output.accepted {
+            true -> match_field_stored(parser, input, frame, renamed)
+            _ -> done()
+        }
+    }
+
+    machine match_field_value(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let mut next: ExpressionFrame = frame;
+        next.kind = ExpressionFrameKind::MatchPatternValue;
+        Parser::replace_top_frame(parser, next);
+        Parser::take_current(parser, input);
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedPatternField) }
+    }
+
+    machine match_field_value_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let value: u64 in Trapping = Parser::pop_operand(parser);
+        let expression: Expression = SyntaxTrees::expression(&parser.output, value);
+        let field: PatternField = PatternField {
+            name: Parser::identifier_span(parser, frame.field_start, frame.field_end),
+            has_value: true, value: value, has_rename: false,
+            rename: Parser::identifier_span(parser, 0, 0), is_waived: false,
+            source_span: Parser::source_span(parser, frame.field_start, expression.source_span.span.end)
+        };
+        let mut next: ExpressionFrame = frame;
+        next.kind = ExpressionFrameKind::MatchPattern;
+        transition { _ -> match_field_stored(parser, input, next, field) }
+    }
+
+    machine match_field_stored(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, field: PatternField) {
+        Parser::stage_pattern_field(parser, input, field);
+        let mut next: ExpressionFrame = frame;
+        next.pattern_field_count = next.pattern_field_count + 1;
+        Parser::replace_top_frame(parser, next);
+        transition parser.output.accepted {
+            true -> match_field_delimiter(parser, input, next)
+            _ -> done()
+        }
+    }
+
+    machine match_field_delimiter(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition comma {
+            true -> match_field_separator(parser, input, frame)
+            _ -> match_field_end(parser, input, frame)
+        }
+    }
+
+    machine match_field_separator(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::take_current(parser, input);
+        transition frame.pattern_kind == ArmPatternKind::Positional && frame.pattern_has_rest {
+            true -> match_field_end(parser, input, frame)
+            _ -> match_field_or_end(parser, input, frame)
+        }
+    }
+
+    machine match_field_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let closing: PunctuationKind = match frame.pattern_kind == ArmPatternKind::Positional { true -> PunctuationKind::RightParen false -> PunctuationKind::RightBrace };
+        let at_end: bool = Parser::at_punctuation(parser, input, closing);
+        transition at_end {
+            true -> match_fields_close(parser, input, frame)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
+        }
+    }
+
+    machine match_fields_close(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::take_current(parser, input);
+        Parser::commit_pattern_fields(parser, input, frame.pattern_first_field);
+        let mut next: ExpressionFrame = frame;
+        next.pattern_first_field = parser.committed_pattern_first;
+        next.pattern_field_count = parser.committed_pattern_count;
+        Parser::replace_top_frame(parser, next);
+        transition parser.output.accepted {
+            true -> match_arrow(parser, input, next, next.pattern_kind, next.pattern)
+            _ -> done()
+        }
+    }
+
+    machine match_guard(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, kind: ArmPatternKind, pattern: u64 in Trapping) {
+        let mut next: ExpressionFrame = frame;
+        next.kind = ExpressionFrameKind::MatchGuard;
+        next.pattern_kind = kind;
+        next.pattern = pattern;
+        Parser::replace_top_frame(parser, next);
+        Parser::take_current(parser, input);
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedTransitionArm) }
+    }
+
+    machine match_guard_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let guard: u64 in Trapping = Parser::pop_operand(parser);
+        let mut next: ExpressionFrame = frame;
+        next.pattern_has_guard = true;
+        next.pattern_guard = guard;
+        transition { _ -> match_arrow_token(parser, input, next, next.pattern_kind, next.pattern) }
     }
 
     machine match_arrow(
@@ -698,6 +912,14 @@ crashes Trap
         kind: ArmPatternKind,
         pattern: u64 in Trapping
     ) {
+        let guarded: bool = Parser::at_keyword(parser, input, KeywordKind::If);
+        transition guarded {
+            true -> match_guard(parser, input, frame, kind, pattern)
+            _ -> match_arrow_token(parser, input, frame, kind, pattern)
+        }
+    }
+
+    machine match_arrow_token(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, kind: ArmPatternKind, pattern: u64 in Trapping) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Arrow, ParseDiagnosticCode::ExpectedMatchArrow);
         transition parser.output.accepted {
             true -> match_value(parser, input, Parser::match_value_frame(frame, kind, pattern))
@@ -1191,6 +1413,8 @@ crashes Trap
             ExpressionFrameKind::Construct -> construct_value_end(parser, input, frame)
             ExpressionFrameKind::MatchSubject -> match_subject_end(parser, input, frame)
             ExpressionFrameKind::MatchPattern -> match_pattern_end(parser, input, frame)
+            ExpressionFrameKind::MatchPatternValue -> match_field_value_end(parser, input, frame)
+            ExpressionFrameKind::MatchGuard -> match_guard_end(parser, input, frame)
             ExpressionFrameKind::MatchValue -> match_value_end(parser, input, frame)
             ExpressionFrameKind::RangeEnd -> range_node(parser, input, true)
             ExpressionFrameKind::Elements -> element_end(parser, input)
@@ -1907,20 +2131,9 @@ crashes Trap
 // A match frame in `kind` over `subject`, from `start`.
 // A frame that remembers where its construct starts.
 machine Parser::started_frame(frame: ExpressionFrame, start: u64 in Trapping) -> ExpressionFrame {
-    ExpressionFrame {
-        kind: frame.kind,
-        operator_base: frame.operator_base,
-        pending_base: frame.pending_base,
-        callee: frame.callee,
-        field_start: frame.field_start,
-        field_end: frame.field_end,
-        start: start,
-        arm_start: frame.arm_start,
-        pattern: frame.pattern,
-        pattern_kind: frame.pattern_kind,
-        range_start: frame.range_start,
-        range_inclusive: frame.range_inclusive
-    }
+    let mut result: ExpressionFrame = frame;
+    result.start = start;
+    result
 }
 
 machine Parser::match_frame(
@@ -1961,31 +2174,24 @@ machine Parser::match_arm_frame(frame: ExpressionFrame, arm_start: u64 in Trappi
 
 // A match frame reading the value of an arm whose pattern is complete.
 machine Parser::match_value_frame(frame: ExpressionFrame, kind: ArmPatternKind, pattern: u64 in Trapping) -> ExpressionFrame {
-    ExpressionFrame {
-        kind: ExpressionFrameKind::MatchValue,
-        operator_base: frame.operator_base,
-        pending_base: frame.pending_base,
-        callee: frame.callee,
-        field_start: 0,
-        field_end: 0,
-        start: frame.start,
-        arm_start: frame.arm_start,
-        pattern: pattern,
-        pattern_kind: kind
-    }
+    let mut result: ExpressionFrame = frame;
+    result.kind = ExpressionFrameKind::MatchValue;
+    result.pattern = pattern;
+    result.pattern_kind = kind;
+    result
 }
 
 // The arm a match frame completes with `value`, through `end`.
 machine Parser::match_arm_row(parser: &Parser, frame: ExpressionFrame, value: u64 in Trapping, end: u64 in Trapping) -> TransitionArm {
     TransitionArm {
-        has_fields: false,
-        has_rest: false,
+        has_fields: frame.pattern_has_fields,
+        has_rest: frame.pattern_has_rest,
         kind: frame.pattern_kind,
         pattern: frame.pattern,
-        first_field: 0,
-        field_count: 0,
-        has_guard: false,
-        guard: 0,
+        first_field: frame.pattern_first_field,
+        field_count: frame.pattern_field_count,
+        has_guard: frame.pattern_has_guard,
+        guard: frame.pattern_guard,
         target_kind: ArmTargetKind::Value,
         target: value,
         source_span: Parser::source_span(parser, frame.arm_start, end)

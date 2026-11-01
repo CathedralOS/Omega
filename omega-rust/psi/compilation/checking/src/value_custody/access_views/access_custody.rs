@@ -519,6 +519,14 @@ fn type_contains_erased_descendant_bounded(
         return true;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => type_contains_erased_descendant_bounded(
+            program,
+            *subject,
+            visiting,
+            memo,
+            visited_records,
+            depth + 1,
+        ),
         TypeReferenceNode::Named { symbol, .. } => {
             let Some(record) =
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)

@@ -627,6 +627,11 @@ pub fn canonical_place_from_expression(
         }
         ExpressionNode::Member(member) => {
             let mut place = canonical_place_from_expression(program, member.receiver)?;
+            // The anonymous case view observes the same backing. It is not
+            // an extra stored field or a second discriminator.
+            if member.selector == language_core::DataComponentSelector::Case {
+                return Some(place);
+            }
             let symbol = effective_member_symbol(program, member.receiver, member);
             push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)

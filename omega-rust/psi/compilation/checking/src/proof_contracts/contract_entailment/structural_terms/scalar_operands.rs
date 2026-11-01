@@ -26,14 +26,14 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
     term: &StructuralTerm,
 ) -> bool {
     if let Some(observed) = super::shared_inline_observation_type(program, term) {
-        return crate::declared_carriers_match(program, declared, observed);
+        return super::observed_carriers_match(program, declared, observed);
     }
     if let Some(observed) = super::owned_observation_type(program, term) {
         // Owned observation permits reading inline carrier cells only. The
         // projection owner masks each reference child before another crossing;
         // this cannot turn a borrowed referent into an owned snapshot.
         return crate::reference_shell(program, declared).is_none()
-            && crate::declared_carriers_match(program, declared, observed);
+            && super::observed_carriers_match(program, declared, observed);
     }
     if term_is_unobserved_descriptor(program, term) {
         return false;
@@ -75,7 +75,7 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                 || (crate::reference_shell(program, *result_type).is_none()
                     && crate::reference_shell(program, declared).is_some_and(|shell| {
                         shell.access.is_readable()
-                            && crate::declared_carriers_match(program, shell.referee, *result_type)
+                            && super::observed_carriers_match(program, shell.referee, *result_type)
                     }))
         }
         StructuralTerm::IndexedValue { element_type, .. } => {
@@ -98,7 +98,7 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                 || completed_owned_carrier(program, term).is_some_and(|reference| {
                     crate::reference_shell(program, declared).is_some_and(|shell| {
                         shell.access.is_readable()
-                            && crate::declared_carriers_match(program, shell.referee, reference)
+                            && super::observed_carriers_match(program, shell.referee, reference)
                     })
                 })
         }

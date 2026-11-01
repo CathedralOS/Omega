@@ -162,7 +162,8 @@ impl Builder<'_, '_> {
             // existing place. Argument retention deliberately returns absence
             // when direct storage transport needs no temporary; that is not a
             // refusal to observe the same completed place in a match.
-            let value = self.structural_value(dispatch.subject, reference)?;
+            let value = self.structural_value(dispatch.subject, reference);
+            let value = value?;
             self.retained_argument_owner(value, reference)?;
             self.retain_structural_value_root(value, reference)?;
             let alias = if dispatch.capture.is_valid() {
@@ -394,4 +395,34 @@ impl Builder<'_, '_> {
         };
         Some(CheckedScalarDispatchPattern::Predicate(selected))
     }
+}
+
+/// A structural dispatch evaluates one complete value, even when a scalar
+/// expression can describe its eventual result. Its selected calls and source
+/// custody belong to the ordinary computation graph, never an outer statement.
+pub(super) fn requires_completed_dispatch(
+    program: &dyn validation::CheckingInput,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(machine) = program.machine_by_symbol(machine) else {
+        return false;
+    };
+    let Some(state) = program.state_by_symbol(state) else {
+        return false;
+    };
+    let mut expressions = Vec::new();
+    validation::expression_traversal::collect_expression_tree(
+        program,
+        expression,
+        &mut expressions,
+    );
+    expressions.into_iter().any(|expression| {
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+        else {
+            return false;
+        };
+        validation::structural_match_subject_type(program, machine, state, dispatch).is_some()
+    })
 }

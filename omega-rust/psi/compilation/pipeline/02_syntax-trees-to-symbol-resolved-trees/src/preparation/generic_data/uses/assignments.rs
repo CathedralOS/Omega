@@ -1,5 +1,5 @@
 //! Expected types from constant/local declarations and assignments.
-use super::super::{ExpressionNode, Item, StatementNode, SyntaxTrees};
+use super::super::{Item, StatementNode, SyntaxTrees};
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, concrete_state_local_types, relabel_data_literal_for_expected_type,
 };
@@ -63,15 +63,15 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_constant
 }
 
 /// An assignment target is another explicit destination type. Relabel a bare
-/// generic literal only when that type is available directly from a local or
-/// parameter; computed targets remain fail-closed.
+/// generic literal from its lexical storage declaration and exact projection
+/// roster. This is type formation; ordinary checking still owes the write.
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    for (state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
+    for (state, _local_types, statements) in concrete_state_local_types(syntax, declarations) {
         for (index, statement) in statements.iter().enumerate() {
             let frontier = ConstructorFrontier {
                 parameters: state.parameters,
@@ -92,15 +92,13 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
                 StatementNode::Assignment(assignment) => *assignment,
                 _ => continue,
             };
-            let expected_type = match syntax.expressions.expression(assignment.target) {
-                ExpressionNode::Name(path) => {
-                    let [name] = syntax.expressions.identifier_path_members(*path) else {
-                        continue;
-                    };
-                    local_types.get(name.as_str(syntax)).copied()
-                }
-                _ => None,
-            };
+            let expected_type = super::place_types::declared_destination(
+                syntax,
+                assignment.target,
+                &frontier,
+                instances,
+                selection,
+            );
             if let Some(expected_type) = expected_type {
                 relabel_data_literal_for_expected_type(
                     syntax,

@@ -609,6 +609,7 @@ machine TypingHarness::write_selection(typing_harness: &mut TypingHarness, selec
         Selection::Field { field } -> write(typing_harness, 3, field)
         Selection::Length -> write(typing_harness, 4, 0)
         Selection::Binder { parameter } -> write(typing_harness, 5, parameter)
+        Selection::PayloadField { data_case as _, field } -> write(typing_harness, 6, field)
     }
 
     machine write(typing_harness: &mut TypingHarness, tag: u8, handle: u64 in Trapping) {
@@ -643,6 +644,7 @@ machine TypingHarness::kind_tag(value: TypeKind) -> u8 {
         TypeKind::AnonymousFloat -> tag(10)
         TypeKind::AnonymousChoice -> tag(11)
         TypeKind::AnonymousArray -> tag(12)
+        TypeKind::CaseView -> tag(13)
     }
 
     machine tag(number: u8) -> u8 {
@@ -716,6 +718,7 @@ machine TypingHarness::adaptation_tag(value: Adaptation) -> u8 {
         Adaptation::SharedLend -> tag(2)
         Adaptation::Qualified -> tag(3)
         Adaptation::Read -> tag(4)
+        Adaptation::TypeEquation -> tag(5)
     }
 
     machine tag(number: u8) -> u8 {

@@ -1,0 +1,52 @@
+// A data binding retains the producer's equality between two u64 fields so subtracting the lower binding from the upper binding is exact.
+// Expected exit: 0
+data Pair [copy]
+requires (self in Pair::Ready) || (self in Pair::Empty && self.lower == 0)
+{ lower: u64; case Ready(upper: u64); case Empty; }
+machine produce(value: u64) -> Pair { Pair::Ready { lower: value, upper: value } }
+trait Reader { machine read(pair: Pair, expected: u64) -> bool; }
+LinuxReader satisfies Reader {
+    machine read(pair: Pair, expected: u64) -> bool {
+    let Pair { lower as low, case as operation } = pair;
+    match operation {
+        Pair::Ready { upper as high } -> (high - low) == 0 && low == expected && high == expected
+        Pair::Empty -> false
+    }
+    }
+}
+LinuxArmReader satisfies Reader {
+    machine read(pair: Pair, expected: u64) -> bool {
+    let Pair { lower as low, case as operation } = pair;
+    match operation {
+        Pair::Ready { upper as high } -> (high - low) == 0 && low == expected && high == expected
+        Pair::Empty -> false
+    }
+    }
+}
+MacReader satisfies Reader {
+    machine read(pair: Pair, expected: u64) -> bool {
+    let Pair { lower as low, case as operation } = pair;
+    match operation {
+        Pair::Ready { upper as high } -> (high - low) == 0 && low == expected && high == expected
+        Pair::Empty -> false
+    }
+    }
+}
+WindowsReader satisfies Reader {
+    machine read(pair: Pair, expected: u64) -> bool {
+    let Pair { lower as low, case as operation } = pair;
+    match operation {
+        Pair::Ready { upper as high } -> (high - low) == 0 && low == expected && high == expected
+        Pair::Empty -> false
+    }
+    }
+}
+machine journey<Chosen satisfies Reader>() crashes Trap {
+    transition Chosen::read(produce(17), 17) && Chosen::read(produce(23), 23) { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine linux_entry() crashes Trap { journey<LinuxReader>(); }
+machine linuxarm_entry() crashes Trap { journey<LinuxArmReader>(); }
+machine mac_entry() crashes Trap { journey<MacReader>(); }
+machine windows_entry() crashes Trap { journey<WindowsReader>(); }

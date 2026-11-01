@@ -1,0 +1,67 @@
+use psi::parse::input;
+use psi::parse::parser;
+use psi::syntax::syntax;
+use psi::tokens::tokens;
+
+// Active pattern rosters stage separately from the published table. A nested
+// value test may publish its own roster without splitting the enclosing one.
+public machine Parser::stage_pattern_field(parser: &mut Parser, input: &TokenStream, field: PatternField)
+crashes Trap
+{
+    transition parser.pending_pattern_count < 2048 {
+        true -> stored(parser, field)
+        _ -> full(parser, input)
+    }
+    machine stored(parser: &mut Parser, field: PatternField)
+    requires parser.pending_pattern_count < 2048
+    {
+        parser.pending_pattern_fields[parser.pending_pattern_count] = field;
+        parser.pending_pattern_count = parser.pending_pattern_count + 1;
+    }
+    machine full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded);
+    }
+}
+
+public machine Parser::commit_pattern_fields(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping)
+crashes Trap
+{
+    parser.committed_pattern_first = parser.output.pattern_field_count as u64 in Trapping;
+    parser.committed_pattern_count = 0;
+    transition base <= parser.pending_pattern_count && base <= 2048 {
+        true -> field(parser, input, base, base)
+        _ -> full(parser, input)
+    }
+    machine field(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, index: u64 in Trapping)
+    requires base <= 2048
+    {
+        transition index < parser.pending_pattern_count && parser.output.accepted {
+            true -> bounded(parser, input, base, index)
+            _ -> complete(parser, base)
+        }
+    }
+    machine bounded(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, index: u64 in Trapping)
+    requires base <= 2048
+    {
+        transition index < 2048 && parser.output.pattern_field_count < 2048 {
+            true -> stored(parser, input, base, index)
+            _ -> full(parser, input)
+        }
+    }
+    machine stored(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, index: u64 in Trapping)
+    requires base <= 2048, index < 2048, parser.output.pattern_field_count < 2048
+    {
+        parser.output.pattern_fields[parser.output.pattern_field_count] = parser.pending_pattern_fields[index];
+        parser.output.pattern_field_count = parser.output.pattern_field_count + 1;
+        parser.committed_pattern_count = parser.committed_pattern_count + 1;
+        transition { _ -> field(parser, input, base, index + 1) }
+    }
+    machine complete(parser: &mut Parser, base: u64 in Trapping)
+    requires base <= 2048
+    {
+        parser.pending_pattern_count = base as u64;
+    }
+    machine full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded);
+    }
+}

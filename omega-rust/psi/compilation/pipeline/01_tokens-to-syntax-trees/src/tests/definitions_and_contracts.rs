@@ -1124,7 +1124,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
 }
 
 #[test]
-fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+fn destructure_metadata_preserves_double_underscore_field_as_one_component() {
     let source = r#"
         data Pair { left__value: i32; right: i32; }
         machine inspect(pair: Pair) {
@@ -1139,20 +1139,16 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
         .statements(state.statements)
         .iter()
         .find_map(|handle| match parsed.statements.statement(*handle) {
-            StatementNode::LocalData(local)
-                if local.name.as_str(&parsed).starts_with("__destructure#") =>
-            {
-                Some(local)
-            }
+            StatementNode::LocalData(local) if local.pattern.is_some() => Some(local),
             _ => None,
         })
         .expect("destructure marker local");
 
-    assert_eq!(
-        marker.name.as_str(&parsed),
-        "__destructure#left__value#right",
-        "the internal delimiter must not split repeated underscores"
-    );
+    let pattern = marker.pattern.expect("explicit structural pattern");
+    let members = parsed.expressions.match_fields(pattern.fields);
+    assert_eq!(members.len(), 2);
+    assert_eq!(members[0].member.as_str(&parsed), "left__value");
+    assert_eq!(members[1].member.as_str(&parsed), "right");
 }
 
 #[test]

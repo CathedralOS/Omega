@@ -65,6 +65,7 @@ crashes Trap
             Admission::Exact -> value(typer, syntax, values, result_type, offset + 1)
             Admission::Landed -> adapted(typer, syntax, values, result_type, offset, handle)
             Admission::SharedReborrow -> adapted(typer, syntax, values, result_type, offset, handle)
+            Admission::TypeEquation -> adapted(typer, syntax, values, result_type, offset, handle)
             _ -> incompatible(typer, syntax, handle, admission)
         }
     }

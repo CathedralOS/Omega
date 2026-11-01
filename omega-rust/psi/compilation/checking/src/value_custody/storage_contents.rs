@@ -538,6 +538,9 @@ fn resolve(
         return resolve(program, storage.semantic_type, arguments, requirement);
     }
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            resolve(program, *subject, arguments, requirement)
+        }
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {
                 // A code operand may fill another implementation slot, but it

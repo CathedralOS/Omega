@@ -174,6 +174,30 @@ pub fn type_graph_requires_nominal_drop(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            if crate::reference_shell(program, *subject).is_some() {
+                return false;
+            }
+            let Some(data) =
+                crate::value_custody::places::data_definition_for_type(program, *subject)
+            else {
+                return true;
+            };
+            program
+                .data_members(data)
+                .iter()
+                .filter_map(|member| member.as_variant())
+                .any(|variant| {
+                    program.data_payload_fields(variant).iter().any(|field| {
+                        type_graph_requires_nominal_drop(
+                            program,
+                            field.type_reference,
+                            substitutions,
+                            visited,
+                        )
+                    })
+                })
+        }
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_graph_requires_nominal_drop(program, *base_type, substitutions, visited)

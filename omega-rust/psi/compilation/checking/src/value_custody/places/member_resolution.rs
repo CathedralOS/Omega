@@ -519,6 +519,15 @@ pub(super) fn expression_type_position(
         }
         ExpressionNode::Member(member) => {
             let receiver_position = expression_type_position(program, member.receiver);
+            if member.selector == language_core::DataComponentSelector::Case {
+                return match receiver_position? {
+                    MemberPosition::Reference(subject) => program
+                        .type_reference_table
+                        .case_view_reference(subject)
+                        .map(MemberPosition::Reference),
+                    _ => None,
+                };
+            }
             let symbol = effective_member_symbol_from_position(
                 program,
                 member.receiver,

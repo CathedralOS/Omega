@@ -41,9 +41,43 @@ pub(crate) fn append_owned_cleanup_permission_events(
         coordinate,
         tracked_places,
         remaining,
+        None,
         |mut event, path| {
             event.segments = segments.insert_many(path);
             permission_events.push(event);
+        },
+    );
+}
+
+pub(crate) fn append_binding_cleanup_permission_events(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    machine: SymbolHandle,
+    statement: usize,
+    places: &[LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
+    events: &mut Vec<FlowPermissionEventFact>,
+) {
+    let Some(owner) = validation::data_bindings::completed_owner(program, state, statement) else {
+        return;
+    };
+    visit_owned_cleanup_events(
+        program,
+        &[],
+        state,
+        machine,
+        FlowClaimJoinExit::default(),
+        places,
+        remaining,
+        Some(facts::PlaceRoot::Symbol(owner)),
+        |mut event, path| {
+            event.source = PermissionEventSource::Statement {
+                statement_index: statement,
+            };
+            event.evaluation = FlowPermissionEvaluation::Statement;
+            event.segments = segments.insert_many(path);
+            events.push(event);
         },
     );
 }
@@ -59,10 +93,14 @@ fn visit_owned_cleanup_events(
     coordinate: FlowClaimJoinExit,
     tracked_places: &[LinearPlace],
     remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    only_root: Option<facts::PlaceRoot>,
     mut emit: impl FnMut(FlowPermissionEventFact, Vec<facts::PlaceSegment>),
 ) {
     let evaluation = exit_evaluation(program, state, coordinate);
     let mut append = |root: facts::PlaceRoot, type_reference: TypeReferenceHandle| {
+        if only_root.is_some_and(|selected| selected != root) {
+            return;
+        }
         // Availability records a descriptor occurrence, not an independent
         // cleanup owner. Its exact loan cohort owns direct-reference release.
         if validation::reference_shell(program, type_reference).is_some() {
@@ -137,6 +175,17 @@ fn visit_owned_cleanup_events(
         }
     };
 
+    if let Some(root) = only_root {
+        if let Some((_, local)) = root
+            .as_symbol()
+            .and_then(|symbol| program.state_local_declaration(state, symbol))
+        {
+            if !local.relevance.is_erased() {
+                append(root, local.type_reference);
+            }
+        }
+        return;
+    }
     for (statement_index, statement) in
         crate::flow::state_statements(program, state.statement_nodes)
             .iter()

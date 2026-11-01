@@ -490,3 +490,56 @@ pub(super) fn matches_return(backing: &[Backing], declared: &impl Fn(&Root) -> b
             _ => false,
         })
 }
+
+/// An independently replayed absent descriptor can be transported as absence.
+/// This is not a read permission and must never serve a dereference or call's
+/// borrowed-reference demand. Ordinary fields and unknown origins cannot use it.
+pub(super) fn absent_case_descriptor(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> bool {
+    let Some((StructuralPathSegment::Referent, path)) = source.path.split_last() else {
+        return false;
+    };
+    if source.access != StructuralAccess::SharedBorrow
+        || !path
+            .iter()
+            .any(|part| matches!(part, StructuralPathSegment::Case(_)))
+        || custody.leaf(source.place, path).is_some()
+    {
+        return false;
+    }
+    let Some(position) = custody.reference_position else {
+        return false;
+    };
+    let Some(contract) = source_contract(function, custody, source.place) else {
+        return false;
+    };
+    let Some(location) = terminal_semantics::descriptor_lifetimes::descriptor_location(
+        types,
+        source.place,
+        contract,
+        path,
+        None,
+    ) else {
+        return false;
+    };
+    custody
+        .stored_calls
+        .observations
+        .get(&function.machine)
+        .and_then(|positions| positions.get(&position))
+        .and_then(|locations| locations.get(&location))
+        .and_then(|observation| observation.origins.as_ref())
+        .is_some_and(|origins| {
+            !origins.is_empty()
+                && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Empty)
+                    )
+                })
+        })
+}

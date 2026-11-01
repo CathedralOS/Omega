@@ -32,6 +32,7 @@ pub(in crate::checks) fn fixed_array_type_recipe(
         return Default::default();
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => Default::default(),
         TypeReferenceNode::FixedArray { .. } => match program.declared_array_extent(type_reference)
         {
             Some(typed_trees::constant_recipes::DeclaredArrayExtent::Recipe(recipe)) => recipe,

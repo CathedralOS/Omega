@@ -635,6 +635,8 @@ impl Builder<'_, '_> {
                     &[],
                 ),
             }
+        } else if let Some(value) = self.case_component_view(expression, expected) {
+            value
         } else if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
             value
         } else if let Some(value) = self.same_carrier_structural_cast(expression, expected) {

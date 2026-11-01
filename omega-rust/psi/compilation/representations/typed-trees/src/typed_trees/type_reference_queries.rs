@@ -349,6 +349,7 @@ impl TypedTrees {
             return self.type_multiplicity(storage.semantic_type);
         }
         match self.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::CaseView { subject } => self.type_multiplicity(*subject),
             TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
@@ -419,6 +420,9 @@ impl TypedTrees {
         type_reference: types::TypeReferenceHandle,
     ) -> language_semantics::Multiplicity {
         match self.type_reference_table.type_reference(type_reference) {
+            types::TypeReferenceNode::CaseView { subject } => {
+                self.stored_value_multiplicity(*subject)
+            }
             types::TypeReferenceNode::Reference { access, .. }
                 if *access != language_core::ReferenceAccess::Shared =>
             {

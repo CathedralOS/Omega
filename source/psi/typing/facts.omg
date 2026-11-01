@@ -10,8 +10,7 @@ use psi::typing::typer;
 // their parameters (`result` is the machine's result), each `where
 // machine` contract's `requires` facts over its own parameters, each
 // domain's predicates over its subject binder, a data
-// declaration's `requires` and retired `where` facts over its fields, and
-// each case's own `where` facts over its payload fields and those fields.
+// declaration's predicates over its exact subject and declaration fields.
 // A data `requires self` types `self` as that declaration applied to its
 // own generic parameters. A proposition application, a whole fact, is a
 // Boolean statement (calls.omg).
@@ -71,20 +70,7 @@ crashes Trap
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Where);
-        transition { _ -> next_case(typer, sources, syntax, resolution, index, item, 0) }
-    }
-
-    machine next_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
-        transition offset < item.case_count && typer.output.accepted {
-            true -> case_facts(typer, sources, syntax, resolution, index, item, offset)
-            _ -> next_data(typer, sources, syntax, resolution, index + 1)
-        }
-    }
-
-    machine case_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
-        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
-        Typer::type_clause_facts(typer, sources, syntax, resolution, declared.first_clause, declared.clause_count, ClauseKind::Where);
-        transition { _ -> next_case(typer, sources, syntax, resolution, index, item, offset + 1) }
+        transition { _ -> next_data(typer, sources, syntax, resolution, index + 1) }
     }
 
     machine done() {}

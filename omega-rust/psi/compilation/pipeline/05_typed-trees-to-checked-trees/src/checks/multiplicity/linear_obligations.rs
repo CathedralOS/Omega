@@ -277,6 +277,7 @@ pub(super) fn prepare_storage_deaths(
                                 statement,
                                 statement_index,
                                 &place,
+                                expression,
                                 &step.route,
                                 &mut consumed_owner_uses,
                             );
@@ -587,7 +588,7 @@ pub(crate) fn type_reference_is_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    crate::checks::reference_access(program, type_reference).is_some()
+    validation::reference_shell(program, type_reference).is_some()
 }
 
 fn nominal_drop_place_name<'program>(

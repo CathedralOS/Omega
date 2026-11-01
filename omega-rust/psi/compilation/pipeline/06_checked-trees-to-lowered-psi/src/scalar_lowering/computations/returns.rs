@@ -9,6 +9,9 @@ use super::{
     storage, unsupported,
 };
 use crate::checked_facts::value_facts;
+use crate::scalar_lowering::branch_states::prepared::{
+    LoweredScalarBranchState, LoweredScalarEffect,
+};
 
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -67,6 +70,30 @@ impl Expansion<'_> {
         {
             return unsupported("checked scalar return completion disagrees with its destination");
         }
+        let copies = if role == CheckedScalarExpressionRole::Return {
+            crate::expression_preparation::selected_values::roots(
+                self.checked,
+                self.machine,
+                exit.state_symbol,
+                statement,
+            )?
+        } else {
+            Vec::new()
+        };
+        let target = if copies.is_empty() {
+            target
+        } else {
+            let mut completed_types = source_types.to_vec();
+            completed_types.push(destination);
+            self.push(LoweredScalarBranchState::jumping(
+                target, Vec::new(), completed_types.clone(), &completed_types,
+                vec![LoweredScalarEffect::CompleteSnapshots {
+                    snapshots: copies.iter().rev().map(|root|
+                        crate::scalar_lowering::branch_states::prepared::CompletedSnapshot::Produced(root.root)
+                    ).collect(),
+                }],
+            ))
+        };
         let target = if source == destination {
             target
         } else {
@@ -80,13 +107,38 @@ impl Expansion<'_> {
                 },
             ))
         };
-        self.argument(
+        let target = self.argument(
             identities,
             &argument,
             source_types,
             target,
             &site,
             &mut Vec::new(),
-        )
+        )?;
+        let mut effects = Vec::new();
+        for root in copies {
+            let request =
+                crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+                    identities,
+                    self.checked,
+                    root.root,
+                    self.structural_types,
+                )?;
+            effects.push(LoweredScalarEffect::ProduceStructuralValue {
+                value: request.value,
+                structural_type: request.structural_type,
+            });
+        }
+        Ok(if effects.is_empty() {
+            target
+        } else {
+            self.push(LoweredScalarBranchState::jumping(
+                target,
+                Vec::new(),
+                source_types.to_vec(),
+                source_types,
+                effects,
+            ))
+        })
     }
 }

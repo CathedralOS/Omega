@@ -56,6 +56,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
     };
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => validate_child!(*subject, false),
         TypeReferenceNode::Reference { referee, .. } => {
             validate_child!(*referee, false)
         }

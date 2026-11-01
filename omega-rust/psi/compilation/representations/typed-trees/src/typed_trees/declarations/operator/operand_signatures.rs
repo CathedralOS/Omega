@@ -46,6 +46,9 @@ pub(crate) fn collect_type_parameter_occurrences(
     normalizer: &mut TypeParameterNormalizer,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_parameter_occurrences(program, *subject, normalizer)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_parameter_occurrences(program, *referee, normalizer);
         }

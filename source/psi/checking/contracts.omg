@@ -91,8 +91,7 @@ crashes Trap
     }
 }
 
-// Whether a type, through references, is data whose declaration or one of
-// whose cases carries `where` facts.
+// Whether a type, through references, has declared data predicates.
 public machine Checker::constrained(syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -107,23 +106,7 @@ crashes Trap
         let required: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Requires);
         transition required {
             true -> carries()
-            _ -> case(syntax, item, 0)
-        }
-    }
-
-    machine case(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
-        transition offset < item.case_count {
-            true -> case_clauses(syntax, item, offset)
             _ -> unconstrained()
-        }
-    }
-
-    machine case_clauses(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
-        let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
-        let facts: bool = Checker::declares(syntax, data_case.first_clause, data_case.clause_count, ClauseKind::Where);
-        transition facts {
-            true -> carries()
-            _ -> case(syntax, item, offset + 1)
         }
     }
 

@@ -99,7 +99,8 @@ fn reference_origin_expansion_is_bounded(
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {}
-            TypeReferenceNode::Constrained { base_type, .. } => {
+            TypeReferenceNode::CaseView { subject: base_type }
+            | TypeReferenceNode::Constrained { base_type, .. } => {
                 return visit(
                     program,
                     *base_type,
@@ -212,7 +213,8 @@ pub fn is_reference_record(program: &dyn CheckingInput, reference: TypeReference
         {
             return visit(program, *element_type, seen, scopes, scope);
         }
-        if let TypeReferenceNode::Constrained { base_type, .. } =
+        if let TypeReferenceNode::CaseView { subject: base_type }
+        | TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
             return visit(program, *base_type, seen, scopes, scope);
@@ -972,7 +974,33 @@ pub fn declared_carrier_references(
             });
             return Some(());
         }
-        if crate::has_contents(program, reference, &[], ContentsRequirement::NumericOwned) {
+        if let TypeReferenceNode::CaseView { subject } =
+            program.type_reference_table.type_reference(reference)
+        {
+            // A case component keeps its original storage schema, but owns
+            // only payload descriptors. Common-field loans were partitioned
+            // into the outer bindings and cannot be demanded or duplicated.
+            let first = output.len();
+            let depth = path.len();
+            visit(program, *subject, path, output, scopes, scope)?;
+            let mut tail = output.split_off(first);
+            tail.retain(|leaf| {
+                matches!(
+                    leaf.path.get(depth),
+                    Some(Exact(
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                    ))
+                )
+            });
+            output.extend(tail);
+            return Some(());
+        }
+        if crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) {
             return Some(());
         }
         if let TypeReferenceNode::FixedArray {
@@ -1581,7 +1609,20 @@ pub fn origin_place_segments(
     let mut scope = 0;
     for projection in path {
         (selected, scope) = scopes.head(program, selected, scope);
-        while let TypeReferenceNode::Constrained { base_type, .. }
+        if let TypeReferenceNode::CaseView { subject } =
+            program.type_reference_table.type_reference(selected)
+            && crate::reference_shell(program, *subject).is_none()
+            && !matches!(
+                &projection,
+                checked_trees::CheckedReferenceOriginProjection::Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                )
+            )
+        {
+            return None;
+        }
+        while let TypeReferenceNode::CaseView { subject: base_type }
+        | TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
             referee: base_type, ..
         } = program.type_reference_table.type_reference(selected)

@@ -1,3 +1,4 @@
+use psi::checking::cases;
 use psi::checking::arithmetic;
 use psi::checking::checker;
 use psi::checking::evaluation;
@@ -48,11 +49,13 @@ crashes Trap
 machine Checker::fact_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> Value
 crashes Trap
 {
+    Checker::set_case_observation(checker, handle, CaseObservation { subject: 0, data_case: 0 });
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
     transition expression.kind {
+        ExpressionKind::Membership -> Checker::case_membership_value(checker, syntax, resolution, typing, handle, expression)
         ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row)
         ExpressionKind::Integer -> literal(typing, handle)

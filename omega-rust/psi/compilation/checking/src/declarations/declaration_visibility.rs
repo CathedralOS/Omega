@@ -186,6 +186,13 @@ fn validate_public_const_type_reference(
     visited.push(type_reference);
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => validate_public_const_type_reference(
+            program,
+            const_symbol,
+            *subject,
+            visited,
+            diagnostics,
+        ),
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

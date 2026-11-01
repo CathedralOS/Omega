@@ -184,6 +184,42 @@ fn plan_inner(
         statement_index,
         local.initial_value,
     );
+    if let Some(owner) =
+        validation::data_bindings::completed_owner(program, state, statement_index as usize)
+    {
+        let dies = facts
+            .contextual_cleanup
+            .state_disposition_handles(machine.symbol, state.symbol)
+            .into_iter()
+            .any(|handle| {
+                let disposition = facts.contextual_cleanup.dispositions.get(handle);
+                disposition.root == facts::PlaceRoot::Symbol(owner)
+                    && disposition.source
+                        == (language_semantics::PermissionEventSource::Statement {
+                            statement_index: statement_index as usize,
+                        })
+            });
+        if dies {
+            let (_, capture) = program.state_local_declaration(state, owner)?;
+            // The exact home is present during construction. Ordinary action
+            // selection supplies its checked complement and hook sequence once
+            // executable targets are available, like call continuations.
+            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry {
+                    statement_index,
+                },
+                selected_regions: Vec::new(),
+                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::RetireHome {
+                    source:
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                            symbol: owner,
+                        },
+                    type_identity: shapes.add_type(capture.type_reference, binders, &[])?,
+                }],
+            });
+        }
+        return Some(LocalPlan::Planned);
+    }
     if (reference_capture.is_none()
         && structural_root.is_none()
         && erased_locals.contains(&local.symbol))

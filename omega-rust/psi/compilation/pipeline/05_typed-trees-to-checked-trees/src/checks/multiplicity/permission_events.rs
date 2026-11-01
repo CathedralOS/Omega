@@ -420,6 +420,62 @@ pub(crate) fn prepare_permission_events(
                         statement: statement_index,
                         evaluation,
                     } => {
+                        if statements[statement_index]
+                            .as_local_data()
+                            .is_some_and(|local| {
+                                local.role == language_core::LocalBindingRole::RecordPattern
+                            })
+                        {
+                            // A computed data initializer owns one lexical binding
+                            // window. Its completion disposes only the checked live
+                            // complement, after all component captures have moved.
+                            let binding_events = permission_events.len();
+                            super::linear_validation::append_binding_cleanup_permission_events(
+                                program,
+                                state,
+                                machine.symbol,
+                                statement_index,
+                                places,
+                                remaining,
+                                &mut facts.flow.ownership.segments,
+                                &mut permission_events,
+                            );
+                            if let Some(root) = validation::data_bindings::completed_owner(
+                                program,
+                                state,
+                                statement_index,
+                            ) {
+                                let root = facts::PlaceRoot::Symbol(root);
+                                if let Err(diagnostic) = selected_cleanup.finish(
+                                    program,
+                                    state,
+                                    Default::default(),
+                                    Some((root, statement_index)),
+                                    &permission_events[binding_events..],
+                                    remaining,
+                                    &mut facts.flow.ownership,
+                                    &mut cleanup_dispositions,
+                                ) {
+                                    selection_diagnostics.push(diagnostic);
+                                }
+                                selected_cleanup.forget_completed(root);
+                            }
+                            let events = permission_events[binding_events..]
+                                .iter()
+                                .collect::<Vec<_>>();
+                            apply_recorded_statement_events(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                statement_index,
+                                evaluation,
+                                &events,
+                                places,
+                                &mut selection_diagnostics,
+                            );
+                            return;
+                        }
                         if !matches!(
                             evaluation,
                             checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
@@ -681,6 +737,7 @@ pub(crate) fn prepare_permission_events(
                             program,
                             state,
                             coordinate,
+                            None,
                             &permission_events[event_start..],
                             remaining,
                             &mut facts.flow.ownership,

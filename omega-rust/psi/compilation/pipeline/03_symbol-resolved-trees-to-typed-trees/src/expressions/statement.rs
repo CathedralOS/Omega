@@ -175,6 +175,10 @@ fn lower_statement_node(
                 None => lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?,
             };
             Ok(typed::statement::StatementNode::LocalData(TableLocalData {
+                pattern: local_data
+                    .pattern
+                    .map(|pattern| lower_local_pattern(lowerer, pattern))
+                    .transpose()?,
                 role: local_data.role,
                 symbol: local_data.symbol,
                 name: crate::lowerer::name::lower_name(&local_data.name),
@@ -198,4 +202,47 @@ fn lower_statement_node(
             ))
         }
     }
+}
+
+fn lower_local_pattern(
+    lowerer: &mut Lowerer,
+    pattern: resolved::statement::TableLocalPattern,
+) -> Result<typed::statement::TableLocalPattern, Diagnostic> {
+    let source_fields = crate::tables::resolved_expressions(lowerer.source_trees)
+        .match_fields(pattern.fields)
+        .to_vec();
+    let head = if pattern.head.is_valid() {
+        lower_statement_expression(lowerer, pattern.head)?
+    } else {
+        typed::expression::ExpressionHandle::invalid()
+    };
+    let mut fields = Vec::new();
+    for field in source_fields {
+        let action = match field.action {
+            resolved::expression::MatchFieldAction::Bind(name) => {
+                typed::expression::MatchFieldAction::Bind(crate::lowerer::name::lower_name(&name))
+            }
+            resolved::expression::MatchFieldAction::Equal(value) => {
+                typed::expression::MatchFieldAction::Equal(lower_statement_expression(
+                    lowerer, value,
+                )?)
+            }
+            resolved::expression::MatchFieldAction::Waive => {
+                typed::expression::MatchFieldAction::Waive
+            }
+        };
+        fields.push(typed::expression::TableMatchField {
+            selector: field.selector,
+            member: crate::lowerer::name::lower_name(&field.member),
+            field_symbol: field.field_symbol,
+            action,
+        });
+    }
+    let fields = expression_table_mut(&mut lowerer.typed_trees).insert_match_fields(fields);
+    Ok(typed::statement::TableLocalPattern {
+        head,
+        fields,
+        has_rest: pattern.has_rest,
+        positional: pattern.positional,
+    })
 }

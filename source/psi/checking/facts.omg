@@ -1,3 +1,4 @@
+use psi::checking::cases;
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::zone;
@@ -38,8 +39,22 @@ crashes Trap
             ExpressionKind::Binary -> binary(checker, syntax, expression, holds)
             ExpressionKind::Unary -> unary(checker, syntax, expression, holds)
             ExpressionKind::Boolean -> literal(checker, syntax, expression, holds)
+            ExpressionKind::Membership -> membership(checker, syntax, handle, holds)
             _ -> truth(checker, syntax, handle, holds)
         }
+    }
+
+    machine membership(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) {
+        let observation: CaseObservation = Checker::case_observation(checker, handle);
+        let value: Value = Checker::case_observation_value(observation);
+        let expected: Value = Value::constant(ExactInteger { negative: false, magnitude: observation.data_case as u64 in Wrapping });
+        transition observation.subject > 0 {
+            true -> classified(checker, syntax, value, expected, holds)
+            _ -> truth(checker, syntax, handle, holds)
+        }
+    }
+    machine classified(checker: &mut Checker, syntax: &SyntaxTrees, value: Value, expected: Value, holds: bool) {
+        transition holds { true -> equal(checker, syntax, value, expected) _ -> unequal(checker, syntax, value, expected) }
     }
 
     // value - truth <= 0 and truth - value <= 0.
@@ -99,8 +114,23 @@ crashes Trap
     machine both(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
         transition (expression.operator == OperatorKind::And) == holds {
             true -> pushed(checker, syntax, expression, holds)
-            _ -> next(checker, syntax)
+            _ -> conditional(checker, syntax, expression, holds)
         }
+    }
+    machine conditional(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
+        let left_excluded: bool = Checker::proves_atom(checker, syntax, expression.left, !holds);
+        let right_excluded: bool = Checker::proves_atom(checker, syntax, expression.right, !holds);
+        transition left_excluded {
+            true -> consequence(checker, syntax, expression.right, holds)
+            _ -> other_consequence(checker, syntax, expression.left, holds, right_excluded)
+        }
+    }
+    machine other_consequence(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool, excluded: bool) {
+        transition excluded { true -> consequence(checker, syntax, handle, holds) _ -> next(checker, syntax) }
+    }
+    machine consequence(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) {
+        Checker::push_assumption(checker, handle, holds);
+        transition { _ -> next(checker, syntax) }
     }
 
     machine pushed(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
@@ -414,11 +444,30 @@ crashes Trap
 public machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, handle);
+    transition { _ -> normalized(checker, syntax, handle, holds, 0) }
+    machine normalized(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool, depth: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        transition expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not && depth < 128 {
+            true -> normalized(checker, syntax, expression.left, !holds, depth + 1)
+            _ -> atom(checker, syntax, handle, holds, expression)
+        }
+    }
+    machine atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool, expression: Expression) -> bool {
     transition expression.kind {
         ExpressionKind::Binary -> comparison(checker, expression, holds)
         ExpressionKind::Boolean -> literal(expression.flag == holds)
+        ExpressionKind::Membership -> membership(checker, handle, holds)
         _ -> truth(checker, handle, holds)
+    }
+    }
+
+    machine membership(checker: &Checker, handle: u64 in Trapping, holds: bool) -> bool {
+        let observation: CaseObservation = Checker::case_observation(checker, handle);
+        let value: Value = Checker::case_observation_value(observation);
+        let expected: Value = Value::constant(ExactInteger { negative: false, magnitude: observation.data_case as u64 in Wrapping });
+        let equal: bool = Checker::proves_at_most(checker, value, expected) && Checker::proves_at_most(checker, expected, value);
+        let unequal: bool = Checker::proves_less(checker, value, expected) || Checker::proves_less(checker, expected, value);
+        transition observation.subject > 0 { true -> literal((holds && equal) || (!holds && unequal)) _ -> truth(checker, handle, holds) }
     }
 
     machine truth(checker: &Checker, handle: u64 in Trapping, holds: bool) -> bool {

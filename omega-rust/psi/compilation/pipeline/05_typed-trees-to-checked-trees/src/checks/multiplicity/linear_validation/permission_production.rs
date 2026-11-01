@@ -850,6 +850,19 @@ pub(crate) fn evaluate_statement_permissions(
                     );
                 }
                 complete_occurrence!(occurrence_ordinal, places, remaining);
+                if !occurrence.route.is_empty()
+                    && let Some(selected) =
+                        super::super::permission_schedule::SelectedCases::at_completed_operand(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            statement_index,
+                            expression,
+                        )
+                {
+                    selected.apply(places, Some(remaining));
+                }
             }
         }
     }

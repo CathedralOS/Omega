@@ -30,6 +30,7 @@ requires
     expression_frame_depth <= 32,
     pending_argument_count <= 256,
     pending_field_count <= 64,
+    pending_pattern_count <= 2048,
     type_frame_depth <= 16,
     pending_type_argument_count <= 32,
     pending_type_lifetime_count <= 32,
@@ -194,6 +195,14 @@ requires
     arm_has_rest: bool;
     arm_has_guard: bool;
     arm_guard: u64 in Trapping;
+    pending_pattern_fields: [PatternField; 2048] in Trapping;
+    pending_pattern_count: u64;
+    committed_pattern_first: u64 in Trapping;
+    committed_pattern_count: u64 in Trapping;
+    pattern_field_waived: bool;
+    pattern_binding: bool;
+    pattern_positional: bool;
+    pattern_binding_arm: u64 in Trapping;
     pattern_first_field: u64 in Trapping;
     pattern_field_start: u64 in Trapping;
     pattern_field_end: u64 in Trapping;
@@ -245,6 +254,7 @@ requires
 // tables are shared and handles stay dense across units.
 public machine Parser::initialize(parser: &mut Parser) {
     SyntaxTrees::clear(&mut parser.output, SourceId { value: 0 });
+    parser.pending_pattern_count = 0;
 }
 
 // The unit `parse` appends next: its spans anchor to `source`, and its token

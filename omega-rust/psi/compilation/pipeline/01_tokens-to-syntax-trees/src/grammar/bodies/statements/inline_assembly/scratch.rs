@@ -164,6 +164,7 @@ pub(super) fn bind(
                 trees
                     .statements
                     .insert(StatementNode::LocalData(TableLocalData {
+                        pattern: None,
                         role: Default::default(),
                         name: Identifier::generated(&hidden),
                         type_reference,

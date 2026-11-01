@@ -218,6 +218,64 @@ pub(super) fn disposition_actions(
         .1
     };
     let mut moved = Vec::new();
+    // Stored geometry still names the original data layout. Common children
+    // lie outside an owned case component's disposal extent; another outer
+    // binding or the initializer complement owns them. Exclude their schema
+    // paths from this component's complement without publishing a transfer,
+    // claim, read or storage operation for those children.
+    if let Some(subject) = program.type_reference_table.case_view_subject(reference)
+        && validation::reference_shell(program, subject).is_none()
+    {
+        let data = program
+            .closed_data_definition(subject)
+            .ok_or("case cleanup cannot identify its original applied carrier")?;
+        for member in program.data_members(data) {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                continue;
+            };
+            // Inline scalar/common byte bits have no independent disposal
+            // region. They cannot be encoded as moved structural children:
+            // the residual walker rightly requires an exact child identity.
+            let identity =
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
+            let child_region = shapes
+                .types
+                .iter()
+                .find(|(candidate, _)| **candidate == type_identity)
+                .and_then(|(_, plan)| match &plan.shape {
+                    checked_trees::CheckedUnitStructuralTypeShape::Mixed { fields, .. } => {
+                        fields.iter().find(|field| field.identity == identity)
+                    }
+                    _ => None,
+                })
+                .ok_or("case cleanup lost its common field declaration")?
+                .cleanup_type_identity();
+            if !child_region.is_valid() {
+                continue;
+            }
+            let (field_reference, excluded) =
+                crate::execution::terminal_unit::calls::projected_argument_path(
+                    program,
+                    disposition.state,
+                    statement_index,
+                    &validation::CanonicalPlace {
+                        root: facts::PlaceRoot::TypeReference(subject),
+                        segments: vec![facts::PlaceSegment::Field {
+                            symbol: field.symbol,
+                        }],
+                    },
+                    None,
+                    None,
+                )
+                .ok_or("case cleanup cannot lower its excluded common extent")?;
+            moved.push((
+                excluded,
+                shapes
+                    .add_stored_type(field_reference, &binders, &[])
+                    .ok_or("case cleanup cannot lower its excluded common type")?,
+            ));
+        }
+    }
     for removed in facts
         .contextual_cleanup
         .exclusions

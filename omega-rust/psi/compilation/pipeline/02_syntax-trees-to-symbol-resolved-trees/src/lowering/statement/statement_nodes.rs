@@ -265,6 +265,7 @@ pub(crate) fn lower_statement_node(
                     symbol: SymbolHandle::invalid(),
                     name: lower_name(syntax_trees, &runtime_value.binding),
                     storage: LocalDataStorage {
+                        pattern: None,
                         role: language_core::LocalBindingRole::Value,
                         type_reference: TypeReference::Unit,
                         initial_value: call,

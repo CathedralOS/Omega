@@ -189,6 +189,9 @@ pub(super) fn collect_type_reference_expressions(
     }
     visited.push(type_reference);
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_reference_expressions(program, *subject, visited, reached)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_reference_expressions(program, *referee, visited, reached)
         }

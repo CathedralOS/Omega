@@ -249,6 +249,26 @@ fn carrier_conflict(
         program.type_reference_table.type_reference(required),
     ) {
         (
+            TypeReferenceNode::CaseView { subject: actual },
+            TypeReferenceNode::CaseView { subject: required },
+        ) => {
+            return carrier_conflict(
+                program,
+                scope,
+                context,
+                *actual,
+                actual_substitutions,
+                *required,
+                required_substitutions,
+                position,
+            );
+        }
+        (TypeReferenceNode::CaseView { .. }, TypeReferenceNode::Named { symbol, .. })
+            if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter => {}
+        (TypeReferenceNode::CaseView { .. }, _) | (_, TypeReferenceNode::CaseView { .. }) => {
+            return true;
+        }
+        (
             TypeReferenceNode::FixedArray {
                 element_type: actual,
                 ..

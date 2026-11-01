@@ -13,6 +13,7 @@
 //! they do not prevent an ordinary callable from supplying a cleanup action.
 
 mod actions;
+mod bindings;
 pub(in crate::execution::terminal_unit) use actions::checked_path_segments;
 pub(super) mod anonymous;
 pub(crate) use anonymous::projected_temporary_cleanup;

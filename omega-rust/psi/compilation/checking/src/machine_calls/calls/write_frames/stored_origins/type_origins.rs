@@ -220,7 +220,8 @@ fn walk_declared_origins(
             // A selector beside a real reference contributes no additional
             // leaf; the enclosing case guards and sibling loans stay intact.
             TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. } => {}
-            TypeReferenceNode::Constrained { base_type, .. } => {
+            TypeReferenceNode::CaseView { subject: base_type }
+            | TypeReferenceNode::Constrained { base_type, .. } => {
                 pending.push(walk.push(Some(step), *base_type, None)?);
             }
             TypeReferenceNode::Reference {
@@ -496,7 +497,8 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
         }
         let (reference, scope) = scopes.head(program, reference, scope);
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => {
+            TypeReferenceNode::CaseView { subject: base_type }
+            | TypeReferenceNode::Constrained { base_type, .. } => {
                 pending.push((*base_type, suffix, scope))
             }
             TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix, scope)),

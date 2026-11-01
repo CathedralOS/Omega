@@ -12,7 +12,8 @@ use psi::tokens::tokens;
 // `[public] data Name [<generic parameters>] [properties] [where facts]
 // [requires facts] { members }`, entered at the `data` keyword. Members are
 // fields `[#N] name: Type;` and cases `[#N] case Name [(payload fields)];`,
-// in any order; `case: Type;` is a field named `case`. A case has no
+// common fields first, followed by a consecutive case tail;
+// `case: Type;` is a field named `case`. A case has no
 // predicate clause. Payload
 // fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
 // completed member is retained at once, so a rejection keeps each member
@@ -191,6 +192,13 @@ crashes Trap
     }
 
     machine case_field_capacity(parser: &mut Parser, input: &TokenStream) {
+        transition (parser.output.case_count as u64 in Trapping) == parser.data_first_case {
+            true -> case_field_capacity_before_cases(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::CommonFieldAfterCase)
+        }
+    }
+
+    machine case_field_capacity_before_cases(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
             true -> field_marker(parser, input)
             _ -> field_full(parser, input)
@@ -198,6 +206,13 @@ crashes Trap
     }
 
     machine field_capacity(parser: &mut Parser, input: &TokenStream) {
+        transition (parser.output.case_count as u64 in Trapping) == parser.data_first_case {
+            true -> field_capacity_before_cases(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::CommonFieldAfterCase)
+        }
+    }
+
+    machine field_capacity_before_cases(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
             true -> field_name(parser, input)
             _ -> field_full(parser, input)
@@ -533,32 +548,26 @@ crashes Trap
     }
 
     machine case_end(parser: &mut Parser, input: &TokenStream) {
-        let first_clause: u64 in Trapping = parser.clause_first;
-        let clause_count: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDataCaseEnd);
         transition parser.output.accepted {
-            true -> case_retained(parser, input, first_clause, clause_count)
+            true -> case_retained(parser, input)
             _ -> done()
         }
     }
 
     machine case_retained(
         parser: &mut Parser,
-        input: &TokenStream,
-        first_clause: u64 in Trapping,
-        clause_count: u64 in Trapping
+        input: &TokenStream
     ) {
         transition parser.output.case_count < 1536 && parser.output.data_member_count < 2048 {
-            true -> case_stored(parser, input, first_clause, clause_count)
+            true -> case_stored(parser, input)
             _ -> case_full(parser, input)
         }
     }
 
     machine case_stored(
         parser: &mut Parser,
-        input: &TokenStream,
-        first_clause: u64 in Trapping,
-        clause_count: u64 in Trapping
+        input: &TokenStream
     ) {
         let data_case: u64 in Trapping = parser.output.case_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.member_start, parser.token_end);
@@ -568,8 +577,6 @@ crashes Trap
             identity: Parser::source_span(parser, parser.member_identity_start, parser.member_identity_end),
             first_payload_field: parser.case_first_payload_field,
             payload_field_count: (parser.output.payload_field_count as u64 in Trapping) - parser.case_first_payload_field,
-            first_clause: first_clause,
-            clause_count: clause_count,
             source_span: span
         };
         parser.output.case_count = parser.output.case_count + 1;

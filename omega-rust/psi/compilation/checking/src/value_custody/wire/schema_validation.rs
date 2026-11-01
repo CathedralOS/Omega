@@ -205,6 +205,15 @@ fn validate_field_type_reference(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => validate_field_type_reference(
+            program,
+            symbols,
+            schema,
+            scope,
+            field,
+            *subject,
+            diagnostics,
+        ),
         TypeReferenceNode::Reference { referee, .. } => validate_field_type_reference(
             program,
             symbols,

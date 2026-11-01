@@ -6,6 +6,9 @@ use crate::types::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
 impl TypeReferenceNode {
     pub fn display_name(&self, table: &TypeReferenceTable) -> String {
         match self {
+            TypeReferenceNode::CaseView { subject } => {
+                format!("case-view<{}>", table.display_name(*subject))
+            }
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -70,6 +73,10 @@ impl TypeReferenceNode {
         expressions: &ExpressionTable,
     ) -> String {
         match self {
+            TypeReferenceNode::CaseView { subject } => format!(
+                "case-view<{}>",
+                table.display_name_with_constraints(*subject, expressions)
+            ),
             TypeReferenceNode::Reference {
                 referee,
                 access,

@@ -60,13 +60,7 @@ pub fn structural_match_pattern_case(
         }
         // A record head names the subject's exact declaration. Case payloads
         // cannot be extracted under their sum owner without selecting a case.
-        if matches!(pattern, MatchPattern::Destructure(_))
-            && name.symbol == data.symbol
-            && !program
-                .data_members(data)
-                .iter()
-                .any(|member| matches!(member, DataMember::Variant(_)))
-        {
+        if matches!(pattern, MatchPattern::Destructure(_)) && name.symbol == data.symbol {
             return Some(SymbolHandle::invalid());
         }
         // Domain patterns carry a normalized executable predicate and no
@@ -93,9 +87,7 @@ pub fn structural_match_pattern_case(
             .is_empty()
         && let Some(case) = literal.case_symbol
         && let Some(selected) = program.data_constructor_case(
-            program
-                .type_reference_table
-                .peeled_type_reference(reference),
+            crate::value_custody::places::unwrapped_type_reference(program, reference)?,
             literal.type_symbol,
             case,
         )
@@ -154,6 +146,10 @@ pub(super) fn validate(
         return Some((case, true));
     };
     let reference = structural_match_subject_type(program, machine, state, dispatch)?;
+    if program.type_reference_table.has_case_view(reference) && !case.is_valid() {
+        diagnostics.push(Diagnostic::error("a case-only view decomposes through its selected case payload, not the original common fields").with_source_span(source_span));
+        return None;
+    }
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let mut declared = program
         .data_members(data)
@@ -169,9 +165,18 @@ pub(super) fn validate(
             .iter()
             .filter_map(DataMember::as_variant)
             .find(|variant| variant.symbol == case)?;
-        declared.extend(program.data_payload_fields(variant));
+        declared = program.data_payload_fields(variant).iter().collect();
     }
     let fields = expression_table(program).match_fields(pattern.fields);
+    crate::value_custody::destructure::validate_component_roster(
+        program,
+        reference,
+        data,
+        case,
+        fields,
+        pattern.has_rest,
+        diagnostics,
+    );
     let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
     let selected_field_symbol = |field_symbol: SymbolHandle| {
         // An exact prepared selector already belongs to this declaration.
@@ -184,16 +189,20 @@ pub(super) fn validate(
             return Some(field_symbol);
         }
         program
-            .data_constructor_field(reference, data.symbol, field_symbol)
+            .data_constructor_field(
+                crate::value_custody::places::unwrapped_type_reference(program, reference)?,
+                data.symbol,
+                field_symbol,
+            )
             .map(|selected| selected.symbol)
     };
     for (ordinal, field) in fields.iter().enumerate() {
+        if field.selector == language_core::DataComponentSelector::Case {
+            continue;
+        }
         let selected = selected_field_symbol(field.field_symbol);
-        let exact = selected.and_then(|selected| {
-            declared.iter().find(|declared| {
-                declared.symbol == selected && declared.name.as_str() == field.member.as_str()
-            })
-        });
+        let exact = selected
+            .and_then(|selected| declared.iter().find(|declared| declared.symbol == selected));
         if exact.is_none()
             || fields[..ordinal].iter().any(|prior| {
                 selected_field_symbol(prior.field_symbol)
@@ -288,6 +297,9 @@ pub fn structural_match_cases_are_covered(
         .peekable();
     if variants.peek().is_none() {
         return cases.contains(&SymbolHandle::invalid());
+    }
+    if cases.contains(&SymbolHandle::invalid()) {
+        return true;
     }
     variants
         .filter(|variant| {

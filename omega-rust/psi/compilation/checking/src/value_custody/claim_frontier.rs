@@ -231,6 +231,28 @@ fn append_linear_claim_frontier(
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            let start = claims.len();
+            append_linear_claim_frontier(
+                program,
+                *subject,
+                substitutions,
+                path,
+                visiting,
+                claims,
+                false,
+            );
+            let selected = claims
+                .drain(start..)
+                .filter(|claim| {
+                    matches!(
+                        claim.path.get(path.len()),
+                        Some(facts::PlaceSegment::Case { .. })
+                    )
+                })
+                .collect::<Vec<_>>();
+            claims.extend(selected);
+        }
         TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
         TypeReferenceNode::Named { symbol, name } => {
             let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
@@ -475,6 +497,7 @@ fn frontier_type_multiplicity(
         return frontier_type_multiplicity(program, storage.semantic_type);
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => frontier_type_multiplicity(program, *subject),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => Multiplicity::Unrestricted,

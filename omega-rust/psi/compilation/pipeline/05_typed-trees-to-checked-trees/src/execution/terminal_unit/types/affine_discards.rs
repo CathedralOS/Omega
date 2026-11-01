@@ -66,6 +66,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         let vacancies = super::super::storage_transfers::parameter_vacancies(
             program,
             facts,
+            state,
             prepared_calls,
             parameter_index,
             parameter.position,

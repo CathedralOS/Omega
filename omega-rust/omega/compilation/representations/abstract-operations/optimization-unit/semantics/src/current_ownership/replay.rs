@@ -418,10 +418,18 @@ pub(super) fn validate_current_ownership_cfg(
                                     .iter()
                                     .any(|path| structural_paths_may_overlap(path, &observed))
                             }
-                            O::StructuralCase { path: observed, .. }
-                            | O::StructuralCaseMembership { path: observed, .. } => consumed
-                                .iter()
-                                .any(|path| structural_paths_may_overlap(path, observed)),
+                            O::StructuralCase { path: observed, .. } => {
+                                consumed.iter().any(|path| {
+                                    terminal_semantics::structural_paths_may_overlap(path, observed)
+                                })
+                            }
+                            O::StructuralCaseMembership { path: observed, .. } => {
+                                consumed.iter().any(|path| {
+                                    terminal_semantics::structural_move_may_invalidate_case_tag(
+                                        path, observed,
+                                    )
+                                })
+                            }
                             _ => true,
                         });
                 if signature.access == StructuralAccess::Owned

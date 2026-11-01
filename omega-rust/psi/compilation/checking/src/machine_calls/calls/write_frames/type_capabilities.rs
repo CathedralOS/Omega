@@ -20,13 +20,7 @@ pub(super) fn type_reference_is_reference(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_reference(program, *base_type)
-        }
-        _ => false,
-    }
+    crate::reference_shell(program, handle).is_some()
 }
 
 /// Parameter roots use the same storage classification as call arguments and
@@ -81,6 +75,9 @@ fn type_reaches_opaque_data(
         return false;
     }
     match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_reaches_opaque_data(program, *subject, visiting, bindings)
+        }
         TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::FixedArray {
             element_type: base_type,
@@ -203,6 +200,9 @@ fn type_may_carry_write_walk(
     }
 
     match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_may_carry_write_walk(program, *subject, bindings)
+        }
         TypeReferenceNode::Reference { access, .. } if !access.is_exclusive() => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_may_carry_write_walk(program, *base_type, bindings)

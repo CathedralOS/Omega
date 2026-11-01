@@ -371,6 +371,13 @@ impl Custody {
         result: &StructuralOperationResult,
         path: &[StructuralPathSegment],
     ) -> Result<Option<Leaf>, LegalizationError> {
+        // A result summary may explicitly transport an absent sibling-case
+        // descriptor through an owned call result. There is no occurrence to
+        // copy, and no permission is created. Unknown/missing observations
+        // still go through the normal live-resident refusal below.
+        if descriptor_backing::absent_case_descriptor(function, self, types, source) {
+            return Ok(None);
+        }
         let observed = call_paths::observe_reference_custody(function, self, types, source)?;
         if observed.descriptors.is_empty() && observed.borrowed.is_empty() {
             return Ok(None);
@@ -1148,7 +1155,7 @@ fn storage_access_conflicts_beneath_argument(
         .contains_key(&argument.place)
         .then(|| normalized_source(function, custody, types, argument))
         .transpose()?;
-    Ok(custody
+    let conflict = custody
         .leaves
         .iter()
         .any(|((leaf_place, leaf_path), reference)| {
@@ -1214,7 +1221,8 @@ fn storage_access_conflicts_beneath_argument(
                 &argument.path,
                 argument.access,
             )
-        }))
+        });
+    Ok(conflict)
 }
 
 /// Interference is a property of retained backing, not the path spelling used

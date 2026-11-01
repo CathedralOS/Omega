@@ -28,4 +28,5 @@ pub(crate) mod prepare_expression;
 pub(crate) mod qualifications;
 pub(crate) mod representation_view;
 pub(crate) mod saturating_shift;
+pub(crate) mod selected_values;
 pub(crate) mod structural_value_requirements;

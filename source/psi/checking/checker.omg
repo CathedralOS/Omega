@@ -1,4 +1,5 @@
 use psi::checking::aliases;
+use psi::checking::cases;
 use psi::checking::arrivals;
 use psi::checking::constructions;
 use psi::checking::completions;
@@ -62,6 +63,9 @@ public data Checker {
     // open, such as a callee's `requires` fact, takes the values and
     // contexts above its caller's.
     values: [Value; 4096];
+    case_observations: [CaseObservation; 4096];
+    // Completed value tests keyed by their exact authored pattern field.
+    pattern_values: [Value; 2048];
     tree_base: u64 in Trapping;
     tree_low: u64 in Trapping;
     tree_size: u64 in Trapping;
@@ -128,6 +132,8 @@ public data Checker {
     // for `subject` (qualification.omg).
     subject: Value;
     subjecting: bool;
+    // Exact domain carrier template while its static operands are evaluated.
+    static_template: u64 in Trapping;
     // While a quoted literal's qualification is decided, its predicate roster
     // answers the domain's byte predicates of the subject.
     subject_literal: bool;
@@ -144,12 +150,6 @@ public data Checker {
     // `field_first` stand for the same argument values.
     field_values: bool;
     field_first: u64 in Trapping;
-    // While a case's own `where` facts are decided or assumed, its payload
-    // fields from `payload_first` stand for the argument values from
-    // `payload_slot`: what a construction writes, or an arm's binders.
-    payload_values: bool;
-    payload_first: u64 in Trapping;
-    payload_slot: u64 in Trapping;
     contribution: Zone;
     // Scratch copies: a runtime-indexed zone is copied out before an
     // operation borrows it and stored back after.
@@ -205,6 +205,7 @@ public machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resol
 crashes Trap
 {
     Checker::clear(checker, syntax);
+    checker.static_template = 0;
     Checker::initialize_terminal_calls(checker, syntax);
     Checker::derive_frames(checker, syntax, resolution, typing);
     Checker::derive_completions(checker, syntax, resolution, typing);
@@ -446,11 +447,11 @@ public machine Checker::prepare_body(checker: &mut Checker, item: MachineItem, i
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;
+    checker.static_template = 0;
     checker.subject_literal = false;
     checker.minting = false;
     checker.exact_body = item.container == MachineContainer::Measure;
     checker.field_values = false;
-    checker.payload_values = false;
     checker.domains_pending = false;
     checker.fields_parent = 0;
     checker.machine = index;

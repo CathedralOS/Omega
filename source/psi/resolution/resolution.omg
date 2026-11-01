@@ -93,9 +93,6 @@ public data ValueBinding [copy] {
     case Constant(constant: u64 in Trapping);
     // A bare name in a data declaration's `where` fact: one of its fields.
     case Field(field: u64 in Trapping);
-    // A bare name in a case's own `where` fact: one of that case's payload
-    // fields (`SyntaxTrees::payload_fields`).
-    case PayloadField(field: u64 in Trapping);
     // `result` in a machine's `ensures` fact: the value the machine returns
     // (wiki/spec/language/state_contracts.md#returns-and-proof-use).
     case ReturnedValue(machine: u64 in Trapping);
@@ -112,6 +109,8 @@ public data ValueBinding [copy] {
     // `size_of` or `align_of`, the primitive layout queries
     // (wiki/spec/language/counts_and_addresses.md).
     case LayoutQuery(query: LayoutQuery);
+    // A type operand in a proof expression; it never denotes a runtime value.
+    case TypeOperand(binding: TypeBinding);
 }
 
 // The primitive byte predicates over a byte view
@@ -256,11 +255,20 @@ public data ResolveDiagnosticCode [copy] {
     case MeasureForm;
     // A lexicographic component naming no field of the measure's owner.
     case UnknownMeasureComponent;
+    case BindingScopeCapacityExceeded;
 }
 
 public data ResolveDiagnostic [copy] {
     code: ResolveDiagnosticCode;
     source_span: SourceSpan;
+}
+
+// Immutable lexical ancestry for nested pattern binders. Source ranges bind
+// exact declarations; a same-spelled name outside this chain is unrelated.
+public data BindingScope [copy] {
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+    parent: u64 in Trapping;
 }
 
 public data NameResolution
@@ -270,7 +278,10 @@ requires
     path_binding_count <= 2048,
     machine_owner_count <= 10240,
     requirement_count <= 2048,
+    binding_scope_count <= 2048,
 {
+    binding_scopes: [BindingScope; 2048] in Trapping;
+    binding_scope_count: u64;
     type_bindings: [TypeBinding; 65536];
     domain_bindings: [DomainBinding; 65536];
     domain_items: [u64; 65536];
@@ -306,6 +317,7 @@ requires
 }
 
 public machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
+    resolution.binding_scope_count = 0;
     resolution.binding_count = 0;
     resolution.value_binding_count = 0;
     resolution.path_binding_count = 0;

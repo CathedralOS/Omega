@@ -464,7 +464,12 @@ fn observe(
 ) -> Result<(), LoweringError> {
     let (result, kind) = match &operation.kind {
         OperationKind::StructuralCaseMembership { source, path, .. } => (
-            require_available(frontier, *source, path),
+            require_available_region(
+                frontier,
+                *source,
+                path,
+                terminal_semantics::structural_move_may_invalidate_case_tag,
+            ),
             "case membership",
         ),
         OperationKind::StructuralLeafCopy { source, path } => (
@@ -509,11 +514,25 @@ fn require_available(
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Result<(), LoweringError> {
+    require_available_region(
+        frontier,
+        place,
+        path,
+        terminal_semantics::structural_paths_may_overlap,
+    )
+}
+
+fn require_available_region(
+    frontier: &Frontier,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    overlaps: fn(&[StructuralPathSegment], &[StructuralPathSegment]) -> bool,
+) -> Result<(), LoweringError> {
     if let Some(earlier) = frontier
         .iter()
         .filter(|root| root.place == place)
         .flat_map(|root| &root.paths)
-        .find(|earlier| terminal_semantics::structural_paths_may_overlap(earlier, path))
+        .find(|earlier| overlaps(earlier, path))
     {
         return Err(LoweringError::OverlappingProjectedCustody {
             reason: "structural observation or cleanup overlaps an earlier transfer or release",

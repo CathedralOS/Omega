@@ -1,0 +1,11 @@
+// A borrowed case component retains its original shared backing loan.
+// Expected rejection: mutation of borrowed backing
+data Command [copy] { request: u64; case Ready(payload: u64); }
+machine main() crashes Trap {
+    let mut command: Command = Command::Ready { request: 17, payload: 23 };
+    let Command { request as _, case as operation } = &command;
+    command.request = 19;
+    let observed: bool = match operation { Command::Ready { payload } -> payload == 23 };
+    transition observed { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

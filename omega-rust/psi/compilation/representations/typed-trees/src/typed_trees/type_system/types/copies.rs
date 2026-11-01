@@ -36,6 +36,16 @@ impl TypeReferenceTable {
         expressions: &mut Vec<TypeExpressionCopy>,
     ) -> TypeReferenceHandle {
         let copied = match source.type_reference(type_reference) {
+            TypeReferenceNode::CaseView { subject } => {
+                let subject = self.copy_with_expressions(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *subject,
+                    expressions,
+                );
+                self.retain_case_view(subject)
+            }
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -246,6 +256,9 @@ impl TypeReferenceTable {
         }
         let node = self.type_reference(type_reference).clone();
         match node {
+            TypeReferenceNode::CaseView { subject } => {
+                self.remap_symbols_in(subject, expressions, symbols)
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 self.remap_symbols_in(referee, expressions, symbols);
             }

@@ -739,7 +739,7 @@ impl StructuralPrefixVisitor for CompletedCaseVisitor {
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
         let Some(definition) =
-            crate::field_domains::owned_nominal_data_definition(program, self.reference)
+            crate::value_custody::places::data_definition_for_type(program, self.reference)
         else {
             self.complete = false;
             return;
@@ -786,6 +786,170 @@ impl StructuralPrefixVisitor for CompletedCaseVisitor {
             }
             self.case = Some(selected);
             self.observed = true;
+        }
+    }
+}
+
+/// Prove value-test components against the initializer's completed snapshot on
+/// every reached path. The proof never re-evaluates the initializer, installs
+/// the requested equality as a premise, or reads through an unobserved borrow.
+pub(crate) fn completed_pattern_values_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    case: SymbolHandle,
+    fields: &[typed_trees::expression::TableMatchField],
+) -> bool {
+    let mut visitor = CompletedPatternValuesVisitor {
+        site: super::structural_prefix::StructuralPrefixSite {
+            state: state.symbol,
+            statement_index,
+            in_transition_target: false,
+        },
+        expression,
+        reference,
+        case,
+        fields,
+        complete: true,
+        observed: false,
+    };
+    observe_runtime_state_prefix(program, machine, state, &mut visitor).is_some()
+        && visitor.complete
+        && visitor.observed
+}
+
+struct CompletedPatternValuesVisitor<'a> {
+    site: super::structural_prefix::StructuralPrefixSite,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    case: SymbolHandle,
+    fields: &'a [typed_trees::expression::TableMatchField],
+    complete: bool,
+    observed: bool,
+}
+
+impl StructuralPrefixVisitor for CompletedPatternValuesVisitor<'_> {
+    fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
+        self.site
+    }
+    fn unresolved(&mut self, _: &Machine) {
+        self.complete = false;
+    }
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        use super::structural_judgment::StructuralJudgment;
+        use typed_trees::expression::{BinaryOperator, MatchFieldAction};
+        let (program, machine, state, judge, environment) = observation;
+        let Some(entries) = judge.normal_value_entries(
+            self.site.statement_index,
+            self.expression,
+            environment,
+            (machine, state, self.reference),
+        ) else {
+            self.complete = false;
+            return;
+        };
+        if entries.is_empty() {
+            self.complete = false;
+        }
+        for entry in entries {
+            let [Some(subject)] = entry.arguments.as_slice() else {
+                self.complete = false;
+                continue;
+            };
+            self.observed = true;
+            for field in self.fields {
+                let MatchFieldAction::Equal(expected) = field.action else {
+                    continue;
+                };
+                let proven = (|| {
+                    let data = crate::value_custody::places::data_definition_for_type(
+                        program,
+                        self.reference,
+                    )?;
+                    let declared: Vec<_> = if self.case.is_valid() {
+                        let variant = program
+                            .data_members(data)
+                            .iter()
+                            .filter_map(|member| member.as_variant())
+                            .find(|variant| variant.symbol == self.case)?;
+                        program.data_payload_fields(variant).iter().collect()
+                    } else {
+                        program
+                            .data_members(data)
+                            .iter()
+                            .filter_map(|member| member.as_field())
+                            .collect()
+                    };
+                    let selected = match field.selector {
+                        language_core::DataComponentSelector::Named => declared
+                            .iter()
+                            .find(|selected| selected.name.as_str() == field.member.as_str())?,
+                        language_core::DataComponentSelector::Positional(ordinal) => {
+                            declared.get(ordinal as usize)?
+                        }
+                        language_core::DataComponentSelector::Case => return None,
+                    };
+                    if field.field_symbol.is_valid() && field.field_symbol != selected.symbol {
+                        return None;
+                    }
+                    let path = [PlaceSegment::Field {
+                        symbol: selected.symbol,
+                    }];
+                    let reference = crate::project_type_reference_from_segments(
+                        program,
+                        self.reference,
+                        &path,
+                    )?;
+                    if !crate::value_custody::expression_types::argument_matches_carrier(
+                        program,
+                        machine.symbol,
+                        expected,
+                        reference,
+                        &[],
+                    ) || !typed_trees::operator::has_builtin_spelled_operand_meaning(
+                        program,
+                        machine.symbol,
+                        language_core::OperatorSpelling::Equal,
+                        &[Some(reference), Some(reference)],
+                        program.expression_table.source_span(expected),
+                    ) {
+                        return None;
+                    }
+                    let actual = super::observed_projections::project_observed_value_in_scope(
+                        program,
+                        &entry.judge,
+                        self.reference,
+                        subject.clone(),
+                        &path,
+                    )?;
+                    let expected = entry.judge.predicate_term_in_scope(
+                        (machine, state, reference),
+                        expected,
+                        environment,
+                        0,
+                    )?;
+                    let meaning = super::structural_terms::scalar_operand_meaning(
+                        program, reference, &actual,
+                    )?;
+                    super::structural_terms::scalar_operand_meaning(program, reference, &expected)?;
+                    Some(entry.judge.judge_observed_predicate(
+                        StructuralTerm::ScalarBinary {
+                            references: [reference; 2],
+                            operator: BinaryOperator::Equal,
+                            meaning: [meaning; 2],
+                            left: Box::new(actual),
+                            right: Box::new(expected),
+                        },
+                        0,
+                    ))
+                })();
+                if !matches!(proven, Some(StructuralJudgment::Proven)) {
+                    self.complete = false;
+                }
+            }
         }
     }
 }

@@ -1,0 +1,1 @@
+data Command { common: u64; case First(value: u64); case Second; } machine extract(command: &Command) -> u64 { match command { Command::First { common, value as _ } -> common Command::Second -> 0 } } machine main() { let c: Command = Command::First { common: 17, value: 23 }; _ = extract(&c); }

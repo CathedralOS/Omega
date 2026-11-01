@@ -1529,6 +1529,9 @@ fn owned_storage_may_hold_inner(
         return Some(false);
     }
     match program.type_reference_table.type_reference(container) {
+        TypeReferenceNode::CaseView { subject } => owned_storage_may_hold_inner(
+            program, *subject, referent, visiting, bindings, identities,
+        ),
         TypeReferenceNode::Reference {
             access, referee, ..
         } => {
@@ -1674,6 +1677,9 @@ fn storage_member_may_hold(
         return Some(false);
     }
     match program.type_reference_table.type_reference(container) {
+        TypeReferenceNode::CaseView { subject } => {
+            storage_member_may_hold(program, *subject, referent, visiting, bindings, identities)
+        }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => owned_storage_may_hold_inner(
             program,

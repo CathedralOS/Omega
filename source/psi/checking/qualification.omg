@@ -4,6 +4,7 @@ use psi::checking::evaluation;
 use psi::checking::flow;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::static_types;
 use psi::checks::checks;
 use psi::resolution::resolution;
 use psi::source::source;
@@ -31,29 +32,18 @@ public machine Checker::qualifying_domain(typing: &Typing, type_handle: u64 in T
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-    transition row.kind == TypeKind::Reference {
-        true -> referent(typing, row.inner)
-        _ -> own(row)
-    }
-
-    machine referent(typing: &Typing, inner: u64 in Trapping) -> u64 in Trapping {
-        let inner_row: TypeRow = TypeTable::row(&typing.types, inner);
-        transition { _ -> own(inner_row) }
-    }
-
-    machine own(row: TypeRow) -> u64 in Trapping {
-        transition row.domain == DomainBinding::Declared {
-            true -> declared(row.domain_item)
-            _ -> none()
+    transition { _ -> layers(typing, row, 0) }
+    machine layers(typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
+        transition (row.kind == TypeKind::Reference || row.kind == TypeKind::CaseView) && depth < 16 {
+            true -> inner(typing, row.inner, depth + 1)
+            _ -> own(row)
         }
     }
-
-    machine declared(domain: u64 in Trapping) -> u64 in Trapping {
-        domain + 1
+    machine inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        transition { _ -> layers(typing, TypeTable::row(&typing.types, handle), depth) }
     }
-
-    machine none() -> u64 in Trapping {
-        0
+    machine own(row: TypeRow) -> u64 in Trapping {
+        transition row.domain == DomainBinding::Declared { true -> (row.domain_item + 1) _ -> 0 }
     }
 }
 
@@ -91,11 +81,14 @@ crashes Trap
     machine predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let subjecting: bool = checker.subjecting;
         let previous: Value = checker.subject;
+        let previous_template: u64 in Trapping = checker.static_template;
         checker.subjecting = true;
         checker.subject = subject;
+        checker.static_template = Typing::reference_type(typing, item.carrier);
         let held: bool = Checker::decide_predicates(checker, syntax, resolution, typing, item.first_clause, item.clause_count, proving);
         checker.subjecting = subjecting;
         checker.subject = previous;
+        checker.static_template = previous_template;
         held
     }
 
@@ -250,10 +243,28 @@ public machine Checker::require_qualification(
 )
 crashes Trap
 {
+    let adaptation: Adaptation = Typing::adaptation(typing, expression);
+    transition adaptation == Adaptation::TypeEquation {
+        true -> equation(checker, syntax, resolution, typing, destination, expression, value, source_span)
+        _ -> domains(checker, syntax, resolution, typing, destination, expression, value, source_span)
+    }
+    machine equation(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+        let given: u64 in Trapping = Typing::expression_type(typing, expression);
+        let actual: Value = Checker::static_type_value(checker, syntax, typing, given);
+        let wanted: Value = Checker::static_type_value(checker, syntax, typing, destination);
+        let equal: bool = Checker::proves_at_most(checker, actual, wanted) && Checker::proves_at_most(checker, wanted, actual);
+        transition equal {
+            true -> domains(checker, syntax, resolution, typing, destination, expression, value, source_span)
+            _ -> unproven(checker, source_span)
+        }
+    }
+    machine domains(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
     let wanted: u64 in Trapping = Checker::qualifying_domain(typing, destination);
     transition wanted > 0 {
         true -> qualified(checker, syntax, resolution, typing, wanted - 1, expression, value, source_span)
         _ -> done()
+    }
+
     }
 
     machine qualified(

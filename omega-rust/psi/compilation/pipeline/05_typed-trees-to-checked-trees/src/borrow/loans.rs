@@ -185,6 +185,7 @@ pub(super) fn retain_backing_contents(
             continue;
         }
         let backing = checked_trees::statement::TableLocalData {
+            pattern: None,
             role: language_core::LocalBindingRole::Value,
             symbol: owner,
             name: name.clone(),
@@ -252,6 +253,7 @@ pub(super) fn returned_value_loans(
         return Ok(Vec::new());
     }
     let returned_value = checked_trees::statement::TableLocalData {
+        pattern: None,
         role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
         name: state.name.clone(),
@@ -587,6 +589,7 @@ fn assignment_borrow_loans(
         return Ok(Vec::new());
     }
     let synthetic_local = checked_trees::statement::TableLocalData {
+        pattern: None,
         role: language_core::LocalBindingRole::Value,
         symbol: target_symbol,
         name: owner_name,

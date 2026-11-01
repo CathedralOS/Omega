@@ -166,6 +166,9 @@ impl<'a> Elaborator<'a> {
         // peels policy-only layers. Other predicates remain unsupported here.
         let reference = validation::peel_arithmetic_policy(self.program, reference);
         match self.program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { .. } => {
+                Err(self.refuse("a case component is not an independent mathematical type".into()))
+            }
             TypeReferenceNode::Named { symbol, name } => self.named_type(*symbol, name),
             TypeReferenceNode::Generic {
                 base_symbol,

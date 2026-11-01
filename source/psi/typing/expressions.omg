@@ -13,6 +13,8 @@ use psi::typing::memberships;
 use psi::typing::operators;
 use psi::typing::references;
 use psi::typing::typer;
+use psi::typing::pattern_events;
+use psi::typing::case_context;
 
 // Expression typing. A tree types in table order, children before parents,
 // so each node meets typed children. A name takes its binding's declared
@@ -26,8 +28,19 @@ use psi::typing::typer;
 public machine Typer::type_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
 crashes Trap
 {
+    let typed: bool = Typer::is_typed(typer, root);
+    transition typed { true -> done() _ -> prepare(typer, sources, syntax, resolution, root) }
+
+    machine prepare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping) {
+        Typer::prepare_pattern_types(typer, syntax, root);
+        Typer::prepare_case_types(typer, syntax, resolution, root);
+        transition { _ -> begin(typer, sources, syntax, resolution, root) }
+    }
+    machine begin(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping) {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
     transition { _ -> next(typer, sources, syntax, resolution, root, tree.first_row) }
+
+    }
 
     machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         transition index <= root && typer.output.accepted {
@@ -37,6 +50,7 @@ crashes Trap
     }
 
     machine node(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+        Typer::pattern_types_at(typer, sources, syntax, resolution, index);
         let typed: bool = Typer::is_typed(typer, index);
         transition typed {
             true -> next(typer, sources, syntax, resolution, root, index + 1)
@@ -74,7 +88,7 @@ crashes Trap
         ExpressionKind::Integer -> integer(typer, sources, index, expression)
         ExpressionKind::Boolean -> boolean(typer, index)
         ExpressionKind::String -> string(typer, sources, index, expression)
-        ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
+        ExpressionKind::Field -> field(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Index -> indexed(typer, syntax, index, expression)
         ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
         ExpressionKind::Binary -> binary(typer, sources, syntax, resolution, index, expression)
@@ -184,8 +198,8 @@ crashes Trap
         Typing::set_roster(&mut typer.output, index, roster);
     }
 
-    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        Typer::type_field(typer, sources, syntax, index, expression);
+    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_field(typer, sources, syntax, resolution, index, expression);
     }
 
     machine indexed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
@@ -242,7 +256,6 @@ crashes Trap
         ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
         ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
         ValueBinding::Field { field } -> field(typer, syntax, field)
-        ValueBinding::PayloadField { field } -> payload_field(typer, syntax, field)
         ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
         ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain)
         ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item)
@@ -312,12 +325,6 @@ crashes Trap
     }
 
     // A case fact's payload name has the payload field's declared type.
-    machine payload_field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
-        let declared: DataField = SyntaxTrees::payload_field(syntax, field);
-        let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
-        handle
-    }
-
     // A constant is a value of its declared type; its initializer types
     // against that type (`Typer::type_constants`).
     machine constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
@@ -380,20 +387,20 @@ crashes Trap
 // `value.field`: the common field of the data type `value` has, through any
 // number of references, with the type's generic arguments substituted, or a
 // collection's `.len`.
-machine Typer::type_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+machine Typer::type_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let receiver: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
     transition receiver > 0 {
-        true -> projected(typer, sources, syntax, index, expression, receiver)
+        true -> projected(typer, sources, syntax, resolution, index, expression, receiver)
         _ -> not_a_value(typer, syntax, expression.left)
     }
 
-    machine projected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, receiver: u64 in Trapping) {
+    machine projected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, receiver: u64 in Trapping) {
         let base: u64 in Trapping = Typer::referent(typer, receiver);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Data {
-            true -> data(typer, sources, syntax, index, expression, row)
+            true -> data(typer, sources, syntax, resolution, index, expression, row)
             _ -> collection(typer, sources, index, expression, row)
         }
     }
@@ -416,64 +423,63 @@ crashes Trap
         Typing::set_selection(&mut typer.output, index, Selection::Length);
     }
 
-    machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
-        transition { _ -> candidate(typer, sources, syntax, index, expression, row, item, 0) }
+        transition { _ -> candidate(typer, sources, syntax, resolution, index, expression, row, item, 0) }
     }
 
-    machine candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+    machine candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.field_count {
-            true -> compare(typer, sources, syntax, index, expression, row, item, offset)
-            _ -> payload_case(typer, sources, syntax, index, expression, row, item, 0)
+            true -> compare(typer, sources, syntax, resolution, index, expression, row, item, offset)
+            _ -> payload_case(typer, sources, syntax, resolution, index, expression, row, item)
         }
     }
 
-    // A guarded `self.payload` names the first case payload with that spelling.
-    // The Rust producer still checks the preceding case conjunct before use.
-    machine payload_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
-        transition offset < item.case_count {
-            true -> payload_open(typer, sources, syntax, index, expression, row, item, offset)
+    // Payload selection consumes a lexical case classifier or the exact
+    // incoming case domain. Checking independently owes its current tag.
+    machine payload_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem) {
+        let incoming: u64 in Trapping = match row.domain == DomainBinding::Case { true -> row.domain_item + 1 false -> 0 };
+        let sole: u64 in Trapping = match incoming == 0 && item.case_count == 1 { true -> item.first_case + 1 false -> incoming };
+        let selected: u64 in Trapping = Typer::projection_case(typer, syntax, resolution, expression.left, index, sole);
+        transition selected > 0 && selected - 1 >= item.first_case && selected - 1 - item.first_case < item.case_count {
+            true -> payload_open(typer, sources, syntax, resolution, index, expression, row, selected - 1)
             _ -> unknown(typer, expression)
         }
     }
-
-    machine payload_open(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
-        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
-        transition { _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, 0) }
+    machine payload_open(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, data_case: u64 in Trapping) {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        transition { _ -> payload_field(typer, sources, syntax, resolution, index, expression, row, data_case, declared, 0) }
     }
-
-    machine payload_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
-        transition field_offset < declared.payload_field_count {
-            true -> payload_compare(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset)
-            _ -> payload_case(typer, sources, syntax, index, expression, row, item, offset + 1)
+    machine payload_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, data_case: u64 in Trapping, declared: DataCase, offset: u64 in Trapping) {
+        transition offset < declared.payload_field_count {
+            true -> payload_compare(typer, sources, syntax, resolution, index, expression, row, data_case, declared, offset)
+            _ -> unknown(typer, expression)
         }
     }
-
-    machine payload_compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
-        let field: DataField = SyntaxTrees::payload_field(syntax, declared.first_payload_field + field_offset);
-        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, expression.name.source_span);
-        transition spelled {
-            true -> payload_found(typer, syntax, index, expression, row, field)
-            _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset + 1)
+    machine payload_compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, data_case: u64 in Trapping, declared: DataCase, offset: u64 in Trapping) {
+        let field: DataField = SyntaxTrees::payload_field(syntax, declared.first_payload_field + offset);
+        transition SourceSet::spans_equal(sources, field.name.source_span, expression.name.source_span) {
+            true -> payload_found(typer, syntax, index, expression, row, data_case, declared.first_payload_field + offset, field)
+            _ -> payload_field(typer, sources, syntax, resolution, index, expression, row, data_case, declared, offset + 1)
         }
     }
-
-    machine payload_found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, field: DataField) {
+    machine payload_found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, data_case: u64 in Trapping, handle: u64 in Trapping, field: DataField) {
         let field_type: u64 in Trapping = Typing::reference_type(&typer.output, field.type_reference);
         let substituted: u64 in Trapping = Typer::substitute(typer, syntax, field_type, row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, substituted);
+        Typing::set_selection(&mut typer.output, index, Selection::PayloadField { data_case: data_case, field: handle });
     }
 
-    machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+    machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         let declared: DataField = SyntaxTrees::field(syntax, item.first_field + offset);
         let spelled: bool = SourceSet::spans_equal(sources, declared.name.source_span, expression.name.source_span);
         transition spelled {
-            true -> found(typer, syntax, index, expression, row, item.first_field + offset, declared)
-            _ -> candidate(typer, sources, syntax, index, expression, row, item, offset + 1)
+            true -> found(typer, syntax, resolution, index, expression, row, item.first_field + offset, declared)
+            _ -> candidate(typer, sources, syntax, resolution, index, expression, row, item, offset + 1)
         }
     }
 
-    machine found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, handle: u64 in Trapping, declared: DataField) {
+    machine found(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, row: TypeRow, handle: u64 in Trapping, declared: DataField) {
         let field_type: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
         let substituted: u64 in Trapping = Typer::substitute(typer, syntax, field_type, row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, substituted);
@@ -1054,9 +1060,23 @@ crashes Trap
     let written_right: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
     let left: u64 in Trapping = Typer::read_type(typer, written_left);
     let right: u64 in Trapping = Typer::read_type(typer, written_right);
-    transition left > 0 && right > 0 {
-        true -> typed(typer, sources, syntax, resolution, index, expression, left, right)
-        _ -> not_a_value(typer, expression)
+    let static_left: u64 in Trapping = Typing::static_operand_type(&typer.output, expression.left);
+    let static_right: u64 in Trapping = Typing::static_operand_type(&typer.output, expression.right);
+    transition static_left > 0 || static_right > 0 {
+        true -> static_comparison(typer, index, expression, static_left, static_right)
+        _ -> values(typer, sources, syntax, resolution, index, expression, left, right)
+    }
+    machine static_comparison(typer: &mut Typer, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left > 0 && right > 0 && (expression.operator == OperatorKind::Equal || expression.operator == OperatorKind::NotEqual) {
+            true -> compared(typer, index)
+            _ -> not_a_value(typer, expression)
+        }
+    }
+    machine values(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left > 0 && right > 0 {
+            true -> typed(typer, sources, syntax, resolution, index, expression, left, right)
+            _ -> not_a_value(typer, expression)
+        }
     }
 
     // An arithmetic or order operator with a data operand selects a machine

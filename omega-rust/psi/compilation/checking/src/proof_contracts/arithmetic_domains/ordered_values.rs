@@ -545,6 +545,9 @@ fn build_operand(
         ExpressionNode::Member(member) => {
             let receiver =
                 build_operand(program, machine, state, member.receiver, depth + 1, frames)?;
+            if member.selector == language_core::DataComponentSelector::Case {
+                return Some(receiver);
+            }
             // A case-tagged projection resolves its payload field under that
             // exact variant on the receiver's declared data (destructure-arm
             // reads). Untagged members keep the ordinary field lookup.

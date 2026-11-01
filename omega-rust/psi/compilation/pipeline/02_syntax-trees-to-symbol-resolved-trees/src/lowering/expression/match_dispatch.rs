@@ -57,6 +57,7 @@ pub(super) fn lower_match(
                         syntax::MatchFieldAction::Waive => MatchFieldAction::Waive,
                     };
                     fields.push(TableMatchField {
+                        selector: field.selector,
                         member: lower_name(syntax_trees, &field.member),
                         field_symbol: Handle::invalid(),
                         action,
@@ -91,7 +92,8 @@ pub(super) fn lower_match(
                 for field in &fields {
                     if let MatchFieldAction::Equal(expected) = field.action {
                         let projected = expression_table(lowerer).insert(ExpressionNode::Member(
-                            TableMemberExpression {
+                            symbol_resolved_trees::expression::TableMemberExpression {
+                                selector: field.selector,
                                 receiver: saved,
                                 member_symbol: field.field_symbol,
                                 member: field.member.clone(),

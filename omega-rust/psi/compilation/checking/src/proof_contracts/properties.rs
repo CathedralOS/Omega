@@ -400,6 +400,9 @@ fn type_satisfies_structural_property(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_satisfies_structural_property(program, type_parameters, *subject, property)
+        }
         TypeReferenceNode::Named { symbol, name } => {
             // The last binding for a formal wins. Its actual is read without
             // that binding, so a self-referential row cannot loop.

@@ -1,0 +1,153 @@
+use psi::checking::checker;
+use psi::checking::constructions;
+use psi::checking::evaluation;
+use psi::checking::domains;
+use psi::checking::facts;
+use psi::checking::places;
+use psi::checking::zone;
+use psi::checks::checks;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+public data CaseObservation [copy] {
+    subject: u64 in Trapping;
+    data_case: u64 in Trapping;
+}
+
+// The tag is an analysis coordinate below the exact value, not a schema
+// member or storage slot. Whole replacement forgets it through the ordinary
+// place footprint; a payload/common-field write does not select a new case.
+public machine Checker::case_tag(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, owner: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition owner > 0 { true -> typed(checker, syntax, typing, owner) _ -> Value::unknown() }
+    machine typed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, owner: u64 in Trapping) -> Value {
+        let parent: Place = Checker::place_at(checker, owner - 1);
+        let row: TypeRow = Checker::referent_row(typing, parent.type_handle);
+        transition row.kind == TypeKind::Data { true -> declared(checker, syntax, typing, owner, parent.type_handle, row.item) _ -> Value::unknown() }
+    }
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, owner: u64 in Trapping, type_handle: u64 in Trapping, item: u64 in Trapping) -> Value {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        transition declared.case_count > 0 { true -> entered(checker, syntax, typing, owner, type_handle, declared) _ -> Value::unknown() }
+    }
+    machine entered(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, owner: u64 in Trapping, type_handle: u64 in Trapping, declared: DataItem) -> Value {
+        let tag: u64 in Trapping = Checker::place(checker, typing, PlaceKind::CaseTag, 0, owner, type_handle);
+        let value: Value = Checker::place_value(checker, tag);
+        let first: Value = Value::constant(ExactInteger { negative: false, magnitude: declared.first_case as u64 in Wrapping });
+        let last: Value = Value::constant(ExactInteger { negative: false, magnitude: (declared.first_case + declared.case_count - 1) as u64 in Wrapping });
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        Checker::constrain_difference(checker, first, value, zero);
+        Checker::constrain_difference(checker, value, last, zero);
+        let established: bool = Checker::established(checker, syntax, owner);
+        let row: TypeRow = Checker::referent_row(typing, type_handle);
+        Checker::case_type_fact(checker, value, row, established);
+        value
+    }
+}
+
+public machine Checker::assume_selected_case(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, data_case: u64 in Trapping)
+crashes Trap
+{
+    let tag: Value = Checker::case_tag(checker, syntax, typing, subject.place);
+    let selected: Value = Value::constant(ExactInteger { negative: false, magnitude: data_case as u64 in Wrapping });
+    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+    Checker::constrain_difference(checker, tag, selected, zero);
+    Checker::constrain_difference(checker, selected, tag, zero);
+}
+
+public machine Checker::proves_selected_case(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, data_case: u64 in Trapping) -> bool
+crashes Trap
+{
+    let tag: Value = Checker::case_tag(checker, syntax, typing, subject.place);
+    let selected: Value = Value::constant(ExactInteger { negative: false, magnitude: data_case as u64 in Wrapping });
+    Checker::proves_at_most(checker, tag, selected) && Checker::proves_at_most(checker, selected, tag)
+}
+
+// The membership observes its completed tag before later effects. Keep an
+// immutable coordinate; constraining an old Boolean test cannot reestablish
+// the live storage tag after replacement has severed their equality.
+public machine Checker::case_membership_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) -> Value
+crashes Trap
+{
+    let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+    transition binding { ValueBinding::DataCase { item as _, data_case } -> classified(checker, syntax, typing, handle, expression, data_case) _ -> unknown() }
+    machine classified(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, data_case: u64 in Trapping) -> Value {
+        let subject: Value = Checker::value_at(checker, expression.left);
+        let tag: Value = Checker::case_tag(checker, syntax, typing, subject.place);
+        transition tag.subject > 0 { true -> captured(checker, typing, handle, expression.left, tag, data_case) _ -> unknown() }
+    }
+    machine captured(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, source: u64 in Trapping, tag: Value, data_case: u64 in Trapping) -> Value {
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, source);
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::CapturedTag, handle, tag.place, type_handle);
+        transition place > 0 { true -> retained(checker, handle, tag, data_case, place) _ -> unknown() }
+    }
+    machine retained(checker: &mut Checker, handle: u64 in Trapping, tag: Value, data_case: u64 in Trapping, place: u64 in Trapping) -> Value
+    requires place > 0
+    {
+        let entry: Place = Checker::place_at(checker, place - 1);
+        Zone::forget(&mut checker.zone, entry.subject);
+        Checker::equate_subject(checker, entry.subject, tag);
+        let observation: CaseObservation = CaseObservation { subject: entry.subject, data_case: data_case };
+        Checker::set_case_observation(checker, handle, observation);
+        let captured: Value = Checker::place_value(checker, place);
+        let expected: Value = Value::constant(ExactInteger { negative: false, magnitude: data_case as u64 in Wrapping });
+        let equal: bool = Checker::proves_at_most(checker, captured, expected) && Checker::proves_at_most(checker, expected, captured);
+        let unequal: bool = Checker::proves_less(checker, captured, expected) || Checker::proves_less(checker, expected, captured);
+        transition equal { true -> Value::truth(true) _ -> separated(unequal) }
+    }
+    machine separated(unequal: bool) -> Value { transition unequal { true -> Value::truth(false) _ -> unknown() } }
+    machine unknown() -> Value { let row: TypeRow = TypeRow::of(TypeKind::Builtin); Value::typed(row) }
+}
+
+public machine Checker::set_case_observation(checker: &mut Checker, handle: u64 in Trapping, observation: CaseObservation)
+crashes Trap
+{
+    transition handle >= checker.tree_low && handle - checker.tree_low < checker.tree_size {
+        true -> indexed(checker, checker.tree_base + (handle - checker.tree_low), observation)
+        _ -> done()
+    }
+    machine indexed(checker: &mut Checker, index: u64 in Trapping, observation: CaseObservation) {
+        transition index < 4096 { true -> stored(checker, index, observation) _ -> done() }
+    }
+    machine stored(checker: &mut Checker, index: u64 in Trapping, observation: CaseObservation)
+    requires index < 4096
+    { checker.case_observations[index] = observation; }
+    machine done() {}
+}
+public machine Checker::case_observation(checker: &Checker, handle: u64 in Trapping) -> CaseObservation
+crashes Trap
+{
+    transition handle >= checker.tree_low && handle - checker.tree_low < checker.tree_size {
+        true -> indexed(checker, checker.tree_base + (handle - checker.tree_low))
+        _ -> absent()
+    }
+    machine indexed(checker: &Checker, index: u64 in Trapping) -> CaseObservation { transition index < 4096 { true -> read(checker, index) _ -> absent() } }
+    machine read(checker: &Checker, index: u64 in Trapping) -> CaseObservation
+    requires index < 4096
+    { checker.case_observations[index] }
+    machine absent() -> CaseObservation { CaseObservation { subject: 0, data_case: 0 } }
+}
+
+public machine Checker::case_observation_value(observation: CaseObservation) -> Value {
+    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+    let unknown: Value = Value::unknown();
+    Value { place: 0, known: observation.subject > 0, subject: observation.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor }
+}
+
+machine Checker::case_type_fact(checker: &mut Checker, tag: Value, row: TypeRow, established: bool)
+crashes Trap
+{
+    transition established && row.domain == DomainBinding::Case {
+        true -> selected(checker, tag, row.domain_item)
+        _ -> done()
+    }
+    machine selected(checker: &mut Checker, tag: Value, data_case: u64 in Trapping) {
+        let expected: Value = Value::constant(ExactInteger { negative: false, magnitude: data_case as u64 in Wrapping });
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        Checker::constrain_difference(checker, tag, expected, zero);
+        Checker::constrain_difference(checker, expected, tag, zero);
+    }
+    machine done() {}
+}

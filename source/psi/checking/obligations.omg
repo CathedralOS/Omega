@@ -1,3 +1,4 @@
+use psi::checking::cases;
 use psi::checking::arithmetic;
 use psi::checking::checker;
 use psi::checking::completions;
@@ -36,15 +37,17 @@ public machine Checker::evaluate_node(
 )
 crashes Trap
 {
+    Checker::set_case_observation(checker, handle, CaseObservation { subject: 0, data_case: 0 });
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
     transition expression.kind {
+        ExpressionKind::Membership -> membership(checker, syntax, resolution, typing, handle, expression)
         ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Integer -> literal(checker, typing, handle)
         ExpressionKind::Boolean -> boolean(checker, handle, expression)
-        ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
+        ExpressionKind::Field -> field(checker, syntax, typing, handle, expression, type_handle, checking)
         ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
         ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
         ExpressionKind::Binary -> binary(checker, syntax, resolution, typing, handle, expression, row, integer, checking)
@@ -55,6 +58,11 @@ crashes Trap
         ExpressionKind::Match -> matched(checker, syntax, resolution, typing, handle, checking)
         ExpressionKind::Array -> array_literal(checker, syntax, resolution, typing, handle, expression, row, checking)
         _ -> typed(checker, handle, row)
+    }
+
+    machine membership(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
+        let value: Value = Checker::case_membership_value(checker, syntax, resolution, typing, handle, expression);
+        Checker::set_value(checker, handle, value);
     }
 
     // An array literal's elements meet its element type's qualification.
@@ -128,7 +136,22 @@ crashes Trap
         Checker::set_value(checker, handle, value);
     }
 
-    machine field(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
+    machine field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, checking: bool) {
+        let selection: Selection = Typing::selection(typing, handle);
+        transition selection {
+            Selection::PayloadField { data_case, field as _ } -> selected_payload(checker, syntax, typing, handle, expression, type_handle, checking, data_case)
+            _ -> projected(checker, typing, handle, expression, type_handle)
+        }
+    }
+    machine selected_payload(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, checking: bool, data_case: u64 in Trapping) {
+        let subject: Value = Checker::value_at(checker, expression.left);
+        let proved: bool = Checker::proves_selected_case(checker, syntax, typing, subject, data_case);
+        transition checking && !proved { true -> unselected_payload(checker, expression) _ -> projected(checker, typing, handle, expression, type_handle) }
+    }
+    machine unselected_payload(checker: &mut Checker, expression: Expression) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RequirementUnproven, expression.source_span);
+    }
+    machine projected(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
         let value: Value = Checker::member_value(checker, typing, handle, expression, type_handle);
         Checker::set_value(checker, handle, value);
     }
@@ -499,9 +522,9 @@ crashes Trap
         Checker::assume_guarantees(checker, syntax, resolution, typing, item, expression, value);
     }
 
-    // Establishing a value of data with `where` facts owes them, and a case
-    // value its case's own facts too: a construction over the values it
-    // writes, a payload-free case value (`Type::Case`) over zero fields.
+    // Every construction owes the data declaration's default predicates over
+    // its provisional fields and actual selected tag. Payload-free case
+    // literals use that same construction contract with no payload fields.
     machine construct(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
         let constrained: bool = Checker::constrained(syntax, typing, type_handle);
         let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
@@ -542,8 +565,11 @@ crashes Trap
     ) {
         transition constructing {
             true -> case_value(checker, syntax, resolution, typing, handle, expression, row, binding)
-            _ -> typed(checker, handle, row)
+            _ -> literal_case(checker, syntax, resolution, typing, handle, expression, row, binding)
         }
+    }
+    machine literal_case(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, binding: ValueBinding) {
+        transition binding { ValueBinding::DataCase { item as _, data_case as _ } -> composed(checker, syntax, resolution, typing, handle, expression, row) _ -> typed(checker, handle, row) }
     }
 
     machine case_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, binding: ValueBinding) {
@@ -572,7 +598,18 @@ crashes Trap
         first: u64 in Trapping,
         count: u64 in Trapping
     ) {
+        let previous: Value = checker.subject;
+        let subjecting: bool = checker.subjecting;
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Formation, handle, 0, type_handle);
+        Checker::forget_place(checker, typing, place);
+        let subject: Value = Checker::place_value(checker, place);
+        checker.subject = subject;
+        checker.subjecting = true;
+        Checker::formation_case(checker, syntax, typing, subject, has_case, data_case);
         let held: bool = Checker::construction_holds(checker, syntax, resolution, typing, item, has_case, data_case, first, count);
+        checker.subject = previous;
+        checker.subjecting = subjecting;
         transition held {
             true -> composed(checker, syntax, resolution, typing, handle, expression, row)
             _ -> unproven_domain(checker, syntax, resolution, typing, handle, expression, row)
@@ -588,6 +625,10 @@ crashes Trap
     // below it.
     machine composed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
         Checker::construction_value(checker, syntax, resolution, typing, handle, expression, row);
+        let selector: u64 in Trapping = match expression.kind == ExpressionKind::Path { true -> handle false -> expression.left };
+        let binding: ValueBinding = NameResolution::value_binding(resolution, selector);
+        let value: Value = Checker::value_at(checker, handle);
+        Checker::constructed_case(checker, syntax, typing, value, binding);
     }
 
     // A value known only by its type: a fixed integer's carrier range.
@@ -672,7 +713,7 @@ crashes Trap
     transition { _ -> through(typing, row, 0) }
 
     machine through(typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> TypeRow {
-        transition row.kind == TypeKind::Reference && depth < 16 {
+        transition (row.kind == TypeKind::Reference || row.kind == TypeKind::CaseView) && depth < 16 {
             true -> referent(typing, row.inner, depth)
             _ -> found(row)
         }
@@ -996,5 +1037,21 @@ crashes Trap
             false -> done()
         }
     }
+    machine done() {}
+}
+
+machine Checker::formation_case(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, has_case: bool, data_case: u64 in Trapping)
+crashes Trap
+{
+    transition has_case { true -> selected(checker, syntax, typing, subject, data_case) _ -> done() }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, data_case: u64 in Trapping) { Checker::assume_selected_case(checker, syntax, typing, subject, data_case); }
+    machine done() {}
+}
+
+machine Checker::constructed_case(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, binding: ValueBinding)
+crashes Trap
+{
+    transition binding { ValueBinding::DataCase { item as _, data_case } -> selected(checker, syntax, typing, subject, data_case) _ -> done() }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, data_case: u64 in Trapping) { Checker::assume_selected_case(checker, syntax, typing, subject, data_case); }
     machine done() {}
 }

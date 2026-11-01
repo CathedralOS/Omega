@@ -1,0 +1,1 @@
+data Pair [copy] { left: u64; right: u64; } machine main() { let (first) = Pair { left: 17, right: 23 }; }

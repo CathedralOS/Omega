@@ -72,6 +72,9 @@ fn check_value(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => Err(format!(
+            "{path} is a case component, not an independent const value"
+        )),
         TypeReferenceNode::Unit => expect_value(path, value, "Unit", |value| {
             matches!(value, BuildTimeValue::Unit)
         }),
@@ -435,6 +438,9 @@ fn require_closed_type(
         return Err(format!("{path} has an invalid argument type"));
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => Err(format!(
+            "{path} is a case component, not an independent const carrier"
+        )),
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Named { name, .. } => {
             if name.as_str().starts_with("Atomic") {

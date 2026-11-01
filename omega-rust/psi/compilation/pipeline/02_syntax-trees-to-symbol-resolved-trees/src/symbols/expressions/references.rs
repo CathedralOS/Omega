@@ -245,7 +245,7 @@ pub(in crate::symbols) fn assign_member_symbol(
     expression: ExpressionHandle,
 ) {
     if matches!(expression_table.expression(expression),
-        ExpressionNode::Member(member) if member.case_variant.is_some())
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) if member.case_variant.is_some() || member.selector != language_core::DataComponentSelector::Named)
     {
         // A destructured payload belongs to its exact case, not to a
         // same-named state or ordinary field under the receiver's scope.

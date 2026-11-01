@@ -260,6 +260,7 @@ fn reject_unresolved_layout_operands(
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => pending.push(*subject),
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,

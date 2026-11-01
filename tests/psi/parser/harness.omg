@@ -106,8 +106,8 @@ blocks
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR18`, version
-// 18, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR19`, version
+// 19, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -129,8 +129,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 56);
-    ParserHarness::write_u64(parser_harness, 18);
+    ParserHarness::write_byte(parser_harness, 57);
+    ParserHarness::write_u64(parser_harness, 19);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -338,6 +338,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::RetiredWhereMachineRequirement -> parse_diagnostic(parser_harness, output, 201)
             ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
             ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
+            ParseDiagnosticCode::CommonFieldAfterCase -> parse_diagnostic(parser_harness, output, 204)
         }
     }
 
@@ -671,8 +672,6 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_source_span(parser_harness, data_case.source_span);
         ParserHarness::write_u64(parser_harness, data_case.first_payload_field);
         ParserHarness::write_u64(parser_harness, data_case.payload_field_count as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, data_case.first_clause);
-        ParserHarness::write_u64(parser_harness, data_case.clause_count);
         let next: u64 = index + 1;
         transition next < output.case_count {
             true -> parse_case_bound(parser_harness, output, next)
@@ -1284,6 +1283,7 @@ crashes Trap
             StatementKind::Tail -> statement_kind(parser_harness, output, index, statement, 4)
             StatementKind::Crash -> statement_kind(parser_harness, output, index, statement, 5)
             StatementKind::Transition -> statement_kind(parser_harness, output, index, statement, 6)
+            StatementKind::LetPattern -> statement_kind(parser_harness, output, index, statement, 8)
             StatementKind::Discard -> statement_kind(parser_harness, output, index, statement, 7)
         }
     }
@@ -1340,6 +1340,7 @@ crashes Trap
             ArmPatternKind::Guard -> arm_kind(parser_harness, output, index, arm, 1)
             ArmPatternKind::Wildcard -> arm_kind(parser_harness, output, index, arm, 2)
             ArmPatternKind::Literal -> arm_kind(parser_harness, output, index, arm, 3)
+            ArmPatternKind::Positional -> arm_kind(parser_harness, output, index, arm, 5)
             ArmPatternKind::Case -> arm_kind(parser_harness, output, index, arm, 4)
         }
     }
@@ -1709,6 +1710,7 @@ crashes Trap
             ArmPatternKind::Wildcard -> match_arm_kind(parser_harness, output, index, arm, 2)
             ArmPatternKind::Literal -> match_arm_kind(parser_harness, output, index, arm, 3)
             ArmPatternKind::Case -> match_arm_kind(parser_harness, output, index, arm, 4)
+            ArmPatternKind::Positional -> match_arm_kind(parser_harness, output, index, arm, 5)
         }
     }
 

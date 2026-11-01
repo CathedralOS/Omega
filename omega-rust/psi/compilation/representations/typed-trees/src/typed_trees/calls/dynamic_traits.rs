@@ -416,6 +416,9 @@ fn collect_type_reference_symbols(
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_reference_symbols(program, *subject, symbols)
+        }
         TypeReferenceNode::Named { symbol, .. } => symbols.push(*symbol),
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_reference_symbols(program, *referee, symbols)
@@ -491,6 +494,9 @@ fn collect_type_reference_lifetimes(
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_reference_lifetimes(program, *subject, lifetimes)
+        }
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {

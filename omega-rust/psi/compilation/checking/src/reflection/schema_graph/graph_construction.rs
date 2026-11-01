@@ -102,6 +102,13 @@ fn collect_nominal_expectations(
     };
 
     match typed.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => collect_nominal_expectations(
+            typed,
+            *subject,
+            root_owner_identity,
+            root_application_identity,
+            found,
+        )?,
         TypeReferenceNode::Named { symbol, name } => {
             intern(*symbol, name.as_str(), type_reference, true)?;
         }

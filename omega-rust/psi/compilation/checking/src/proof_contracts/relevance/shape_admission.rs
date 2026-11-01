@@ -348,6 +348,9 @@ fn unresolved_erased_generic_base(
         return None;
     }
     match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::CaseView { subject } => {
+            unresolved_erased_generic_base(program, *subject)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             unresolved_erased_generic_base(program, *referee)
         }

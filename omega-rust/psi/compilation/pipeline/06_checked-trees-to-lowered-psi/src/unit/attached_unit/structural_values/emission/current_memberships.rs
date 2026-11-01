@@ -144,7 +144,7 @@ impl Emission<'_, '_, '_> {
             .iter()
             .filter(|local| local.argument.place == source_root)
             .find_map(|local| {
-                self.saved_subject_prefix(local.root, &subject)
+                self.completed_source_prefix(local.root, &subject)
                     .map(|covered| (local.argument.path.as_slice(), covered))
             })
         {
@@ -165,9 +165,11 @@ impl Emission<'_, '_, '_> {
                             })
                 })
                 .then_some((&[][..], 0))
-                .ok_or(LoweringError::Unsupported(
-                    "resident membership home has no exact source projection",
-                ))?
+                .ok_or_else(|| {
+                    LoweringError::Unsupported(
+                        "resident membership home has no exact source projection",
+                    )
+                })?
         };
         if projection.is_none()
             && !source.path.strip_prefix(prefix).is_some_and(|suffix| {
@@ -315,26 +317,33 @@ impl Emission<'_, '_, '_> {
         Ok((whole, retained))
     }
 
-    /// A saved transition subject keeps its scrutinee projection as its
-    /// initializer: a structural local rooted at that local symbol is the
-    /// physical home of `subject`'s corresponding prefix, so the membership's
-    /// source path resumes below the covered segments the local denotes.
-    fn saved_subject_prefix(
+    /// A completed source binding records its exact producing expression or
+    /// immutable saved subject. Copies and semantic views may use a private
+    /// expression root while their consumer still names the lexical subject.
+    /// This relates those existing homes; it grants no membership or liveness.
+    fn completed_source_prefix(
         &self,
         root: facts::PlaceRoot,
         subject: &validation::CanonicalPlace,
     ) -> Option<usize> {
-        let symbol = root.as_symbol()?;
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state).ok()?;
-        let (_, local) = self.checked.state_local_declaration(state, symbol)?;
-        if local.is_mutable || !local.initial_value.is_valid() {
-            return None;
-        }
+        let expression = match root {
+            facts::PlaceRoot::Expression(expression) => expression,
+            facts::PlaceRoot::Symbol(symbol) => {
+                let (_, state) =
+                    crate::declarations::state_declaration(self.checked, self.state).ok()?;
+                let (_, local) = self.checked.state_local_declaration(state, symbol)?;
+                if local.is_mutable || !local.initial_value.is_valid() {
+                    return None;
+                }
+                local.initial_value
+            }
+            _ => return None,
+        };
         let bound = validation::canonical_place_from_expression_in_state(
             &self.checked.typed,
             self.state,
             self.statement as usize,
-            local.initial_value,
+            expression,
         )?;
         (bound.root == subject.root && subject.segments.starts_with(&bound.segments))
             .then(|| bound.segments.len())

@@ -106,6 +106,10 @@ fn compare(
         program.type_reference_table.type_reference(right),
     ) {
         (
+            TypeReferenceNode::CaseView { subject: left },
+            TypeReferenceNode::CaseView { subject: right },
+        ) => compare_children(*left, *right),
+        (
             TypeReferenceNode::Reference {
                 referee: left,
                 access: left_access,

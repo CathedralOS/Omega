@@ -428,9 +428,11 @@ declaration's `where` fact over its fields, and each case's own `where` fact
 over its payload fields and those fields, is a Boolean. A proposition
 application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
-bound as a generic machine call's are. Each construction field and pattern
-field records the member it denotes, a common or a payload field, found by
-one search ([`typing/calls.omg`](typing/calls.omg)); an assignment writes a
+bound as a generic machine call's are. Each construction field records its common or payload member.
+Outer data patterns bind common fields and one case-only component; inner
+case patterns bind payload fields only. Each pattern field retains its exact
+member, type and evaluated subject. Named and positional local patterns use
+the same roster and preserve the original case carrier and reference access ([`typing/calls.omg`](typing/calls.omg)); an assignment writes a
 `let mut` local, a `mut` parameter, or a place behind an exclusive or
 write-only reference (an assignment to a name holding such a loan writes its
 referent), and any other target rejects as an immutable place; `&write place`

@@ -554,6 +554,7 @@ pub fn resolve_named_result_overloads(
         );
         program.statement_table.statements_mut(statements)[index] =
             StatementNode::LocalData(TableLocalData {
+                pattern: None,
                 role: language_core::LocalBindingRole::Value,
                 symbol,
                 name: typed_trees::name::Identifier::generated(generated_name),
@@ -1432,6 +1433,7 @@ fn array_element_type(
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => None,
         typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..

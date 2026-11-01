@@ -243,6 +243,7 @@ pub(super) mod transport;
 pub(super) fn transferred_paths(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     results: &Results,
     binding_ordinal: u32,
@@ -252,6 +253,7 @@ pub(super) fn transferred_paths(
         transfers(
             program,
             facts,
+            state,
             prepared_calls,
             results,
             binding_ordinal,
@@ -390,6 +392,7 @@ impl Retirement<'_> {
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
+                    self.state.symbol,
                     self.prepared_calls,
                     self.results,
                     source.source.source.clone(),
@@ -1006,6 +1009,7 @@ impl Retirement<'_> {
         let Some(transfers) = transfers::from_storage(
             self.program,
             self.facts,
+            self.state.symbol,
             self.prepared_calls,
             self.results,
             source,

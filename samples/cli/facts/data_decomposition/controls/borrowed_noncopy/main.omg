@@ -1,0 +1,1 @@
+data Cell { value: u64; } data Pair { child: Cell; } machine extract(pair: &Pair) -> Cell { let Pair { child } = pair; child } machine main() { let pair: Pair = Pair { child: Cell { value: 17 } }; _ = extract(&pair); }

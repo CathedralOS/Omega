@@ -95,6 +95,9 @@ fn first_forbidden_content(
     purpose: ContentUse,
 ) -> Option<CarrierFenceViolation> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            first_forbidden_content(program, proof_only, *subject, visited_data, purpose)
+        }
         TypeReferenceNode::Named { symbol, name } => {
             // Primitive classification peels qualifications and maps dynamic
             // selectors, so it is safe only after matching the actual Named

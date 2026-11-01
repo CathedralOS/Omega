@@ -261,6 +261,7 @@ fn whole_result_discarded(operation: &OperationPlan, result: &BindingPlan) -> bo
 fn custody_transferred(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     results: &[(BindingPlan, PlaceRoot)],
     binding_ordinal: u32,
@@ -271,6 +272,7 @@ fn custody_transferred(
         super::reference_retirement::transferred_paths(
             program,
             facts,
+            state,
             prepared_calls,
             results,
             binding_ordinal,
@@ -417,6 +419,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         || !super::reference_retirement::transferred_paths(
             program,
             facts,
+            state,
             &crate::execution::terminal_unit::structural_value_calls::PreparedCalls::EMPTY,
             results,
             result.binding_ordinal,
@@ -594,6 +597,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             if custody_transferred(
                 program,
                 facts,
+                state,
                 prepared_calls,
                 results,
                 result.binding_ordinal,
@@ -749,6 +753,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         let transferred_paths = super::reference_retirement::transferred_paths(
             program,
             facts,
+            state,
             prepared_calls,
             results,
             result.binding_ordinal,
@@ -1017,6 +1022,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             if custody_transferred(
                 program,
                 facts,
+                state,
                 prepared_calls,
                 results,
                 result.binding_ordinal,

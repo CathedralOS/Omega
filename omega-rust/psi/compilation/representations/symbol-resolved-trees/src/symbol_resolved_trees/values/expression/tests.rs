@@ -558,6 +558,7 @@ fn insert_every_node_kind(table: &mut ExpressionTable) -> super::ExpressionHandl
 
     let counter = insert_name(table, &["cell"], &[], SymbolHandle::invalid());
     let count = table.insert(ExpressionNode::Member(TableMemberExpression {
+        selector: language_core::DataComponentSelector::Named,
         receiver: counter,
         member_symbol: count_symbol,
         member: DiagnosticName::generated("count"),
@@ -644,7 +645,7 @@ fn table_and_own_copies_append_identical_rows_in_child_first_order() {
 const EXPECTED_COPY_ROWS: &str = r#"
 expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
 expression #29 = Integer(IntegerLiteral { text: "1", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #30 = Float(FloatLiteral { text: "2.5", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #30 = Float(FloatLiteral { text: "2.5", landing: None, presented: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #32 = Boolean(true) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #33 = Unary(TableUnaryExpression { operator: LogicalNot, operand: #32 }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -661,7 +662,7 @@ expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #45 = StructLiteral(TableStructLiteral { type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
 expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #47 = Member(TableMemberExpression { selector: Named, receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, ordering: Load(GlobalOrder), result_custody: Scalar }) at 0:0..0 exposure None partition None occurrences #0@0+0

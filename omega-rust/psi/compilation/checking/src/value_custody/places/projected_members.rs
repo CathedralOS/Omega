@@ -38,6 +38,11 @@ pub(super) fn applied_data_field<'program>(
     member_name: &str,
     case_variant: Option<&str>,
 ) -> Option<&'program typed_trees::data::DataField> {
+    if program.type_reference_table.has_case_view(reference)
+        && !super::case_view_has_payload_field(program, reference, retained)
+    {
+        return None;
+    }
     let reference = program
         .type_reference_table
         .peeled_type_reference(reference);

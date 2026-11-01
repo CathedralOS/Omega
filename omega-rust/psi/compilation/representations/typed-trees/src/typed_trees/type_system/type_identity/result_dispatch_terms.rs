@@ -20,6 +20,9 @@ pub(crate) fn collect_result_dispatch_terms(
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_result_dispatch_terms(program, *subject, terms, alias_stack)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             collect_result_dispatch_terms(program, *referee, terms, alias_stack);
         }

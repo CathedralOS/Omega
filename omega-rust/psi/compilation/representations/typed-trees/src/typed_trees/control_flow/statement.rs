@@ -502,6 +502,7 @@ pub struct ReflectedFieldCallOrigin {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
+    pub pattern: Option<TableLocalPattern>,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -523,6 +524,17 @@ pub struct TableLocalData {
     pub reflected_query_origin: Option<StatementHandle>,
 }
 
+/// A checked local's authored decomposition is separate from value storage.
+/// Its field handles name the ordinary expression roster so specialization and
+/// copying preserve the same exact receiver and declaration correspondence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct TableLocalPattern {
+    pub head: crate::expression::ExpressionHandle,
+    pub fields: HandleSpan<crate::expression::TableMatchField>,
+    pub has_rest: bool,
+    pub positional: bool,
+}
+
 impl TableLocalData {
     /// Normalized storage reservations expose no initializer value to proofs,
     /// constant folding, alias capture, or generic expression-root traversal.
@@ -536,6 +548,7 @@ impl Default for TableLocalData {
     fn default() -> Self {
         Self {
             role: language_core::LocalBindingRole::Value,
+            pattern: None,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),

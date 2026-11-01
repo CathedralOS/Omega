@@ -798,12 +798,15 @@ fn range_operands(
     let end = if range.end.is_valid() {
         range.end
     } else {
-        expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: collection,
-            member: Identifier::generated("len"),
-            member_symbol: SymbolHandle::invalid(),
-            case_variant: None,
-        }))
+        expressions_of_mut(program).insert(ExpressionNode::Member(
+            typed_trees::expression::TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
+                receiver: collection,
+                member: typed_trees::name::Identifier::generated("len"),
+                member_symbol: SymbolHandle::invalid(),
+                case_variant: None,
+            },
+        ))
     };
     let start = if range.start.is_valid() {
         range.start

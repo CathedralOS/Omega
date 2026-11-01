@@ -88,6 +88,10 @@ public data Ownership {
     matches: [u64; 8];
     match_arms: [u64; 8];
     match_ended: [u64; 8];
+    pattern_active: [bool; 8];
+    pattern_owed: [u64; 8];
+    pattern_first: [u64; 8];
+    pattern_end: [u64; 8];
     before: [MovedSet; 8];
     joined: [MovedSet; 8];
     votes: [u64; 512];
@@ -229,6 +233,7 @@ crashes Trap
     let statement: Statement = SyntaxTrees::statement(syntax, index);
     transition statement.kind {
         StatementKind::Let -> binding(checker, syntax, resolution, typing, index, statement)
+        StatementKind::LetPattern -> pattern_binding(checker, syntax, resolution, typing, statement)
         StatementKind::Assign -> assignment(checker, syntax, resolution, typing, statement)
         StatementKind::Tail -> tail(checker, syntax, resolution, typing, statement)
         StatementKind::Crash -> crashed(checker)
@@ -243,6 +248,13 @@ crashes Trap
         }
     }
 
+    machine pattern_binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+        Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
+        let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm);
+        let borrowed: bool = Checker::borrowed_subject(syntax, typing, statement.value);
+        Checker::borrow_binders(checker, arm, borrowed);
+        Checker::own_pattern_binders(checker, syntax, resolution, typing, statement.value, arm, borrowed);
+    }
     // An initialized linear local is owed; a declared one establishes no
     // obligation until it is assigned.
     machine initialized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement) {
@@ -390,8 +402,11 @@ crashes Trap
         arm: TransitionArm
     ) {
         checker.ownership.arm_saved = checker.ownership.moved;
+        let previous_owed: u64 = checker.ownership.owed_count;
         Checker::borrow_binders(checker, arm, borrowed);
+        Checker::own_transition_pattern(checker, syntax, resolution, typing, statement, arm, borrowed);
         Checker::own_target(checker, syntax, resolution, typing, arm);
+        checker.ownership.owed_count = previous_owed;
         checker.ownership.moved = checker.ownership.arm_saved;
         transition { _ -> arm(checker, syntax, resolution, typing, statement, borrowed, offset + 1) }
     }
@@ -443,7 +458,8 @@ machine Checker::borrowed_subject(syntax: &SyntaxTrees, typing: &Typing, subject
 crashes Trap
 {
     let subject_type: u64 in Trapping = Typing::expression_type(typing, subject);
-    let row: TypeRow = TypeTable::row(&typing.types, subject_type);
+    let initial: TypeRow = TypeTable::row(&typing.types, subject_type);
+    let row: TypeRow = match initial.kind == TypeKind::CaseView { true -> TypeTable::row(&typing.types, initial.inner) false -> initial };
     let through: bool = Checker::borrowed_place(syntax, typing, subject);
     let borrowed: bool = row.kind == TypeKind::Reference || through;
     transition { _ -> answer(borrowed) }
@@ -457,7 +473,7 @@ crashes Trap
 machine Checker::borrow_binders(checker: &mut Checker, arm: TransitionArm, borrowed: bool)
 crashes Trap
 {
-    transition borrowed && arm.kind == ArmPatternKind::Case {
+    transition borrowed && (arm.kind == ArmPatternKind::Case || arm.kind == ArmPatternKind::Positional) {
         true -> next(checker, arm, arm.first_field)
         _ -> done()
     }
@@ -568,6 +584,7 @@ crashes Trap
 
     machine visit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         Checker::own_match_events(checker, syntax, resolution, typing, handle);
+        Checker::own_pattern_events(checker, syntax, resolution, typing, handle);
         Checker::own_node(checker, syntax, resolution, typing, handle);
         Checker::replace_lent_holders(checker, syntax, resolution, typing, handle);
         Checker::check_holds(checker, syntax, resolution, typing, handle);
@@ -843,6 +860,12 @@ machine Checker::own_node(checker: &mut Checker, syntax: &SyntaxTrees, resolutio
 crashes Trap
 {
     let role: UseRole = Checker::role_of(checker, handle);
+    Checker::own_use(checker, syntax, resolution, typing, handle, role);
+}
+
+machine Checker::own_use(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole)
+crashes Trap
+{
     transition role {
         UseRole::Base -> temporary(checker, syntax, typing, handle)
         UseRole::Write -> written(checker, syntax, resolution, typing, handle)
@@ -1373,6 +1396,7 @@ crashes Trap
 machine Checker::end_owned_arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping, expression: Expression)
 crashes Trap
 {
+    Checker::end_pattern_scope(checker, syntax, resolution, typing, slot, expression.source_span);
     Ownership::load_join(&mut checker.ownership, slot);
     transition { _ -> next(checker, syntax, resolution, typing, slot, expression, 0) }
 
@@ -1916,6 +1940,7 @@ crashes Trap
         ownership.joining.count = 0;
         ownership.joined[slot] = ownership.joining;
         ownership.match_ended[slot] = 0;
+        ownership.pattern_active[slot] = false;
     }
 
     machine invalid() {
@@ -2094,4 +2119,222 @@ crashes Trap
     machine invalid() -> u64 in Trapping {
         crash Trap;
     }
+}
+
+// Decomposition transfers the selected components into their lexical homes.
+// Borrowed components retain backing loans; owned linear components are owed
+// independently of the subject from which they were partitioned.
+machine Checker::own_pattern_binders(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool)
+crashes Trap
+{
+    Checker::own_pattern_residuals(checker, syntax, typing, arm, borrowed);
+    transition { _ -> field(checker, syntax, resolution, typing, subject, arm, borrowed, 0) }
+    machine field(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping) {
+        transition offset < arm.field_count && checker.output.machine_accepted {
+            true -> pattern_component(checker, syntax, resolution, typing, subject, arm, borrowed, offset)
+            _ -> done()
+        }
+    }
+    machine pattern_component(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = arm.first_field + offset;
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, handle);
+        let type_handle: u64 in Trapping = Typing::binder_type(typing, handle);
+        let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let moving: bool = borrowed && row.kind != TypeKind::CaseView && !written.is_waived && !written.has_value && multiplicity != DataMultiplicity::Unrestricted;
+        transition moving {
+            true -> pattern_borrowed(checker, written.source_span)
+            _ -> pattern_home(checker, syntax, resolution, typing, subject, arm, borrowed, offset, handle, written, type_handle, multiplicity)
+        }
+    }
+    machine pattern_home(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping, handle: u64 in Trapping, written: PatternField, type_handle: u64 in Trapping, multiplicity: DataMultiplicity) {
+        transition !written.has_value && !written.is_waived {
+            true -> pattern_bound(checker, syntax, resolution, typing, subject, arm, borrowed, offset, handle, type_handle, multiplicity)
+            _ -> pattern_waived(checker, syntax, resolution, typing, subject, arm, borrowed, offset, written, multiplicity)
+        }
+    }
+    machine pattern_bound(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, multiplicity: DataMultiplicity) {
+        let home: u64 in Trapping = handle * 4 + 3;
+        transition borrowed { true -> loans(checker, syntax, resolution, typing, subject, arm, borrowed, offset, handle, type_handle, multiplicity, home) _ -> owed(checker, syntax, resolution, typing, subject, arm, borrowed, offset, handle, type_handle, multiplicity, home) }
+    }
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, multiplicity: DataMultiplicity, home: u64 in Trapping) {
+        Checker::owe_linear(checker, multiplicity, home, arm.source_span);
+        transition { _ -> loans(checker, syntax, resolution, typing, subject, arm, borrowed, offset, handle, type_handle, multiplicity, home) }
+    }
+    machine loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, multiplicity: DataMultiplicity, home: u64 in Trapping) {
+        Checker::create_held_loans(checker, syntax, resolution, typing, subject, home, type_handle);
+        transition { _ -> field(checker, syntax, resolution, typing, subject, arm, borrowed, offset + 1) }
+    }
+    machine pattern_waived(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, borrowed: bool, offset: u64 in Trapping, written: PatternField, multiplicity: DataMultiplicity) {
+        transition !borrowed && multiplicity == DataMultiplicity::Linear {
+            true -> pattern_linear(checker, written.source_span)
+            _ -> field(checker, syntax, resolution, typing, subject, arm, borrowed, offset + 1)
+        }
+    }
+
+    machine pattern_borrowed(checker: &mut Checker, source_span: SourceSpan) { Checks::reject(&mut checker.output, CheckDiagnosticCode::MoveOutOfBorrow, source_span); }
+    machine pattern_linear(checker: &mut Checker, source_span: SourceSpan) { Checks::reject(&mut checker.output, CheckDiagnosticCode::LinearUnconsumed, source_span); }
+    machine done() {}
+}
+
+// Selection opens component custody at the body's first node, after the
+// guard. The already-completed subject is transferred by the ordinary use
+// operation; analysis never evaluates it a second time.
+machine Checker::own_pattern_events(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, handle, 0) }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
+        transition slot < checker.ownership.match_count && slot < 8 && checker.output.machine_accepted {
+            true -> matched(checker, syntax, resolution, typing, handle, slot)
+            _ -> done()
+        }
+    }
+    machine matched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
+        let matched: u64 in Trapping = Ownership::match_at(&checker.ownership, slot);
+        let expression: Expression = SyntaxTrees::expression(syntax, matched);
+        let arm: u64 in Trapping = Ownership::match_arm_at(&checker.ownership, slot);
+        transition arm > 0 && arm <= expression.count {
+            true -> selected(checker, syntax, resolution, typing, handle, slot, expression, arm - 1)
+            _ -> next(checker, syntax, resolution, typing, handle, slot + 1)
+        }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let body: Expression = SyntaxTrees::expression(syntax, arm.target);
+        let structural: bool = arm.kind == ArmPatternKind::Case || arm.kind == ArmPatternKind::Positional;
+        transition structural && body.first_row == handle {
+            true -> begin(checker, syntax, resolution, typing, handle, slot, expression, arm)
+            _ -> next(checker, syntax, resolution, typing, handle, slot + 1)
+        }
+    }
+    machine begin(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping, expression: Expression, arm: TransitionArm)
+    requires slot < 8
+    {
+        checker.ownership.pattern_active[slot] = true;
+        checker.ownership.pattern_owed[slot] = checker.ownership.owed_count;
+        checker.ownership.pattern_first[slot] = arm.first_field as u64;
+        checker.ownership.pattern_end[slot] = (arm.first_field + arm.field_count) as u64;
+        let borrowed: bool = Checker::borrowed_subject(syntax, typing, expression.left);
+        transition borrowed {
+            true -> bindings(checker, syntax, resolution, typing, handle, slot, expression, arm, borrowed)
+            _ -> transfer(checker, syntax, resolution, typing, handle, slot, expression, arm, borrowed)
+        }
+    }
+    machine transfer(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping, expression: Expression, arm: TransitionArm, borrowed: bool) {
+        Checker::own_use(checker, syntax, resolution, typing, expression.left, UseRole::Value);
+        transition { _ -> bindings(checker, syntax, resolution, typing, handle, slot, expression, arm, borrowed) }
+    }
+    machine bindings(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping, expression: Expression, arm: TransitionArm, borrowed: bool) {
+        Checker::own_pattern_binders(checker, syntax, resolution, typing, expression.left, arm, borrowed);
+        transition { _ -> next(checker, syntax, resolution, typing, handle, slot + 1) }
+    }
+    machine done() {}
+}
+
+// A sibling arm never inherits this arm's binder obligations or moves. Check
+// the local ledger before retiring it, while outer moves remain for the join.
+machine Checker::end_pattern_scope(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping, source_span: SourceSpan)
+crashes Trap
+{
+    transition slot < 8 { true -> entered(checker, syntax, resolution, typing, slot, source_span) _ -> full(checker, source_span) }
+    machine entered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping, source_span: SourceSpan)
+    requires slot < 8
+    {
+        let active: bool = checker.ownership.pattern_active[slot];
+        let first: u64 in Trapping = checker.ownership.pattern_owed[slot] as u64 in Trapping;
+        transition active { true -> owed(checker, syntax, resolution, typing, slot, source_span, first) _ -> done() }
+    }
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping, source_span: SourceSpan, offset: u64 in Trapping)
+    requires slot < 8
+    {
+        transition offset < checker.ownership.owed_count && checker.output.machine_accepted {
+            true -> obligation(checker, syntax, resolution, typing, slot, source_span, offset)
+            _ -> retire(checker, syntax, resolution, typing, slot)
+        }
+    }
+    machine obligation(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping, source_span: SourceSpan, offset: u64 in Trapping)
+    requires slot < 8
+    {
+        let key: u64 in Trapping = Ownership::owed_at(&checker.ownership, offset);
+        let moved: bool = Checker::root_moved(checker, syntax, resolution, typing, key);
+        transition moved { true -> owed(checker, syntax, resolution, typing, slot, source_span, offset + 1) _ -> lost(checker, source_span) }
+    }
+    machine retire(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping)
+    requires slot < 8
+    {
+        checker.ownership.owed_count = checker.ownership.pattern_owed[slot];
+        checker.ownership.pattern_active[slot] = false;
+        let first: u64 in Trapping = checker.ownership.pattern_first[slot] as u64 in Trapping;
+        let end: u64 in Trapping = checker.ownership.pattern_end[slot] as u64 in Trapping;
+        transition { _ -> moved(checker, syntax, resolution, typing, first, end, 0) }
+    }
+    machine moved(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first: u64 in Trapping, end: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < checker.ownership.moved.count {
+            true -> candidate(checker, syntax, resolution, typing, first, end, offset)
+            _ -> done()
+        }
+    }
+    machine candidate(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first: u64 in Trapping, end: u64 in Trapping, offset: u64 in Trapping) {
+        let entry: u64 in Trapping = MovedSet::at(&checker.ownership.moved, offset);
+        let key: u64 in Trapping = Checker::place_root(syntax, resolution, typing, entry);
+        let local: bool = key % 4 == 3 && key / 4 >= first && key / 4 < end;
+        transition local { true -> removed(checker, syntax, resolution, typing, first, end, offset) _ -> moved(checker, syntax, resolution, typing, first, end, offset + 1) }
+    }
+    machine removed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first: u64 in Trapping, end: u64 in Trapping, offset: u64 in Trapping) {
+        MovedSet::remove(&mut checker.ownership.moved, offset);
+        transition { _ -> moved(checker, syntax, resolution, typing, first, end, offset) }
+    }
+    machine lost(checker: &mut Checker, source_span: SourceSpan) { Checks::reject(&mut checker.output, CheckDiagnosticCode::LinearUnconsumed, source_span); }
+    machine full(checker: &mut Checker, source_span: SourceSpan) { Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span); }
+    machine done() {}
+}
+
+// Transition targets own the same component transfer as expression arms.
+// Their terminal target checks the local obligations before the next arm
+// restores the predecessor's ledger.
+machine Checker::own_transition_pattern(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, borrowed: bool)
+crashes Trap
+{
+    let structural: bool = arm.kind == ArmPatternKind::Case || arm.kind == ArmPatternKind::Positional;
+    transition statement.has_value && structural {
+        true -> selected(checker, syntax, resolution, typing, statement, arm, borrowed)
+        _ -> done()
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, borrowed: bool) {
+        transition borrowed {
+            true -> bindings(checker, syntax, resolution, typing, statement, arm, borrowed)
+            _ -> transfer(checker, syntax, resolution, typing, statement, arm, borrowed)
+        }
+    }
+    machine transfer(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, borrowed: bool) {
+        Checker::own_use(checker, syntax, resolution, typing, statement.value, UseRole::Value);
+        transition { _ -> bindings(checker, syntax, resolution, typing, statement, arm, borrowed) }
+    }
+    machine bindings(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, borrowed: bool) {
+        Checker::own_pattern_binders(checker, syntax, resolution, typing, statement.value, arm, borrowed);
+    }
+    machine done() {}
+}
+
+// The producer resolved and substituted every omitted component. Explicit
+// rest waives binding names, never the component's linear custody.
+machine Checker::own_pattern_residuals(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, arm: TransitionArm, borrowed: bool)
+crashes Trap
+{
+    transition !borrowed { true -> next(checker, syntax, typing, arm, 0) _ -> done() }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping) {
+        transition offset < typing.pattern_residual_count && checker.output.machine_accepted { true -> selected(checker, syntax, typing, arm, offset) _ -> done() }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping) {
+        let row: PatternResidual = Typing::pattern_residual(typing, offset);
+        let same: bool = Typing::same_pattern(row.pattern, arm.source_span);
+        transition same { true -> owed(checker, syntax, typing, arm, offset, row.type_handle) _ -> next(checker, syntax, typing, arm, offset + 1) }
+    }
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping, type_handle: u64 in Trapping) {
+        let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
+        transition multiplicity == DataMultiplicity::Linear { true -> lost(checker, arm.source_span) _ -> next(checker, syntax, typing, arm, offset + 1) }
+    }
+    machine lost(checker: &mut Checker, span: SourceSpan) { Checks::reject(&mut checker.output, CheckDiagnosticCode::LinearUnconsumed, span); }
+    machine done() {}
 }

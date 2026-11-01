@@ -1,0 +1,12 @@
+// A case-only component cannot become a whole independently valid carrier.
+// Expected rejection: case-view carrier
+data Command [copy] { request: u64; case Ready(payload: u64); }
+machine misuse(command: Command) -> Command {
+    let Command { request as _, case as operation } = command;
+    operation
+}
+machine main() crashes Trap {
+    let copied: Command = misuse(Command::Ready { request: 17, payload: 23 });
+    transition copied.request == 17 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

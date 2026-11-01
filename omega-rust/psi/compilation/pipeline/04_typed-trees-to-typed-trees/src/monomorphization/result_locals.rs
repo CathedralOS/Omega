@@ -265,6 +265,42 @@ pub(crate) fn refresh(
     program: &mut TypedTrees,
     unavailable: &[crate::constructed_results::UnavailableValueType],
 ) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {
+    // Retain semantic component types for every occurrence, including direct
+    // match operands without a local binding, before inferring binding homes.
+    // Receiver types may settle on later specialization passes; each exact
+    // subject reference owns its view row, including static arguments/loans.
+    let mut subjects = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                validation::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+            }
+            for expression in expressions {
+                let Some(member) = expressions_of(program).member_node(expression) else {
+                    continue;
+                };
+                if member.selector != language_core::DataComponentSelector::Case {
+                    continue;
+                }
+                if let Some(subject) = validation::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    member.receiver,
+                ) {
+                    subjects.push(subject);
+                }
+            }
+        }
+    }
+    for subject in subjects {
+        program.type_reference_table.retain_case_view(subject);
+    }
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -272,6 +308,14 @@ pub(crate) fn refresh(
                 if !local.type_is_inferred || !local.role.has_ordinary_initializer() {
                     continue;
                 }
+                let case_component = expressions_of(program)
+                    .member_node(local.initial_value)
+                    .is_some_and(|member| {
+                        member.selector == language_core::DataComponentSelector::Case
+                    })
+                    || program
+                        .type_reference_table
+                        .has_case_view(local.type_reference);
                 let is_call = expressions_of(program)
                     .call_node(local.initial_value)
                     .is_some();
@@ -282,6 +326,7 @@ pub(crate) fn refresh(
                     typed_trees::types::TypeReferenceNode::Unit
                 );
                 if !is_call
+                    && !case_component
                     && !local.is_operand_capture
                     && !needs_inference
                     && local.role != language_core::LocalBindingRole::DispatchSubject
@@ -310,6 +355,7 @@ pub(crate) fn refresh(
                 // The ordinary consumer adaptation in apply_updates rebuilds
                 // legitimate scalar-reference reads from these raw results.
                 if !is_call
+                    && !case_component
                     && !local.is_operand_capture
                     && !needs_inference
                     && local.role != language_core::LocalBindingRole::DispatchSubject

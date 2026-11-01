@@ -115,6 +115,26 @@ pub fn structural_paths_select_same_location(
             })
 }
 
+/// A move of a strict structural descendant leaves the containing sum's tag
+/// in its original home. Equal or enclosing moves remove that observation;
+/// representation views remain conservative because their bytes can overlap
+/// declaration boundaries. This classifies geometry only, never root custody.
+pub fn structural_move_may_invalidate_case_tag(
+    moved: &[StructuralPathSegment],
+    subject: &[StructuralPathSegment],
+) -> bool {
+    if !structural_paths_may_overlap(moved, subject) {
+        return false;
+    }
+    let strict_descendant = moved.len() > subject.len()
+        && structural_paths_select_same_location(&moved[..subject.len()], subject)
+        && !moved
+            .iter()
+            .chain(subject)
+            .any(|segment| matches!(segment, StructuralPathSegment::RepresentationView { .. }));
+    !strict_descendant
+}
+
 /// Conservative overlap of borrowed projections. Prefixes retain their whole
 /// subtree; distinct range spellings are not evidence of disjoint storage.
 pub fn structural_paths_may_overlap(
@@ -424,5 +444,41 @@ pub fn qualification_path_carrier<'types>(
             _ => return None,
         };
         cursor = &cursor[count + 1..];
+    }
+}
+
+#[cfg(test)]
+mod case_tag_custody_tests {
+    use super::*;
+    use terminal_psi::TerminalIdentityIndex;
+
+    #[test]
+    fn moved_descendants_preserve_tags_but_not_whole_value_observation() {
+        let field = StructuralPathSegment::Field(TerminalIdentityIndex(1));
+        let descendant = [field.clone()];
+        assert!(structural_paths_may_overlap(&descendant, &[]));
+        assert!(!structural_move_may_invalidate_case_tag(&descendant, &[]));
+        assert!(structural_move_may_invalidate_case_tag(
+            &descendant,
+            &descendant
+        ));
+        assert!(structural_move_may_invalidate_case_tag(&[], &descendant));
+        let viewed = [
+            StructuralPathSegment::RepresentationView {
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                stored_scalar: None,
+            },
+            field,
+        ];
+        assert!(structural_move_may_invalidate_case_tag(&viewed, &[]));
+        assert!(structural_move_may_invalidate_case_tag(
+            &descendant,
+            &viewed[..1]
+        ));
+        let sibling = [StructuralPathSegment::Field(TerminalIdentityIndex(2))];
+        assert!(!structural_move_may_invalidate_case_tag(
+            &descendant,
+            &sibling
+        ));
     }
 }

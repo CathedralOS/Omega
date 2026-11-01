@@ -1,0 +1,201 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::places;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Type identities inhabit proof coordinates only. A closed identity is an
+// interned constant; an open parameter is immutable and can equal a closed
+// identity only under an established equation. Neither is a runtime value.
+public machine Checker::static_type_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition type_handle > 0 {
+        true -> selected(checker, syntax, typing, type_handle)
+        _ -> Value::unknown()
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping) -> Value {
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        transition row.kind == TypeKind::GenericParameter {
+            true -> substituted(checker, syntax, typing, type_handle, row.item)
+            _ -> closed(type_handle)
+        }
+    }
+    machine substituted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping) -> Value {
+        transition checker.subjecting && checker.subject.place > 0 {
+            true -> owner(checker, syntax, typing, type_handle, parameter)
+            _ -> symbolic(checker, typing, type_handle)
+        }
+    }
+    machine owner(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping) -> Value {
+        let place: Place = Checker::place_at(checker, checker.subject.place - 1);
+        let row: TypeRow = Checker::referent_row(typing, place.type_handle);
+        let mapped: u64 in Trapping = Checker::static_parameter_type(typing, checker.static_template, place.type_handle, parameter);
+        transition mapped > 0 {
+            true -> actual(checker, typing, mapped)
+            _ -> data_owner(checker, syntax, typing, type_handle, parameter, row)
+        }
+    }
+    machine data_owner(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping, row: TypeRow) -> Value {
+        transition row.kind == TypeKind::Data && row.argument_count > 0 {
+            true -> declared(checker, syntax, typing, type_handle, parameter, row)
+            _ -> symbolic(checker, typing, type_handle)
+        }
+    }
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping, row: TypeRow) -> Value {
+        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
+        transition { _ -> argument(checker, syntax, typing, type_handle, parameter, row, item, 0, 0) }
+    }
+    machine argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping, row: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping) -> Value {
+        transition offset < item.generic_parameter_count && position < row.argument_count {
+            true -> candidate(checker, syntax, typing, type_handle, parameter, row, item, offset, position)
+            _ -> symbolic(checker, typing, type_handle)
+        }
+    }
+    machine candidate(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping, row: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping) -> Value {
+        let current: u64 in Trapping = item.first_generic_parameter + offset;
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, current);
+        transition generic.kind == GenericParameterKind::Lifetime {
+            true -> argument(checker, syntax, typing, type_handle, parameter, row, item, offset + 1, position)
+            _ -> compared(checker, syntax, typing, type_handle, parameter, row, item, offset, position, current)
+        }
+    }
+    machine compared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, parameter: u64 in Trapping, row: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping, current: u64 in Trapping) -> Value {
+        transition current == parameter {
+            true -> actual(checker, typing, TypeTable::argument(&typing.types, row.first_argument + position))
+            _ -> argument(checker, syntax, typing, type_handle, parameter, row, item, offset + 1, position + 1)
+        }
+    }
+    machine actual(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) -> Value {
+        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let closed: bool = row.kind == TypeKind::Builtin || row.kind == TypeKind::Unit || (row.kind == TypeKind::Data && row.argument_count == 0);
+        transition closed {
+            true -> closed(handle)
+            _ -> symbolic(checker, typing, handle)
+        }
+    }
+    machine symbolic(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) -> Value {
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::StaticType, handle, 0, typing.static_index_type);
+        Checker::place_value(checker, place)
+    }
+    machine closed(handle: u64 in Trapping) -> Value {
+        Value::constant(ExactInteger { negative: false, magnitude: handle as u64 in Wrapping })
+    }
+}
+
+// Domain substitution follows the exact typed carrier tree. Parameter IDs
+// choose the telescope; parallel child paths supply actuals. No name lookup,
+// compatible peer or receiving predicate participates in this association.
+data StaticTypeSearch {
+    templates: [u64; 64] in Trapping;
+    actuals: [u64; 64] in Trapping;
+    count: u64 in Trapping;
+    result: u64 in Trapping;
+    valid: bool;
+}
+machine Checker::static_parameter_type(typing: &Typing, template: u64 in Trapping, actual: u64 in Trapping, parameter: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let mut search: StaticTypeSearch;
+    search.count = 0;
+    search.result = 0;
+    search.valid = true;
+    Checker::push_static_pair(&mut search, template, actual);
+    transition { _ -> next(typing, &mut search, parameter) }
+    machine next(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping) -> u64 in Trapping {
+        transition search.valid && search.count > 0 && search.count <= 64 {
+            true -> pop(typing, search, parameter, search.count - 1)
+            _ -> done(search)
+        }
+    }
+    machine pop(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping
+    requires offset < 64
+    {
+        let template: u64 in Trapping = search.templates[offset] as u64 in Trapping;
+        let actual: u64 in Trapping = search.actuals[offset] as u64 in Trapping;
+        search.count = offset;
+        transition template > 0 && actual > 0 {
+            true -> pair(typing, search, parameter, template, actual)
+            _ -> next(typing, search, parameter)
+        }
+    }
+    machine pair(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, template: u64 in Trapping, actual: u64 in Trapping) -> u64 in Trapping {
+        let source: TypeRow = TypeTable::row(&typing.types, template);
+        let target: TypeRow = TypeTable::row(&typing.types, actual);
+        transition source.kind == TypeKind::GenericParameter {
+            true -> generic(typing, search, parameter, actual, source)
+            _ -> projected(typing, search, parameter, template, actual, source, target)
+        }
+    }
+    machine generic(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, actual: u64 in Trapping, source: TypeRow) -> u64 in Trapping {
+        transition source.item == parameter { true -> found(typing, search, parameter, actual) _ -> next(typing, search, parameter) }
+    }
+    machine projected(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, template: u64 in Trapping, actual: u64 in Trapping, source: TypeRow, target: TypeRow) -> u64 in Trapping {
+        transition target.kind == TypeKind::CaseView || (target.kind == TypeKind::Reference && source.kind != TypeKind::Reference) {
+            true -> through(typing, search, parameter, template, target.inner)
+            _ -> children(typing, search, parameter, source, target)
+        }
+    }
+    machine through(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, template: u64 in Trapping, actual: u64 in Trapping) -> u64 in Trapping {
+        Checker::push_static_pair(search, template, actual);
+        transition { _ -> next(typing, search, parameter) }
+    }
+    machine found(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, actual: u64 in Trapping) -> u64 in Trapping {
+        let consistent: bool = search.result == 0 || search.result == actual;
+        search.valid = search.valid && consistent;
+        search.result = actual;
+        transition { _ -> next(typing, search, parameter) }
+    }
+    machine children(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow) -> u64 in Trapping {
+        transition source.kind == target.kind {
+            true -> shape(typing, search, parameter, source, target)
+            _ -> invalid(search)
+        }
+    }
+    machine shape(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow) -> u64 in Trapping {
+        transition source.kind == TypeKind::Data {
+            true -> data(typing, search, parameter, source, target)
+            _ -> inner(typing, search, parameter, source, target)
+        }
+    }
+    machine data(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow) -> u64 in Trapping {
+        transition source.item == target.item && source.argument_count == target.argument_count {
+            true -> argument(typing, search, parameter, source, target, 0)
+            _ -> invalid(search)
+        }
+    }
+    machine inner(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow) -> u64 in Trapping {
+        let nested: bool = source.kind == TypeKind::Array || source.kind == TypeKind::Slice || source.kind == TypeKind::CaseView || (source.kind == TypeKind::Reference && source.access == target.access);
+        transition nested {
+            true -> through(typing, search, parameter, source.inner, target.inner)
+            _ -> next(typing, search, parameter)
+        }
+    }
+    machine argument(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < source.argument_count && search.valid {
+            true -> selected(typing, search, parameter, source, target, offset)
+            _ -> next(typing, search, parameter)
+        }
+    }
+    machine selected(typing: &Typing, search: &mut StaticTypeSearch, parameter: u64 in Trapping, source: TypeRow, target: TypeRow, offset: u64 in Trapping) -> u64 in Trapping {
+        Checker::push_static_pair(search, TypeTable::argument(&typing.types, source.first_argument + offset), TypeTable::argument(&typing.types, target.first_argument + offset));
+        transition { _ -> argument(typing, search, parameter, source, target, offset + 1) }
+    }
+    machine invalid(search: &mut StaticTypeSearch) -> u64 in Trapping { search.valid = false; 0 }
+    machine done(search: &StaticTypeSearch) -> u64 in Trapping { transition search.valid { true -> search.result false -> 0 } }
+}
+machine Checker::push_static_pair(search: &mut StaticTypeSearch, template: u64 in Trapping, actual: u64 in Trapping)
+crashes Trap
+{
+    transition search.count < 64 { true -> stored(search, template, actual, search.count) _ -> full(search) }
+    machine stored(search: &mut StaticTypeSearch, template: u64 in Trapping, actual: u64 in Trapping, offset: u64 in Trapping)
+    requires offset < 64
+    {
+        search.templates[offset] = template;
+        search.actuals[offset] = actual;
+        search.count = offset + 1;
+    }
+    machine full(search: &mut StaticTypeSearch) { search.valid = false; }
+}

@@ -343,6 +343,7 @@ fn argument_contains(
         return true;
     }
     match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => argument_contains(typed, *subject, closed),
         TypeReferenceNode::Generic { arguments, .. } => type_reference_table(typed)
             .type_reference_handles(*arguments)
             .iter()
@@ -368,6 +369,7 @@ fn argument_contains(
 /// ordinary specialization.
 fn closed_argument(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Named { symbol, .. } => {
             !symbol.is_valid()
                 || matches!(
@@ -594,6 +596,10 @@ fn substitute_member_type(
     bindings: &HashMap<SymbolHandle, TypeReferenceHandle>,
 ) -> Option<TypeReferenceHandle> {
     match typed.type_reference_table.type_reference(reference).clone() {
+        TypeReferenceNode::CaseView { subject } => {
+            let subject = substitute_member_type(typed, subject, bindings)?;
+            Some(typed.type_reference_table.retain_case_view(subject))
+        }
         TypeReferenceNode::Named { symbol, .. } => {
             bindings.get(&symbol).copied().or(Some(reference))
         }

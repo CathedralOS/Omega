@@ -2032,6 +2032,9 @@ pub fn visit_type_reference(
         visit_symbol(retained, origin.declaration);
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            visit_type_reference(program, retained, *subject)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             visit_type_reference(program, retained, *referee);
         }
@@ -2424,6 +2427,15 @@ fn visit_statement(
         }
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
+            if let Some(pattern) = local.pattern {
+                visit_expression(program, retained, pattern.head);
+                for field in program.expression_table.match_fields(pattern.fields) {
+                    visit_symbol(retained, field.field_symbol);
+                    if let crate::expression::MatchFieldAction::Equal(value) = field.action {
+                        visit_expression(program, retained, value);
+                    }
+                }
+            }
         }
         StatementNode::Assignment(assignment) => {
             if retained.derived_declaration_references() {

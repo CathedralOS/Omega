@@ -633,6 +633,25 @@ fn collect_type(
         return true;
     }
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            let start = output.len();
+            let complete = carry_child!(*subject);
+            if crate::reference_shell(program, *subject).is_none() {
+                let retained = output
+                    .drain(start..)
+                    .filter(|leaf| {
+                        // Nonspatial whole-value dependencies remain conservative.
+                        leaf.owner_path.len() == owner_path.len()
+                            || matches!(
+                                leaf.owner_path.get(owner_path.len()),
+                                Some(BorrowOwnerSegment::Case(_))
+                            )
+                    })
+                    .collect::<Vec<_>>();
+                output.extend(retained);
+            }
+            complete
+        }
         TypeReferenceNode::Reference {
             access,
             lifetime,

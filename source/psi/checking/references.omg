@@ -101,7 +101,7 @@ crashes Trap
     machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
         let entry: Place = Checker::place_at(checker, place - 1);
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
-        transition row.kind == TypeKind::Reference {
+        transition row.kind == TypeKind::Reference || row.kind == TypeKind::CaseView {
             true -> capture(checker, place - 1, value.place)
             _ -> owned(checker, typing, place, value)
         }
@@ -340,6 +340,13 @@ crashes Trap
     machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
         let entry: Place = Checker::place_at(checker, place - 1);
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        transition row.kind == TypeKind::CaseView {
+            true -> local(checker, typing, place - 1, entry.type_handle)
+            _ -> classified(checker, typing, place, entry, row)
+        }
+    }
+
+    machine classified(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place, row: TypeRow) -> Value {
         transition row.kind == TypeKind::Reference {
             true -> reference(checker, typing, place, entry)
             _ -> owned(checker, place)
@@ -354,8 +361,10 @@ crashes Trap
     machine reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition entry.kind {
             PlaceKind::Local -> local(checker, typing, place - 1, entry.type_handle)
+            PlaceKind::Binder -> local(checker, typing, place - 1, entry.type_handle)
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Field -> parameter(checker, typing, place, entry.type_handle)
+            PlaceKind::Payload -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
             _ -> unknown()
         }

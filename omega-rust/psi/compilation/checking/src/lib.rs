@@ -12,6 +12,7 @@
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
 pub use declarations::traits::conformance_applications;
+pub mod data_bindings;
 pub mod execution_projection;
 pub mod product_entries;
 pub mod product_queries;

@@ -200,6 +200,52 @@ pub(super) struct SelectedCases<'program> {
 }
 
 impl<'program> SelectedCases<'program> {
+    /// A selected expression can complete without transferring a payload.
+    /// Its completed operand still carries the exact branch context after
+    /// all its writes. Consume that context before reconvergence, rather than
+    /// inferring absence from the source pattern or from a later live read.
+    pub(super) fn at_completed_operand(
+        program: &'program dyn validation::CheckingInput,
+        facts: &'program checked_trees::CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<Self> {
+        let constraints = facts
+            .flow
+            .control
+            .with_expression_operands(expression, |rows| {
+                let mut matches = rows
+                    .iter()
+                    .map(|handle| facts.flow.control.operands.get(*handle))
+                    .filter(|row| {
+                        row.state_symbol == state.symbol && row.statement_index == statement
+                    });
+                let constraints = matches.next()?.constraints;
+                matches
+                    .all(|row| row.constraints == constraints)
+                    .then_some(constraints)
+            })?;
+        let contexts = facts
+            .flow
+            .semantic_constraint_contexts(constraints)
+            .collect::<Vec<_>>();
+        if contexts.is_empty() {
+            return None;
+        }
+        Some(Self {
+            evidence: crate::flow::CaseEvidence::prepare(
+                program,
+                &facts.semantic,
+                &contexts,
+                machine.symbol,
+                state.symbol,
+                statement,
+            )?,
+        })
+    }
+
     pub(super) fn at_step(
         program: &'program dyn validation::CheckingInput,
         facts: &'program checked_trees::CheckFacts,

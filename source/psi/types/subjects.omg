@@ -1,0 +1,88 @@
+use psi::types::types;
+use psi::syntax::syntax;
+use psi::resolution::resolution;
+
+// Declaration identities of a source subject, through checked common-field
+// projections and semantic case views. This is a formation query; it grants
+// no observation across a write and supplies no access or lifetime evidence.
+public machine Typing::same_subject(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left: u64 in Trapping, right: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> node(typing, syntax, resolution, left, right, 0) }
+    machine node(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left: u64 in Trapping, right: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        transition depth < 64 {
+            true -> viewed(typing, syntax, resolution, left, right, depth)
+            _ -> false
+        }
+    }
+    machine viewed(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left: u64 in Trapping, right: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let l: Expression = SyntaxTrees::expression(syntax, left);
+        let r: Expression = SyntaxTrees::expression(syntax, right);
+        let lb: ValueBinding = NameResolution::value_binding(resolution, left);
+        let rb: ValueBinding = NameResolution::value_binding(resolution, right);
+        let lv: u64 in Trapping = Typing::case_view_source(typing, lb, left);
+        let rv: u64 in Trapping = Typing::case_view_source(typing, rb, right);
+        transition lv != left || rv != right {
+            true -> node(typing, syntax, resolution, lv, rv, depth + 1)
+            _ -> kinds(typing, syntax, resolution, left, right, l, r, lb, rb, depth)
+        }
+    }
+    machine kinds(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left_root: u64 in Trapping, right_root: u64 in Trapping, l: Expression, r: Expression, lb: ValueBinding, rb: ValueBinding, depth: u64 in Trapping) -> bool {
+        transition l.kind == ExpressionKind::Name && r.kind == ExpressionKind::Name {
+            true -> Typing::same_subject_binding(lb, rb)
+            _ -> fields(typing, syntax, resolution, left_root, right_root, l, r, depth)
+        }
+    }
+    machine fields(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left_root: u64 in Trapping, right_root: u64 in Trapping, l: Expression, r: Expression, depth: u64 in Trapping) -> bool {
+        transition l.kind == ExpressionKind::Field && r.kind == ExpressionKind::Field {
+            true -> selected(typing, syntax, resolution, left_root, right_root, l, r, depth)
+            _ -> false
+        }
+    }
+    machine selected(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, left_root: u64 in Trapping, right_root: u64 in Trapping, l: Expression, r: Expression, depth: u64 in Trapping) -> bool {
+        let left: Selection = Typing::selection(typing, left_root);
+        let right: Selection = Typing::selection(typing, right_root);
+        transition left {
+            Selection::Field { field } -> common(typing, syntax, resolution, l, r, depth, field, right)
+            _ -> false
+        }
+    }
+    machine common(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, l: Expression, r: Expression, depth: u64 in Trapping, field: u64 in Trapping, right: Selection) -> bool {
+        transition right {
+            Selection::Field { field as actual } -> compared(typing, syntax, resolution, l, r, depth, field == actual)
+            _ -> false
+        }
+    }
+    machine compared(typing: &Typing, syntax: &SyntaxTrees, resolution: &NameResolution, l: Expression, r: Expression, depth: u64 in Trapping, same: bool) -> bool {
+        transition same { true -> node(typing, syntax, resolution, l.left, r.left, depth + 1) _ -> false }
+    }
+}
+
+machine Typing::case_view_source(typing: &Typing, binding: ValueBinding, original: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition binding {
+        ValueBinding::PatternBinder { field } -> binder(typing, field, original)
+        _ -> original
+    }
+    machine binder(typing: &Typing, field: u64 in Trapping, original: u64 in Trapping) -> u64 in Trapping {
+        let member: MemberTarget = Typing::binder_member(typing, field);
+        transition member { MemberTarget::Case -> Typing::binder_subject(typing, field) _ -> original }
+    }
+}
+
+machine Typing::same_subject_binding(left: ValueBinding, right: ValueBinding) -> bool {
+    transition left {
+        ValueBinding::Parameter { parameter } -> parameter(right, parameter)
+        ValueBinding::Local { statement } -> local(right, statement)
+        ValueBinding::PatternBinder { field } -> binder(right, field)
+        ValueBinding::DataSubject { item } -> data(right, item)
+        ValueBinding::DomainSubject { domain } -> domain(right, domain)
+        _ -> false
+    }
+    machine parameter(right: ValueBinding, expected: u64 in Trapping) -> bool { transition right { ValueBinding::Parameter { parameter } -> (parameter == expected) _ -> false } }
+    machine local(right: ValueBinding, expected: u64 in Trapping) -> bool { transition right { ValueBinding::Local { statement } -> (statement == expected) _ -> false } }
+    machine binder(right: ValueBinding, expected: u64 in Trapping) -> bool { transition right { ValueBinding::PatternBinder { field } -> (field == expected) _ -> false } }
+    machine data(right: ValueBinding, expected: u64 in Trapping) -> bool { transition right { ValueBinding::DataSubject { item } -> (item == expected) _ -> false } }
+    machine domain(right: ValueBinding, expected: u64 in Trapping) -> bool { transition right { ValueBinding::DomainSubject { domain } -> (domain == expected) _ -> false } }
+}

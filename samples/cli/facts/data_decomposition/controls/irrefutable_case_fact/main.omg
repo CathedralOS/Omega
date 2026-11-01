@@ -1,0 +1,11 @@
+// A case binding uses the checked type and live facts without a runtime branch.
+// Expected exit: 0
+data Sum [copy] { case Ready(payload: u64); case Empty; }
+machine inspect(value: Sum) -> bool requires value in Sum::Ready {
+    let Sum::Ready { payload } = value;
+    payload == 17
+}
+machine main() crashes Trap {
+    transition inspect(Sum::Ready { payload: 17 }) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

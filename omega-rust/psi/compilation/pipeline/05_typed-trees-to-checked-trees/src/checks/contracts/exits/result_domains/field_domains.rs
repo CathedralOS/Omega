@@ -253,6 +253,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                     facts.flow.control.operands.get(exit.returned_value),
                                     domain_symbol,
                                     semantic_domain,
+                                    call_frames,
                                 )
                         })
                 });

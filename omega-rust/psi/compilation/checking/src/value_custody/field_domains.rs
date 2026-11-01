@@ -253,6 +253,21 @@ pub fn data_field_type_reference_by_symbol_or_name(
     ) -> Option<&'program typed_trees::data::DataDefinition>,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            crate::value_custody::places::case_view_has_payload_field(
+                program,
+                *subject,
+                member_symbol,
+            )
+            .then_some(())?;
+            data_field_type_reference_by_symbol_or_name(
+                program,
+                *subject,
+                member_symbol,
+                member_name,
+                data_definition,
+            )
+        }
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -307,6 +322,7 @@ pub fn readable_type_reference(
 ) -> Option<TypeReferenceHandle> {
     while reference.is_valid() {
         match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => reference = *subject,
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference {
                 referee, access, ..
@@ -363,6 +379,9 @@ pub fn owned_nominal_data_definition(
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let symbol = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            return owned_nominal_data_definition(program, *subject);
+        }
         TypeReferenceNode::Constrained { base_type, .. } => {
             return owned_nominal_data_definition(program, *base_type);
         }

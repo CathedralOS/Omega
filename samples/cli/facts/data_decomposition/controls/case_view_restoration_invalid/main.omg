@@ -1,0 +1,18 @@
+// An exclusive case component restores the exact payload it extracts before the borrow returns.
+// Expected: reject abandoned payload restoration.
+use omega::language::core::drop;
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Command { common: u64; case Ready(payload: Token); case Empty; }
+machine repair(command: &mut Command) requires command in Command::Ready {
+    let Command { common as _, case as operation } = command;
+    let Command::Ready { payload as current } = operation;
+}
+machine main() crashes Trap {
+    let mut command: Command = Command::Ready { common: 19, payload: Token { value: 42 } };
+    repair(&mut command);
+    let correct: bool = command.common == 19 && command.payload.value == 42;
+    drop(command.payload);
+    transition correct { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

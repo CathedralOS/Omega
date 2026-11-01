@@ -5,6 +5,7 @@ mod calls;
 mod constructors;
 mod expressions;
 mod patterns;
+mod place_types;
 
 pub(in crate::preparation) use expressions::visit_expression_type_inputs;
 pub(super) use expressions::visit_static_argument_type_inputs;

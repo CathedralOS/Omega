@@ -1,0 +1,17 @@
+// Expected exit: 0
+data Counter { value: u64 in Wrapping; }
+data Pair [copy] { left: u64; right: u64; }
+machine produce(counter: &mut Counter) -> Pair {
+    counter.value = counter.value + 1;
+    Pair { left: 17, right: 23 }
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0 };
+    let (first, second) = produce(&mut counter);
+    transition counter.value == 1 && first == 17 && second == 23 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

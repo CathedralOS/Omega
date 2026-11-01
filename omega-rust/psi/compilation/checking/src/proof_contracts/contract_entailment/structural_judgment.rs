@@ -495,8 +495,9 @@ struct StaticObservations<'scope> {
     body_parameters: &'scope [typed_trees::data::TypeParameter],
 }
 
-/// Admission belongs to one completed owned snapshot, inside its Match scope.
-/// A source name or equal reconstructed value cannot recover this receipt.
+/// Admission belongs to one completed owned value: a Match snapshot or an
+/// initialized local. A source name or equal reconstructed value cannot recover
+/// this receipt; local reuse additionally requires its current stored identity.
 #[derive(Clone)]
 struct CompletedNominalCapture {
     anchor: ExpressionHandle,
@@ -599,6 +600,9 @@ pub(super) struct StructuralJudge<'program> {
     // have common fields. Retain exact classifier identities while ordinary
     // argument substitution acts only on the observed subject.
     case_facts: Arc<Vec<(StructuralTerm, SymbolHandle, SymbolHandle)>>,
+    // Independently admitted disjunctions may become selectable after a tag
+    // observation. Their captured bindings and write cut remain exact.
+    admitted_disjunctions: Arc<Vec<domain_premises::AdmittedDisjunction>>,
     // Keep raw, application-free equations separate from the legacy value
     // normalizer, which can unfold a name-selected call before storing it.
     // Copying its substitutions would already have lost callable identity.
@@ -651,6 +655,7 @@ impl Clone for StructuralJudge<'_> {
             rewrites: Arc::clone(&self.rewrites),
             disequalities: Arc::clone(&self.disequalities),
             case_facts: Arc::clone(&self.case_facts),
+            admitted_disjunctions: Arc::clone(&self.admitted_disjunctions),
             case_substitutions: Arc::clone(&self.case_substitutions),
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
@@ -1130,6 +1135,7 @@ impl<'program> StructuralJudge<'program> {
                 integer_predicates::PreparedIntegerPremisesCache::default(),
             )),
             case_facts: Arc::new(Vec::new()),
+            admitted_disjunctions: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,
             ring_licenses: program
@@ -2776,6 +2782,9 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::Member(member) => {
+                if member.selector == language_core::DataComponentSelector::Case {
+                    return child_term!(member.receiver);
+                }
                 if let ExpressionNode::Call(call) =
                     expression_table(program).expression(member.receiver)
                     && (!call.receiver.is_valid()

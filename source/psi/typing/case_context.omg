@@ -1,0 +1,159 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::types::subjects;
+use psi::typing::typer;
+
+public data CaseTypeEvent [copy] {
+    source_span: SourceSpan;
+    subject: u64 in Trapping;
+    data_case: u64 in Trapping;
+    start: u64 in Trapping;
+    end: u64 in Trapping;
+}
+
+// A Boolean left operand classifies its right operand only under the
+// polarity required to evaluate it. Formation records the exact case and
+// subject; checking still owes the current tag before any payload observation.
+public machine Typer::prepare_case_types(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
+crashes Trap
+{
+    typer.case_event_count = 0;
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> node(typer, syntax, resolution, tree.first_row, root + 1) }
+    machine node(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, next: u64 in Trapping) {
+        transition next > low && typer.output.accepted { true -> expression(typer, syntax, resolution, low, next - 1) _ -> done() }
+    }
+    machine expression(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping) {
+        let written: Expression = SyntaxTrees::expression(syntax, index);
+        transition written.kind == ExpressionKind::Binary && (written.operator == OperatorKind::And || written.operator == OperatorKind::Or) {
+            true -> conjunction(typer, syntax, resolution, low, index, written)
+            _ -> matched(typer, syntax, resolution, low, index, written)
+        }
+    }
+    machine matched(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression) {
+        transition written.kind == ExpressionKind::Match { true -> arm(typer, syntax, resolution, low, index, written, 0) _ -> node(typer, syntax, resolution, low, index) }
+    }
+    machine arm(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression, offset: u64 in Trapping) {
+        transition offset < written.count && typer.output.accepted { true -> selected(typer, syntax, resolution, low, index, written, offset) _ -> node(typer, syntax, resolution, low, index) }
+    }
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression, offset: u64 in Trapping) {
+        let selected: TransitionArm = SyntaxTrees::match_arm(syntax, written.first + offset);
+        transition selected.kind == ArmPatternKind::Case { true -> classified(typer, syntax, resolution, low, index, written, offset, selected) _ -> arm(typer, syntax, resolution, low, index, written, offset + 1) }
+    }
+    machine classified(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression, offset: u64 in Trapping, selected: TransitionArm) {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, selected.pattern);
+        transition binding { ValueBinding::DataCase { item as _, data_case } -> retained(typer, syntax, resolution, low, index, written, offset, selected, data_case) _ -> arm(typer, syntax, resolution, low, index, written, offset + 1) }
+    }
+    machine retained(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression, offset: u64 in Trapping, selected: TransitionArm, data_case: u64 in Trapping) {
+        let body: Expression = SyntaxTrees::expression(syntax, selected.target);
+        let start: u64 in Trapping = match selected.has_guard { true -> SyntaxTrees::expression(syntax, selected.guard).first_row false -> body.first_row };
+        let event: CaseTypeEvent = CaseTypeEvent { source_span: selected.source_span, subject: written.left, data_case: data_case, start: start, end: selected.target };
+        Typer::retain_case_type(typer, event);
+        transition { _ -> arm(typer, syntax, resolution, low, index, written, offset + 1) }
+    }
+    machine conjunction(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, written: Expression) {
+        let right: Expression = SyntaxTrees::expression(syntax, written.right);
+        Typer::case_conjuncts(typer, syntax, resolution, written.left, written.operator == OperatorKind::And, right.first_row, written.right);
+        transition { _ -> node(typer, syntax, resolution, low, index) }
+    }
+    machine done() {}
+}
+
+data CaseTypeCondition [copy] { root: u64 in Trapping; holds: bool; }
+
+machine Typer::case_conjuncts(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, holds: bool, start: u64 in Trapping, end: u64 in Trapping)
+crashes Trap
+{
+    let mut pending: [CaseTypeCondition; 128] in Trapping;
+    pending[0] = CaseTypeCondition { root: root, holds: holds };
+    transition { _ -> next(typer, syntax, resolution, pending, 1, start, end) }
+    machine next(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping) {
+        transition count > 0 && count <= 128 && typer.output.accepted { true -> pop(typer, syntax, resolution, pending, count - 1, start, end) _ -> done() }
+    }
+    machine pop(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, offset: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping)
+    requires offset < 128
+    {
+        let current: CaseTypeCondition = pending[offset];
+        let expression: Expression = SyntaxTrees::expression(syntax, current.root);
+        transition expression.kind == ExpressionKind::Membership && current.holds {
+            true -> classified(typer, syntax, resolution, pending, offset, start, end, current.root, expression)
+            _ -> negation(typer, syntax, resolution, pending, offset, start, end, expression, current.holds)
+        }
+    }
+    machine classified(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping, expression: Expression) {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, root);
+        transition binding {
+            ValueBinding::DataCase { item as _, data_case } -> retained(typer, syntax, resolution, pending, count, start, end, expression.left, data_case)
+            _ -> next(typer, syntax, resolution, pending, count, start, end)
+        }
+    }
+    machine retained(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, data_case: u64 in Trapping) {
+        Typer::retain_case_type(typer, CaseTypeEvent { source_span: SyntaxTrees::expression(syntax, subject).source_span, subject: subject, data_case: data_case, start: start, end: end });
+        transition { _ -> next(typer, syntax, resolution, pending, count, start, end) }
+    }
+    machine negation(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool) {
+        transition expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not {
+            true -> negated(typer, syntax, resolution, pending, count, start, end, expression, !holds)
+            _ -> conjunction(typer, syntax, resolution, pending, count, start, end, expression, holds)
+        }
+    }
+    machine negated(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool) {
+        transition count < 128 { true -> single(typer, syntax, resolution, pending, count, start, end, expression, holds) _ -> full(typer, expression.source_span) }
+    }
+    machine single(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool)
+    requires count < 128
+    {
+        let mut work: [CaseTypeCondition; 128] in Trapping = pending;
+        work[count] = CaseTypeCondition { root: expression.left, holds: holds };
+        transition { _ -> next(typer, syntax, resolution, work, count + 1, start, end) }
+    }
+    machine conjunction(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool) {
+        let connective: bool = expression.kind == ExpressionKind::Binary && ((expression.operator == OperatorKind::And && holds) || (expression.operator == OperatorKind::Or && !holds));
+        transition connective { true -> bounded(typer, syntax, resolution, pending, count, start, end, expression, holds) _ -> next(typer, syntax, resolution, pending, count, start, end) }
+    }
+    machine bounded(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool) {
+        transition count < 127 { true -> pushed(typer, syntax, resolution, pending, count, start, end, expression, holds) _ -> full(typer, expression.source_span) }
+    }
+    machine pushed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, pending: [CaseTypeCondition; 128] in Trapping, count: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, expression: Expression, holds: bool)
+    requires count < 127
+    {
+        let mut work: [CaseTypeCondition; 128] in Trapping = pending;
+        work[count] = CaseTypeCondition { root: expression.left, holds: holds };
+        work[count + 1] = CaseTypeCondition { root: expression.right, holds: holds };
+        transition { _ -> next(typer, syntax, resolution, work, count + 2, start, end) }
+    }
+    machine full(typer: &mut Typer, source_span: SourceSpan) { Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span); }
+    machine done() {}
+}
+
+public machine Typer::retain_case_type(typer: &mut Typer, event: CaseTypeEvent)
+crashes Trap
+{
+    transition typer.case_event_count < 256 { true -> stored(typer, event) _ -> full(typer, event.source_span) }
+    machine stored(typer: &mut Typer, event: CaseTypeEvent)
+    requires typer.case_event_count < 256
+    {
+        typer.case_events[typer.case_event_count] = event;
+        typer.case_event_count = typer.case_event_count + 1;
+    }
+    machine full(typer: &mut Typer, source_span: SourceSpan) { Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span); }
+}
+
+public machine Typer::projection_case(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, subject: u64 in Trapping, index: u64 in Trapping, incoming: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> event(typer, syntax, resolution, subject, index, 0, incoming) }
+    machine event(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, subject: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping, selected: u64 in Trapping) -> u64 in Trapping {
+        transition offset < typer.case_event_count && offset < 256 { true -> candidate(typer, syntax, resolution, subject, index, offset, selected) _ -> selected }
+    }
+    machine candidate(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, subject: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping, selected: u64 in Trapping) -> u64 in Trapping
+    requires offset < 256
+    {
+        let row: CaseTypeEvent = typer.case_events[offset];
+        let same: bool = index >= row.start && index <= row.end && Typing::same_subject(&typer.output, syntax, resolution, subject, row.subject);
+        let actual: u64 in Trapping = match same { true -> row.data_case + 1 false -> selected };
+        transition { _ -> event(typer, syntax, resolution, subject, index, offset + 1, actual) }
+    }
+}

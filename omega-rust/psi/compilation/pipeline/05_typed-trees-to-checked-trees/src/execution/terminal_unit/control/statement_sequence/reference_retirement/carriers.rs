@@ -237,6 +237,7 @@ impl Retirement<'_> {
         let Some(transfers) = transfers(
             self.program,
             self.facts,
+            self.state.symbol,
             self.prepared_calls,
             self.results,
             result.binding_ordinal,

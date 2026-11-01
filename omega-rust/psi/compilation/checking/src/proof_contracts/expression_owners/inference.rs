@@ -21,6 +21,9 @@ pub(super) fn type_reference_contains_expression(
     }
     visited.push(type_reference);
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_reference_contains_expression(program, *subject, expression, visited)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             type_reference_contains_expression(program, *referee, expression, visited)
         }

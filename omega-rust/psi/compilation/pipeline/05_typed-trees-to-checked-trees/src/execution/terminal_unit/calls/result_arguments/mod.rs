@@ -818,8 +818,11 @@ fn argument_contract(
             // Lowering compares physical storage and transferred qualifications;
             // repeating syntactic index identity would discard that proof.
             phase("call result argument: anonymous receiving contract");
-            if result_multiplicity(program, source_type) != result.multiplicity
-                || structural_type_identity(program, source_type, &[], &[]) != result.type_identity
+
+            if validation::reference_result_custody::result_multiplicity(program, source_type)
+                != result.multiplicity
+                || validation::structural_type_identity(program, source_type, &[], &[])
+                    != result.type_identity
                 || (!projected
                     && access == CheckedStructuralAccess::Owned
                     && contract?.qualifications

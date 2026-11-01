@@ -81,7 +81,7 @@ public machine Checker::member_chain(
 ) -> MemberChain
 crashes Trap
 {
-    let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
+    let empty: ArrivalStep = ArrivalStep { kind: PlaceKind::Field, field: 0, type_handle: 0 };
     let none: ArrivalPath = ArrivalPath { parameter: 0, depth: 0, step0: empty, step1: empty, step2: empty, step3: empty };
     transition { _ -> walk(syntax, resolution, typing, handle, first_parameter, parameter_count, none, 0) }
 
@@ -119,8 +119,8 @@ crashes Trap
         let selection: Selection = Typing::selection(typing, current);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, current);
         transition selection {
-            Selection::Field { field } -> stepped(syntax, resolution, typing, expression, first_parameter, parameter_count, path, count, ArrivalStep { length: false, field: field, type_handle: type_handle })
-            Selection::Length -> stepped(syntax, resolution, typing, expression, first_parameter, parameter_count, path, count, ArrivalStep { length: true, field: 0, type_handle: type_handle })
+            Selection::Field { field } -> stepped(syntax, resolution, typing, expression, first_parameter, parameter_count, path, count, ArrivalStep { kind: PlaceKind::Field, field: field, type_handle: type_handle })
+            Selection::Length -> stepped(syntax, resolution, typing, expression, first_parameter, parameter_count, path, count, ArrivalStep { kind: PlaceKind::Length, field: 0, type_handle: type_handle })
             _ -> unrooted(path)
         }
     }
@@ -417,8 +417,8 @@ crashes Trap
     machine indexed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: MachineItem, expression: Expression) -> bool {
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
         let chain: MemberChain = Checker::member_chain(syntax, resolution, typing, expression.left, body.first_parameter, body.parameter_count);
-        let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
-        let length: ArrivalStep = ArrivalStep { length: true, field: 0, type_handle: 0 };
+        let empty: ArrivalStep = ArrivalStep { kind: PlaceKind::Field, field: 0, type_handle: 0 };
+        let length: ArrivalStep = ArrivalStep { kind: PlaceKind::Length, field: 0, type_handle: 0 };
         let suffix: ArrivalPath = ArrivalPath { parameter: 0, depth: 1, step0: length, step1: empty, step2: empty, step3: empty };
         let lengthed: ArrivalPath = ArrivalPath::joined(chain.path, suffix);
         transition collection.kind == TypeKind::Slice {
@@ -680,7 +680,7 @@ crashes Trap
 
     machine last(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool, path: ArrivalPath) -> bool {
         let step: ArrivalStep = ArrivalPath::step(path, path.depth - 1);
-        transition step.length {
+        transition step.kind == PlaceKind::Length {
             true -> next(checker, syntax, resolution, typing, offset, index + 1, changed)
             _ -> related(checker, syntax, resolution, typing, offset, index, changed, path, step.field)
         }
@@ -804,7 +804,7 @@ crashes Trap
     ) -> bool {
         let declared: DataField = SyntaxTrees::field(syntax, sibling);
         let type_handle: u64 in Trapping = Typing::reference_type(typing, declared.type_reference);
-        let step: ArrivalStep = ArrivalStep { length: false, field: sibling, type_handle: type_handle };
+        let step: ArrivalStep = ArrivalStep { kind: PlaceKind::Field, field: sibling, type_handle: type_handle };
         let beside: ArrivalPath = ArrivalPath::with_step(path, path.depth - 1, step);
         let added: bool = Checker::add_arrival_path(checker, offset, beside);
         transition { _ -> node(checker, syntax, resolution, typing, offset, path, field, item, index, changed || added, root, handle + 1) }

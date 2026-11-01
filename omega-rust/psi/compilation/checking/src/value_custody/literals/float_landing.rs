@@ -410,6 +410,7 @@ fn land_float_value_for_type(
         .type_reference(declared)
         .clone();
     match declared_node {
+        TypeReferenceNode::CaseView { .. } => {}
         TypeReferenceNode::Reference { referee, .. } => {
             let source = match expression_table(program).expression(value) {
                 ExpressionNode::Borrow(borrow) => borrow.target,

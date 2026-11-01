@@ -406,6 +406,13 @@ pub fn declared_place_type_raw(
         return None;
     }
 
+    if let ExpressionNode::Member(member) = expression_table(program).expression(handle)
+        && member.selector == language_core::DataComponentSelector::Case
+    {
+        let subject =
+            declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
+        return program.type_reference_table.case_view_reference(subject);
+    }
     if projected_members::contains_case_projection(program, handle) {
         return projected_members::declared_case_projection_type(
             program,
@@ -837,3 +844,32 @@ pub mod receiver_projections;
 pub use receiver_projections::{
     projected_statement_receiver_place, projected_statement_receiver_type_reference,
 };
+
+/// A case view exposes only a payload member of its exact applied subject.
+/// Common fields remain with the outer decomposition; a same-spelled field or
+/// unrelated variant cannot widen this component's projection authority.
+pub(crate) fn case_view_has_payload_field(
+    program: &dyn crate::CheckingInput,
+    subject: TypeReferenceHandle,
+    field: SymbolHandle,
+) -> bool {
+    let Some(reference) = unwrapped_type_reference(program, subject) else {
+        return false;
+    };
+    let Some(data) = data_definition_for_type(program, subject) else {
+        return false;
+    };
+    let Some(field) = program.data_constructor_field(reference, data.symbol, field) else {
+        return false;
+    };
+    program
+        .data_members(data)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .any(|variant| {
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .any(|declared| declared.symbol == field.symbol)
+        })
+}

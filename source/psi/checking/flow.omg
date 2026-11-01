@@ -1,4 +1,5 @@
 use psi::checking::aliases;
+use psi::checking::cases;
 use psi::checking::checker;
 use psi::checking::completions;
 use psi::checking::contracts;
@@ -9,6 +10,7 @@ use psi::checking::facts;
 use psi::checking::matches;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::patterns;
 use psi::checking::qualification;
 use psi::checking::references;
 use psi::checking::snapshots;
@@ -839,10 +841,31 @@ crashes Trap
     let statement: Statement = SyntaxTrees::statement(syntax, index);
     transition statement.kind {
         StatementKind::Let -> binding(checker, syntax, resolution, typing, index, statement, checking)
+        StatementKind::LetPattern -> pattern_binding(checker, syntax, resolution, typing, statement, checking)
         StatementKind::Assign -> assignment(checker, syntax, resolution, typing, statement, checking)
         StatementKind::Crash -> crashed(checker, statement)
         StatementKind::Transition -> transition_statement(checker, syntax, resolution, typing, statement, checking)
         _ -> evaluated(checker, syntax, resolution, typing, statement, checking)
+    }
+
+    machine pattern_binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, checking: bool) {
+        Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
+        let captured: CapturedSubject = Checker::capture_subject(checker, syntax, typing, statement.value, true);
+        let subject: Value = Checker::value_at(checker, statement.value);
+        let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm);
+        let total: bool = Checker::pattern_irrefutable(checker, syntax, resolution, typing, subject, arm);
+        transition total {
+            true -> pattern_inputs(checker, syntax, resolution, typing, arm, subject, captured, checking)
+            _ -> refutable_pattern(checker, statement.source_span)
+        }
+    }
+    machine pattern_inputs(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, subject: Value, captured: CapturedSubject, checking: bool) {
+        Checker::evaluate_pattern_values(checker, syntax, resolution, typing, arm, checking);
+        Checker::bind_pattern_components(checker, syntax, resolution, typing, subject, arm, true);
+        checker.retained_values = captured.floor;
+    }
+    machine refutable_pattern(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RefutablePattern, source_span);
     }
 
     machine binding(
@@ -1342,8 +1365,9 @@ crashes Trap
 {
     transition arm.kind {
         ArmPatternKind::Guard -> guard(checker, syntax, resolution, typing, statement, arm, chosen, checking)
-        ArmPatternKind::Literal -> literal(checker, syntax, resolution, typing, statement, arm, chosen, captured)
-        ArmPatternKind::Case -> pattern(checker, syntax, resolution, typing, statement, arm, chosen, captured)
+        ArmPatternKind::Literal -> literal(checker, syntax, resolution, typing, statement, arm, chosen, captured, checking)
+        ArmPatternKind::Case -> pattern(checker, syntax, resolution, typing, statement, arm, chosen, captured, checking)
+        ArmPatternKind::Positional -> positional(checker, syntax, resolution, typing, statement, arm, chosen, captured, checking)
         _ -> done()
     }
 
@@ -1354,29 +1378,42 @@ crashes Trap
         Checker::assume_alias(checker, syntax, resolution, typing, arm.pattern, chosen);
     }
 
-    machine literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject) {
+    machine literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject, checking: bool) {
         let written: Expression = SyntaxTrees::expression(syntax, arm.pattern);
         let unknown: Value = Value::unknown();
         transition written.kind == ExpressionKind::Boolean {
-            true -> assumed(checker, syntax, resolution, typing, statement, arm, chosen, captured, unknown)
-            _ -> pattern(checker, syntax, resolution, typing, statement, arm, chosen, captured)
+            true -> assumed(checker, syntax, resolution, typing, statement, arm, chosen, captured, unknown, checking)
+            _ -> pattern(checker, syntax, resolution, typing, statement, arm, chosen, captured, checking)
         }
     }
 
-    machine pattern(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject) {
+    machine pattern(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject, checking: bool) {
         transition chosen {
-            true -> evaluated(checker, syntax, resolution, typing, statement, arm, captured)
+            true -> evaluated(checker, syntax, resolution, typing, statement, arm, captured, checking)
             _ -> done()
         }
     }
 
-    machine evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, captured: CapturedSubject) {
-        Checker::replay_tree(checker, syntax, resolution, typing, arm.pattern);
-        let pattern: Value = Checker::value_at(checker, arm.pattern);
-        transition { _ -> assumed(checker, syntax, resolution, typing, statement, arm, true, captured, pattern) }
+    machine positional(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject, checking: bool) {
+        transition chosen {
+            true -> positional_values(checker, syntax, resolution, typing, statement, arm, captured, checking)
+            _ -> done()
+        }
+    }
+    machine positional_values(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, captured: CapturedSubject, checking: bool) {
+        Checker::evaluate_pattern_values(checker, syntax, resolution, typing, arm, checking);
+        let pattern: Value = Value::unknown();
+        transition { _ -> assumed(checker, syntax, resolution, typing, statement, arm, true, captured, pattern, checking) }
     }
 
-    machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject, pattern: Value) {
+    machine evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, captured: CapturedSubject, checking: bool) {
+        Checker::evaluate_pattern_values(checker, syntax, resolution, typing, arm, checking);
+        Checker::replay_tree(checker, syntax, resolution, typing, arm.pattern);
+        let pattern: Value = Checker::value_at(checker, arm.pattern);
+        transition { _ -> assumed(checker, syntax, resolution, typing, statement, arm, true, captured, pattern, checking) }
+    }
+
+    machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, captured: CapturedSubject, pattern: Value, checking: bool) {
         Checker::restore_tree(checker, captured.frame);
         Checker::arm_facts(checker, syntax, resolution, typing, statement.value, pattern, arm, chosen);
         Checker::assume_subject_alias(checker, syntax, resolution, typing, statement.value, arm, chosen);
@@ -1391,8 +1428,8 @@ crashes Trap
 // subject hold or fail, and another value pattern, an integer literal or a
 // path denoting no case, makes the subject equal it. Passing over a value
 // pattern establishes nothing. A case arm's binders are places of their
-// payload types, and a chosen case arm assumes its case's own `where`
-// facts.
+// payload types. Selecting a case narrows the original established subject's
+// default predicates; a case declaration supplies no separate facts.
 public machine Checker::arm_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -1405,11 +1442,22 @@ public machine Checker::arm_facts(
 )
 crashes Trap
 {
+    transition chosen && (arm.kind == ArmPatternKind::Case || arm.kind == ArmPatternKind::Positional) {
+        true -> formed(checker, syntax, resolution, typing, subject, pattern, arm, chosen)
+        _ -> facts(checker, syntax, resolution, typing, subject, pattern, arm, chosen)
+    }
+    machine formed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, pattern: Value, arm: TransitionArm, chosen: bool) {
+        let value: Value = Checker::value_at(checker, subject);
+        Checker::bind_pattern_components(checker, syntax, resolution, typing, value, arm, false);
+        transition { _ -> facts(checker, syntax, resolution, typing, subject, pattern, arm, chosen) }
+    }
+    machine facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, pattern: Value, arm: TransitionArm, chosen: bool) {
     transition arm.kind {
         ArmPatternKind::Guard -> assumed(checker, syntax, arm.pattern, chosen)
         ArmPatternKind::Literal -> literal(checker, syntax, subject, pattern, arm, chosen)
         ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, subject, pattern, arm, chosen)
         _ -> done()
+    }
     }
 
     machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool) {
@@ -1477,7 +1525,17 @@ crashes Trap
     }
 
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, data_case: u64 in Trapping) {
-        Checker::assume_case_facts(checker, syntax, resolution, typing, subject, arm, data_case);
+        let value: Value = Checker::value_at(checker, subject);
+        Checker::assume_selected_case(checker, syntax, typing, value, data_case);
+        let place: Place = Checker::place_or_absent(checker, value.place);
+        let row: TypeRow = Checker::referent_row(typing, place.type_handle);
+        let declared: DataItem = SyntaxTrees::data_item(syntax, row.item);
+        let assumed: bool = Checker::data_predicates(checker, syntax, resolution, typing, value, declared, false);
+        let established: bool = Checker::established(checker, syntax, value.place);
+        transition established { true -> qualified(checker, syntax, resolution, typing, value, place.type_handle) _ -> done() }
+    }
+    machine qualified(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, value: Value, type_handle: u64 in Trapping) {
+        Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, value);
     }
 
     machine done() {}

@@ -971,6 +971,7 @@ fn projection_receiver_type(
     for _ in 0..128 {
         reference = substituted_reference(program, reference, substitutions)?;
         reference = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => *subject,
             TypeReferenceNode::Constrained { base_type, .. } => *base_type,
             TypeReferenceNode::Reference {
                 referee, access, ..
@@ -1087,7 +1088,24 @@ fn selected_value_type(
                 forwarding_root,
                 projection,
             )?;
+            if member.selector == language_core::DataComponentSelector::Case {
+                // This operation transports the exact existing descriptor;
+                // it forms no loan and cannot strengthen the supplied access.
+                return program.type_reference_table.case_view_reference(receiver);
+            }
+            let view_field = program
+                .type_reference_table
+                .has_case_view(receiver)
+                .then(|| {
+                    crate::value_custody::places::applied_data_member_field(
+                        program, receiver, member,
+                    )
+                    .map(|field| field.type_reference)
+                });
             let receiver = projection_receiver_type(program, receiver, substitutions, projection)?;
+            if let Some(field) = view_field {
+                return field;
+            }
             // Prepared storage owns its applied field types and the exact
             // correspondence from retained template selectors. Reopening its
             // declaration telescope loses that correspondence (including for

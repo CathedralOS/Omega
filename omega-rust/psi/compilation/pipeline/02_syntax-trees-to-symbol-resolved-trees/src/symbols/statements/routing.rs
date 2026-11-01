@@ -219,6 +219,41 @@ pub(super) fn assign_statement_symbols(
             if local_data.initial_value.is_valid() {
                 assign_expr!(local_data.initial_value);
             }
+            if let Some(pattern) = local_data.pattern {
+                if pattern.head.is_valid() {
+                    assign_expr!(pattern.head);
+                }
+                let head = if pattern.head.is_valid() {
+                    crate::symbols::expression_paths::pattern_head_symbol(
+                        expression_table,
+                        pattern.head,
+                    )
+                } else {
+                    crate::symbols::expression_paths::receiver_data(
+                        machine,
+                        parameters,
+                        state_symbol,
+                        local_data.initial_value,
+                        expression_table,
+                        child_type_references,
+                        symbols,
+                    )
+                    .unwrap_or_default()
+                };
+                crate::symbols::expression_paths::assign_pattern_field_symbols(
+                    symbols,
+                    expression_table,
+                    head,
+                    pattern.fields,
+                );
+                for field in expression_table.match_fields(pattern.fields).to_vec() {
+                    if let symbol_resolved_trees::expression::MatchFieldAction::Equal(value) =
+                        field.action
+                    {
+                        assign_expr!(value);
+                    }
+                }
+            }
         }
         symbol_resolved_trees::statement::Statement::Transition(transition) => {
             if let TransitionGuard::When(expression) = &mut transition.guard {

@@ -366,6 +366,7 @@ fn lower_nonbinary_expression_node_into_table(
             let receiver = lower_expression_into_table(lowerer, syntax_trees, member.receiver)?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: member.selector,
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
                     member: lower_name(syntax_trees, &member.member),

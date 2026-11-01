@@ -79,8 +79,9 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                     local.initial_value,
                 )
                 .is_some_and(|place| place.root.as_symbol().is_some());
-                let noncopy_storage =
-                    storage && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
+                let noncopy_storage = storage
+                    && local.pattern.is_none()
+                    && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
                 let (mathematical, logical_machine) = if noncopy_storage {
                     let classification = proof_only
                         .get_or_insert_with(|| typed_trees::proof_only::classify(program));
@@ -143,6 +144,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                     state.statement_nodes,
                     offset,
                     local.initial_value,
+                    actual,
                     observation,
                 ));
             }
@@ -154,7 +156,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
     if !aliases.is_empty() {
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                if !pending.iter().any(|(_, body, _, _, observation)| {
+                if !pending.iter().any(|(_, body, _, _, _, observation)| {
                     *body == state.statement_nodes && observation.is_some()
                 }) {
                     continue;
@@ -187,7 +189,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
     // serves both the guard and its payload projections.
     replace_place_aliases(program, &logical_aliases, &[]);
     let mut changed = Vec::new();
-    for (owner, body, offset, initial, observation) in pending {
+    for (owner, body, offset, initial, actual, observation) in pending {
         let observed = observation.map(|referee| {
             let expression =
                 expressions_of_mut(program).insert(ExpressionNode::Borrow(TableBorrowExpression {
@@ -211,6 +213,10 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
             unreachable!()
         };
         local.role = LocalBindingRole::Value;
+        // The completed producer owns the entire type, including a case-only
+        // view and the callable scope of captured region arguments. Materialize
+        // copyable subjects too; the former Unit sentinel is not their type.
+        local.type_reference = actual;
         if let Some((expression, reference)) = observed {
             local.initial_value = expression;
             local.type_reference = reference;
@@ -377,6 +383,7 @@ fn replace_place_alias(
             .unwrap_or_default();
         source =
             expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver: source,
                 member_symbol,
                 member,

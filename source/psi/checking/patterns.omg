@@ -1,0 +1,175 @@
+use psi::checking::checker;
+use psi::checking::cases;
+use psi::checking::constructions;
+use psi::checking::evaluation;
+use psi::checking::flow;
+use psi::checking::places;
+use psi::checking::references;
+use psi::checks::checks;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::source::source;
+use psi::types::types;
+
+// Publish the checked component roster from one completed subject. The
+// semantic case component retains its subject place; it is not a new data
+// value. Common and payload fields have distinct declaration identities.
+public machine Checker::bind_pattern_components(
+    checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution,
+    typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool
+)
+crashes Trap
+{
+    transition { _ -> field(checker, syntax, resolution, typing, subject, arm, irrefutable, 0) }
+    machine field(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping) {
+        transition offset < arm.field_count && checker.output.machine_accepted {
+            true -> component(checker, syntax, resolution, typing, subject, arm, irrefutable, offset)
+            _ -> done()
+        }
+    }
+    machine component(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = arm.first_field + offset;
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, handle);
+        let type_handle: u64 in Trapping = Typing::binder_type(typing, handle);
+        let member: MemberTarget = Typing::binder_member(typing, handle);
+        let projected: Value = Checker::pattern_component_value(checker, typing, subject, member, type_handle);
+        transition written.has_value {
+            true -> tested(checker, syntax, resolution, typing, subject, arm, irrefutable, offset, written, projected)
+            _ -> bound(checker, syntax, resolution, typing, subject, arm, irrefutable, offset, written, handle, type_handle, projected)
+        }
+    }
+    machine tested(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping, written: PatternField, projected: Value) {
+        let expected: Value = Checker::pattern_value_at(checker, arm.first_field + offset);
+        let proved: bool = Checker::proves_at_most(checker, projected, expected) && Checker::proves_at_most(checker, expected, projected);
+        transition irrefutable && !proved {
+            true -> refutable(checker, written.source_span)
+            _ -> equal(checker, syntax, resolution, typing, subject, arm, irrefutable, offset, projected, expected)
+        }
+    }
+    machine equal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping, projected: Value, expected: Value) {
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        Checker::constrain_difference(checker, projected, expected, zero);
+        Checker::constrain_difference(checker, expected, projected, zero);
+        transition { _ -> field(checker, syntax, resolution, typing, subject, arm, irrefutable, offset + 1) }
+    }
+    machine bound(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping, written: PatternField, handle: u64 in Trapping, type_handle: u64 in Trapping, projected: Value) {
+        transition !written.is_waived {
+            true -> stored(checker, syntax, resolution, typing, subject, arm, irrefutable, offset, handle, type_handle, projected)
+            _ -> field(checker, syntax, resolution, typing, subject, arm, irrefutable, offset + 1)
+        }
+    }
+    machine stored(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm, irrefutable: bool, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, projected: Value) {
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Binder, handle, 0, type_handle);
+        Checker::initialize_place(checker, typing, place, projected);
+        transition { _ -> field(checker, syntax, resolution, typing, subject, arm, irrefutable, offset + 1) }
+    }
+    machine refutable(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RefutablePattern, source_span);
+    }
+    machine done() {}
+}
+
+machine Checker::pattern_component_value(checker: &mut Checker, typing: &Typing, subject: Value, member: MemberTarget, type_handle: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition member {
+        MemberTarget::Case -> subject
+        MemberTarget::Common { field } -> projected(checker, typing, subject, PlaceKind::Field, field, type_handle)
+        MemberTarget::Payload { field } -> projected(checker, typing, subject, PlaceKind::Payload, field, type_handle)
+        _ -> Value::unknown()
+    }
+    machine projected(checker: &mut Checker, typing: &Typing, subject: Value, kind: PlaceKind, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        transition subject.place > 0 {
+            true -> entered(checker, typing, subject.place, kind, field, type_handle)
+            _ -> Value::unknown()
+        }
+    }
+    machine entered(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, kind: PlaceKind, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let place: u64 in Trapping = Checker::place(checker, typing, kind, field, parent, type_handle);
+        Checker::reference_value(checker, typing, place)
+    }
+}
+
+public machine Checker::retain_pattern_value(checker: &mut Checker, field: u64 in Trapping, value: Value)
+crashes Trap
+{
+    transition field < 2048 { true -> stored(checker, field, value) _ -> full(checker) }
+    machine stored(checker: &mut Checker, field: u64 in Trapping, value: Value)
+    requires field < 2048
+    { checker.pattern_values[field] = value; }
+    machine full(checker: &mut Checker) { checker.overflowed = true; }
+}
+machine Checker::pattern_value_at(checker: &Checker, field: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition field < 2048 { true -> read(checker, field) _ -> invalid() }
+    machine read(checker: &Checker, field: u64 in Trapping) -> Value
+    requires field < 2048
+    { checker.pattern_values[field] }
+    machine invalid() -> Value { crash Trap; }
+}
+// Expression patterns are children of the current flat tree. Retain their
+// completed tests before publishing binders or evaluating an arm guard.
+public machine Checker::capture_pattern_values(checker: &mut Checker, syntax: &SyntaxTrees, arm: TransitionArm)
+crashes Trap
+{
+    transition { _ -> field(checker, syntax, arm, 0) }
+    machine field(checker: &mut Checker, syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) {
+        transition offset < arm.field_count { true -> selected(checker, syntax, arm, offset) _ -> done() }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) {
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + offset);
+        transition written.has_value { true -> retained(checker, syntax, arm, offset, written.value) _ -> field(checker, syntax, arm, offset + 1) }
+    }
+    machine retained(checker: &mut Checker, syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping, root: u64 in Trapping) {
+        let value: Value = Checker::value_at(checker, root);
+        Checker::retain_pattern_value(checker, arm.first_field + offset, value);
+        transition { _ -> field(checker, syntax, arm, offset + 1) }
+    }
+    machine done() {}
+}
+// Statement patterns own separate trees. Schedule them here, outside the
+// expression evaluator; pattern formation itself never re-enters that walk.
+public machine Checker::evaluate_pattern_values(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool)
+crashes Trap
+{
+    transition { _ -> field(checker, syntax, resolution, typing, arm, checking, 0) }
+    machine field(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool, offset: u64 in Trapping) {
+        transition offset < arm.field_count && checker.output.machine_accepted { true -> selected(checker, syntax, resolution, typing, arm, checking, offset) _ -> done() }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool, offset: u64 in Trapping) {
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + offset);
+        transition written.has_value { true -> evaluated(checker, syntax, resolution, typing, arm, checking, offset, written.value) _ -> field(checker, syntax, resolution, typing, arm, checking, offset + 1) }
+    }
+    machine evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool, offset: u64 in Trapping, root: u64 in Trapping) {
+        Checker::evaluate_tree(checker, syntax, resolution, typing, root, checking);
+        let value: Value = Checker::value_at(checker, root);
+        Checker::retain_pattern_value(checker, arm.first_field + offset, value);
+        transition { _ -> field(checker, syntax, resolution, typing, arm, checking, offset + 1) }
+    }
+    machine done() {}
+}
+// Type formation already checked the roster and exact owner. Only an outer
+// decomposition or the sole case is total without a live case proof.
+public machine Checker::pattern_irrefutable(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm) -> bool
+crashes Trap
+{
+    transition arm.kind == ArmPatternKind::Positional {
+        true -> true
+        _ -> named(checker, syntax, resolution, typing, subject, arm)
+    }
+    machine named(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, arm: TransitionArm) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+        transition binding {
+            ValueBinding::Data { item as _ } -> true
+            ValueBinding::DataCase { item, data_case } -> selected(checker, syntax, typing, subject, item, data_case)
+            _ -> false
+        }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, item: u64 in Trapping, data_case: u64 in Trapping) -> bool {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        let proved: bool = Checker::proves_selected_case(checker, syntax, typing, subject, data_case);
+        declared.case_count == 1 || proved
+    }
+}

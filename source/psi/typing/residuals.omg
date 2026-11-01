@@ -1,0 +1,95 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::typer;
+use psi::typing::references;
+use psi::typing::case_views;
+use psi::typing::expressions;
+
+// Publish omitted components from the same declaration roster and exact
+// application as explicit bindings. Checking consumes these types directly;
+// it never guesses a generic field's disposition from the enclosing record.
+public machine Typer::record_pattern_residuals(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping)
+crashes Trap
+{
+    let structural: bool = arm.kind == ArmPatternKind::Case || arm.kind == ArmPatternKind::Positional;
+    transition typer.output.accepted && structural {
+        true -> selected(typer, syntax, resolution, arm, subject_type)
+        _ -> done()
+    }
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
+        let base: u64 in Trapping = Typer::case_subject(typer, subject_type);
+        let owner: TypeRow = TypeTable::row(&typer.output.types, base);
+        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+        transition binding {
+            ValueBinding::DataCase { item as _, data_case } -> payload(typer, syntax, arm, owner, data_case, 0)
+            _ -> common(typer, syntax, arm, subject_type, owner, 0)
+        }
+    }
+    machine common(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        transition offset < declared.field_count {
+            true -> common_field(typer, syntax, arm, subject_type, owner, offset, declared.first_field + offset)
+            _ -> case_component(typer, syntax, arm, subject_type, owner, declared.case_count > 0)
+        }
+    }
+    machine common_field(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, field: u64 in Trapping) {
+        let selected: bool = Typer::pattern_selects(typer, arm, 1, field);
+        transition selected { true -> common(typer, syntax, arm, subject_type, owner, offset + 1) _ -> omitted_common(typer, syntax, arm, subject_type, owner, offset, field) }
+    }
+    machine omitted_common(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, field: u64 in Trapping) {
+        let declared: DataField = SyntaxTrees::field(syntax, field);
+        Typer::residual_field(typer, syntax, arm.source_span, owner, 1, field, declared.type_reference);
+        transition { _ -> common(typer, syntax, arm, subject_type, owner, offset + 1) }
+    }
+    machine case_component(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, has_case: bool) {
+        let selected: bool = Typer::pattern_selects(typer, arm, 3, 0);
+        transition has_case && !selected { true -> omitted_case(typer, syntax, arm, subject_type, owner) _ -> done() }
+    }
+    machine omitted_case(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow) {
+        let handle: u64 in Trapping = Typer::case_view_type(typer, syntax, subject_type, arm.source_span);
+        Typing::record_pattern_residual(&mut typer.output, PatternResidual { pattern: arm.source_span, component_kind: 3, component: owner.item, type_handle: handle });
+    }
+    machine payload(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, owner: TypeRow, data_case: u64 in Trapping, offset: u64 in Trapping) {
+        let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        transition offset < selected.payload_field_count { true -> payload_field(typer, syntax, arm, owner, data_case, offset, selected.first_payload_field + offset) _ -> done() }
+    }
+    machine payload_field(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, owner: TypeRow, data_case: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) {
+        let selected: bool = Typer::pattern_selects(typer, arm, 2, field);
+        transition selected { true -> payload(typer, syntax, arm, owner, data_case, offset + 1) _ -> omitted_payload(typer, syntax, arm, owner, data_case, offset, field) }
+    }
+    machine omitted_payload(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, owner: TypeRow, data_case: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) {
+        let declared: DataField = SyntaxTrees::payload_field(syntax, field);
+        Typer::residual_field(typer, syntax, arm.source_span, owner, 2, field, declared.type_reference);
+        transition { _ -> payload(typer, syntax, arm, owner, data_case, offset + 1) }
+    }
+    machine done() {}
+}
+machine Typer::residual_field(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, owner: TypeRow, kind: u64 in Trapping, field: u64 in Trapping, reference: u64 in Trapping)
+crashes Trap
+{
+    let raw: u64 in Trapping = Typing::reference_type(&typer.output, reference);
+    let handle: u64 in Trapping = Typer::substitute(typer, syntax, raw, owner, span);
+    Typing::record_pattern_residual(&mut typer.output, PatternResidual { pattern: span, component_kind: kind, component: field, type_handle: handle });
+}
+machine Typer::pattern_selects(typer: &Typer, arm: TransitionArm, kind: u64 in Trapping, field: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(typer, arm, kind, field, 0) }
+    machine next(typer: &Typer, arm: TransitionArm, kind: u64 in Trapping, field: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        transition offset < arm.field_count { true -> selected(typer, arm, kind, field, offset) _ -> false }
+    }
+    machine selected(typer: &Typer, arm: TransitionArm, kind: u64 in Trapping, field: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let member: MemberTarget = Typing::binder_member(&typer.output, arm.first_field + offset);
+        transition member {
+            MemberTarget::Common { field as actual } -> tested(typer, arm, kind, field, offset, kind == 1 && field == actual)
+            MemberTarget::Payload { field as actual } -> tested(typer, arm, kind, field, offset, kind == 2 && field == actual)
+            MemberTarget::Case -> tested(typer, arm, kind, field, offset, kind == 3)
+            _ -> next(typer, arm, kind, field, offset + 1)
+        }
+    }
+    machine tested(typer: &Typer, arm: TransitionArm, kind: u64 in Trapping, field: u64 in Trapping, offset: u64 in Trapping, selected: bool) -> bool {
+        transition selected { true -> true _ -> next(typer, arm, kind, field, offset + 1) }
+    }
+}

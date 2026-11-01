@@ -120,6 +120,9 @@ impl<'input> BoundaryValuePreparation<'input> {
             };
         }
         match typed.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::CaseView { .. } => BoundaryValueRecipe::Rejected(
+                "a case component is not an independent boundary value".into(),
+            ),
             TypeReferenceNode::Constrained { base_type, .. } => self.type_recipe(
                 substitute_boundary_type_reference(typed, *base_type, self.bindings),
             ),

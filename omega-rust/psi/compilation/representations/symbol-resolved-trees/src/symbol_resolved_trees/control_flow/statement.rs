@@ -168,6 +168,7 @@ pub struct LocalData {
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct LocalDataStorage {
     pub role: language_core::LocalBindingRole,
+    pub pattern: Option<TableLocalPattern>,
     pub type_reference: crate::types::TypeReference,
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
@@ -590,6 +591,38 @@ impl StatementTable {
                     crate::expression::ExpressionHandle::invalid()
                 };
                 self.insert(StatementNode::LocalData(TableLocalData {
+                    pattern: local_data.pattern.map(|pattern| {
+                        let source_fields = transplant
+                            .source_expressions
+                            .table(expressions)
+                            .match_fields(pattern.fields)
+                            .to_vec();
+                        let head = if pattern.head.is_valid() {
+                            transplant.expression(expressions, pattern.head)
+                        } else {
+                            crate::expression::ExpressionHandle::invalid()
+                        };
+                        let fields = source_fields
+                            .into_iter()
+                            .map(|mut field| {
+                                if let crate::expression::MatchFieldAction::Equal(value) =
+                                    field.action
+                                {
+                                    field.action = crate::expression::MatchFieldAction::Equal(
+                                        transplant.expression(expressions, value),
+                                    );
+                                }
+                                field
+                            })
+                            .collect::<Vec<_>>();
+                        let fields = expressions.insert_match_fields(fields);
+                        TableLocalPattern {
+                            head,
+                            fields,
+                            has_rest: pattern.has_rest,
+                            positional: pattern.positional,
+                        }
+                    }),
                     role: local_data.role,
                     symbol: local_data.symbol,
                     name: local_data.name.clone(),
@@ -827,6 +860,7 @@ pub struct TableCall {
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
+    pub pattern: Option<TableLocalPattern>,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -839,6 +873,16 @@ pub struct TableLocalData {
     pub is_operand_capture: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
+}
+
+/// Exact decomposition selectors survive resolution; names are diagnostics,
+/// never an encoding of the field roster or its completeness obligation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct TableLocalPattern {
+    pub head: crate::expression::ExpressionHandle,
+    pub fields: HandleSpan<crate::expression::TableMatchField>,
+    pub has_rest: bool,
+    pub positional: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

@@ -7,6 +7,17 @@ pub mod contract_result;
 pub mod place_root;
 pub mod receiver_binding;
 
+/// Source decomposition selects semantic declaration components. An ordinal
+/// follows common-field declaration order; the anonymous case component is
+/// separate from stored fields and never denotes a physical layout offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, compiler_storage::Record)]
+pub enum DataComponentSelector {
+    #[default]
+    Named,
+    Positional(u32),
+    Case,
+}
+
 /// The parser's purpose for a local, independent of its diagnostic name and
 /// relevance. Pattern markers retain coverage metadata but do not capture an
 /// owned runtime value; their per-field bindings are ordinary values.

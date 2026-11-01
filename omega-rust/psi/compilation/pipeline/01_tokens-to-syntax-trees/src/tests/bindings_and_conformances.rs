@@ -407,15 +407,27 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
 }
 
 #[test]
-fn numbered_mixed_data_is_independent_of_member_order() {
+fn numbered_mixed_data_keeps_field_and_case_identity_scopes() {
+    let tokens = Lexer::new("data Mixed { #1 common: u8; #1 case First; }")
+        .tokenize()
+        .expect("tokenize");
+    parse_syntax_trees(&tokens).expect("field and case identities have independent scopes");
+}
+
+#[test]
+fn common_fields_after_inline_cases_are_retired() {
     for source in [
-        "data Mixed { #1 common: u8; #1 case First; }",
+        "data Mixed { case First; common: u8; }",
         "data Mixed { #1 case First; #1 common: u8; }",
+        "data Mixed { common: u8; case First; later: u16; case Second; }",
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        parse_syntax_trees(&tokens).expect("field and case identities have independent scopes");
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let error =
+            parse_syntax_trees(&tokens).expect_err("common fields precede the inline case tail");
+        assert!(
+            error.message.contains("common fields must precede"),
+            "{error:?}"
+        );
     }
 }
 

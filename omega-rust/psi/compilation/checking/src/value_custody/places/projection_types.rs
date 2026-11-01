@@ -31,6 +31,18 @@ pub fn expression_type_reference_in_state(
         return None;
     }
 
+    if let typed_trees::expression::ExpressionNode::Member(member) =
+        program.expression_table.expression(expression)
+        && member.selector == language_core::DataComponentSelector::Case
+    {
+        let subject = expression_type_reference_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            member.receiver,
+        )?;
+        return program.type_reference_table.case_view_reference(subject);
+    }
     let place = canonical_place_from_expression_in_state(
         program,
         state_symbol,
@@ -842,6 +854,10 @@ fn field_type_reference(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let type_reference = substituted_type_reference(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::CaseView { subject } => {
+            super::case_view_has_payload_field(program, *subject, field_symbol).then_some(())?;
+            field_type_reference(program, *subject, field_symbol, substitutions)
+        }
         typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -924,6 +940,7 @@ fn indexed_element_type_reference(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let type_reference = substituted_type_reference(program, type_reference, substitutions);
     let element = match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::CaseView { .. } => None,
         typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..

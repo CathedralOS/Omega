@@ -828,6 +828,9 @@ fn type_reference_has_pending_application(
     reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_reference_has_pending_application(program, *subject)
+        }
         TypeReferenceNode::ConstExpression(expression) => {
             program.pending_const_range_endpoints.contains(expression)
         }

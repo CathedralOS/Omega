@@ -630,6 +630,7 @@ machine CheckingHarness::diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
         CheckDiagnosticCode::RepresentationUnproven -> tag(22)
         CheckDiagnosticCode::WriteOnlyObservation -> tag(23)
         CheckDiagnosticCode::RankRangeUnproven -> tag(24)
+        CheckDiagnosticCode::RefutablePattern -> tag(25)
     }
 
     machine tag(number: u8) -> u8 {

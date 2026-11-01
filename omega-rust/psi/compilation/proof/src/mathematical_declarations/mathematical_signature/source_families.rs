@@ -218,6 +218,7 @@ fn declaration_contains_family(
     references.push(reference);
     let table = &program.type_reference_table;
     let symbol = match table.type_reference(reference) {
+        TypeReferenceNode::CaseView { .. } => None,
         TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
         TypeReferenceNode::Generic {
             base_symbol,

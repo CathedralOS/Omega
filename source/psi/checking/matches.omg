@@ -2,6 +2,7 @@ use psi::checking::aliases;
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::flow;
+use psi::checking::patterns;
 use psi::checking::qualification;
 use psi::checking::zone;
 use psi::checks::checks;
@@ -306,6 +307,7 @@ crashes Trap
     machine chosen(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
         let pattern: Value = Checker::pattern_value(checker, arm);
+        Checker::capture_pattern_values(checker, syntax, arm);
         Checker::arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, true);
     }
 
