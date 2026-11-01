@@ -76,8 +76,8 @@ remain historical failures, repaired by the later producer.
 Validation uses the focused runtime and refusal cases; no full Rust suite was run. Earlier query-free Mac ARM64
 diagnostics are historical, not qualification of this complete root.
 
-The nine transport places, complete nested C records/platform migration,
-other-host execution and the parent capability remain open. The installed
+Complete nested C records/platform migration, other-host execution and the
+parent capability remain open. The installed
 SDK15.5 arm64 oracle confirms Darwin stat 144/8 and timespec 16/8, including
 nanoseconds and reserved fields; no platform source migration is claimed here.
 
@@ -137,6 +137,26 @@ replay uses the same declaration visitors as current roots, retaining original
 constant inputs independently from evaluated/materialized results. This restores
 policy evidence without rooting a runtime constant or granting body authority.
 
-Nested machine, other machine and selected target implementation remain open,
-along with broader schema composition and other-host execution. These
-observations do not qualify the full compiler.
+The remaining nested-machine, other-machine and Build-selected implementation
+places pass in [pilot 41303478559](https://github.com/CathedralOS/Omega/actions/runs/41303478559).
+All three sample positives and their independent corpus mirrors execute with
+Linux x86_64 native/Terminal exit 0; all three one-type policy twins reject.
+Nested invocation receives the complete record explicitly and allocates its
+independent backing in the child, so it relies on no runtime capture. Selected
+providers carry distinct 17/29 markers independently of the identical record,
+so the target-body oracle also checks the selected implementation.
+
+The optimized source is `035d82f9f4c1559d694f5b0238f60c178a4ff0c6`, CLI image
+`7bfe79bbaf3c6954d6b87cff5d298ff571e3b5541db2cd9b04e57a72ef96659c`, verified
+`opt_level=1`. Preparation took 1096.214 seconds, authentication 1.824 seconds,
+corpus checking 33.635 seconds, corpus native/Terminal execution 26.374 seconds,
+and samples 52.310 seconds. Six canonical checking records retain the runner's
+raw diagnostics, timings and actual default `macos_arm64` check target under
+that source stamp; native observations remain Linux x86_64 evidence. The source
+and raw JSON reports are retained with the pilot artifacts. This batch changes
+no compiler or library mechanism and needs no further build for these records.
+
+The complete nine-place transport row and policy twins now have focused
+observations. Broader schema composition, complete platform ABI records,
+other-host execution and the parent acceptance remain open. These observations
+do not qualify the full compiler.
