@@ -874,24 +874,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
-    now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
-    with the original 256-width and mismatched-policy-argument rejects.
-    A [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
-    now returns the loaded reference/scalar from a temporary holder and observes
-    pointee 43/value 7 in Mac ARM64 native/Terminal execution. All nine transport
-    places and their returned-region twins are established on that host, with
-    exact corpus mirrors. Same-geometry policy mismatch and unrelated
-    returned-region controls reject. Byte roundtrips, other-host execution and
-    broader reference composition remain outstanding; see the [composition scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
-    [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
-    now executes the original call with both independent environment/storage
-    binders and the same const index, preserving value 42 in Mac ARM64
-    native/Terminal execution. All nine transport places and their region-only
-    twins are established on that host, with exact corpus mirrors. Other-host
-    execution and the parent capability remain open; wrong regions/indices and
-    stored evidence still reject.
-  - Supply a library C-layout family and migrate complete platform ABI records;
+    Complete byte roundtrips, broader reference composition, and other-host
+    execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
+    and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
+  - Complete the [C-layout transport row](samples/cli/facts/c_layout_scalar_record/README.md)
+    and remaining schema composition support; migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.
