@@ -5873,15 +5873,15 @@ pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 4973ms
 pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 4617ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_retained_shared_borrow_shared_aliases checked 4411ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_retained_shared_borrow_target_body checked 3841ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_call_result_exit checked 3704ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_const_name_exit checked 4430ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_field_exit checked 3927ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_local_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_match_join_exit checked 4148ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_other_machine_exit checked 4857ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_other_state_exit checked 4376ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_parameter_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_scalar_backing_through_target_body_exit checked 3557ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/foreign_scalar_backing_through_call_result_exit checked 2549ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_const_name_exit checked 2511ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_field_exit checked 2654ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_local_exit checked 2505ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_match_join_exit checked 2468ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_other_machine_exit checked 2499ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_other_state_exit checked 2437ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_parameter_exit checked 2518ms check-target:macos_arm64 @9964870962c4
+pass/facts/foreign_scalar_backing_through_target_body_exit checked 2567ms check-target:macos_arm64 @9964870962c4
 pass/facts/foreign_scalar_record_result_through_call_result_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_const_name_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_field_exit checked 3827ms check-target:macos_arm64 @ccdb99ca2214
@@ -22883,49 +22883,31 @@ fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 3347ms ex
 	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
 fail/facts/foreign_retained_shared_borrow_target_body rejected 3399ms expected @ccdb99ca2214
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_scalar_backing_through_call_result_rejected rejected 3184ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_call_result_rejected rejected 1492ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_const_name_rejected rejected 3209ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_const_name_rejected rejected 1638ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_field_rejected rejected 2794ms expected @ccdb99ca2214
-	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_field_rejected rejected 1534ms expected @9964870962c4
 	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_local_rejected rejected 3279ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_local_rejected rejected 1610ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_match_join_rejected rejected 3360ms expected @ccdb99ca2214
-	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/foreign_scalar_backing_through_match_join_rejected rejected 1546ms expected @9964870962c4
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 6 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 7)
-fail/facts/foreign_scalar_backing_through_other_machine_rejected rejected 2941ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_other_machine_rejected rejected 1523ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_other_state_rejected rejected 3361ms expected @ccdb99ca2214
+fail/facts/foreign_scalar_backing_through_other_state_rejected rejected 1536ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_scalar_backing_through_parameter_rejected rejected 3316ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_parameter_rejected rejected 1533ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 4310ms expected @ccdb99ca2214
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 1503ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/foreign_scalar_record_result_through_call_result_rejected rejected 2151ms expected @ccdb99ca2214
