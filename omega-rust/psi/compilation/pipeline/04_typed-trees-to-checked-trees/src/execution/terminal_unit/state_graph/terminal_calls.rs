@@ -305,6 +305,7 @@ pub(super) fn arm_call(
         call,
         calls,
         preamble,
+        trace,
     )?;
     trace.phase("state graph: terminator: terminal call arm: call operation");
     trace.statement(Some(statement_ordinal));
