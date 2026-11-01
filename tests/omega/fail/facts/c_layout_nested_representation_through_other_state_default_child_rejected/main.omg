@@ -1,0 +1,48 @@
+// Library C layout preserves explicit child representation values, geometry and alias identity across transport.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+
+data Payload [copy] { first: u8; second: u64; last: u16; }
+Spread satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 16 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
+        LayoutPlan { entries: entries, entry_count: 3, size_fixed: 40, size_is_dynamic: false, align: 8 }
+    }
+}
+data Record [copy] { first: u8; child: Payload; last: u16; }
+machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
+machine make() -> CLayout<Record> {
+    let mut record: CLayout<Record>;
+    record.first = 17u8;
+    record.child.first = 23u8;
+    record.child.second = 42u64;
+    record.child.last = 9u16;
+    record.last = 11u16;
+    record
+}
+machine main() crashes Trap {
+    transition { _ -> inspect(explicit(make())) }
+    machine inspect(record: CLayout<Record>) crashes Trap {
+        let value: CLayout<Record> = record;
+        // The independent backing initializes every word, including all padding.
+        let mut words: [u64; 7];
+        words[0] = 17u64;
+        words[1] = 23u64;
+        words[2] = 0u64;
+        words[3] = 42u64;
+        words[4] = 0u64;
+        words[5] = 9u64;
+        words[6] = 11u64;
+        let mapped: &CLayout<Record> = &words as &CLayout<Record>;
+        transition value.first == 17u8 && value.child.first == 23u8 && value.child.second == 42u64 && value.child.last == 9u16 && value.last == 11u16 && mapped.first == 17u8 && mapped.child.first == 23u8 && mapped.child.second == 42u64 && mapped.child.last == 9u16 && mapped.last == 11u16 && size_of<CLayout<Record>>() == 56u64 && align_of<CLayout<Record>>() == 8u64 {
+            true -> done()
+            _ -> bad()
+        }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}

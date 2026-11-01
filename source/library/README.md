@@ -121,18 +121,20 @@ with `Build::audit_service<Trait>(builder)`. Only executed registrations through
 its original delegated Build count. Dependency registrations do not set the
 consumer's policy, and changes to that policy change accepted review meaning.
 
-## C scalar-record storage
+## C record storage
 
 `use omega::language::core::c_layout;` exposes ordinary transparent
 `CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>`. The policy computes aligned
-scalar member placement and trailing padding from the target-resolved schema.
-Its initial supported subset is complete, nonempty, unnumbered scalar records.
-Unsupported nested/repeated shapes, numbered fields, empty records and sums
+member placement and trailing padding from the target-resolved schema.
+Complete nonempty, unnumbered records compose scalar fields, scalar arrays and
+explicitly selected child representations, including arrays of those children.
+Bare nested aggregates, references, numbered fields, empty records and sums
 reject instead of inheriting an unrelated native child layout. Geometry alone
 grants no storage, foreign, atomic or access authority.
 
 The [focused fact](../../samples/cli/facts/c_layout_scalar_record/README.md)
-records current execution scope and remaining work. The
+records scalar execution scope. [Explicit nested representation](../../samples/cli/facts/c_layout_nested_representation/README.md)
+records composition and its remaining transport scope. The
 [layout contract](../../wiki/spec/layouts/plans.md#representation-applications)
 defines the broader C-layout family and explicit nested composition; the library
 subset does not establish complete platform ABI migration.

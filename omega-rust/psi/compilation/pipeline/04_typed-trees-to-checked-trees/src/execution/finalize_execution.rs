@@ -122,9 +122,9 @@ pub(crate) fn finalize_execution(
             },
             &mut construction_shapes,
         )
-        .ok_or_else(|| {
+        .map_err(|reason| {
             vec![Diagnostic::error(format!(
-                "cannot retain constructed value storage shapes for state `{}` of machine `{}`",
+                "cannot retain constructed value storage shapes for state `{}` of machine `{}`: {reason}",
                 program.symbols.name(state),
                 validation::find_state(program, state)
                     .map(|(machine, _)| machine.name.as_str())

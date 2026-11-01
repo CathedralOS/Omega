@@ -128,7 +128,12 @@ pub(super) fn admit(
                         .conformance_type_parameters(definition)
                         .is_empty()
                 });
-        if has_static_telescope && identity.application_identity.is_none() {
+        // A bare operand selects its whole declaration family; only an
+        // authored application owes a retained complete static identity.
+        if identity.applied
+            && has_static_telescope
+            && (!identity.application.is_valid() || identity.application_identity.is_none())
+        {
             return Err(Diagnostic::error(
                 "executed provider choice lost its complete static application",
             ));

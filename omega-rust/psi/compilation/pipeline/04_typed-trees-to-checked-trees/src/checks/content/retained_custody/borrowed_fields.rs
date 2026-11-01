@@ -45,6 +45,8 @@ pub(super) fn check_structural_borrow_sources(
     } = domain_sources(program, return_type);
     for domain in root_result_domains {
         let source = ContentSource {
+            carrier: return_type,
+            applications: Vec::new(),
             domain: *domain,
             borrowed: super::direct_reference(program, return_type).is_some(),
             nested: false,
@@ -108,7 +110,18 @@ pub(super) fn check_structural_borrow_sources(
                 if source_plan.algebra != result_plan.algebra {
                     continue;
                 }
-                if source.borrowed {
+                if source.borrowed
+                    || !super::owned_source_can_supply(
+                        program,
+                        callable,
+                        source.carrier,
+                        &source.applications,
+                        source_plan,
+                        result.carrier,
+                        &result.applications,
+                        result_plan,
+                    )
+                {
                     nested_source |= source.nested;
                     push_unique(&mut borrowed_parameters, parameter.name.as_str());
                 } else {

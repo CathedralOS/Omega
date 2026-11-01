@@ -44,7 +44,7 @@ data Operands where 0 <= left && left <= 50 && 0 <= right && right <= 50 {
 
 machine probe(operands: Operands) -> i32
 blocks
-ensures result == operands.left + operands.right
+ensures (result as i64) == (operands.left as i64) + (operands.right as i64)
 {
     block apply<Selected>(operands.left, operands.right)
 }

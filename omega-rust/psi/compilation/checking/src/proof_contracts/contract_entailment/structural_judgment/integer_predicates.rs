@@ -564,8 +564,12 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
             return None;
         }
+        // Public recipes keep every operand's formation obligation. Synthetic
+        // call descriptions must not expand nested saved actuals before the
+        // integer resolver authenticates their completed supplier identities.
+        // Its current refinements and whole-context admission remain unchanged.
         let value = self
-            .resolve(self.completed_value_identity(value.clone()))
+            .integer_projection_value(self.completed_integer_call_description(value))
             .into_semantic_value();
         match value {
             StructuralTerm::Integer(value) => {
@@ -1615,10 +1619,19 @@ impl<'program> StructuralJudge<'program> {
                 let before_bounds = observations.carrier_bounds.len();
                 let before_param_atoms = observations.engine.parameter_atoms.len();
                 let before_engine = observations.engine.integer_projection_registrations();
-                if let (Some(left), Some(right)) = (
-                    self.mathematical_value(predicate, observations, 0),
-                    self.mathematical_value(truth_sem, observations, 0),
-                ) {
+                // An authored equation over executable integer arithmetic,
+                // such as `value + left == 60`, is stored as the rewrite of
+                // its arithmetic side. Project that side as the operation
+                // tree it is, in its own carrier, so the polynomial owner
+                // relates its operands; whole-term resolution would replace
+                // the sum with 60 and erase the relation.
+                let carrier = scalar_arithmetic_carrier(predicate)
+                    .or_else(|| scalar_arithmetic_carrier(truth_sem));
+                let mut side = |term: &StructuralTerm| match carrier {
+                    Some(primitive) => self.integer_value(term, primitive, observations, 0),
+                    None => self.mathematical_value(term, observations, 0),
+                };
+                if let (Some(left), Some(right)) = (side(predicate), side(truth_sem)) {
                     comparisons.push((
                         (BinaryOperator::Equal, left, right),
                         start..observations.operations.len(),
@@ -2097,6 +2110,21 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => None,
         }
+    }
+}
+
+/// The operand carrier of executable integer arithmetic, which integer_value
+/// projects with each node's own formation obligation.
+pub(super) fn scalar_arithmetic_carrier(term: &StructuralTerm) -> Option<PrimitiveType> {
+    match term.semantic_value() {
+        StructuralTerm::ScalarBinary {
+            operator, meaning, ..
+        } if Engine::integer_operation_meaning(*operator, *meaning)
+            || Engine::integer_policy_operation_meaning(*operator, *meaning).is_some() =>
+        {
+            Some(meaning[0].0)
+        }
+        _ => None,
     }
 }
 

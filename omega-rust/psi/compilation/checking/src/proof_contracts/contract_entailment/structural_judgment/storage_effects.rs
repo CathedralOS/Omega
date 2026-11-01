@@ -344,6 +344,10 @@ pub(super) struct CapturedStoreDestination {
     coordinate: Option<CapturedStorageCoordinate>,
     frame: facts::NormalizedWriteFrame,
     stored_type: TypeReferenceHandle,
+    representation: Option<(
+        typed_trees::types::PrimitiveType,
+        typed_trees::types::PrimitiveType,
+    )>,
 }
 
 fn expression_exposure_path(
@@ -471,8 +475,8 @@ impl StructuralJudge<'_> {
         Some(())
     }
 
-    /// Unknown effects retire every live storage observation, not immutable
-    /// model premises or detached values captured before the call. Absence of
+    /// Unknown effects retire reachable live storage observations, not immutable
+    /// scalar bindings or detached values captured before the call. Absence of
     /// a complete frame is never an empty frame or evidence of non-interference.
     /// Incoming by-value parameters own their scalar payload or inline cells.
     /// Retain that entry observation before the first effect, just as completed
@@ -611,17 +615,25 @@ impl StructuralJudge<'_> {
                             &mut preserved_fields,
                         );
                     }
-                    let stable = written.is_some_and(|written| {
-                        if let Some(backing) = &stored.backing {
-                            return backing.survives(written);
-                        }
-                        stored.coordinate.has_stable_backing(program, state, frames)
-                            && stored.coordinate.frame_path(program).is_some_and(|path| {
-                                written
-                                    .iter()
-                                    .all(|written| !crate::frame_paths_overlap(written, &path))
-                            })
-                    });
+                    let immutable_scalar = written.is_none()
+                        && stored.coordinate.segments.is_empty()
+                        && stored
+                            .coordinate
+                            .root
+                            .as_symbol()
+                            .is_some_and(|root| self.immutable_scalar_binding(root));
+                    let stable = immutable_scalar
+                        || written.is_some_and(|written| {
+                            if let Some(backing) = &stored.backing {
+                                return backing.survives(written);
+                            }
+                            stored.coordinate.has_stable_backing(program, state, frames)
+                                && stored.coordinate.frame_path(program).is_some_and(|path| {
+                                    written
+                                        .iter()
+                                        .all(|written| !crate::frame_paths_overlap(written, &path))
+                                })
+                        });
                     let inline = stored
                         .coordinate
                         .root
@@ -710,6 +722,9 @@ impl StructuralJudge<'_> {
         let frames = self.frame_resolver()?;
         let mut invalidated = Vec::new();
         let mut consider = |symbol: SymbolHandle, reference| {
+            if written.is_none() && self.immutable_scalar_binding(symbol) {
+                return;
+            }
             let overlaps = written.is_none_or(|written| {
                 crate::frame_coordinate_path(program, symbol, &[]).is_none_or(|path| {
                     written
@@ -1329,9 +1344,13 @@ impl StructuralJudge<'_> {
             state,
             statement.as_assignment()?,
         )?;
-        let coordinate = frame
+        let captured = frame
             .complete_paths()
             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
+        let (coordinate, representation) = match captured {
+            Some((coordinate, representation)) => (Some(coordinate), representation),
+            None => (None, None),
+        };
         if coordinate.is_none() && !self.requires_value_preservation() {
             return None;
         }
@@ -1339,6 +1358,7 @@ impl StructuralJudge<'_> {
             coordinate,
             frame,
             stored_type,
+            representation,
         })
     }
 
@@ -1351,13 +1371,20 @@ impl StructuralJudge<'_> {
         state: &State,
         statement: &typed_trees::statement::StatementNode,
         written: &[String],
-    ) -> Option<CapturedStorageCoordinate> {
+    ) -> Option<(
+        CapturedStorageCoordinate,
+        Option<(
+            typed_trees::types::PrimitiveType,
+            typed_trees::types::PrimitiveType,
+        )>,
+    )> {
         let assignment = statement.as_assignment()?;
-        self.ordinary_storage_path(Some((machine, state)), assignment.target)
+        crate::place_has_builtin_coordinates(self.program, machine, Some(state), assignment.target)
             .then_some(())?;
         let program = self.program;
         let frames = self.frame_resolver()?;
         let origins = frames.assignment_storage_origins(machine, statement)?;
+        let mut representation = None;
         let place = match origins.destinations.as_slice() {
             [origin]
                 if origin.root.is_valid()
@@ -1369,6 +1396,17 @@ impl StructuralJudge<'_> {
                     root: facts::PlaceRoot::Symbol(origin.root),
                     segments: origin.segments.clone(),
                 }
+            }
+            [origin] => {
+                let scalar = origin.scalar_storage_coordinate(program, state)?;
+                if !scalar.preserves_scalar_value && !scalar.preserves_primitive_bits {
+                    // Geometry still invalidates overlapping observations. A
+                    // stored-width codec is not a native-primitive bitcast.
+                    return None;
+                }
+                representation = (!scalar.preserves_scalar_value)
+                    .then_some((scalar.view_primitive, scalar.source_primitive));
+                scalar.place
             }
             [] => {
                 // Replacing a plain owned binding names the binding itself;
@@ -1404,7 +1442,7 @@ impl StructuralJudge<'_> {
         }
         // Frame paths deliberately coarsen collections for invalidation only.
         // Exact storage retains the already completed selector value identities.
-        self.capture_storage_place(place)
+        Some((self.capture_storage_place(place)?, representation))
     }
 
     pub(super) fn observe_captured_store(
@@ -1457,6 +1495,14 @@ impl StructuralJudge<'_> {
             self.retain_storage_value(coordinate, current, false);
         }
         if let Some(coordinate) = destination.coordinate {
+            let value = match destination.representation {
+                Some((source, target)) => {
+                    super::super::structural_terms::normalize_scalar_representation(
+                        source, target, value,
+                    )
+                }
+                None => value,
+            };
             if super::super::struct_trace() {
                 eprintln!(
                     "STRUCT install-store owner={} type={:?} value={value:?}",
@@ -1705,5 +1751,50 @@ impl StructuralJudge<'_> {
 
     pub(super) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
         self.invalidated_storage.contains(&symbol)
+    }
+
+    /// An immutable ordinary scalar has no write authority or reference-bearing
+    /// payload through which an opaque callee could replace its private copy.
+    /// Atomic cells are storage, not such values; classify their sealed atoms
+    /// independently of the primitive width they use.
+    fn immutable_scalar_binding(&self, symbol: SymbolHandle) -> bool {
+        if !symbol.is_valid() {
+            return false;
+        }
+        let program = self.program;
+        let owner = program.symbols.get(symbol).parent;
+        let declaration = crate::call_target_parameters(program, owner)
+            .and_then(|parameters| {
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)
+            })
+            .map(|parameter| (parameter.is_mutable, parameter.type_reference))
+            .or_else(|| {
+                let state = program.state_by_symbol(owner).or_else(|| {
+                    program
+                        .machine_by_symbol(owner)
+                        .and_then(|machine| program.machine_states(machine).first())
+                })?;
+                let (_, local) = program.state_local_declaration(state, symbol)?;
+                Some((local.is_mutable, local.type_reference))
+            });
+        let Some((false, reference)) = declaration else {
+            return false;
+        };
+        let reference = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| !atom.is_atomic())
+                    && program.primitive_type_reference(reference).is_some()
+            }
+            typed_trees::types::TypeReferenceNode::DynamicTrait { .. } => true,
+            _ => false,
+        }
     }
 }

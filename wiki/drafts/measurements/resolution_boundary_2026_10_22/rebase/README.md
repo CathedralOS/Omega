@@ -100,12 +100,12 @@ intentional cloning and equality work and is excluded from timing claims. Its
 build waited 649 seconds for a shared build slot. That wait is workflow context,
 not a compiler latency result.
 
-Evidence: [summary](summary.json), [candidate observations](candidate-observations.json),
-[compiler oracle observations](instrumented-observations.json),
-[production tests](tests.log), [oracle tests](oracle-tests.log),
-[candidate receipt](candidate-producer.json), [diagnostic receipt](instrumented-producer.json),
-[implementation patch](candidate.patch), [complete diagnostic patch](instrumentation.patch),
-[legacy source hashes](legacy-sources.json), and [environment](environment.json).
+Evidence: [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/summary.json), [candidate observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/candidate-observations.json),
+[compiler oracle observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/instrumented-observations.json),
+[production tests](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/tests.log), [oracle tests](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/oracle-tests.log),
+[candidate receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/candidate-producer.json), [diagnostic receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/instrumented-producer.json),
+[implementation patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/candidate.patch), [complete diagnostic patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/instrumentation.patch),
+[legacy source hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/legacy-sources.json), and [environment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/rebase/environment.json).
 The complete diagnostic patch is relative to the recorded base, not an overlay
 on the candidate patch. Both patches are bound to their producer receipts.
 

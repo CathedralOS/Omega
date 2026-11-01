@@ -23,7 +23,7 @@ each observation, comparison and join perform. These require separate experiment
 The unchanged `samples/cli/facts/length/local/main.omg --check` has a baseline
 Stage 05 median of 544.274 ms in the first ordinary paired batch. Total median
 is 668.540 ms. Attribution below uses only the five baseline observations in
-[phase-timings.json](state_lookup/phase-timings.json); profiled and ordinary
+[phase-timings.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/phase-timings.json); profiled and ordinary
 observations are not pooled. Stage 05's profiled median is 543.385 ms.
 
 | Inclusive scope | Median ms |

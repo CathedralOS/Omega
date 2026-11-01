@@ -25,6 +25,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
 mod domain_premises;
+mod equations;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
@@ -1480,187 +1481,6 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
-    /// One structural equation: constructor pairs DECOMPOSE (injectivity --
-    /// `Succ(a) == Succ(b)` yields `a == b`), distinct cases of one data
-    /// make the hypotheses contradictory (disjointness), and a variable side
-    /// becomes a directed substitution (first binding wins).
-    pub(super) fn intake_equation(
-        &mut self,
-        left: StructuralTerm,
-        right: StructuralTerm,
-        depth: usize,
-    ) {
-        if self.case_facts_only || depth >= 32 {
-            return;
-        }
-        let left = self.resolve(left);
-        let right = self.resolve(right);
-        self.intake_equation_fact(left, right, depth);
-    }
-
-    /// Shared fact storage after the producer has selected its value inputs.
-    /// Ordinary equations normalize above. Independently established scalar
-    /// observations retain their occurrence instead of evaluating a description.
-    /// This operation supplies no observation, formation or domain authority.
-    fn intake_equation_fact(&mut self, left: StructuralTerm, right: StructuralTerm, depth: usize) {
-        if self.case_facts_only || depth >= 32 {
-            return;
-        }
-        if super::structural_terms::term_is_unobserved_descriptor(self.program, &left)
-            || super::structural_terms::term_is_unobserved_descriptor(self.program, &right)
-        {
-            return;
-        }
-        let left = left.into_semantic_value();
-        let right = right.into_semantic_value();
-        if right == value_predicates::boolean_term(true)
-            && let StructuralTerm::MathematicalBinary {
-                operator: BinaryOperator::And,
-                left,
-                right,
-            } = &left
-            && left.is_checked_predicate()
-            && right.is_checked_predicate()
-        {
-            self.intake_equation(
-                *left.clone(),
-                value_predicates::boolean_term(true),
-                depth + 1,
-            );
-            self.intake_equation(
-                *right.clone(),
-                value_predicates::boolean_term(true),
-                depth + 1,
-            );
-            return;
-        }
-        if let Some((operand, truth)) = self
-            .boolean_equality_operand(&left, &right)
-            .or_else(|| self.boolean_equality_operand(&right, &left))
-        {
-            self.intake_equation(operand, truth, depth + 1);
-            return;
-        }
-        if let Some((left, right)) = self
-            .identity_equality_operands(&left, &right)
-            .or_else(|| self.identity_equality_operands(&right, &left))
-        {
-            self.intake_equation(left, right, depth + 1);
-            return;
-        }
-        match (&left, &right) {
-            (
-                StructuralTerm::Constructor {
-                    data: data_l,
-                    case: case_l,
-                    fields: fields_l,
-                },
-                StructuralTerm::Constructor {
-                    data: data_r,
-                    case: case_r,
-                    fields: fields_r,
-                },
-            ) if data_l == data_r => {
-                if case_l != case_r {
-                    self.hypotheses_contradictory = true;
-                    return;
-                }
-                for (name_l, value_l) in fields_l {
-                    if let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l)
-                    {
-                        self.intake_equation(value_l.clone(), value_r.clone(), depth + 1);
-                    }
-                }
-            }
-            (
-                StructuralTerm::Application { .. }
-                | StructuralTerm::CapturedValue { .. }
-                | StructuralTerm::CollectionMeasure { .. }
-                | StructuralTerm::Projection { .. }
-                | StructuralTerm::IndexedValue { .. }
-                | StructuralTerm::MathematicalBinary { .. }
-                | StructuralTerm::IntegerEmbedding { .. }
-                | StructuralTerm::ScalarRepresentation { .. }
-                | StructuralTerm::ScalarBinary { .. },
-                _,
-            ) => {
-                if !term_contains(&right, &left) {
-                    Arc::make_mut(&mut self.rewrites).push((left, right));
-                }
-            }
-            (
-                _,
-                StructuralTerm::Application { .. }
-                | StructuralTerm::CapturedValue { .. }
-                | StructuralTerm::CollectionMeasure { .. }
-                | StructuralTerm::Projection { .. }
-                | StructuralTerm::IndexedValue { .. }
-                | StructuralTerm::MathematicalBinary { .. }
-                | StructuralTerm::IntegerEmbedding { .. }
-                | StructuralTerm::ScalarRepresentation { .. }
-                | StructuralTerm::ScalarBinary { .. },
-            ) => {
-                if !term_contains(&left, &right) {
-                    Arc::make_mut(&mut self.rewrites).push((right, left));
-                }
-            }
-            (StructuralTerm::Variable(name), _) => {
-                if left != right {
-                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right.clone()));
-                    self.note_type_atom(name, &right);
-                }
-            }
-            (_, StructuralTerm::Variable(name)) => {
-                Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
-                self.note_type_atom(name, &left);
-            }
-            // A parameter-rooted member place resolves to its Opaque display
-            // (`left.code`), so it carries the same rewrite as the unresolved
-            // `Projection` above. Variables keep their substitution priority.
-            (StructuralTerm::Opaque(_), _) => {
-                if !term_contains(&right, &left) {
-                    Arc::make_mut(&mut self.rewrites).push((left, right));
-                }
-            }
-            (_, StructuralTerm::Opaque(_)) => {
-                if !term_contains(&left, &right) {
-                    Arc::make_mut(&mut self.rewrites).push((right, left));
-                }
-            }
-            // Distinct literals are disjoint, as distinct cases are above:
-            // a rewrite can resolve both sides of a later premise to them.
-            (StructuralTerm::Integer(_), StructuralTerm::Integer(_)) if left != right => {
-                self.hypotheses_contradictory = true;
-            }
-            _ => {}
-        }
-    }
-
-    /// Static type equality is exact (generics.md, "Static type equality"): a
-    /// type binder equated to one closed type is not equal to any other. This
-    /// judge sees `T == i32` and `T == bool` as unrelated atoms, so binding the
-    /// second one true while the first holds is the contradiction that lets a
-    /// contract's equation refute a case whose default domain states another.
-    fn note_type_atom(&mut self, name: &str, value: &StructuralTerm) {
-        let Some((open, closed)) = super::structural_terms::open_closed_type_atom(name) else {
-            return;
-        };
-        if value_predicates::boolean_value(value.semantic_value()) != Some(true) {
-            return;
-        }
-        let conflicts = self.substitutions.iter().any(|(other, bound)| {
-            other != name
-                && super::structural_terms::open_closed_type_atom(other).is_some_and(
-                    |(other_open, other_closed)| other_open == open && other_closed != closed,
-                )
-                && value_predicates::boolean_value(self.resolve(bound.clone()).semantic_value())
-                    == Some(true)
-        });
-        if conflicts {
-            self.hypotheses_contradictory = true;
-        }
-    }
-
     /// Follow variable substitutions to a fixpoint, depth-capped (a cyclic
     /// substitution chain resolves to wherever the cap lands, which only
     /// weakens judgments toward Unknown -- never unsound). Constructor
@@ -2121,6 +1941,7 @@ impl<'program> StructuralJudge<'program> {
                 .zip(arguments)
                 .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
                 .collect::<Vec<_>>();
+            self.record_returned_field_dependency(machine.symbol);
             let [StatementNode::Transition(transition)] =
                 program.statement_table.statements(state.statement_nodes)
             else {
@@ -2366,6 +2187,7 @@ impl<'program> StructuralJudge<'program> {
         let specification = specification.resolving_application(application, depth)?;
 
         let mut environment = environment;
+        specification.record_returned_field_dependency(machine.symbol);
         let statements = program.statement_table.statements(state.statement_nodes);
         for (index, statement) in statements.iter().enumerate() {
             // A `let` (spelled, or the lowering's __hoist_N of a call-valued

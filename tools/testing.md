@@ -90,7 +90,7 @@ records the cost and failure pattern behind this rule.
 ### Exact fixtures on a hosted pilot
 
 The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
-`fixtures` string and `native_host` (`linux_x86_64` or `windows_x86_64`). A
+`fixtures` string and `native_host` (`linux_x86_64`, `windows_x86_64` or `macos_arm64`). A
 nonempty selection replaces its default smoke; it does not extend a foreign
 cohort or start the full corpus. PR and merge-group pilot checks keep their
 existing Linux check behavior.
@@ -116,14 +116,36 @@ gh workflow run compiler-pilot.yml --ref work/NAME \
 ```
 
 Sample-only selection replaces the default smoke. Explicit `fixtures` and
-`samples` can share one producer when both are relevant. Selection validates
+`samples` can share one producer when both are relevant. Sample-only runs prepare
+and authenticate the optimized CLI; they do not build, copy or authenticate an
+unused corpus runner. Fixture-bearing runs still require the retained optimized
+runner. The producer record uses `null` for an unprepared runner and its profile.
+Selection validates
 before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
-Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
+Select `linux_arm64`, `windows_x86_64` or `macos_arm64` for a separate
+matching-host run. Linux ARM64 uses `ubuntu-24.04-arm`; macOS ARM64 uses
+`macos-15`, matching the existing post-merge runners. These execute on the native
+host, without cross-compilation or emulation. GitHub lists `macos-15` as a
+[standard ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+The deprecated macOS 14 image can cancel jobs before their first step during its
+[scheduled brownouts](https://github.com/actions/runner-images/issues/13518). Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
+
+Linux pilots share the post-merge workflow's `compiler-regression` cache prefix
+and `/tmp/ot` target directory. macOS 15 uses `compiler-regression-macos15` in both
+workflows, with the same target directory, keeping retired macOS 14/SDK objects
+out of that namespace. Both key and path must match: GitHub's cache version includes
+the archived paths. This lets a fresh branch reuse main's compatible Cargo
+objects instead of starting a private cold cache. Windows pilots retain their
+own namespace because their runner image differs. Restored objects still pass
+Cargo's locked content-freshness checks and the gate authenticates the actual
+optimized executable before running its selected witnesses. Changes to the pinned
+toolchain, lockfile or root manifest select a new cache; Cargo rebuilds changed
+compiler inputs.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
@@ -133,6 +155,26 @@ collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
+
+### Timing a check cold, and on a hosted runner
+
+A program that imports `omega_language_std` checks in 6.6 s on a warm
+compiled-review cache and in 35 to 45 s on an empty one; a hosted runner and a
+freshly rebuilt compiler always start empty. Give each timed run its own empty
+`LOCALAPPDATA` (Linux: `XDG_CACHE_HOME`), interleave the producers, and compare
+wall and CPU over three or more runs each. Phase-profile rows inside the
+parallel checking workers add across threads and include stolen-task time, so
+only serial rows are wall time.
+
+Hosted runners differ in CPU between runs (AMD EPYC 7763 and 9V74 were both
+seen), which moved one producer's check from 70 s to 47 s with no code change.
+To compare producers on a hosted runner, put both in one job: on a throwaway
+`work/probe-*` ref, add a step after the pilot that fetches the baseline's
+retained producer (`gh run download RUN -n compiler-pilot-HOST-SHA-1`, which
+needs `permissions: actions: read`) and alternates cold checks of the two,
+printing the CPU model. Dispatch one ref per run, because the concurrency group
+is per ref and host, and delete the refs afterwards. The record is
+`wiki/drafts/measurements/std_check_time_2026_11_01/README.md`.
 
 ### Optimized validation compilers
 

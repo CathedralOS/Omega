@@ -6,7 +6,7 @@ workloads they cost about 2 ms inside a 1.1–1.4 s compile. Checking does.
 Nothing in the production compiler changed.
 
 Source base: `9798e8e31a3dfb4fcdad825aaa69d6ed0a5d38a6`. The measured binary was
-that source plus the temporary probe in [instrumentation.patch](instrumentation.patch).
+that source plus the temporary probe in [instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_24/instrumentation.patch).
 The probe was removed after capture. Binary SHA-256:
 `a3fd536015acdf635f86b1e5f1447f549206c748d4ac4c5a93caa8216a648d57`.
 Dev profile, effective opt-level 1. Host: Windows 11, AMD64 Family 25 Model 97
@@ -46,9 +46,9 @@ An earlier copy of `main.omg` alone failed with `terminal-artifact production
 requires one exact selected program entry`; that run is not a compile-time
 measurement.
 
-Evidence: [in-place runs](observations-inplace.json),
-[length runs](length-observations.json), [median reduction](summarize_profile.py),
-[length command](length_profile.py).
+Evidence: [in-place runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_24/observations-inplace.json),
+[length runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_24/length-observations.json), [median reduction](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_24/summarize_profile.py),
+[length command](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_24/length_profile.py).
 
 ## Next question
 

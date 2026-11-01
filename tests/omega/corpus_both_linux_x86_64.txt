@@ -8,6 +8,15 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/facts/inline_member_helper_through_call_result_exit built 8987ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_const_name_exit built 8668ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_field_exit built 15819ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_local_exit built 9986ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_match_join_exit built 9050ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_other_machine_exit built 9232ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_other_state_exit built 8659ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_parameter_exit built 10302ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_target_body_exit built 9380ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/nested_machine_joint_rank_borrowed_call_call_result_exit built 6309ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_const_name_exit built 7577ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_field_exit built 5888ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
@@ -3964,11 +3973,14 @@ pass/facts/opaque_independent_closed_carrier_through_parameter_exit built 4475ms
 pass/facts/opaque_independent_closed_carrier_through_target_body_exit built 4419ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/opaque_nested_carrier_exchange_exit built 22707ms exit:70 interpreter-exit:70 interpreter:agrees terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @a92f16431042
 pass/facts/opaque_wrapped_carrier_exchange_exit built 10497ms exit:70 interpreter-exit:70 interpreter:agrees terminal-runtime.observe:unrequested terminal-inspections:match @a92f16431042
+pass/facts/open_const_implementation_private_record_package_exit built 7827ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_const_implementation_statement_const_result_exit built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_const_implementation_statement_saved_output_exit built 7767ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
 pass/facts/open_const_implementation_through_call_result_exit built 2714ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/open_const_implementation_through_const_name_exit built 10925ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/open_const_implementation_through_field_exit built 2085ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/open_const_implementation_through_field_exit built 7487ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
 pass/facts/open_const_implementation_through_local_exit built 3021ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/open_const_implementation_through_match_join_exit built 2108ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/open_const_implementation_through_match_join_exit built 7220ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
 pass/facts/open_const_implementation_through_other_machine_exit built 2635ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/open_const_implementation_through_other_state_exit built 2878ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/open_const_implementation_through_parameter_exit built 3034ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -4095,24 +4107,15 @@ pass/facts/quotient_closed_literal_through_other_state_exit built 2762ms exit:0 
 pass/facts/quotient_closed_literal_through_parameter_exit built 2784ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/quotient_closed_literal_through_target_body_exit built 2885ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/quotient_closed_literal_transport built 2736ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/open_record_const_implementation_through_call_result_exit rejected 2291ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 76ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 1626ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 1858ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2159ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 2150ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 1636ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 1607ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2042ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit built 7183ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_const_name_exit built 7263ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_field_exit built 7302ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_local_exit built 7197ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_match_join_exit built 7122ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_other_machine_exit built 7003ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_other_state_exit built 6994ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_parameter_exit built 6922ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
+pass/facts/open_record_const_implementation_through_target_body_exit built 6939ms exit:0 interpreter-exit:0 interpreter:agrees @87c526e435e0
 pass/facts/range_fact_delivery_through_call_result_exit built 2840ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/range_fact_delivery_through_const_name_exit built 2703ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/range_fact_delivery_through_field_exit built 3252ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

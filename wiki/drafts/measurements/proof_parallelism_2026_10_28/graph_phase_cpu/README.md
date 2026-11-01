@@ -34,7 +34,7 @@ The preceding [same-binary experiment](../same_binary_graph/README.md) observed 
 keeps that eager/lazy membership file byte-identical in a new diagnostic executable,
 then samples Windows process user/kernel CPU at existing timing-record boundaries.
 It uses one executable, one normally accepted lock, the same 203 authored inputs
-and Dungeon EOF oracle. Source and diagnostic patches are pinned in [source.json](source.json).
+and Dungeon EOF oracle. Source and diagnostic patches are pinned in [source.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/source.json).
 
 Two count preflights confirm four preparations per mode and three full 202-machine
 graphs eager versus zero lazy. All three eager initializations appear within the
@@ -102,7 +102,7 @@ That existing outer timer uses `add_completed`, not the wrapped operation.
 The emitted lowering window contains every graph initialization, so accounting
 was corrected to use its actual boundaries. The same successful preflight was
 postprocessed without a compiler rerun; no observation was discarded. The
-[failed postprocessing log](preflight-postprocessing.log.gz) and raw source rows
+[failed postprocessing log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/preflight-postprocessing.log.gz) and raw source rows
 remain. The correction occurred before any lazy observation or mode comparison.
 
 ## Correctness and production qualification
@@ -128,17 +128,17 @@ The clean exact-source production producer is the preserved
 `379a5b851627c37fa53e6bd4f1fb8e6a7b75178c0cb18628b94c94faec0e5c8f`;
 its original build base/patch and optimized profile remain explicit. It is reused
 because all governing compiler/Cargo/toolchain/library/fixture inputs match,
-not relabelled as a newly built executable. [retained-implementation.json](retained-implementation.json)
+not relabelled as a newly built executable. [retained-implementation.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/retained-implementation.json)
 records these identities and the fresh qualification outcomes. The repository's
 pinned qualification runner additionally records an immutable native replay on
 the clean source checkpoint, retaining the actual preparatory Terminal observation.
 
 That replay is accepted at clean checkpoint
 `cddd308a3897564867c96dee274ac333b9902879`: exit 0, no invalidations, optimized
-producer profile bound to its digest. [Qualification summary](qualification/summary.json)
+producer profile bound to its digest. [Qualification summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/qualification/summary.json)
 links the exact observation identity; compressed canonical state/receipt and
-separate stdout/stderr remain under [qualification](qualification/).
-[Source-equivalence provenance](qualification/producer-source-equivalence.json)
+separate stdout/stderr remain under [qualification](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/qualification).
+[Source-equivalence provenance](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/qualification/producer-source-equivalence.json)
 preserves the original producer build base and patch rather than claiming a new
 build at this checkpoint. The replay freshly executes the pinned native image;
 its Terminal comparison is the preserved preparatory execution, not a second

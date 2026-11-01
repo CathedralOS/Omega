@@ -137,11 +137,11 @@ supplement does not alter the timed cohort. Scoped rustfmt and Clippy for valida
 compilation-products pass; Clippy warnings remain in the raw log. No whole
 workspace/corpus sweep or other-host execution was performed.
 
-[observations.zip](observations.zip) retains exact adapters, source/producer/lock
+[observations.zip](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/observations.zip) retains exact adapters, source/producer/lock
 identities, journals/reports, commands, phase and validation logs, frozen seven
 consumer sources, external ELF checker, all trial patches and the experiment
-ledger. [evidence.json](evidence.json) indexes and hashes the archive.
-[result.json](result.json) contains matched statistics, raw pairs and phase
+ledger. [evidence.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/evidence.json) indexes and hashes the archive.
+[result.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/result.json) contains matched statistics, raw pairs and phase
 medians. Three separate instrumented runs per producer show these median inclusive scopes:
 
 | Scope | Before | After |
@@ -156,7 +156,7 @@ The decode medians are consistent with less targeted work, while the complete
 warm compile remains unresolved. Three instrumented runs do not establish a
 phase-level confidence interval. These scopes overlap: do not sum them or
 substitute a favorable phase for the end-to-end result. Frozen UI source bytes remain in
-[../frozen-inputs.zip](../frozen-inputs.zip), ui-exports/source/.
+[../frozen-inputs.zip](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/frozen-inputs.zip), ui-exports/source/.
 
 Compiler executables, native products and private retained caches stay in ignored
 local build/performance/cathedral-ui-stall; their hashes remain in the evidence.

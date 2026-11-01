@@ -21,8 +21,8 @@ use omega::language::core::extent;
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when
-// unnumbered). Recursively nested fixed arrays composed of supported primitive
-// elements are one Repeated field. Byte sizes retain their full u64 range;
+// unnumbered). Fixed arrays are one Repeated field; their layout source
+// follows the exact element, including explicitly selected representations. Byte sizes retain their full u64 range;
 // allocation and placement consumers check their own geometry. The compiler
 // supplies established fields by value, including valid inactive-tail placeholders; zeroed storage
 // alone does not establish a SchemaField.
@@ -35,6 +35,17 @@ public data SchemaField where align >= 1, align <= 16 {
     // consume `identity`.
     number: i64;
     kind: FieldKind;
+    layout_source: FieldLayoutSource;
+}
+
+// Describes where the field's target geometry comes from, not permission to
+// access it. Fixed arrays inherit their element's source. An explicitly
+// selected representation owns its interior; default records and references
+// never inherit a selection merely from one of their descendants.
+public data FieldLayoutSource {
+    case Default;
+    case Scalar;
+    case Explicit;
 }
 
 // A schema: numbered fields follow stable identity order; unnumbered fields

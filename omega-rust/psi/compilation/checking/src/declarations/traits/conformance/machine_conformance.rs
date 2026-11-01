@@ -416,6 +416,28 @@ fn validate_machine_top_level_requirement_conformance(
     // realization, exactly as for a boundary-operator satisfier. Only a
     // checked body refines the requirement's contract.
     if conformance.external_binding.is_none() && !conformance.via_expression.is_valid() {
+        let prepare_implication = || {
+            crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
+                program,
+                crate::proof_contracts::contract_entailment::CallableContract {
+                    owner: requirement.symbol,
+                    contracts: program.machine_contracts(requirement),
+                    parameters: required_parameters,
+                    result: requirement_entry.return_type,
+                },
+                crate::proof_contracts::contract_entailment::CallableContract {
+                    owner: machine.symbol,
+                    contracts: program.machine_contracts(machine),
+                    parameters: actual_parameters,
+                    result: provider_entry.return_type,
+                },
+                &required_type_parameters
+                    .iter()
+                    .zip(actual_type_parameters)
+                    .map(|(required, actual)| (required.symbol, actual.symbol))
+                    .collect::<Vec<_>>(),
+            )
+        };
         crate::machine_calls::machine_parameters::validate_callable_contract_refinement(
             program,
             &label,
@@ -428,6 +450,7 @@ fn validate_machine_top_level_requirement_conformance(
             machine.symbol,
             &[],
             Default::default(),
+            prepare_implication,
             diagnostics,
         );
     }

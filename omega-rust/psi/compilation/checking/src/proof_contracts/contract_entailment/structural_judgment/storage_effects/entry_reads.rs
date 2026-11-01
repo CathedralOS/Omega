@@ -23,12 +23,28 @@ impl StructuralJudge<'_> {
             if parameter.is_const
                 || parameter.relevance.is_erased()
                 || crate::reference_shell(self.program, parameter.type_reference).is_none()
-                || crate::value_custody::expression_types::scalar_observation_meaning(
-                    self.program,
-                    parameter.type_reference,
-                )
-                .is_none()
             {
+                continue;
+            }
+            let place = crate::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(parameter.symbol),
+                segments: Vec::new(),
+            };
+            let value = StructuralTerm::Variable(parameter.name.to_string());
+            if crate::value_custody::expression_types::scalar_observation_meaning(
+                self.program,
+                parameter.type_reference,
+            )
+            .is_none()
+            {
+                self.retain_entry_scalar_fields(
+                    machine,
+                    state,
+                    parameter.type_reference,
+                    place,
+                    value,
+                    &mut Vec::new(),
+                );
                 continue;
             }
             if let Err(reason) = self.retain_entry_scalar_observation(
@@ -47,6 +63,83 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+    }
+
+    /// Nominal input predicates constrain exact entry field values, too. Keep
+    /// their independently authenticated scalar coordinates so a disjoint
+    /// write cannot erase the unchanged sibling used to restore the parent.
+    /// This never captures an owned reference descriptor or an inactive case.
+    fn retain_entry_scalar_fields(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        reference: typed_trees::types::TypeReferenceHandle,
+        place: crate::CanonicalPlace,
+        value: StructuralTerm,
+        active: &mut Vec<symbols::SymbolHandle>,
+    ) {
+        let program = self.program;
+        let Some(definition) =
+            crate::field_domains::readable_nominal_definition(program, reference)
+        else {
+            return;
+        };
+        if active.contains(&definition.symbol) {
+            return;
+        }
+        active.push(definition.symbol);
+        for field in program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+        {
+            let path = [facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            }];
+            let Some(projected) = super::super::super::observed_projections::project_observed_value(
+                program,
+                reference,
+                value.clone(),
+                &path,
+            ) else {
+                continue;
+            };
+            if !super::super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                field.type_reference,
+                &projected,
+            ) {
+                continue;
+            }
+            let mut child = place.clone();
+            child.segments.extend_from_slice(&path);
+            if crate::value_custody::expression_types::scalar_observation_meaning(
+                program,
+                field.type_reference,
+            )
+            .is_some()
+            {
+                if let Err(reason) =
+                    self.retain_entry_scalar_observation(machine, state, child, projected)
+                    && super::super::super::struct_trace()
+                {
+                    eprintln!(
+                        "STRUCT entry-field refused machine={} field={} reason={reason}",
+                        machine.name, field.name
+                    );
+                }
+            } else {
+                self.retain_entry_scalar_fields(
+                    machine,
+                    state,
+                    field.type_reference,
+                    child,
+                    projected,
+                    active,
+                );
+            }
+        }
+        active.pop();
     }
 
     /// Whole entry values use the entry selector namespace too. A header

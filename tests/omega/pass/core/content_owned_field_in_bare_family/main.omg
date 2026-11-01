@@ -1,0 +1,14 @@
+// A bare family keeps independent owned fields without supplying unknown indices.
+use omega::language::core::content;
+public data ByteUnit {}
+public data Buffer [linear] { value: u64; }
+public domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Family<const Tag: u64> [linear] { owned: Buffer in Buffer::Owned; marker: u64; }
+public boundary trait Echo {
+    machine take(input: Family) -> Buffer in Buffer::Owned reaches;
+}
+machine main() {}

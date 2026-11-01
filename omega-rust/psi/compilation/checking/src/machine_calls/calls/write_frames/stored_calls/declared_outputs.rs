@@ -27,6 +27,7 @@ pub(super) fn effects(
             parameter,
             &arguments[parameter_index],
             &owner_segments(&output.owner_path)?,
+            stored_origins::StoredOriginKind::Reference(output.access),
             context,
             symbols,
         )?;

@@ -37,7 +37,7 @@ win is claimed for this frame change; it removes observed stack traffic.
 Apple M4, macOS ARM64, optimized dev profile (opt-level 1). Baseline source is
 `00ef417922c04aea560b7faa5ce05999eb1f0512`; the candidate is that source plus the
 19-line `primary.rs` change. Source and producer hashes, actual build profiles,
-toolchain, inputs, and all CLI observations are in [observations.json](observations.json).
+toolchain, inputs, and all CLI observations are in [observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/prefix_probe/observations.json).
 
 The isolated harness lexes actual source-backed tokens before timing, keeps
 parser outputs live with input/output `black_box`, and destroys results after
@@ -111,7 +111,7 @@ standalone Cargo workspace with edition 2024, dev opt-level 1/debug 1, dependenc
 `mimalloc` (default features disabled), `libc`, `sha2`, and path dependencies on
 `source`, `syntax-trees`, `tokens-to-syntax-trees`, `source-files-to-tokens`.
 Copy the saved sources to `src/main.rs` and `src/bin/parse-record.rs`.
-Write an absolute path list from `observations.json`'s `inputs`, build through
+Write an absolute path list from [`observations.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/prefix_probe/observations.json)'s `inputs`, build through
 `mbx build --manifest-path`, and run the repetition binary with `3 <list>`.
 Freeze separate baseline/candidate binaries before timing; never mutate source
 while a build runs. `parse-record <all-source-list>` emits full syntax/error
@@ -135,7 +135,7 @@ unchanged consumers support reuse. Full CLI/corpus producers were rebuilt on the
 new base both without and with the same parser patch. The measured candidate
 `d3b690eb5262e2f267ce67e05d88f6065e2a58a0` differs from the final commit only in
 measurement documentation. Source and binary hashes, build profiles, commands,
-exits and all fourteen pairs are in [integrated-observations.json](integrated-observations.json).
+exits and all fourteen pairs are in [integrated-observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/prefix_probe/integrated-observations.json).
 
 | Integrated CLI scope | Baseline min / mean / max ms | Candidate min / mean / max ms | Baseline / candidate median ms |
 | --- | --- | --- | --- |

@@ -1,9 +1,0 @@
-{
-  "revision": "30d156428513c08ca4231445e0bd2ff2c2a422de",
-  "integrated_base": "f2e081411ec18d3facf6c7a24fe37aeec06f75b7",
-  "comparison_base": "91ef0738340dae27e4ae3123f10d4a4891f338ce",
-  "executables": {
-    "omega-candidate": "f1a2741fc06bdfaa092e4ff182dd48843da68ca03bb0621032b5ebdce4c4a90d",
-    "corpus-runner-candidate": "4b548e4837bbf1dc19748c78bab354fc85afd13f6f2c9aa7540ab725c4278c8c"
-  }
-}

@@ -87,9 +87,23 @@ impl IntegerRangeRecipe {
         steps.extend_from_slice(&self.steps);
         steps.extend_from_slice(&right.steps);
         steps.push(step);
+        let target_dependent = self.target_dependent || right.target_dependent;
+        // These steps describe captured bounds, not the execution or
+        // formation of their source children. Ground interval arithmetic has
+        // no deferred observation: retain its normal form instead of copying
+        // the same derivation into every subsequent value and proof context.
+        // A refused derivation must remain refused, including when a later
+        // union or cancellation could otherwise hide the offending child.
+        if !target_dependent
+            && let Ok((low, high)) = integer_bounds::evaluate(&steps, &mut |_| {
+                Err("ground integer bounds contain an observation".to_owned())
+            })
+        {
+            return Self::bounds(low, high);
+        }
         Self {
             steps,
-            target_dependent: self.target_dependent || right.target_dependent,
+            target_dependent,
         }
     }
 }
@@ -288,5 +302,94 @@ impl IntegerRangeObligation {
             ))
             .with_source_span(program.expression_table.source_span(self.expression))),
         }
+    }
+}
+
+#[cfg(test)]
+mod recipe_tests {
+    use super::*;
+
+    fn bounds(low: i64, high: i64) -> IntegerRangeRecipe {
+        IntegerRangeRecipe::bounds(BigInt::from_i64(low), BigInt::from_i64(high))
+    }
+
+    #[test]
+    fn ground_composition_retains_evaluated_interval_normal_form() {
+        let product = bounds(-3, 2)
+            .binary(BinaryOperator::Multiply, &bounds(-4, 5))
+            .expect("builtin product");
+        assert_eq!(product, bounds(-15, 12));
+        assert_eq!(product.intersect(&bounds(-10, 11)), bounds(-10, 11));
+        assert_eq!(product.union(&bounds(20, 21)), bounds(-15, 21));
+        assert_eq!(
+            IntegerRangeRecipe::interval(&bounds(-3, 2), &bounds(4, 5)),
+            bounds(-3, 5)
+        );
+        assert_eq!(
+            bounds(2, 4).binary(BinaryOperator::Subtract, &bounds(3, 5)),
+            Some(bounds(-3, 1))
+        );
+        // Repeated joins cannot grow equal ground annotations indefinitely.
+        let mut joined = bounds(0, 7);
+        for _ in 0..100 {
+            joined = joined.intersect(&bounds(-10, 20)).union(&bounds(1, 6));
+        }
+        assert_eq!(joined, bounds(0, 7));
+    }
+
+    #[test]
+    fn refused_ground_children_survive_later_composition() {
+        for refused in [
+            bounds(2, 1).union(&bounds(0, 3)),
+            bounds(0, 1).intersect(&bounds(2, 3)),
+            IntegerRangeRecipe::interval(&bounds(5, 6), &bounds(1, 2)),
+        ] {
+            let original = integer_bounds::evaluate(&refused.steps, &mut |_| {
+                Err("unexpected observation".to_owned())
+            });
+            assert!(original.is_err());
+            let cancelled = refused
+                .binary(BinaryOperator::Multiply, &bounds(0, 0))
+                .expect("builtin product")
+                .union(&bounds(0, 0));
+            assert_eq!(
+                integer_bounds::evaluate(&cancelled.steps, &mut |_| {
+                    Err("unexpected observation".to_owned())
+                }),
+                original
+            );
+        }
+    }
+
+    #[test]
+    fn observations_keep_their_exact_deferred_recipe() {
+        let observed = IntegerRangeRecipe::observation(
+            ExpressionHandle::from_arena_index(42),
+            SymbolHandle::from_arena_index(9),
+        );
+        let combined = observed.union(&bounds(7, 7)).intersect(&bounds(0, 10));
+        assert!(combined.is_target_dependent());
+        assert_eq!(combined.steps.len(), 5);
+        let mut seen = Vec::new();
+        assert_eq!(
+            integer_bounds::evaluate(&combined.steps, &mut |observation| {
+                seen.push((observation.expression, observation.owner));
+                Ok(BigInt::from_i64(8))
+            }),
+            Ok((BigInt::from_i64(7), BigInt::from_i64(8)))
+        );
+        assert_eq!(
+            seen,
+            vec![(
+                ExpressionHandle::from_arena_index(42),
+                SymbolHandle::from_arena_index(9)
+            )]
+        );
+        assert!(
+            integer_bounds::evaluate(&combined.steps, &mut |_| {
+                Err("missing captured observation".to_owned())
+            })
+            .is_err()
+        );
     }
 }

@@ -596,6 +596,7 @@ impl BuildOutputIdentity<'_> {
         let ProviderSelectionIdentity {
             symbol,
             application: _,
+            applied: _,
             application_identity,
             package,
             canonical_path,

@@ -1,1 +1,2 @@
-the instantiated fact is structurally false
+machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`
+which the requirement does not imply

@@ -36,12 +36,11 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let frames = self.frame_resolver();
-        // An opaque frame establishes no preservation or post-call reference
-        // correspondence. Isolated operand snapshots and independent result
-        // guarantees remain usable, but no live referent is reintroduced.
+        // The frame owner captures entry subjects independently of future
+        // writes. Its return flags withhold correspondence for an opaque frame;
+        // that cannot erase the current arguments' entry requirements.
         let subjects = frames
-            .filter(|_| writes.is_complete())
-            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters));
+            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters, writes));
         if !independent_call_application(
             program,
             self.machine_symbol,
@@ -253,11 +252,11 @@ impl<'program> StructuralJudge<'program> {
 impl StructuralJudge<'_> {
     pub(super) fn intake_normal_call_equations(&mut self, equations: Vec<CapturedResultEquation>) {
         for equation in equations {
-            // This producer already authenticated the completed call and its
-            // eager inputs. Preserve that identity instead of evaluating its
-            // description again; active dependency collectors still own the walk.
-            let completed_identity =
-                equation.completed_call_identity && !self.has_resolution_dependency_collector();
+            // The producer retained this identity after the actual normal
+            // return and conditional repeatability admission. Registering it
+            // reads no body. Actual later expansion owns dependency recording,
+            // including when this fact is installed under a field observer.
+            let completed_identity = equation.completed_call_identity;
             let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (

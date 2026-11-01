@@ -195,6 +195,10 @@ retired-syntax deletions to completion.
     predicate handback with current storage versions, including `window_demo`'s
     guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
     60-frame bounds; preserve that sample's existing guards and operation.
+    Complete WindowDemo's ordinary package-policy review and native GUI
+    qualification; its authored message/frame bounds and guards remain the
+    acceptance. Scalar-range syntax migration and the remaining aggregate
+    handback obligations below are still open.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -229,9 +233,6 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - Retire authored `Trait::member = Existing::machine;` reference rows in the
-    Omega-written producer (`source/psi/parse/conformance.omg`, the syntax rows
-    and resolver binding they feed, and the `tests/psi` harnesses).
   - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
     from its foreign binding plan rather than provider data, and ensure no
     installation or interpretation route supplies an unauthored provider value
@@ -337,12 +338,11 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 70 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 11 facts spell it in all nine places
-    (`foreign_{nested_record_backing,retained_mutable_borrow,retained_shared_borrow}`,
-    `generic_calling_policy`, `nested_zero_leaf_array_storage`,
-    `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
-    `selected_provider_issuance`, `target_family_contract_operand`,
+    Frontier: 63 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 5 facts spell it in all nine places
+    (`generic_calling_policy`,
+    `opaque_closed_carrier_exchange`,
+    `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
@@ -502,6 +502,7 @@ narrows realization only.
     coordinators and stage tests, `name.as_str() == "string"` spelling checks
     are replaced by representation classes, and 256 MiB thread stacks are
     replaced by arena-handle worklists on platform default stacks.
+  - Remove stage vocabulary from shared product representations.
   Acceptance: a two-target integration fixture proves with invocation counters
   that source/Psi `00–07`, Build, and Terminal publication each execute once and
   Omega `00–09` executes once per requested target, producing bytes equal to
@@ -528,6 +529,21 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
+  - Publish boundary-value storage recipes, calling telescopes, the explicit
+    calling-policy application census and exact callback/policy captures in
+    canonical Terminal Psi, and move opaque selection, source-qualified review
+    and default ABI signature materialization onto them, so target planning
+    drops its source-side signature preparation and passes source-discard/reload.
+  - Move the remaining source-reading provider consumers onto prepared
+    declarations: host classification's catalog-local source join, typed
+    constant/comparison evaluation (including Early Build's typed-only
+    comparison path), general review call coordinates, source-dependent
+    direct-call preparation, and the initial source-aware calling-policy
+    selection and planning.
+  - Move review-only products' complete conformance evidence from checked
+    source custody into Terminal Psi.
+  - Publish portable dormant-use and checked-instance records, and the
+    trust-model accepted-machine roster, canonically with source-discard replay.
   - **OPERATOR-BOUNDARY-CALLS:** complete float/receiver signatures, directed
     FMA builtins, member-call borrowed-field planning, Windows GUI provider
     selection (`samples/gui/{window_app,windowed_calculator}`), and specialized
@@ -662,6 +678,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
+  - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -846,10 +863,8 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete the remaining nested-machine, other-machine and selected-target
-    places of the
-    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md), plus
-    remaining schema composition support; migrate complete platform ABI records;
+  - Complete remaining schema/case composition support;
+    migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.

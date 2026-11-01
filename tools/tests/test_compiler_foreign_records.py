@@ -295,14 +295,15 @@ class OwnedForeignCohortTests(unittest.TestCase):
                     raise ValueError("intended failure")
             self.assertEqual(os.environ["PATH"], "original path")
 
-    def producer_build(self, root, *, refused=False):
+    def producer_build(self, root, *, refused=False, need_runner=True):
         name = "omega.exe" if os.name == "nt" else "omega"
         cli = root / "bin" / name
         runner = root / "bin" / ("corpus_runner.exe" if os.name == "nt" else "corpus_runner")
         cli.parent.mkdir()
         cli.write_bytes(b"CLI with current profile protocol")
-        runner.write_bytes(b"corpus runner")
-        Path(str(runner) + ".compiler-profile.json").write_text("retained Cargo build receipt\n")
+        if need_runner:
+            runner.write_bytes(b"corpus runner")
+            Path(str(runner) + ".compiler-profile.json").write_text("retained Cargo build receipt\n")
         cargo = "\n".join(json.dumps(row) for row in [
             dict(reason="compiler-artifact", target=dict(name="omega"), executable=str(cli)),
             dict(reason="build-finished", success=True)])
@@ -336,7 +337,11 @@ class OwnedForeignCohortTests(unittest.TestCase):
                 build_runner.assert_not_called()
                 producer = None
             else:
-                producer = pilot.prepare_producer(root / "evidence")
+                producer = pilot.prepare_producer(root / "evidence", need_runner=need_runner)
+                if need_runner:
+                    build_runner.assert_called_once()
+                else:
+                    build_runner.assert_not_called()
             historical_fingerprint.assert_not_called()
         return producer
 
@@ -354,6 +359,23 @@ class OwnedForeignCohortTests(unittest.TestCase):
             root = Path(temporary)
             self.assertIsNone(self.producer_build(root, refused=True))
             self.assertEqual(len(list((root / "evidence").glob("*/cli-build.jsonl"))), 1)
+
+    def test_cli_only_preparation_keeps_authentication_without_runner_artifacts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            producer = self.producer_build(Path(temporary), need_runner=False)
+            self.assertIsNone(producer.runner)
+            self.assertIsNone(producer.runner_profile)
+            self.assertTrue(Path(str(producer.cli) + ".verified-profile.json").is_file())
+            self.assertFalse(list(producer.cli.parent.glob("corpus_runner*")))
+            record = json.loads((producer.cli.parent / "producer.json").read_text())
+            self.assertIsNone(record["runner"])
+            self.assertIsNone(record["runner_profile"])
+            producer.cli.write_bytes(b"changed CLI")
+            with patch.object(pilot, "command", side_effect=lambda argv: "a" * 40 if "rev-parse" in argv else ""), \
+                    patch.object(pilot.corpus_gate, "require_optimized", return_value=dict(
+                        producer.cli_profile, sha256=rows.digest(producer.cli))):
+                with self.assertRaisesRegex(ValueError, "identity/profile changed"):
+                    producer.verify()
 
     def test_changed_retained_binary_refuses_even_when_profile_kind_is_same(self):
         with tempfile.TemporaryDirectory() as temporary:

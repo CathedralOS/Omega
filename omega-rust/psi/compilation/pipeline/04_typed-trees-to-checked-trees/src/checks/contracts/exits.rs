@@ -18,8 +18,7 @@
 //! entry parameter it names lacks an exact incoming origin, when the entry
 //! contexts prove it or another exit prover does: result domains
 //! (`result_domains`), scalar returns (`scalars`), content preservation,
-//! integer embeddings, float meaning reflexivity, integral parameter
-//! reflexivity, transparent propositions, collection-predicate premises of a
+//! embedded literals, transparent propositions, collection-predicate premises of a
 //! helper theorem or checked store handback, or an authorized domain
 //! establishment route. A proved loop header invariant (`cyclic_headers`)
 //! also satisfies it. A fact nothing proves is reported with the entry
@@ -54,20 +53,6 @@ pub(crate) use result_domains::{
     exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
 };
 
-fn direct_result_float_meaning_reflexivity_proves_exit(
-    facts: &CheckFacts,
-    machine_symbol: symbols::SymbolHandle,
-    fact: &facts::Fact,
-) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
-        return false;
-    };
-    facts
-        .proof
-        .direct_result_float_meaning_reflexivity(machine_symbol, expression)
-        .is_some()
-}
-
 /// A helper theorem over collections: the machine's own `requires`,
 /// including collection-predicate premises explored through the predicate's
 /// checked body, prove the `ensures` expression on every normal exit. Supported
@@ -87,7 +72,7 @@ fn collection_premises_prove_exit(
 
 /// Whether one exit's live facts prove a scalar postcondition: the entry
 /// contexts prove the predicate, or the exit's exact return and current scalar
-/// or live place values evaluate it. Ordinary exit checking and package exit
+/// or live place values evaluate it per atom (`scalars`). Ordinary exit checking and package exit
 /// evidence share these routes, alongside separately rechecked component
 /// induction. Callers must establish exact invocation origins before using this
 /// helper; it grants no assumption, entailment or invariant authority.
@@ -119,13 +104,6 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         },
         entry_contexts,
         fact,
-    ) || super::current_values::proves_exit(
-        program,
-        facts,
-        exit_flow,
-        fact,
-        call_frames,
-        cached_exit_values,
     ) || scalars::proves(
         program,
         facts,
@@ -310,18 +288,9 @@ pub(super) fn check_exit_ensures(
                     || proves_composed_exit(
                         facts, exit_flow, fact, content_plans,
                     )
-                    || super::integer_embeddings::proves_exit_equality(
-                        program, state_flow, exit_flow, fact,
-                    )
                     || super::integer_embeddings::proves_embedded_literal_exit(
                         program, state_flow, exit_flow, fact,
                     )
-                    || direct_result_float_meaning_reflexivity_proves_exit(
-                        facts,
-                        state_flow.machine_symbol,
-                        fact,
-                    )
-                    || super::entailment::integral_parameter_reflexivity(program, fact)
                     || super::entailment::transparent_proposition_proves_exit(
                         program, facts, entailment, state_flow, fact,
                     )

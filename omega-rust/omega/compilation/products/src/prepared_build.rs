@@ -135,3 +135,35 @@ pub struct CheckedProductSource {
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
+
+impl CheckedProductSource {
+    /// Whether both judgments feed the same inputs to portable publication:
+    /// the shared program, equal source custody, equal Build source choices,
+    /// equal provider defaults and the same fixed Psi projection. Target-scoped
+    /// admissions and semantic bindings are realization inputs, never read by
+    /// the producing operation.
+    pub fn shares_terminal_publication(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.program, &other.program)
+            && self
+                .terminal_publication
+                .optimizations()
+                .eq(other.terminal_publication.optimizations())
+            && self
+                .computed_build_config
+                .config
+                .same_source_choices(&other.computed_build_config.config)
+            && self.provider_defaults == other.provider_defaults
+            && self.sources == other.sources
+    }
+
+    /// Adopt a sibling's derived-code owners so the invocation produces its
+    /// portable artifact, policy catalog and external declarations once. Only
+    /// meaningful for `shares_terminal_publication`; source judgment, target
+    /// admission, receipts and timings stay with this checked product.
+    pub fn adopt_derived_code(&mut self, canonical: &Self) {
+        debug_assert!(canonical.shares_terminal_publication(self));
+        self.terminal_publication = Arc::clone(&canonical.terminal_publication);
+        self.calling_policy_code = Arc::clone(&canonical.calling_policy_code);
+        self.external_declarations = Arc::clone(&canonical.external_declarations);
+    }
+}

@@ -118,8 +118,13 @@ Terminal execution. The receipt keeps the original canonical artifact identity;
 selection neither rewrites that artifact nor supplies new proof authority. The
 complete artifact conservatively retains the policy bodies and their dependencies.
 
-Schema ABI 3 retains per-target scalar geometry, complete member and retirement
-identities, and exact policy application custody. Source references use their
+Schema ABI 4 retains per-target geometry, complete member and retirement
+identities, exact policy application custody and `FieldLayoutSource`. Scalar
+geometry and explicitly selected `LayoutStorage` geometry remain distinct from
+default aggregate/reference storage. Fixed arrays inherit their element source;
+an explicit child stops that walk. Checked and Terminal consumers reconstruct
+the source from the exact field type and selected child target, never from equal
+sizes or a policy display name. Source references use their
 source-visible geometry; engine-private loan descriptors do not change it.
 Nested by-value representations are evaluated with their explicit target
 inputs and lexical owners. References do not demand pointee placement.

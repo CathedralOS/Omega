@@ -12,13 +12,15 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+mod value_operations;
+
 /// The initial terminal-Psi proposition vocabulary.
 ///
 /// This is intentionally small but not source-shaped. It refers only to
 /// stable terminal values or closed literals. Operation-specific predicates
 /// will extend this vocabulary together with their execution semantics and
 /// obligation schemas.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+#[derive(Debug, PartialOrd, Ord, compiler_storage::Record)]
 pub enum Proposition {
     Truth,
     Falsehood,

@@ -289,11 +289,12 @@ pub struct CapturedMachineState {
 
 /// One requirement call resolved through an exact closed static conformance.
 ///
-/// Monomorphization rewrites the executable target to `realization_state`, but
-/// the public erased contract remains owned by `declaring_trait` and
-/// `requirement`.  Keeping both identities on the call prevents later proof
-/// lowering from mistaking satisfier-local evidence for public witness
-/// identity.
+/// The realization fields identify the original selected row. The call's
+/// executable target may instead name its prepared capture or invocation
+/// specialization. The public erased contract remains owned by
+/// `declaring_trait` and `requirement`. Keeping these identities distinct
+/// prevents proof lowering from mistaking satisfier-local evidence for public
+/// witness identity or execution from reopening an unbound row template.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticRequirementDispatch {
     /// Direct selections retain their exact authored occurrence. Evidence-bound

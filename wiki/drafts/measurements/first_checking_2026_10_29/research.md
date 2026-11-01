@@ -23,7 +23,7 @@ The existing same_resolution_payload comparison retains those fields, but
 active application context also matters. No general memo is selected.
 A diagnostic separates integer_value's completed observation, captured-value
 identity expansion, and normal resolution before selecting a concrete change.
-See diagnostic.patch and diagnostic.json. Timers are diagnostic only.
+See [diagnostic.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/diagnostic.patch) and [diagnostic.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/diagnostic.json). Timers are diagnostic only.
 
 The first diagnostic completes first update in 187.22 s and target-only compilation (actual host comparison is recorded separately). It records 2,976,403 integer_value entries. Captured identity costs
 1.62 s inclusive; normal resolution costs 186.14 s inclusive across 2,725,298
@@ -55,7 +55,7 @@ exports/fixture changes are needed. The unit test exercises metadata-sensitive
 answers and actual scratch reuse across different substitutions.
 
 Before comparison: A is the verified 5a596bca convergence producer; B is the
-same fixed compiler source plus candidate.patch. Decisive A-B-B-A comparison:
+same fixed compiler source plus [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/candidate.patch). Decisive A-B-B-A comparison:
 ordinary first package update with fresh LOCALAPPDATA and original input files,
 then ordinary review/resume, compile, native execution and separate --both.
 No phase profiler during timings. All resulting native images must be identical.
@@ -77,9 +77,9 @@ patches are retained; neither is used as timing baseline A or candidate B.
 Harness correction found during raw evidence review: explicit --target makes
 run --both compile-only. Historical native executions invoked the produced exe
 separately and remain valid, but these target-only calls are not Terminal
-observations. The timing records retain their original argv unchanged; host.py
+observations. The timing records retain their original argv unchanged; [host.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/host.py)
 replays both producers on every timing project without --target and requires
-actual `interp exit: 0` and native status text. quality.py now does the same.
+actual `interp exit: 0` and native status text. [quality.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/quality.py) now does the same.
 The prior convergence PR receives its own nine corrected host replays and a
 visible evidence correction; no old log is relabeled as runtime observation.
 First-update timing and separate native image equality are unaffected.
