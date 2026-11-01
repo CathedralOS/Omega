@@ -874,11 +874,10 @@ helper that passes does not close an item.
     [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
     now executes the original call with both independent environment/storage
     binders and the same const index, preserving value 42 in Mac ARM64
-    native/Terminal execution. Local, field, parameter, call-result, match-join
-    and named-constant-input placements and their region-only twins pass on that
-    host. Nested-machine, other-machine, selected-target-body and other-host
-    execution remain outstanding; wrong regions/indices and stored evidence
-    still reject.
+    native/Terminal execution. All nine transport places and their region-only
+    twins are established on that host, with exact corpus mirrors. Other-host
+    execution and the parent capability remain open; wrong regions/indices and
+    stored evidence still reject.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
