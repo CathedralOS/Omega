@@ -480,7 +480,6 @@ pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
 };
 pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation as CapturedIntegerDenotation;
-pub use proof_contracts::contract_entailment::arithmetic_judgment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
