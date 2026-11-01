@@ -70,8 +70,8 @@ applicability here: the zero/one-parameter owned Packet signatures retain the sa
 ordered recipes and result; the packet has no opaque/callback/static application,
 its inline fields are plain u64, and its nested arrays and shared `[u8;0]`
 presentation retain the same storage and borrow meaning. Executions retain the
-actual e16 binary and format identities. Source changes after that capture are
-this migration only; no newer compiler execution is claimed.
+actual e16 binary and format identities. The authored programs are the migrated
+originals described above; no newer compiler execution is claimed.
 
 The earlier four-host qualification above retains its original source and producer
 identities. Fresh runtime is macOS ARM64 only; no new foreign-host or memory
