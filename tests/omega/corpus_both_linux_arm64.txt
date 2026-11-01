@@ -6942,23 +6942,7 @@ pass/facts/opaque_independent_copy_through_parameter_exit built 4418ms exit:0 @6
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_independent_copy_through_target_body_exit built 4728ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_call_result_exit built 4594ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_const_name_exit built 4293ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_field_exit built 4362ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_independent_inherited_result_through_local_exit built 4263ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_match_join_exit built 4294ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_other_machine_exit built 4401ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_other_state_exit built 4323ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_parameter_exit built 4173ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_inherited_result_through_target_body_exit built 4388ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_independent_linear_through_call_result_exit built 4667ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
@@ -7004,23 +6988,7 @@ pass/facts/opaque_independent_qualified_result_import_alias_exit built 4350ms ex
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit built 4319ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_call_result_exit built 4299ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_const_name_exit built 4099ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_field_exit built 4093ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_independent_qualified_result_through_local_exit built 4378ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_match_join_exit built 4440ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_other_machine_exit built 4402ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_other_state_exit built 4252ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_parameter_exit built 4241ms exit:0 @6e42425cd720
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/facts/opaque_independent_qualified_result_through_target_body_exit built 4086ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/opaque_inherited_result_scalar_parent_tag_exit built 1964ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/opaque_nested_carrier_exchange_exit built 26786ms terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @6e42425cd720
