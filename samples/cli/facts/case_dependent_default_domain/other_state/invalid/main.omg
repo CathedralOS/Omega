@@ -2,7 +2,7 @@
 // Expected exit: 0.
 data Value<T> [copy]
     requires ((self in Value::Integer) && T == i32)
-        || (self in Value::Boolean)
+        || ((self in Value::Boolean) && T == bool)
 {
     case Integer(value: i32);
     case Boolean(value: bool);
@@ -14,9 +14,9 @@ data NamedValue [copy] {
 domain<T> NamedValue::Typed<T>
     requires ((self in NamedValue::Integer) && T == i32)
         || ((self in NamedValue::Boolean) && T == bool);
-data Interval [copy]
+data Interval<const Bound: u64> [copy]
     requires (self in Interval::Empty)
-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
+        || ((self in Interval::Range) && self.lo <= self.hi)
 {
     case Empty;
     case Range(lo: u64, hi: u64);
@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
         NamedValue::Boolean { value } -> value
     }
 }
-machine width(span: Interval) -> u64 {
+machine width(span: Interval<32>) -> u64 {
     match span {
         Interval::Empty -> 77
         Interval::Range { lo, hi } -> width_range(lo, hi)
@@ -61,14 +61,14 @@ data Bundle [copy] {
     front: u64;
     number: Value<i32>;
     flag: Value<bool>;
-    span: Interval;
+    span: Interval<32>;
     named_number: NamedValue in Typed<i32>;
     named_flag: NamedValue in Typed<bool>;
     named_span: NamedInterval in Ordered<32>;
     back: u64;
 }
 machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
-    value.front == 19088743 && value.back == 4275878552
+    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
         && pick<i32>(value.number) == expected_number
         && pick<bool>(value.flag) == expected_flag
         && width(value.span) == expected_width
@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
         && raw_case(value.named_flag as NamedValue) == 2
 }
 machine first() -> Bundle { Bundle {
-    front: 19088743,
+    front: 0x0123_4567,
     number: Value::Integer { value: 42 },
     flag: Value::Boolean { value: true },
     span: Interval::Range { lo: 17, hi: 21 },
     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
-    back: 4275878552
+    back: 0xFEDC_BA98
 } }
 machine second() -> Bundle { Bundle {
-    front: 19088743,
+    front: 0x0123_4567,
     number: Value::Integer { value: -13 },
     flag: Value::Boolean { value: false },
     span: Interval::Empty,
     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
-    back: 4275878552
+    back: 0xFEDC_BA98
 } }
 machine raw_case(value: NamedValue) -> u64 {
     match value {

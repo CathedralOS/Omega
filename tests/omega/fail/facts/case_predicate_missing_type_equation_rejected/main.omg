@@ -1,0 +1,13 @@
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32) || (self in Value::Boolean)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine pick<T>(value: Value<T>) -> T {
+    match value {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine main() { }

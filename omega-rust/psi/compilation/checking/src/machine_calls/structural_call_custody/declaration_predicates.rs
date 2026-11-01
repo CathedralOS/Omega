@@ -696,6 +696,18 @@ fn find_data_field<'program>(
     symbol: SymbolHandle,
     name: &str,
 ) -> Option<&'program DataField> {
+    // Copied predicates retain declaration selectors. Rejoin an instance's
+    // selector through its complete application before reading this exact
+    // borrowed field view; a matching name cannot repair a foreign selector.
+    let symbol = if symbol.is_valid()
+        && let Some(application) = definition.generic_instance
+    {
+        program
+            .data_constructor_field(application, definition.symbol, symbol)?
+            .symbol
+    } else {
+        symbol
+    };
     program.data_members(definition).iter().find_map(|member| {
         let field = member.as_field()?;
         if field.relevance.is_erased() {
@@ -1167,12 +1179,10 @@ impl FactSpelling<'_> {
             ExpressionNode::Member(member) => {
                 let (mut path, receiver_type) = self.field_path(member.receiver)?;
                 let owner = owned_data_definition(self.program, receiver_type)?;
-                let field = crate::value_custody::places::exact_data_member_field(
+                let field = crate::value_custody::places::applied_data_member_field(
                     self.program,
-                    owner,
-                    member.member_symbol,
-                    member.member.as_str(),
-                    member.case_variant.as_ref().map(|case| case.as_str()),
+                    receiver_type,
+                    member,
                 )?;
                 if !field.symbol.is_valid() {
                     return None;

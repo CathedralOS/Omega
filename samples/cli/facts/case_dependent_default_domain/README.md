@@ -8,7 +8,11 @@ supplies the type equation; callers add no type test or equality guard.
 `NamedValue in Typed<T>` has the same predicate over a carrier with no data
 predicate, so its extractor depends on the named domain itself.
 
-`Interval` and `NamedInterval in Ordered<32>` express the same Empty-or-Range
+Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, carrying a closed generic
+data application's complete payload predicate through construction, matching,
+calls, stored values and materialized constants to its scalar consumers.
+
+`Interval<32>` and `NamedInterval in Ordered<32>` express the same Empty-or-Range
 predicate. The Range case carries `lo <= hi && hi <= 32` to `width_range`.
 That consumer establishes `lo in AtMost<32>` and computes `hi - lo` directly.
 Neither caller reconstructs the bound after transport.
@@ -33,9 +37,12 @@ home makes `main()` trap.
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | selected implementation | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-The reject twins remove only `T == bool` from `Value<T>`'s Boolean alternative.
-Construction still permits the authored values, but the generic extractor
-cannot deliver a Boolean payload as an arbitrary T. Samples and their twins
+The reject twins remove only `hi <= Bound` from `Interval<Bound>`'s Range
+alternative. Construction still permits the authored values, but the public
+extractor cannot promise the missing ceiling for every admitted input.
+The [missing type equation](controls/missing_type_equation/main.omg) control
+retains the earlier twins' obligation once: a Boolean payload cannot be
+delivered as an arbitrary T without its type equation. Samples and their twins
 are pinned under
 `tests/omega/{pass,fail}/facts/case_dependent_default_domain_through_<place>_{exit,rejected}`.
 Every positive binds all four hosted targets; the target-body place selects four
@@ -50,7 +57,8 @@ The specification requirements exercised by the row are:
   cannot justify this extraction.
 - **Composition:** the nine transports preserve the same values, predicates,
   consuming operations and oracles; both join choices execute.
-- **Soundness:** omitted type equality rejects the universal extractor. Other
+- **Soundness:** the missing ceiling rejects the interval consumer, and omitted
+  type equality still rejects the universal extractor. Other
   controls cover invalid cases, inactive payloads, reversed bounds, mutation
   restoration, zero establishment and retired syntax.
 - **Psi 05–07:** the complete source predicate supplies case-local proof
@@ -92,6 +100,24 @@ bound, default/named invalid zero, invalid constant qualification, and retired c
 Their source copies and diagnostic fragments live in
 `tests/omega/fail/facts/case_predicate_<control>_rejected`; the four positives
 have native and interpreter exit oracles under the matching pass paths.
+
+The interval's bound is an ordinary Const argument; its value remains 32, its
+payloads and `hi - lo` operation are unchanged. This strengthens the existing
+row for the generic-declaration transfer that wrongly rejects the migrated
+`zero_case_predicate_entry_exit` customer's `amount * 10`. On optimized base
+`0948d66c9cda2a14b141212ba98e6d126a08752d`, the otherwise unchanged local
+program with `Interval<32>` rejects `width_range`'s requirement; the earlier
+non-generic interval passed. The [other default argument](controls/other_default_argument/main.omg)
+control admits `Interval<64>` with `hi = 40` and must still refuse a ceiling of
+32. The hexadecimal canaries denote the earlier decimal values exactly.
+Current run records retain their producer identities separately from the
+historical qualifications below.
+
+The generic restoration control writes an invalid intermediate upper endpoint
+and repairs both endpoints before consumption. Its stale-write twin still
+rejects the open invariant window. This carrier correspondence repair does not
+close the parent's separate snapshot-based relational restoration, other
+predicate productions, product/compiler migration or suffix retirement.
 
 ## Initial qualification
 
