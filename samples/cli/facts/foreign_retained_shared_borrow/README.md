@@ -1,6 +1,15 @@
 # Retained shared foreign backing
 
-Parent: **FOREIGN-RETAINED-ARGUMENT-BACKING** in `TASKS.md`.
+Parents: **FOREIGN-RETAINED-ARGUMENT-BACKING**,
+**BUILD-OWNED-TARGET-SELECTION**, and **BUILD-OWNED-NATIVE-BINDINGS** in
+`TASKS.md`.
+
+The migration requirement is to preserve this entire shared-loan row and its
+composition controls while ordinary named implementations replace target-prefixed
+bodies and direct target-keyed `Build::bind` rows replace native helper forwarders.
+Locator byte lengths are inferred from the original fixed-byte values. The same
+four hosted locators, public contracts, provider authority, backing and loan
+occurrences remain the executable obligation.
 
 A shared foreign registration retains the exact original `Buffer` backing until
 completion consumes `Pending`; completion observes the original value 37.
@@ -112,7 +121,10 @@ foreign effects and executes in both engines.
   nesting, calls, joins and state transfers. Mutable access and disposal conflict;
   completion ends only the consumed occurrence.
 - Composition: the consuming completion receives the retained token through the
-  nine places. No caller guard re-establishes the loan or authorizes a write.
+  nine places. The match join exercises both inputs and records different effects
+  in caller storage before completion. The target-body place selects an ordinary
+  `PendingTransferCode` implementation and retains the full applied carrier and
+  loan. No caller guard re-establishes the loan or authorizes a write.
 - Authority: nonspatial dependencies cannot supply reference-result pointers or
   spatial access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
   persistent stores remain rejected.
@@ -126,6 +138,12 @@ foreign effects and executes in both engines.
   suspended callers retain their frame backing while helpers transport tokens.
 - Omega 07–09/emission: both Linux ELF profiles, macOS Mach-O and Windows PE
   imports execute the authored C lifecycle with native/Terminal agreement.
+
+The hosted execution links above are retained evidence for the original row;
+migration qualification records identify the actual producer and matching host.
+This row establishes the shared retained-borrow requirement of the two Build
+migrations; unrelated source cohorts, retired-syntax deletion, audio acceptance
+and other hosted migration executions remain their parent tasks' acceptance.
 
 This covers the direct shared fixed-record rung. The whole-move control covers
 ordinary owned movement between completed registrations. Transferring backing
