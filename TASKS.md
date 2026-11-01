@@ -285,10 +285,6 @@ retired-syntax deletions to completion.
   dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
-    - Extend requirement-contract checking at selector calls beyond exact fact
-      correspondence to supported integer arithmetic while preserving the
-      requirement's public contract independently of stronger implementation
-      guarantees.
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
   - **Omega realization and cross-host native execution:**

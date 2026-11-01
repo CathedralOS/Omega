@@ -50,3 +50,24 @@ Source and Build files are pinned byte-identically under
 `tests/omega/{pass,fail}/facts/dynamic_trait_input_arithmetic_through_*`.
 Other operational envelopes, Product parity and matching-host table
 qualification remain separate parent acceptance.
+
+## Recorded acceptance
+
+At source checkpoint `297562733b94b15caabac5dd979ed34bbf74ba51`, the scoped
+Source gate records all nine positives checked and all nine twins rejected at
+the intended `dyn WeightedCombine::combine` requirement. All nine positives
+execute on Linux x86-64 with native exit 0 and Terminal exit 0. Both selector
+arms, distinct markers and the field neighbors retain their authored oracles.
+Source/Build mirrors and the one-threshold twin differences were verified.
+
+The compiler inputs are identical to the accompanying IEEE checkpoint
+`95f6bd2b44300afdc37712cf585b1f3515adc819`; the freshness build confirms the
+same optimized CLI SHA-256
+`26d0ed4d3fd0e3f49252a81b8a46f12c7a3547d0918ad4d8584912b4c521848c`.
+The [replay archive](https://chatgpt.com/api/library/files/libfile_fd3245e81d7c8191aefaa782e1a8073f/download)
+is retained in the author's Library, version 1 (access required), with both
+source bundles, each original observation revision, commands and raw records.
+SHA-256: `570d55dcdf4075b6d1473e9b39fabf61b81e6760aaef826e46444edd0fa4966e`.
+This supplements the 48 IEEE/control Source observations and 21 native/Terminal
+executions without relabeling them as new runs. Other-host and Product compiler
+execution remain unmeasured.

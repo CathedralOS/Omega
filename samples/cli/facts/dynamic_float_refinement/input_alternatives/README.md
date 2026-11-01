@@ -91,9 +91,9 @@ warnings; the reported borrow in the unchanged comparison reader is
 outside the repair. Formatting and mirror/twin integrity checks pass.
 
 The [replay archive](https://chatgpt.com/api/library/files/libfile_fd3245e81d7c8191aefaa782e1a8073f/download)
-is retained in the author's Library (version 0, access required). It contains
+is retained in the author's Library (version 1, access required). It contains
 commands, raw outcomes, canonical context, exact source bundle and producer
-profiles. SHA-256: `0c6cb36c28c0c0612a90fc0a310bb36bbda049fa3e83e8a0e33841f7cf3f2dbd`.
+profiles. SHA-256: `570d55dcdf4075b6d1473e9b39fabf61b81e6760aaef826e46444edd0fa4966e`.
 Extract it at a repository root with fixed base
 `eb9acb01452251ddb0c338fa400fb9cd476c8bc4` available for the source bundle.
 The [measured source](https://github.com/CathedralOS/Omega/commit/95f6bd2b44300afdc37712cf585b1f3515adc819)

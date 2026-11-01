@@ -388,6 +388,24 @@ fail/facts/dynamic_float_input_alternatives_through_parameter_weakened_input rej
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alternatives_through_target_body_weakened_input rejected 12987ms expected @95f6bd2b4430
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_call_result_weakened_input rejected 7363ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_const_name_weakened_input rejected 9334ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_field_weakened_input rejected 8913ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_local_weakened_input rejected 8611ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_match_join_weakened_input rejected 6881ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_other_machine_weakened_input rejected 11147ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_other_state_weakened_input rejected 7342ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejected 7396ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
+	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2053ms expected @13c1304502d6
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
 fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 2021ms expected @13c1304502d6
@@ -5823,6 +5841,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 4171ms chec
 pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 4357ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 3845ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 3141ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/dynamic_trait_input_arithmetic_through_call_result_exit checked 13993ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_const_name_exit checked 11272ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_field_exit checked 13958ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_local_exit checked 13284ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_match_join_exit checked 12396ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_other_machine_exit checked 9771ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_other_state_exit checked 17347ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_parameter_exit checked 10983ms check-target:macos_arm64 @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_target_body_exit checked 12031ms check-target:macos_arm64 @297562733b94
 pass/facts/entry_domain_return_snapshot_exit checked 4073ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/erased_reference_contract_through_call_result_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/erased_reference_contract_through_const_name_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
