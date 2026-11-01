@@ -429,7 +429,7 @@ pub(crate) fn close_private_callback_demands(
         occupied_private.push((offset, end, demand.slot_identity.as_str()));
         closed.push(TargetClosedPrivateCallbackDemand {
             data_symbol: plan.data_symbol,
-            slot_application: demand.slot_application.clone(),
+            slot_application: demand.slot_application.selection.clone(),
             slot_identity: demand.slot_identity.clone().into(),
             layout_subject_identity: demand.layout_subject_identity.clone().into(),
             callback_requirement_identity: demand.callback_requirement_identity.clone().into(),

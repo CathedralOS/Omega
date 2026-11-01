@@ -57,6 +57,31 @@ pub(super) fn project(
         parent = field.child_layout();
     }
     let terminal = entry.terminal_slot();
+    // Native geometry retains only the portable selection. Source-qualified
+    // review still owns the original telescope: join the exact slot in its
+    // already selected containing plan, never recover it from report strings.
+    let source_plan = plan(compilation, parent)?
+        .ok_or_else(|| rejected("callback terminal slot has no exact source layout owner"))?;
+    let geometry = source_plan.invariant_geometry().ok_or_else(|| {
+        rejected("callback slot review requires an exact target-family geometry closure")
+    })?;
+    let source_slots = geometry
+        .private_callback_demands
+        .iter()
+        .filter(|slot| {
+            slot.slot_identity == terminal.slot_identity.as_ref()
+                && slot.layout_subject_identity == terminal.layout_subject_identity.as_ref()
+                && slot.callback_requirement_identity
+                    == terminal.callback_requirement_identity.as_ref()
+                && usize::try_from(slot.offset).ok() == Some(terminal.offset)
+                && slot.slot_application.selection == terminal.slot_application
+        })
+        .collect::<Vec<_>>();
+    let [source_slot] = source_slots.as_slice() else {
+        return Err(rejected(
+            "callback slot lost its exact source-owned review application",
+        ));
+    };
     Ok(PackagePolicyCallbackLayout {
         formal_ordinal: entry.formal_ordinal(),
         native_ordinal: entry.native_ordinal(),
@@ -64,7 +89,7 @@ pub(super) fn project(
         inline_fields,
         terminal_slot: project_checked_conformance_policy(
             compilation,
-            &terminal.slot_application,
+            &source_slot.slot_application.application,
             lifetime_binders,
         )?,
         terminal_offset: quantity(terminal.offset)?,

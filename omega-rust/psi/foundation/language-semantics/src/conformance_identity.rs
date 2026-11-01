@@ -160,13 +160,18 @@ impl ConformanceIdentityDescription<'_> {
     /// independently retained semantic/layout/requirement role correspondence.
     pub fn fingerprint_and_commitment(&self) -> (u64, [u8; 32]) {
         let bytes = self.encoded_bytes();
-        let mut report = Fnv1a::new();
-        report.bytes(&bytes);
-        let mut commitment =
-            DomainDigestEncoder::new(b"omega.psi.closed-conformance-application.v4\0");
-        commitment.raw(&bytes);
-        (report.finish(), commitment.finish())
+        source_identity_commitments(&bytes)
     }
+}
+
+/// Bind an already normalized v4 preimage. This supplies no source judgment:
+/// the issuer owns normalization and the exact selected role correspondence.
+pub fn source_identity_commitments(bytes: &[u8]) -> (u64, [u8; 32]) {
+    let mut report = Fnv1a::new();
+    report.bytes(bytes);
+    let mut commitment = DomainDigestEncoder::new(b"omega.psi.closed-conformance-application.v4\0");
+    commitment.raw(bytes);
+    (report.finish(), commitment.finish())
 }
 
 impl MachineOperandIdentity {

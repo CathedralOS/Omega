@@ -151,8 +151,8 @@ pub use access_views::{
     AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
     PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
     PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ScalarAccessorDeclaration,
-    ScalarAccessorOperation,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication,
+    ScalarAccessorDeclaration, ScalarAccessorOperation,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,

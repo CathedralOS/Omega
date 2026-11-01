@@ -142,3 +142,50 @@ fn role_carriers_recursive_selection_and_application_presence_are_distinct() {
     terminal_domain.raw(&original.encoded_bytes());
     assert_ne!(expected.1, terminal_domain.finish());
 }
+
+#[test]
+fn selected_slot_record_preserves_roles_and_source_preimage() {
+    use crate::callback_declarations::PrivateCallbackSlotSelection;
+    let lanes = lanes();
+    let description = description(&lanes);
+    let application_encoding: std::sync::Arc<[u8]> = description.encoded_bytes().into();
+    let (application_report_fingerprint, application_commitment) =
+        source_identity_commitments(&application_encoding);
+    let selection = PrivateCallbackSlotSelection {
+        declaration_identity: "package::Pick".into(),
+        trait_identity: "core::layout::PrivateCallbackSlot".into(),
+        semantic_identity: "package::Pair<u8>".into(),
+        layout_identity: "package::Layout".into(),
+        requirement_identity: "package::Callback::call".into(),
+        application_report_fingerprint,
+        application_commitment,
+        application_encoding: application_encoding.clone(),
+    };
+    selection.validate_identity_encoding().unwrap();
+    let bytes = compiler_storage::encode(&selection, Default::default()).unwrap();
+    let restored: PrivateCallbackSlotSelection =
+        compiler_storage::decode(&bytes, Default::default()).unwrap();
+    assert_eq!(restored, selection);
+    restored.validate_identity_encoding().unwrap();
+    let cloned = selection.clone();
+    assert!(std::sync::Arc::ptr_eq(
+        &cloned.application_encoding,
+        &application_encoding
+    ));
+    let mut changed = selection.clone();
+    std::sync::Arc::make_mut(&mut changed.application_encoding)[0] ^= 1;
+    assert!(
+        changed
+            .validate_identity_encoding()
+            .unwrap_err()
+            .contains("Source-v4 identity preimage")
+    );
+    let mut changed = selection;
+    changed.requirement_identity.clear();
+    assert!(
+        changed
+            .validate_identity_encoding()
+            .unwrap_err()
+            .contains("exact selected application identity")
+    );
+}

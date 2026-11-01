@@ -1521,7 +1521,11 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 }
                 for geometry in plan.geometries(program) {
                     for demand in &geometry.private_callback_demands {
-                        visit_closed_conformance(program, retained, &demand.slot_application);
+                        visit_closed_conformance(
+                            program,
+                            retained,
+                            &demand.slot_application.application,
+                        );
                     }
                 }
             }
