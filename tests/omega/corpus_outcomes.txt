@@ -927,6 +927,8 @@ fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
 	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/generics/final_value_judged_against_type_parameter_not_instance rejected 1647ms expected @959aa53558d2
+	machine `bad` state `entry` terminal expression expects `T`, got `bool`
 fail/generics/native_locator_inconsistent_byte_extents rejected 500ms expected @b852a38544d0
 	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
 	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
@@ -966,7 +968,7 @@ fail/providers/implicit_method_conflicting_array_counts rejected 332ms expected 
 	public method inference has conflicting structural operands for `Count`
 fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b180036351
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
-fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @7a28fce028fa
+fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
@@ -16005,8 +16007,8 @@ fail/borrows/returned_reference_exposed_integer_local rejected 511ms expected @5
 	cannot prove index `selected_position` is within length 2 in choose::entry
 fail/borrows/returned_reference_invalidated_membership rejected 2061ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from borrow_invalidated, state entry, at statement 1: resource requires Resource::Open
-fail/borrows/returned_reference_missing_membership rejected 762ms expected @ccdb99ca2214
-	machine `borrow_missing` state `entry` terminal expression expects `&mut Resource[in Open]`, got `named value`
+fail/borrows/returned_reference_missing_membership rejected 2308ms expected @959aa53558d2
+	machine `borrow_missing` state `entry` return value expects `&mut Resource[in Open]`, but the value is delivered as `&mut Resource`
 fail/borrows/returned_reference_overwritten_integer_formal rejected 1928ms expected @ccdb99ca2214
 	statement 2 mutates `values[1]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/returned_reference_overwritten_integer_local rejected 2293ms expected @ccdb99ca2214
@@ -27327,38 +27329,38 @@ fail/facts/nested_machine_inferred_requirement_target_body_rejected rejected 294
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_machine_invocation/call_result rejected 1468ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/call_result rejected 1468ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/capture_rejected rejected 1404ms expected @ccdb99ca2214
 	machine `inner` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `inner$specialized$e968490059a8ab0c$0` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/nested_machine_invocation/const_name rejected 1922ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/const_name rejected 1922ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/copied_payload rejected 2633ms expected @ccdb99ca2214
 	state `clear` receives `item` as both mutable and read-only
-fail/facts/nested_machine_invocation/field rejected 1949ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/field rejected 1949ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/inferred_crash rejected 2886ms expected @ccdb99ca2214
 	call from `main` to `wrong` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
 	machine `wrong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/facts/nested_machine_invocation/local rejected 1456ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/local rejected 1456ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/match_join rejected 1244ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/match_join rejected 1244ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/nominal_index rejected 110ms expected @ccdb99ca2214
 	indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`
-fail/facts/nested_machine_invocation/other_machine rejected 1613ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/other_machine rejected 1613ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/other_state rejected 1498ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/other_state rejected 1498ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/parameter rejected 1685ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/parameter rejected 1685ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result rejected 2772ms expected @ccdb99ca2214
@@ -27392,7 +27394,7 @@ fail/facts/nested_machine_invocation/retired_state_after_body rejected 8ms expec
 	tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 fail/facts/nested_machine_invocation/retired_state_after_machine rejected 7ms expected @ccdb99ca2214
 	tests/omega/fail/facts/nested_machine_invocation/retired_state_after_machine/main.omg:4:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
-fail/facts/nested_machine_invocation/target_body rejected 1510ms expected @ccdb99ca2214
+fail/facts/nested_machine_invocation/target_body rejected 1510ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_machine_invocation/terminal_reference_snapshot/call_result rejected 2525ms expected @ccdb99ca2214
@@ -30540,8 +30542,8 @@ fail/facts/saved_symbolic_observation_unreadable_delivery_rejected rejected 1474
 	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
 fail/facts/saved_symbolic_observation_wrong_primitive_delivery_rejected rejected 1384ms expected @ccdb99ca2214
 	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
-fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 1384ms expected @ccdb99ca2214
-	machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`
+fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 3383ms expected @959aa53558d2
+	machine `invalid` state `entry` return value expects `&mut u64`, but the value is delivered as `&mut bool`
 fail/facts/scalar_array_row_construction_through_call_result_rejected rejected 1621ms expected @ccdb99ca2214
 	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 fail/facts/scalar_array_row_construction_through_const_name_rejected rejected 1088ms expected @ccdb99ca2214
@@ -36119,8 +36121,8 @@ fail/generics/generic_field_read_local_mismatch rejected 699ms expected @ccdb99c
 	machine `wrong` state `entry` local `got` expects `Output`, but the value is delivered as `Input`
 fail/generics/generic_field_read_nested_mismatch rejected 945ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `got` expects the `Box<Foo>` data type but got `Box<Bar>` in the `local` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/generics/generic_field_read_returned_mismatch rejected 1093ms expected @ccdb99ca2214
-	machine `wrong` state `entry` terminal expression expects `Output`, got `member access`
+fail/generics/generic_field_read_returned_mismatch rejected 2560ms expected @959aa53558d2
+	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
 fail/generics/generic_field_read_rigid_nested_mismatch rejected 690ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `got` expects `Box<Output>`, but the value is delivered as `Box<Input>`
 fail/generics/generic_field_read_state_argument_mismatch rejected 1158ms unexpected @ccdb99ca2214
@@ -38350,8 +38352,8 @@ fail/providers/checked_reference_provider_local_escape rejected 2355ms expected 
 	machine `Provider::locate` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/providers/checked_view_provider_wrong_extent rejected 1987ms expected @ccdb99ca2214
 	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
-fail/providers/consuming_requirement_without_provider rejected 44995ms expected @b17a1e9569d9
-	no provider is selected for boundary requirement `nominal\\(package-owner\\(32:15b82f2189edd383a4a2957e3c1f8b8d6bdd1d9377857b4ba5b6174c355265a7\\)\\,path\\(ReceiptAck::ack\\)\\)`, which the program entry reaches on target `windows_x86_64`
+fail/providers/consuming_requirement_without_provider rejected 44280ms expected @959aa53558d2
+	no provider is selected for boundary requirement `ReceiptAck::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/consuming_trait_requirement_without_provider rejected 3975ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `Acknowledgement::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/cross_package_private_slot_rejected rejected 1546ms expected @ccdb99ca2214
@@ -38509,8 +38511,8 @@ fail/providers/via_signature_mismatch_rejected rejected 2103ms expected @ccdb99c
 	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`
 fail/providers/via_with_body_rejected rejected 701ms expected @ccdb99ca2214
 	machine `exit_composite` carries a `via` binding but is not an external leaf: `satisfies Requirement via <Binding>;` belongs on a BODYLESS external realization (a composite lowering is an ordinary checked body; an accepted axiom carries no realization)
-fail/providers/windows_filesystem_host_unprovided_on_linux rejected 36964ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_removal_walk::windows_x86_64::next", reason: "local refinement lost its machine identity", gap: None })
+fail/providers/windows_filesystem_host_unprovided_on_linux rejected 101677ms expected @959aa53558d2
+	no provider is selected for boundary requirement `WindowsFilesystemHost::last_error`, which the program entry reaches on target `linux_x86_64`
 fail/providers/windows_gui_host_unprovided_on_linux rejected 12315ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `WindowsGuiHost::foreground_window`, which the program entry reaches on target `linux_x86_64`
 fail/range/element_view_field_domain_occurrence rejected 643ms expected @ccdb99ca2214
