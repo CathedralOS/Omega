@@ -17,9 +17,40 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
 #[test]
 fn calling_policies_share_product_code_across_targets_and_single_target_outputs() {
     use artifacts::compile_timings::counters;
-    let prepared = prepare("tests/omega/pass/build/terminal_calling_policy_execution/main.omg");
+    let mut prepared = prepare("tests/omega/pass/build/terminal_calling_policy_execution/main.omg");
     let profiles = ["macos_arm64", "linux_arm64"]
         .map(|name| target::TargetProfile::from_omega_target_name(Some(name)).unwrap());
+    // One source input set admits both targets. Review Linux's exact entry as
+    // well: a macOS-only acceptance must not authorize a different target.
+    let linux = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &fixture_package_inputs::repo_root()
+            .join("tests/omega/pass/build/terminal_calling_policy_execution/main.omg"),
+        Some("linux_arm64"),
+    )
+    .expect("review Linux entry");
+    let inputs = prepared
+        .package_inputs
+        .take()
+        .expect("packaged policy fixture");
+    let mut bindings = inputs
+        .accepted_semantic_bindings()
+        .cloned()
+        .collect::<Vec<_>>();
+    for binding in linux
+        .package_inputs
+        .as_ref()
+        .expect("Linux package inputs")
+        .accepted_semantic_bindings()
+    {
+        if !bindings.contains(binding) {
+            bindings.push(binding.clone());
+        }
+    }
+    prepared.package_inputs = Some(
+        inputs
+            .with_accepted_semantic_bindings(bindings)
+            .expect("both reviewed target bindings belong to these exact source packages"),
+    );
     let output = fixture_package_inputs::repo_root().join("build/shared-policy-publication");
     let compile = |targets: &[target::TargetProfile]| {
         let mut request = CompileRequest::for_targets(
