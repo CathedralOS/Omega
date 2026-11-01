@@ -80,7 +80,8 @@ Sample twins use `expected.txt` for their intended-invalid discovery/oracle.
    values/origins and both match markers are runtime canaries.
 8. **Omega 07–09/emission:** qualify actual native images and Terminal agreement
    at exit 0 through `omega run --both`; record producer revision, executable
-   digest/profile, target, command and observations. No target is measured yet.
+   digest/profile, target, command and observations. Actual macOS ARM64 results
+   are recorded below; other-host execution remains unverified.
 
 ## Qualification
 
@@ -108,3 +109,8 @@ these distinctions. The PR and claim retain exact source hashes, producer
 receipts, raw observations, and independent review.
 Other-host native execution, broader scalar-range migration and GUI qualification
 remain open under the owning task.
+
+This row transports the restoring scalar into a locally formed view. It proves
+the bounded scalar-store restoration requirement, not general provenance and
+handback transport of a formed view through stored or returned references.
+That broader recast acceptance remains open with the parent task.
