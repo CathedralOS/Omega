@@ -334,13 +334,8 @@ pub(crate) fn prepare(
                     })
                 });
             let binding = binding.and_then(|mut binding| {
-                let artifact = context.calling_artifact.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "direct calling projection has no exact Product ABI catalog",
-                    )]
-                })?;
                 binding.calling_applications = direct_calling::project(
-                    artifact.semantic_module(),
+                    context.calling_program.artifact.semantic_module(),
                     &callable_identity,
                     &binding.calling_applications,
                 )
