@@ -36,3 +36,19 @@ generated `value()` calls the authored `seed()`. The native leg exits 0
 after the entry observes 7.
 
 Run `omega --check tests/omega/pass/build/nested_generated_dependency_dual_purpose/main.omg`.
+
+The ordinary public Build API can also measure a two-target native request:
+
+```sh
+OMEGA_PHASE_PROFILE=1 package_batch --native-evidence --compare-single-targets --run \
+  --targets linux_x86_64,windows_x86_64 \
+  tests/omega/pass/build/nested_generated_dependency_dual_purpose/main.omg 1 1 3 4
+```
+
+Those explicit expectations count one Product source completion, one Product
+Terminal publication, three immutable Build sources (root, dependency and
+generator), and their three Build checks plus one shared Product check. The
+ordinary discovery scheduler retains each immutable source once; purpose-specific
+Product inputs remain separate. Four purpose occurrences are not four Build
+activations. These coarse counters do not establish numbered Psi-once coverage
+or general delegated-context reuse applicability.
