@@ -115,10 +115,14 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
         changed.native_layouts = mutate(module, record, mutation)?;
         let encoded = terminal_codec::encode_module(&changed)
             .map_err(|error| format!("cannot encode {mutation:?}: {error:?}"))?;
-        let error = terminal_codec::decode_module(&encoded)
-            .expect_err("native layout mutation must fail receiving admission");
-        if !matches!(error, terminal_codec::CodecError::NativeLayout(_)) {
-            return Err(format!("native layout ingress accepted {mutation:?}"));
+        match terminal_codec::decode_module(&encoded) {
+            Err(terminal_codec::CodecError::NativeLayout(_)) => {}
+            Err(error) => {
+                return Err(format!(
+                    "native layout {mutation:?} rejected for an unrelated reason: {error:?}"
+                ));
+            }
+            Ok(_) => return Err(format!("native layout ingress accepted {mutation:?}")),
         }
     }
     Ok(())

@@ -13,5 +13,10 @@ removes the exact slot/layout-owner correspondence and must still reject.
 Artifact transport, Source-free consumption and mutation controls are acceptance
 for the metadata migration; ordinary source checking alone does not close it.
 
-Baseline observation is recorded before compiler implementation. Publication
-and source-free callback/ABI consumption remain unfinished until demonstrated.
+The frozen baseline first lost the layout constructor during demanded-premise
+closure, then refused publication because private callback demands could not be
+discarded. The inspection now consumes retained and decoded artifacts without
+Source, selects all four target alternatives, and rejects removed records,
+changed extent, corrupt application preimage, wrong slot owner, changed target
+geometry and missing nominal fields at receiving ingress. Full callback-path
+closure and source-free ABI planning remain separate orchestration acceptance.

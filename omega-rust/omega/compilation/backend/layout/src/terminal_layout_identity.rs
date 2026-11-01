@@ -45,14 +45,13 @@ pub fn terminal_layout_identity(
     let target_facts = target
         .layout_target_facts()
         .ok_or("native layout requires a concrete target geometry")?;
-    if let Some(facts) = &realization.target {
-        if facts.target != target.target_name()
+    if let Some(facts) = &realization.target
+        && (facts.target != target.target_name()
             || facts.pointer_size != geometry.pointer_size as u64
             || facts.pointer_alignment != geometry.pointer_alignment as u64
-            || facts.little_endian != target_facts.little_endian
-        {
-            return Err("native layout changed its selected target geometry".into());
-        }
+            || facts.little_endian != target_facts.little_endian)
+    {
+        return Err("native layout changed its selected target geometry".into());
     }
     let report =
         layout_plans::normalized_native_layout_plan_report_fingerprint(&realization.report);
