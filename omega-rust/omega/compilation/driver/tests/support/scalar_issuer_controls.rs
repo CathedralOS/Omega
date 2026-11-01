@@ -37,7 +37,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             let Some(other) = domain
                 .establishment_routes
                 .iter()
-                .map(|route| *route.declaration())
+                .map(|route| route.declaration().clone())
                 .find(|other| other.identity() != issuer.identity())
             else {
                 continue;
