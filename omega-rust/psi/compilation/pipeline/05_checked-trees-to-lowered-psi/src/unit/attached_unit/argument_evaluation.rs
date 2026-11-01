@@ -36,6 +36,7 @@ use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::view_locals::ViewCarrier;
 use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
@@ -1474,12 +1475,31 @@ impl Evaluation {
                 }
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        let needs_control = arguments.iter().any(|argument| match argument {
-            CheckedCallScalarArgument::Computation(_) => true,
-            CheckedCallScalarArgument::Pure(expression) => source_bindings
-                .expression(identities, &checked.facts.proven_scalar_indexes, expression)
-                .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
-        });
+        // A checked module callee's scalar formals decide the type each actual
+        // arrives as. An actual that lacks a formal's tag crosses a
+        // qualification edge, so that operand takes the ordered control path.
+        let formals =
+            self.module_scalar_formals(checked, call, argument_ordinal_start, arguments.len());
+        let arrival_types = argument_types
+            .iter()
+            .enumerate()
+            .map(|(index, actual)| {
+                received_scalar_type(
+                    formals
+                        .as_deref()
+                        .and_then(|types| types.get(index))
+                        .copied(),
+                    *actual,
+                )
+            })
+            .collect::<Vec<_>>();
+        let needs_control = arrival_types != argument_types
+            || arguments.iter().any(|argument| match argument {
+                CheckedCallScalarArgument::Computation(_) => true,
+                CheckedCallScalarArgument::Pure(expression) => source_bindings
+                    .expression(identities, &checked.facts.proven_scalar_indexes, expression)
+                    .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
+            });
         if !needs_control {
             return arguments
                 .iter()
@@ -1519,6 +1539,7 @@ impl Evaluation {
             argument_ordinal_start,
             &source_bindings,
             &source_types,
+            formals.as_deref(),
             0,
         )?;
         let states = expansion.finish();
@@ -1527,7 +1548,7 @@ impl Evaluation {
             checked,
             &states,
             entry_index,
-            &argument_types,
+            &arrival_types,
             values,
             next_value,
             next_block,
@@ -1537,6 +1558,30 @@ impl Evaluation {
             environment,
         )
         .map(Some)
+    }
+
+    /// The scalar formals of the checked module body `call` enters, for the
+    /// `count` operands that start at dense scalar ordinal `first`. Boundary,
+    /// dynamic and activation-storage routes hand their operands to a contract
+    /// of their own. A signature the shared namespace cannot name leaves every
+    /// actual unchanged, so the call binding still refuses any disagreement.
+    fn module_scalar_formals(
+        &self,
+        checked: &CheckedTrees,
+        call: &checked_trees::CheckedUnitCallPlan,
+        first: usize,
+        count: usize,
+    ) -> Option<Vec<QualifiedScalarType>> {
+        if !call.is_module() {
+            return None;
+        }
+        let (formals, _) = self
+            .shared_qualifications
+            .scalar_state_types(checked, call.target.state)
+            .ok()?;
+        formals
+            .get(first..first.checked_add(count)?)
+            .map(<[QualifiedScalarType]>::to_vec)
     }
 
     /// Finish the selected RHS without changing the destination or source slots.

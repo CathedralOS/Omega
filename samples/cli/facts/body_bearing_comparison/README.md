@@ -110,3 +110,33 @@ The [returned Boolean rung](returned_boolean/main.omg) and its
 that a body-wide constant joins all normal returns, states and target bodies.
 This repair does not close OPERATOR-MACHINE-SUPPLY: supplied-callable result
 constants and the task's other formation/operator acceptance remain on the board.
+
+### Unit-body call arrival
+
+Baseline producer `6392eabaed29b422eb2b0fbb9fbaef8ad8b10fbffca2dae531589c5e28c7fd79`
+(opt-level 1, clean `88aae78d8e3`, Windows x86-64) ran seven places with native
+exit 0 and Terminal exit 0. `parameter` and `const_name` refused after checking
+with `Lowering(InvalidUnitMachinePlan … completed call scalar operands disagree
+with the target signature)`, as did `tests/omega/run/domains/vacuous_tag_call_arguments`.
+Both places hand a bare literal or constant to a `f64 in Marked` formal from the
+entry machine. A call inside a scalar computation already gives such an actual to
+its formal through the ordinary qualification edge; a call from a Unit body
+compared the two types exactly and never minted the edge. A one-line probe
+reproduced it (`let r: u64 = tag(9);` with `a: u64 in Km`), and so did passing a
+`u64 in Km` local to a bare formal.
+
+Unit-body call arguments now take the callee's scalar formals from the prepared
+qualification namespace and sequence each actual through the same edge. Only
+membership may change on arrival (`received_scalar_type`, shared with scalar
+computations); a carrier disagreement, a boundary or dynamic route, or a formal
+that adds predicate or issuer evidence keeps its refusal.
+
+Hosted exact-fixture runs of the 18 pinned `body_bearing_comparison_through_*`
+fixtures on the head of CathedralOS/Omega#1063 observed, on both `linux_x86_64`
+and `windows_x86_64` runners, nine `checked` positives and nine twins rejected
+with their expected fragments (0 wrong-reason rejections), `parameter` and
+`const_name` moving from `rejected` to `checked`, and all nine positives built
+and executed with exit 0. A scratch copy of the vacuous-tag probes, including
+the `tests/omega/run/domains/vacuous_tag_call_arguments` source, observed eight
+of eight built with exit 0 on both runners; a tagged local passed to a bare
+formal from the entry machine runs as well.
