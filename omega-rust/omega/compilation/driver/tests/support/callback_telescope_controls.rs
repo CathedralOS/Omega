@@ -7,7 +7,10 @@ use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, settle_native_callback_placements,
 };
 
-pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String> {
+pub(super) fn inspect(
+    retained: &RetainedTerminalArtifact,
+    target: target::TargetProfile,
+) -> Result<(), String> {
     let proposal = retained
         .native_realization_proposal()
         .ok_or("callback telescope controls need a native proposal")?;
@@ -42,6 +45,26 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
         .ok_or("callback telescope controls need a direct callback argument")?;
 
     for artifact in [retained.artifact(), &loaded] {
+        let module = artifact.semantic_module();
+        let declaration = module
+            .calling_signatures
+            .iter()
+            .find(|declaration| {
+                module.identities.text(declaration.requirement_identity)
+                    == Some(calling[registrar].requirement_identity.as_str())
+            })
+            .ok_or("callback signature lost its canonical declaration association")?;
+        let signature =
+            provider_planning::calling_policy_plans::CallingPolicySignature::from_terminal(
+                module,
+                declaration.boundary,
+                target,
+            )?;
+        if signature.geometry != calling[registrar].signature
+            || signature.callbacks != calling[registrar].callback_context
+        {
+            return Err("canonical callback signature differs from its native application".into());
+        }
         let settle = |calling: &[_]| {
             settle_native_callback_placements(artifact.semantic_module(), selected, calling)
         };
