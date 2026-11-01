@@ -10,7 +10,36 @@ use super::super::{
     saved_calls,
 };
 use typed_trees::signature::StateSignature;
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
+
+/// The authored template, its entry at the instance entry's position, and the
+/// exact tuple recorded when `machine_index` was cloned as a private instance.
+fn authored_provider(
+    program: &TypedTrees,
+    machine_index: usize,
+    selected: SymbolHandle,
+) -> Option<(usize, SymbolHandle, StaticMachineApplicationHandle)> {
+    let instance = &program.machines()[machine_index];
+    let specialization = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            specialization.instance == instance.symbol
+                && specialization.instance != specialization.template
+        })?;
+    let offset = program
+        .machine_states(instance)
+        .iter()
+        .position(|state| state.symbol == selected)
+        .unwrap_or(0);
+    let template_index = program.machine_position_by_symbol(specialization.template)?;
+    let entry = program
+        .machine_states(&program.machines()[template_index])
+        .get(offset)?
+        .symbol;
+    Some((template_index, entry, specialization.binding_application))
+}
 
 pub(super) fn close(
     program: &mut TypedTrees,
@@ -41,11 +70,11 @@ pub(super) fn close(
         std::slice::from_mut(&mut source_selection),
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    let source_selected = source_selection.symbol;
+    let mut source_selected = source_selection.symbol;
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);
     }
-    let Some(machine_index) = program
+    let Some(mut machine_index) = program
         .machines()
         .iter()
         .position(|machine| program.machine_or_state_symbol(machine, source_selected))
@@ -53,6 +82,22 @@ pub(super) fn close(
         return Ok(None);
     };
     let mut provider = candidate::from_machine(program, machine_index);
+    // A nested occurrence inside a private specialization names its provider by
+    // another instance's executable entry; forwarding consumed the authored
+    // tuple. The instance's record keeps the exact tuple it was made from, so
+    // admission still reads the authored template and that tuple, never the
+    // private instance.
+    if source_selection.application.is_none()
+        && let Some((template_index, entry, tuple)) =
+            authored_provider(program, machine_index, source_selected)
+    {
+        let mut authored = candidate::from_machine(program, template_index);
+        if super::super::applications::bind_recorded_tuple(program, &mut authored, tuple) {
+            machine_index = template_index;
+            source_selected = entry;
+            provider = authored;
+        }
+    }
     macro_rules! retain_selected {
         ($selected:expr $(,)?) => {
             super::applications::retain_view(

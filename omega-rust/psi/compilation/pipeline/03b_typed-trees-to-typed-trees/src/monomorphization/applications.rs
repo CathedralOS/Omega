@@ -93,6 +93,55 @@ pub(super) fn candidate_bindings(
     bindings
 }
 
+/// Bind a candidate from a recorded tuple, the inverse of `candidate_bindings`.
+/// A runtime operand is no part of an instance's static tuple, so a record that
+/// holds one cannot stand in for the provider and binds nothing usable.
+pub(super) fn bind_recorded_tuple(
+    program: &TypedTrees,
+    candidate: &mut Candidate<'_>,
+    tuple: StaticMachineApplicationHandle,
+) -> bool {
+    for binding in expressions_of(program).static_machine_application_bindings(tuple) {
+        let parameter = binding.parameter;
+        match &binding.value {
+            StaticMachineBindingValue::Type(actual) => {
+                let Some(slot) = (candidate.template.type_parameters.iter())
+                    .position(|(symbol, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.type_bindings[slot] = Some(*actual);
+            }
+            StaticMachineBindingValue::Const(actual) => {
+                let Some(slot) = (candidate.template.const_parameters.iter())
+                    .position(|(symbol, _, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.const_bindings[slot] = Some(*actual);
+            }
+            StaticMachineBindingValue::Machine(argument) => {
+                let Some(slot) = (candidate.template.machine_parameters.iter())
+                    .position(|(symbol, _, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.machine_bindings[slot] = Some(argument.clone());
+            }
+            StaticMachineBindingValue::Conformance(argument) => {
+                let Some(slot) = (candidate.template.evidence_parameters.iter())
+                    .position(|bound| bound.binder == parameter)
+                else {
+                    return false;
+                };
+                candidate.evidence_bindings[slot] = Some(argument.clone());
+            }
+            StaticMachineBindingValue::RuntimeValue { .. } => return false,
+        }
+    }
+    true
+}
+
 pub(super) fn retain_authored_call(
     program: &mut TypedTrees,
     site: CallSite,
