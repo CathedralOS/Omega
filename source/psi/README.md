@@ -18,7 +18,9 @@ declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `[#N] case Name;` or structured
 `[#N] case Name([#N] field: Type, ...);` members (`#N` is a stable schema
-identity); case predicates reject, and
+identity). Common fields precede a consecutive tail of cases; source order
+does not select physical layout. Case-owned predicates reject; data and named
+domain predicates retain their original subject and static arguments. The parser also accepts
 `[public] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where a target name before `machine` scopes one body of a
@@ -51,10 +53,15 @@ retaining their syntax does not claim that their checking is implemented.
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
 `_ = value;`, `value;`, `transition [subject] { arms }` and a final
-unterminated result expression.
+unterminated result expression. Irrefutable `let Pattern = expression;`
+bindings share the named and positional arm grammar, evaluate the initializer
+once, and retain lexical binder scope and ordinary custody.
 Arms are guards in a subjectless block and `_`, literal or case patterns
 (`Path { binder, field as name, field as _, field: value }`, renaming or
-waiving a binder) over a subject, each with a call target
+waiving a binder) over a subject. Outer data patterns bind common fields and
+`case as binding`; positional patterns follow authored common-field order and
+one final case-only component. Case patterns bind payload fields only, while
+pure sums remain directly matchable. Each arm has a call target
 `-> target(arguments)`, possibly acknowledged (`-> suspend block f(x)`), any
 other expression as a terminal value (`-> (gap)`, `-> View { items: items }`),
 or the Unit completion `-> {}`. Expressions
@@ -298,10 +305,10 @@ bare candidates, or several domains at once reject). These value bindings are
 indexed by expression handle. Every machine's `requires` and `ensures` facts
 bind in its own parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
-a data declaration's `where` facts bind its fields bare, and a case's own
-`where` facts that case's payload fields first, then the declaration's
-fields ([`resolve/facts.omg`](resolve/facts.omg)); another case's payload is
-not in scope. A proposition applies only as a
+data default-domain and named-domain predicates bind `self` to their
+original subject ([`resolve/facts.omg`](resolve/facts.omg)). Case-owned predicate
+scopes and bare payload-fact bindings are retired. Static type operands retain
+a separate proof-only binding; they create no runtime type value. A proposition applies only as a
 whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
 and in a body, a transition target or a constant's value, where a value is
 computed, it rejects as proof-only. A domain's predicates bind with its
@@ -424,8 +431,9 @@ Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact over its own parameters (`result` has the
 machine's result type), each `requires machine`
 contract's `requires` fact over its own parameters, and each data
-declaration's `where` fact over its fields, and each case's own `where` fact
-over its payload fields and those fields, is a Boolean. A proposition
+declaration's default-domain predicate over its exact subject is a Boolean.
+Equality and inequality between supported static type operands retain erased
+type identities; a selected GADT result still owes its exact type equation. A proposition
 application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field records its common or payload member.
@@ -631,14 +639,14 @@ value yet, so they are established only by carrying them. Facts evaluate without
 obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it
-derives (wiki/spec/language/effects.md). A construction of data carrying
-`where` facts proves them with each field name standing for the value it
-writes, zero for an omitted field, together with the constructed case's
-own `where` facts over its payload values; a payload-free case value
-(`Type::Case`) proves them over zero fields. A chosen case arm assumes its
-case's facts, payload names standing for its binders and common names for
-the subject's fields, and a store into a field a case's fact names rejects
-as unproved, the active case being unknown there. An untyped fact is never
+derives (wiki/spec/language/effects.md). A construction proves its data's
+complete default predicate from the actual fields, selected case and static
+arguments. Its receiving annotation supplies no premise. A selected case view
+retains the original subject's independently established default and named
+domain predicates, snapshots and exact type equations. Writes invalidate the
+changed storage observations and reprove affected predicates; sibling facts
+remain only when their dependency is disjoint. Case-owned fact tables are
+retired. An untyped fact is never
 proved. A proposition application states what no zone fact expresses:
 assumed, it establishes nothing, and where it must hold it rejects as an
 unsupported fact.
@@ -667,6 +675,17 @@ use; an access overlapping a live loan, other than through its holder,
 rejects when the loan or the access is exclusive, and an exit may not
 return a loan of the body's own storage
 ([`checking/loans.omg`](checking/loans.omg)).
+
+Decomposition partitions common-field and active-payload homes. Typed residual
+rows retain every omitted component's substituted type, so `..`, explicit
+waivers and tag-only patterns cannot abandon linear custody. Local, expression
+and transition patterns share this transfer. Each arm checks its local ledger
+before retiring binder obligations; sibling arms do not inherit those bindings
+or moves. A case view preserves its exact original carrier and backing loans,
+exposes no common-field authority, and derives multiplicity from the applied
+payload roster. Generic containers retain a linear case-view argument's
+obligation. Pure multiplicity queries are shared in
+[`types/ownership.omg`](types/ownership.omg).
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet

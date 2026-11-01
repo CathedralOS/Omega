@@ -10,14 +10,14 @@ machine bind_components(pair: Pair, expected: u64) -> bool {
         Pair::Empty -> false
     }
 }
-machine produce(value: u64) -> Pair { Pair::Ready { lower: value, upper: value } }
+machine produce(value: u64) -> Pair { match value == 0 { true -> Pair::Empty { lower: 0 } false -> Pair::Ready { lower: value, upper: value } } }
 machine exercise(expected: u64) -> bool {
     let original: Pair = produce(expected);
     let pair: Pair = original;
     bind_components(pair, expected)
 }
 machine main() crashes Trap {
-    transition exercise(17) && exercise(23) { true -> done() _ -> bad() }
+    transition exercise(17) && exercise(23) && !exercise(0) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
