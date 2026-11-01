@@ -1532,6 +1532,10 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
+fail/traits/runtime_dyn_family_local_width_requires rejected 6381ms expected @feae70bdc3eb
+	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/runtime_dyn_family_replaced_width_requires rejected 6865ms expected @feae70bdc3eb
+	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -5873,24 +5877,15 @@ pass/facts/finite_family_exclusive_result/parameter rejected 1436ms check-target
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_exclusive_result/target_body rejected 1268ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/call_result rejected 1239ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/const_name rejected 1270ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/field rejected 1072ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/local rejected 1461ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/match_join rejected 1391ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_machine rejected 1146ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_state rejected 1053ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/parameter rejected 1441ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/target_body rejected 1557ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_input_index/call_result checked 10154ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/const_name checked 12684ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/field checked 14922ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/local checked 10916ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/match_join checked 12690ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/other_machine checked 14236ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/other_state checked 13504ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/parameter checked 11636ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/target_body checked 15790ms check-target:macos_arm64 @feae70bdc3eb
 pass/facts/finite_family_returned_descriptor/call_result rejected 1675ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_returned_descriptor/const_name rejected 1492ms check-target:macos_arm64 @ccdb99ca2214
@@ -12917,14 +12912,12 @@ pass/traits/runtime_dyn_byte_record_result checked 3619ms check-target:macos_arm
 pass/traits/runtime_dyn_byte_result_candidates checked 4308ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_byte_subview_join checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11178ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_family_nested_result rejected 8740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/runtime_dyn_family_scalar_continuation rejected 1699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `compare` binds declaration Handle { arena_index: 1470, generation: 1 }, but its retained targets are [(Handle { arena_index: 1470, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_dyn_family_local_width_exit checked 13780ms check-target:macos_arm64 @feae70bdc3eb
+pass/traits/runtime_dyn_family_nested_result rejected 67559ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @feae70bdc3eb
+	cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 64 || Width == 16 || Width == 16 || Width == 32 (needs fact `Width == 64 || Width == 16 || Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call dyn Shape<1 argument>::code from nested_read: Width == 64 || Width == 16 || Width == 16 || Width == 32 (needs fact `Width == 64 || Width == 16 || Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/traits/runtime_dyn_family_replaced_width_exit checked 12045ms check-target:macos_arm64 @feae70bdc3eb
+pass/traits/runtime_dyn_family_scalar_continuation checked 14271ms check-target:macos_arm64 @feae70bdc3eb
 pass/traits/runtime_dyn_field_assignment_establishment_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_guarded_result_exit checked 4858ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_image_incoming_backing_exit checked 3641ms check-target:macos_arm64 @ccdb99ca2214
@@ -22318,26 +22311,30 @@ fail/facts/finite_family_exclusive_result/parameter rejected 1741ms unexpected @
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 fail/facts/finite_family_exclusive_result/target_body rejected 1252ms unexpected @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/call_result rejected 1733ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/const_name rejected 1768ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/field rejected 1632ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/local rejected 1623ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/match_join rejected 1391ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/other_machine rejected 1663ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/other_state rejected 1334ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/parameter rejected 1321ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/target_body rejected 1568ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/wrong_provider rejected 2080ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+fail/facts/finite_family_input_index/call_result rejected 7295ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/const_name rejected 10718ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/field rejected 7733ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/local rejected 7935ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/match_join rejected 13151ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/other_machine rejected 11746ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/other_state rejected 25185ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/parameter rejected 6209ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/target_body rejected 8661ms expected @feae70bdc3eb
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/wrong_provider rejected 4535ms expected @feae70bdc3eb
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$bf862e295a8967d7$0` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$d1322acad3338bfd$1` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 fail/facts/finite_family_returned_descriptor/call_result rejected 1304ms unexpected @ccdb99ca2214
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 fail/facts/finite_family_returned_descriptor/const_name rejected 1266ms unexpected @ccdb99ca2214

@@ -49,3 +49,14 @@ those observations through Terminal production and dispatch, with the existing
 record layout, calling plans and native encoding. Native/Terminal observations
 are recorded with their actual producer and host; this does not close Product
 producer parity, operational-envelope refinement or other-host acceptance.
+
+[Reordered roster](parameter/controls/reordered_roster/main.omg) uses the same
+finite widths with reversed order and a duplicate. Its caller keeps the original
+16-or-32 contract. The [twin](parameter/controls/reordered_roster/invalid/main.omg)
+adds 64 only to the caller's admitted alternatives; all alternatives must imply
+the public requirement. Prefix alternatives enter only a private entailment
+query after operand formation; they do not become global facts or establish
+their own partial operations. The local production also uses the shared
+parameter-plus-local symbol roster, so a local width cannot read the selector's
+parameter slot. The larger `runtime_dyn_family_nested_result` fixture retains
+its original duplicate/reordered three-width roster and exit-70 oracle.
