@@ -337,7 +337,7 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 97 `samples/cli/facts/*/target_body` places still spell the
+    Frontier: 73 `samples/cli/facts/*/target_body` places still spell the
     prefix, and 14 facts spell it in all nine places
     (`foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
     `generic_calling_policy`, `nested_zero_leaf_array_storage`,
