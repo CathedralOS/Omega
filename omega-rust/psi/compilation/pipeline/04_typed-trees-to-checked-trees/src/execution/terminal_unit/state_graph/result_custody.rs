@@ -568,6 +568,46 @@ pub(super) fn account<'calls>(
                 }))
                 .flat_map(OperationPlan::structural_operands)
                 .any(|argument| moves_occurrence(argument));
+        // A whole owned argument ends an affine local's custody at the call,
+        // just as it ends a linear result or an inline operand's custody.
+        // Sequencing retires the producer's discard flag; count the exact
+        // later use here instead of still demanding state-exit disposal.
+        // Source permission replay rejects repeated moves inside selected
+        // computations; this minimum-transfer query does not replace it.
+        // The final sum rejects competing operation/cleanup/return owners.
+        // Unrestricted locals remain copies, not one-use ownership debt.
+        let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
+            0
+        } else {
+            consumers[..occurrence_end.map_or(consumers.len(), |position| position + 1)]
+                .iter()
+                .map(|consumer| {
+                    consumer.definite_call_transfers(
+                        &facts.values,
+                        call_schedules,
+                        operation,
+                        result_local,
+                    )
+                })
+                .sum::<usize>()
+                + if occurrence_end.is_none() {
+                    let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
+                        guard.definite_call_transfers(
+                            &facts.values,
+                            call_schedules,
+                            operation,
+                            terminal_local,
+                        )
+                    });
+                    // Scalar exit computations are accounted per selected
+                    // path together with that path's cleanup receipt.
+                    // Counting their minimum here would book a second owner
+                    // when every arm transfers the same result.
+                    guard_transfers
+                } else {
+                    0
+                }
+        };
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             // A closed dispatch retains the selected arm even after its call
             // becomes an ordinary completion. Never infer its disposal from
@@ -576,6 +616,11 @@ pub(super) fn account<'calls>(
                 selected_exit.and_then(|exit| u32::try_from(exit.statement_index).ok())
             });
             !retired_whole
+                // An in-sequence owned call already consumes this exact
+                // materialized occurrence. Source exit permission only permits
+                // disposal of a still-live value; it is not another action.
+                // Explicit returns and cleanup retain their separate counts.
+                && call_transfers == 0
                 && reference_releases == 0
                 // A scheduled loan release is the one checked disposition of
                 // an affine view: the same retirement the lexical disposal
@@ -985,46 +1030,6 @@ pub(super) fn account<'calls>(
             | TerminatorPlan::InvokeNoNormal { .. }
             | TerminatorPlan::EvaluateNoNormal => false,
         } || selection_source_disposition;
-        // A whole owned argument ends an affine local's custody at the call,
-        // just as it ends a linear result or an inline operand's custody.
-        // Sequencing retires the producer's discard flag; count the exact
-        // later use here instead of still demanding state-exit disposal.
-        // Source permission replay rejects repeated moves inside selected
-        // computations; this minimum-transfer query does not replace it.
-        // The final sum rejects competing operation/cleanup/return owners.
-        // Unrestricted locals remain copies, not one-use ownership debt.
-        let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
-            0
-        } else {
-            consumers[..occurrence_end.map_or(consumers.len(), |position| position + 1)]
-                .iter()
-                .map(|consumer| {
-                    consumer.definite_call_transfers(
-                        &facts.values,
-                        call_schedules,
-                        operation,
-                        result_local,
-                    )
-                })
-                .sum::<usize>()
-                + if occurrence_end.is_none() {
-                    let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
-                        guard.definite_call_transfers(
-                            &facts.values,
-                            call_schedules,
-                            operation,
-                            terminal_local,
-                        )
-                    });
-                    // Scalar exit computations are accounted per selected
-                    // path above, together with that path's cleanup receipt.
-                    // Counting their minimum here would book a second owner
-                    // when every arm transfers the same result.
-                    guard_transfers
-                } else {
-                    0
-                }
-        };
         // A constructor takes its whole owned local operands just as a call
         // does. Statement sequencing already retires their disposal flags;
         // rejoin the exact value children here instead of requiring that the
