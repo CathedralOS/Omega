@@ -65,6 +65,13 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
   callback's Terminal interface to its exact selected calling application.
+  Native placement reads each reached boundary's canonical calling telescope:
+  semantic/native-only argument identities and order, nominal callback binders,
+  static-machine ordinals, and synchronous-invocation flags. Target calling
+  conventions supply the direct function-pointer geometry. A proposed calling
+  application's duplicate telescope must agree with that declaration; it cannot
+  override it. Ordinary value layouts and private inline-slot layouts still
+  arrive prepared and remain a separate source-free preparation gap.
   Placement replay, requirement identity, scalar/structural ABI matching and
   the private channel's import exclusion live here, beside program-entry
   settlement. The coordinator supplies the artifact, placement and calling-plan
