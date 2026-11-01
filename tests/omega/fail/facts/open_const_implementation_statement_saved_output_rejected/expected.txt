@@ -1,0 +1,2 @@
+cannot bind `Implementation` to conformance `Selected`
+expected a complete `Reading` implementation with the instantiated trait arguments

@@ -115,6 +115,31 @@ impl ExitArithmetic<'_, '_> {
         primitive: PrimitiveType,
     ) -> Option<ScopedArithmeticValue> {
         let machine = self.program.machine_by_symbol(self.caller.machine_symbol)?;
+        let storage = crate::flow::rebase_exact_local_place(
+            self.program,
+            self.caller.state_symbol,
+            self.exit.statement_index,
+            place.clone(),
+            Some(self.frames),
+        )?;
+        // Postconditions read after the outgoing operation. A prior return
+        // observation cannot stand for storage that this operation may write,
+        // even when a prefix store retained the old proposition for a copy.
+        if !crate::flow::call_flows(&self.facts.flow.control, self.caller.calls)
+            .iter()
+            .filter(|call| call.statement_index == self.exit.statement_index)
+            .all(|call| {
+                crate::flow::entry_origin_is_stable(
+                    self.program,
+                    &self.facts.flow.control,
+                    call.normal_return_writes,
+                    !call.normal_return_writes_complete,
+                    &storage,
+                )
+            })
+        {
+            return None;
+        }
         for returned in &self.returned {
             if returned.primitive != primitive || returned.length {
                 continue;
