@@ -31282,9 +31282,8 @@ fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 2392ms e
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_multi_origin_reference_requires_fit rejected 2038ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/layouts/callee_integer_at_rhs_exposes_origin rejected 1910ms expected @ccdb99ca2214
-	machine `Main::main` state `main` statement 3: call stores a borrowed value without a complete destination/backing relation
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+fail/layouts/callee_integer_at_rhs_exposes_origin rejected 672ms expected @fc1b208d9402
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `Main::main` state `main` at statement 3
 fail/layouts/callee_integer_at_stored_returned_reference_requires_fit rejected 2724ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_write_requires_fit rejected 1937ms expected @ccdb99ca2214
