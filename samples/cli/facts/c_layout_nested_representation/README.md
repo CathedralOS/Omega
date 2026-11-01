@@ -4,6 +4,9 @@ Fact: library C layout preserves explicit child representation values, geometry 
 
 Parent: `LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../../TASKS.md).
 
+Windows x86_64 matching-host execution of this row's nine transport places and
+nine rejection twins is pending.
+
 ## Nearest existing row
 
 [C scalar-record layout](../c_layout_scalar_record/README.md) establishes scalar

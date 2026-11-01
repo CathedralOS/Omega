@@ -3,6 +3,9 @@
 Fact: library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
 
 Parent: `LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../../TASKS.md).
+
+Windows x86_64 matching-host execution of this row's nine transport places and
+nine rejection twins is pending.
 The ordinary [core policy](../../../../source/library/core/c_layout.omg)
 computes scalar placement from the target-resolved schema. It selects no compiler
 format registration and grants no foreign or storage authority.
