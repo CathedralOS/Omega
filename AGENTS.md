@@ -693,7 +693,9 @@ The rules that touch every edit:
   reconcile concurrent edits at rebase. Implementation status belongs on the
   board, not in `omega-rust/pipeline.md` or `wiki/spec`: those are contracts,
   and `tools/check_rules.py` fails admission when a contract file's status
-  phrasing grows.
+  phrasing grows. It also fails when this file, a skill, `pipeline.md`, the
+  specification or a fact README cites a task ID no board holds, so the change
+  that deletes or merges an item repoints or deletes its citations.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
