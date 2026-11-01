@@ -1,0 +1,110 @@
+// Expected exit: 0
+// A real component retains the original lender across a child host pause.
+// A real opaque input is lent to a selected implementation, then used again.
+public data Token {}
+public boundary trait Observation {
+    machine seen(value: &Token) reaches;
+}
+public boundary trait Mutation {
+    machine change(value: &mut Token) reaches;
+}
+public boundary trait Lending {
+    machine touch(value: &mut Token) -> u64 reaches Observation Mutation suspends;
+}
+public Immediate satisfies Lending {
+    machine touch(value: &mut Token) -> u64 reaches Observation Mutation {
+        Mutation::change(value);
+        Observation::seen(value);
+        73
+    }
+}
+machine borrowed_entry(value: &mut Token) -> u64 reaches Lending Observation Mutation suspends {
+    let result: u64 = suspend Lending::touch(value);
+    Observation::seen(value);
+    result
+}
+machine reborrow_entry(value: &mut Token) -> u64 reaches Lending Observation Mutation suspends {
+    let view: &mut Token = &mut value;
+    let result: u64 = suspend Lending::touch(view);
+    Observation::seen(value);
+    result
+}
+machine guest_entry(value: &mut Token) -> u64 reaches Lending Observation Mutation suspends {
+    let mut guest: Token = Token {};
+    let result: u64 = suspend Lending::touch(&mut guest);
+    Observation::seen(value);
+    result
+}
+public NoObservation satisfies Observation { machine seen(value: &Token) {} }
+public NoMutation satisfies Mutation { machine change(value: &mut Token) {} }
+machine main() reaches Lending Observation Mutation OwnedLending SharedLending ViaLending crashes Trap suspends {
+    let mut value: Token = Token {};
+    let exclusive: u64 = suspend borrowed_entry(&mut value);
+    let reborrowed: u64 = suspend reborrow_entry(&mut value);
+    let nested: u64 = suspend nested_lender_entry(Token {});
+    let shared: u64 = suspend shared_entry(&value);
+    let owned: u64 = owned_entry(Token {});
+    transition exclusive == 73 && reborrowed == 73 && nested == 73 && shared == 73 && owned == 73 {
+        true -> finish()
+        _ -> wrong()
+    }
+    machine finish() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+public boundary trait OwnedLending {
+    machine touch(value: Token) -> u64 reaches Observation;
+}
+public OwnedImmediate satisfies OwnedLending {
+    machine touch(value: Token) -> u64 reaches Observation {
+        Observation::seen(&value);
+        73
+    }
+}
+machine owned_entry(value: Token) -> u64 reaches OwnedLending Observation {
+    OwnedLending::touch(value)
+}
+
+public boundary trait SharedLending {
+    machine touch(value: &Token) -> u64 reaches Observation suspends;
+}
+public SharedImmediate satisfies SharedLending {
+    machine touch(value: &Token) -> u64 reaches Observation {
+        Observation::seen(value);
+        73
+    }
+}
+machine shared_entry(value: &Token) -> u64 reaches SharedLending Observation suspends {
+    let result: u64 = suspend SharedLending::touch(value);
+    Observation::seen(value);
+    result
+}
+
+// The embedding supplies an owned host object. These wrappers create actual
+// checked loans; a borrowed entry annotation alone supplies no host backing.
+machine mutable_lender_entry(mut value: Token) -> u64 reaches Lending Observation Mutation suspends {
+    suspend borrowed_entry(&mut value)
+}
+machine shared_lender_entry(value: Token) -> u64 reaches SharedLending Observation suspends {
+    suspend shared_entry(&value)
+}
+machine reborrow_lender_entry(mut value: Token) -> u64 reaches Lending Observation Mutation suspends {
+    suspend reborrow_entry(&mut value)
+}
+machine guest_lender_entry(mut value: Token) -> u64 reaches Lending Observation Mutation suspends {
+    suspend guest_entry(&mut value)
+}
+
+public boundary trait ViaLending {
+    machine touch(value: &mut Token) -> u64 reaches Lending Observation Mutation suspends;
+}
+public Forwarding satisfies ViaLending {
+    machine touch(value: &mut Token) -> u64 reaches Lending Observation Mutation suspends {
+        suspend Lending::touch(value)
+    }
+}
+machine nested_lender_entry(mut value: Token) -> u64 reaches ViaLending Lending Observation Mutation suspends {
+    let result: u64 = suspend ViaLending::touch(&mut value);
+    Observation::seen(&value);
+    result
+}
