@@ -251,7 +251,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 conformance_controls,
                 Some(InspectionControls::CallbackTelescope)
             ) {
-                callback_telescope_controls::inspect(&retained)?;
+                callback_telescope_controls::inspect(&retained, profile)?;
                 observations.push("callback-telescope-controls:match".into());
             } else if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
