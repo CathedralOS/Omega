@@ -81,20 +81,29 @@ impl CurrentScalarValues<'_> {
             return (None, None);
         }
         let Some(sources) = frames
-            .reference_expression_origins_before_statement(self.machine, statement, expression)
+            .reference_expression_sources_before_statement(self.machine, statement, expression)
             .filter(|sources| !sources.is_empty())
         else {
             return (None, None);
         };
-        let dependencies = sources
-            .iter()
-            .map(|(root, path)| validation::frame_coordinate_path(self.program, *root, path))
-            .collect::<Option<Vec<_>>>();
+        let dependencies = Some(sources.iter().map(|source| source.path.clone()).collect());
         let values = sources
             .iter()
-            .map(|(root, path)| {
+            .map(|source| {
+                // Equal backing coordinates do not imply equal scalar values:
+                // a representation view can change signedness or interpretation.
+                // Its dedicated observation owner may establish that meaning;
+                // this identity route retains only unchanged interpretations.
+                if source.collection_coarse
+                    || !source.recasts.is_empty()
+                    || source.representation.is_some()
+                {
+                    return None;
+                }
+                let root = source.root;
+                let path = &source.segments;
                 if path.is_empty() {
-                    return self.current_symbol(*root);
+                    return self.current_symbol(root);
                 }
                 let path = super::scalar_fields::capture_path(path, |selector| {
                     self.capture(self.program, self.machine, self.state, selector)
@@ -102,7 +111,7 @@ impl CurrentScalarValues<'_> {
                 self.fields
                     .iter()
                     .find(|field| {
-                        field.owner == *root
+                        field.owner == root
                             && super::scalar_fields::same_projection(
                                 self.occurrence(),
                                 &field.path,

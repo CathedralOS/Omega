@@ -736,6 +736,24 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
         expression: ExpressionHandle,
     ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+        self.reference_expression_sources_before_statement(machine, statement, expression)
+            .map(|origins| {
+                origins
+                    .into_iter()
+                    .map(|source| (source.root, source.segments))
+                    .collect()
+            })
+    }
+
+    /// Exact reference sources at the same statement prefix, retaining every
+    /// recast and representation boundary. Backing equality alone is not a
+    /// scalar-value interpretation; value consumers must inspect these rows.
+    pub fn reference_expression_sources_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
         super::reference_subjects::expression_origins_before_statement(
             self.program,
             machine,
@@ -744,12 +762,6 @@ impl<'program> CallFrameResolver<'program> {
             expression,
             &self.caches.state_write_shared_collections,
         )
-        .map(|origins| {
-            origins
-                .into_iter()
-                .map(|source| (source.root, source.segments))
-                .collect()
-        })
     }
 
     /// Complete exact storage sources for an already selected coordinate.
