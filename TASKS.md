@@ -1876,6 +1876,12 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
+  - Supply Darwin `_futimens` through the existing matching-host filesystem
+    adapter with its exact OS signature, guest descriptor custody and explicit
+    metadata-mutation delegation; keep missing-delegation rejection. Complete
+    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
+    well as native execution. The private native sponsor supplies no extra
+    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
