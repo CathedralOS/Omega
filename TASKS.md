@@ -209,13 +209,12 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Carry one general predicate representation through formation, construction,
-    calls, matching, coverage, writes, and erasure, preserving recursive/indexed
+  - Carry one general predicate representation through construction, calls,
+    matching, coverage, writes, and erasure, preserving recursive/indexed
     data encoding obligations, exact subject identity, first-case zero gating,
     and mutation restoration.
-  Acceptance: reject mismatched case/type construction, unguarded inactive
-  payload access, reversed bounds, stale facts after writes, invalid zero
-  establishment and the retired syntax.
+  Acceptance: reject unguarded inactive payload access, reversed bounds, stale
+  facts after writes, invalid zero establishment and the retired syntax.
 
 - **STATIC-MACHINE-MIGRATION.** (also covers
   **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
