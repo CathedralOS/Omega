@@ -55,6 +55,12 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/abstract_signature_call_applied_callback_computed_const_premise_rejected rejected 847ms expected @d4295d67990d
+	constant initializer: demanded premise closure checking failed: machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_applied_callback_const_premise_rejected rejected 894ms expected @d4295d67990d
+	constant initializer: demanded premise closure checking failed: machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_applied_callback_const_premise_violation_rejected rejected 788ms expected @d4295d67990d
+	machine argument `witness$specialized$28455e0b04a804aa$0` for `apply` does not refine `Observe`: its requires facts are not a conservative refinement
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
@@ -1516,6 +1522,12 @@ fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
 	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/generics/cross_module_const_alias_shadowed_callback_result rejected 1465ms expected @d4295d67990d
+	machine argument `selected$specialized$8cdb675808df91dc$0` for `read_seven` does not refine `Callback`: its ensures facts are not a conservative refinement
+fail/generics/cross_module_const_alias_shadowed_implementation rejected 2459ms expected @d4295d67990d
+	exact arithmetic in machine `main` state `entry` local `direct_rest` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/cross_module_const_alias_shadowed_premise rejected 1394ms expected @d4295d67990d
+	machine argument `witness$specialized$28455e0b04a804aa$0` for `apply` does not refine `Observe`: its requires facts are not a conservative refinement
 fail/generics/final_value_judged_against_type_parameter_not_instance rejected 1647ms expected @959aa53558d2
 	machine `bad` state `entry` terminal expression expects `T`, got `bool`
 fail/generics/native_locator_inconsistent_byte_extents rejected 500ms expected @b852a38544d0
@@ -4116,6 +4128,8 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 3387ms check-t
 pass/facts/abi_multi_arg_spill_through_other_state_exit checked 4218ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abi_multi_arg_spill_through_parameter_exit checked 3163ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abi_multi_arg_spill_through_target_body_exit checked 3584ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/abstract_signature_call_applied_callback_computed_const_premise_exit checked 7823ms check-target:macos_arm64 @d4295d67990d
+pass/facts/abstract_signature_call_applied_callback_const_premise_exit checked 9887ms check-target:macos_arm64 @d4295d67990d
 pass/facts/abstract_signature_call_applied_callback_forwarded_applied_exit checked 3497ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_applied_callback_nested_body_exit checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_applied_callback_opposite_instances_exit checked 4754ms check-target:macos_arm64 @ccdb99ca2214
@@ -10644,27 +10658,19 @@ pass/generics/contextual_static_machine_applications_exit checked 3622ms check-t
 pass/generics/contextual_static_machine_captured_operand_return_exit checked 3435ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_captured_operand_scope_exit checked 5353ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_conformance_application_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/contextual_static_machine_const_scopes_exit rejected 1467ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine-parameter requirement `Callback` state `Callback` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	machine `accepts$specialized$09d420216d8b7c28$0` state `entry` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	argument `value` for state `Callback` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
+pass/generics/contextual_static_machine_const_scopes_exit checked 11069ms check-target:macos_arm64 @d4295d67990d
 pass/generics/contextual_static_machine_elided_result_region_exit checked 3770ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_evidence_scopes_exit checked 4029ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_explicit_lifetime_application_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 3264ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/contextual_static_machine_open_const_exit rejected 1234ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine-parameter requirement `Callback` state `Callback` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	machine `accepts$specialized$09d420216d8b7c28$0` state `entry` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	argument `value` for state `Callback` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
+pass/generics/contextual_static_machine_open_const_exit checked 8298ms check-target:macos_arm64 @d4295d67990d
 pass/generics/contextual_static_machine_returned_view_local_exit checked 3445ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/core_slice_for_each rejected 2699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine call cycle: `for_each`, `head` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 	machine call cycle: `for_each$specialized$7e3b6faed20da29c$1`, `head$specialized$3e103169b4998725$1` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 	machine call cycle: `for_each$specialized$488437f83a46b294$0`, `head$specialized$b51362fe10a4f527$0` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/generics/cross_module_const_alias_callable_arguments_exit checked 8002ms check-target:macos_arm64 @d4295d67990d
 pass/generics/declared_range_endpoint_inference checked 12616ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/dependent_const_array_carrier checked 2375ms @ccdb99ca2214
 pass/generics/dependent_const_carrier_arguments checked 2386ms @ccdb99ca2214
