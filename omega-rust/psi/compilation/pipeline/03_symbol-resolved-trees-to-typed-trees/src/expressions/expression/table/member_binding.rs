@@ -6,8 +6,8 @@
 //! Substituted constant values are ordinary constructors and use that identity
 //! before checked scalar replay.
 
-use super::lowerer::ExpressionTableLowerer;
-use crate::expressions::call_results::peel;
+use super::lowerer::{ExpressionTableLowerer, resolved_data_definition_for_type};
+use crate::expressions::call_results::{declared_call_return, declared_type_method_target, peel};
 use crate::lowerer::exact_field_symbol;
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
