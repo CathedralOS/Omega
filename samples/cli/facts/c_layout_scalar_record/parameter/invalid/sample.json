@@ -2,7 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "LayoutStorage<Record, OtherPolicy>",
-    "LayoutStorage<Record, CAbiPolicy<Record>>"
+    "argument `value` for state `entry` expects `LayoutStorage<Record, OtherPolicy>`"
   ]
 }
