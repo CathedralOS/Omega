@@ -513,6 +513,7 @@ pub(super) fn lower_unit_structural_types<'checked>(
         }
         for parameter in &boundary.structural_parameters {
             projection_types::collect_parameter(plans, parameter, &mut roots)?;
+            projection_types::collect_boundary_backing(plans, parameter.type_identity, &mut roots)?;
         }
         roots.extend(boundary.result.structural_identity());
         if let CheckedBoundaryMachineResultPlan::Structural {
@@ -913,6 +914,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                     source_identity: identity,
                     native_identity: plan.native_identity.as_deref(),
                     policy_identity: plan.native_policy_identity.as_deref(),
+                    semantic_identity: plan.native_semantic_identity.as_deref(),
                     fields: native_fields,
                 });
                 StructuralTypeShape::Record {

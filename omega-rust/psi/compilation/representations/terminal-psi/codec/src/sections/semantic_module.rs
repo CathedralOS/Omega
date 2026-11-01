@@ -151,7 +151,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Identity-only referents retain their checked foreign pointer/descriptor role.
 // Native layout provenance includes invariant and target-member reports,
 // nominal data/field associations and selected Source-v4 slot applications.
-pub(crate) const FORMAT_MARKER: u16 = 225;
+// Record applications also retain the independent semantic-argument identity;
+// private slots cannot infer their owner from another slot's claimed role.
+pub(crate) const FORMAT_MARKER: u16 = 226;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

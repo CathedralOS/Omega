@@ -10,6 +10,7 @@ use terminal_psi::{NativeLayoutRealization, TerminalModule};
 pub struct TerminalLayoutIdentity<'module> {
     pub data_identity: &'module str,
     pub policy_identity: &'module str,
+    pub semantic_identity: &'module str,
     /// Complete data application, distinct from the slot-owning plan itself.
     pub data_layout: LayoutPlanId,
     pub slot_layout: LayoutPlanId,
@@ -42,6 +43,10 @@ pub fn terminal_layout_identity(
         .filter(|identity| !identity.is_empty())
         .ok_or("native layout has no exact selected policy identity")?;
     let geometry = target.native_target();
+    let semantic_identity = module
+        .identities
+        .text(native.semantic_identity)
+        .ok_or("native layout lost its exact semantic argument identity")?;
     let target_facts = target
         .layout_target_facts()
         .ok_or("native layout requires a concrete target geometry")?;
@@ -58,6 +63,7 @@ pub fn terminal_layout_identity(
     Ok(Some(TerminalLayoutIdentity {
         data_identity,
         policy_identity,
+        semantic_identity,
         data_layout: callback_plan_laid_layout_id(
             report,
             data_identity,

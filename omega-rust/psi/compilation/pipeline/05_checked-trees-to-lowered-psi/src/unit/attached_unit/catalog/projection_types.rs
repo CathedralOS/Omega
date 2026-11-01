@@ -19,6 +19,33 @@ pub(super) fn collect_parameter(
     )
 }
 
+/// Boundary calling may place private slots in the exact named backing of a
+/// formal, even when the value crosses the ABI as a pointer. Checking already
+/// collected this finite root demand. Retain only its outer reference chain;
+/// references inside record fields still carry identity, not inline storage.
+pub(super) fn collect_boundary_backing(
+    plans: UnitPlans<'_>,
+    mut identity: typed_trees::type_identity::TypeIdentityId,
+    roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
+) -> Result<(), LoweringError> {
+    let mut reference_shells = Vec::new();
+    loop {
+        if reference_shells.contains(&identity) || reference_shells.len() >= 128 {
+            return unsupported("boundary formal has a recursive or excessive reference shell");
+        }
+        let declaration = selected_declaration(plans, identity)?;
+        let CheckedUnitStructuralTypeShape::Reference {
+            referent_identity, ..
+        } = &declaration.shape
+        else {
+            return Ok(());
+        };
+        reference_shells.push(identity);
+        identity = *referent_identity;
+        roots.push(identity);
+    }
+}
+
 pub(super) fn collect_qualifications(
     plans: UnitPlans<'_>,
     root: typed_trees::type_identity::TypeIdentityId,

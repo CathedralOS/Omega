@@ -61,6 +61,7 @@ fn module() -> TerminalModule {
         structural_type,
         TerminalIdentityIndex(3),
         TerminalIdentityIndex::ABSENT,
+        TerminalIdentityIndex::ABSENT,
         [],
         [],
     );

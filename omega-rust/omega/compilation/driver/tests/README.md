@@ -182,6 +182,12 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+`callback-telescope-controls <qualified-policy>` drops source before reconstructing
+the complete callback signature from retained and decoded Terminal artifacts.
+It executes the authored policy's exact logical callable with that input and
+requires the native application's same validated plan and released invocation
+storage. The selector is an inspection label, not production policy selection.
+
 `task-activation-controls` requires source-authored start and try-start demands
 with suspension storage. It compares complete native activation plans from the
 retained and reloaded artifacts under the fixture's selected providers, rejects
