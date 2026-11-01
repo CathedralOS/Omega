@@ -1148,6 +1148,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         let skipped_eq = [(
                             subject.clone(),
                             StructuralTerm::Constructor {
+                                declaration: symbols::SymbolHandle::invalid(),
                                 data: "bool".to_owned(),
                                 case: (!truth).to_string(),
                                 fields: Vec::new(),
@@ -2011,6 +2012,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             let skipped_eq = (
                                 subject.clone(),
                                 StructuralTerm::Constructor {
+                                    declaration: symbols::SymbolHandle::invalid(),
                                     data: "bool".to_owned(),
                                     case: (!truth).to_string(),
                                     fields: Vec::new(),
@@ -2756,6 +2758,7 @@ fn guard_observation(
             return Some((
                 comparison.left,
                 StructuralTerm::Constructor {
+                    declaration: symbols::SymbolHandle::invalid(),
                     data: "bool".to_owned(),
                     case: truth.to_string(),
                     fields: Vec::new(),
@@ -2779,6 +2782,7 @@ fn guard_observation(
     Some((
         guard,
         StructuralTerm::Constructor {
+            declaration: symbols::SymbolHandle::invalid(),
             data: "bool".to_owned(),
             case: "true".to_owned(),
             fields: Vec::new(),
@@ -2825,5 +2829,10 @@ fn guard_case_value(
         })
         .collect();
     fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-    Some(StructuralTerm::Constructor { data, case, fields })
+    Some(StructuralTerm::Constructor {
+        declaration: definition.symbol,
+        data,
+        case,
+        fields,
+    })
 }

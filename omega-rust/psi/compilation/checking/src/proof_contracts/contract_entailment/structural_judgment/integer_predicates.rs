@@ -1581,7 +1581,13 @@ impl<'program> StructuralJudge<'program> {
                     resolved_truth.semantic_value()
                 }
             };
-            let StructuralTerm::Constructor { data, case, fields } = truth_sem else {
+            let StructuralTerm::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } = truth_sem
+            else {
                 // Selected normal guarantees also retain equations between
                 // mathematical values, not just predicates equated to true.
                 // Read both sides in the same captured-value namespace: a
@@ -1618,7 +1624,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 continue;
             };
-            if data != "bool" || !fields.is_empty() {
+            if declaration.is_valid() || data != "bool" || !fields.is_empty() {
                 continue;
             }
             let Some(holds) = language_semantics::const_value::boolean_literal_spelling(case)

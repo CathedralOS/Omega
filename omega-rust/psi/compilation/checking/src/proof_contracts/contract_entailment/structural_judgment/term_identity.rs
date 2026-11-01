@@ -380,8 +380,14 @@ impl PartialEq for StructuralTerm {
                 };
                 value == other_value
             }
-            Self::Constructor { data, case, fields } => {
+            Self::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } => {
                 let Self::Constructor {
+                    declaration: declaration_other_data,
                     data: other_data,
                     case: other_case,
                     fields: other_fields,
@@ -389,7 +395,8 @@ impl PartialEq for StructuralTerm {
                 else {
                     return false;
                 };
-                (data, case, fields) == (other_data, other_case, other_fields)
+                (declaration, data, case, fields)
+                    == (declaration_other_data, other_data, other_case, other_fields)
             }
             Self::Application {
                 result_type,
@@ -586,8 +593,14 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("right", right)
                 .finish(),
             Self::Float(value) => formatter.debug_tuple("Float").field(value).finish(),
-            Self::Constructor { data, case, fields } => formatter
+            Self::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } => formatter
                 .debug_struct("Constructor")
+                .field("declaration", declaration)
                 .field("data", data)
                 .field("case", case)
                 .field("fields", fields)

@@ -157,6 +157,7 @@ fn read_term(
                         BinaryOperator::Equal,
                         operand,
                         StructuralTerm::Constructor {
+                            declaration: symbols::SymbolHandle::invalid(),
                             data: "bool".to_owned(),
                             case: "false".to_owned(),
                             fields: Vec::new(),

@@ -331,8 +331,16 @@ fn declaration_input_value(
     };
     match value {
         StructuralTerm::Integer(_) => true,
-        StructuralTerm::Constructor { data, case, fields } => {
-            data == "bool" && matches!(case.as_str(), "true" | "false") && fields.is_empty()
+        StructuralTerm::Constructor {
+            declaration,
+            data,
+            case,
+            fields,
+        } => {
+            !declaration.is_valid()
+                && data == "bool"
+                && matches!(case.as_str(), "true" | "false")
+                && fields.is_empty()
         }
         StructuralTerm::Variable(name) => input(name).is_some(),
         StructuralTerm::Projection { subject, path } => {

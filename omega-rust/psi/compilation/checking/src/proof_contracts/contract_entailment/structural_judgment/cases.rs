@@ -92,6 +92,13 @@ impl StructuralJudge<'_> {
         if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
             self.program, scope, parameters, fact, binary,
         ) {
+            if super::super::struct_trace() {
+                let owner = super::super::structural_terms::case_classifier(self.program, binary.right).map(|(data, case)| (data.symbol, case.symbol));
+                let selections = self.program.expression_table.authored_selection_occurrences(fact).map(|occurrence| {
+                    self.program.authored_declaration_selections().get(occurrence).map(|selection| (selection.kind(), format!("{:?}", selection.target())))
+                }).collect::<Vec<_>>();
+                eprintln!("STRUCT case-formation-refused scope={scope:?} fact={} owner={owner:?} selections={selections:?} subject_type={:?}", self.program.expression_table.display_name(fact), crate::parameter_expression_result_type_reference(self.program, scope, parameters, binary.left).map(|reference| self.program.type_reference_table.type_reference(reference)));
+            }
             return None;
         }
         let Some((definition, variant)) =
@@ -261,21 +268,19 @@ impl StructuralJudge<'_> {
         } else {
             subject
         };
-        if let StructuralTerm::Constructor { data, case, .. } = &subject {
-            // Legacy value terms retain nominal names. Rejoin only a unique
-            // declaration; same-spelled foreign data is not this classifier.
+        if let StructuralTerm::Constructor {
+            declaration,
+            data,
+            case,
+            ..
+        } = &subject
+        {
+            // Construction retains its exact owner. An unrelated same-named
+            // declaration neither supplies this tag nor makes it ambiguous.
             let Some(definition) = self.program.data_definition_by_symbol(data_symbol) else {
                 return StructuralJudgment::Unknown;
             };
-            if definition.name.as_str() != data
-                || self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .filter(|candidate| candidate.name.as_str() == data)
-                    .count()
-                    != 1
-            {
+            if *declaration != data_symbol || definition.name.as_str() != data {
                 return StructuralJudgment::Unknown;
             }
             let observed = self
@@ -354,16 +359,19 @@ impl StructuralJudge<'_> {
             }
             (
                 StructuralTerm::Constructor {
+                    declaration: declaration_left_data,
                     data: left_data,
                     case: left_case,
                     fields: left_fields,
                 },
                 StructuralTerm::Constructor {
+                    declaration: declaration_right_data,
                     data: right_data,
                     case: right_case,
                     fields: right_fields,
                 },
-            ) if left_data == right_data
+            ) if declaration_left_data == declaration_right_data
+                && left_data == right_data
                 && left_case == right_case
                 && left_fields.len() == right_fields.len() =>
             {
@@ -403,18 +411,20 @@ impl StructuralJudge<'_> {
                 Some((_, replacement)) => self.resolve_case_subject(replacement.clone(), depth + 1),
                 None => Some(term),
             },
-            StructuralTerm::Constructor { data, case, fields } => {
-                Some(StructuralTerm::Constructor {
-                    data,
-                    case,
-                    fields: fields
-                        .into_iter()
-                        .map(|(name, field)| {
-                            Some((name, self.resolve_case_subject(field, depth + 1)?))
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                })
-            }
+            StructuralTerm::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } => Some(StructuralTerm::Constructor {
+                declaration,
+                data,
+                case,
+                fields: fields
+                    .into_iter()
+                    .map(|(name, field)| Some((name, self.resolve_case_subject(field, depth + 1)?)))
+                    .collect::<Option<Vec<_>>>()?,
+            }),
             StructuralTerm::RepeatedArray { length, element } => {
                 Some(StructuralTerm::RepeatedArray {
                     length,

@@ -1055,7 +1055,7 @@ fn validate_specification_expression_in_scope(
     let substitution = substitution.and_then(|mut substitution| {
         let bindings = application_bindings.as_ref()?;
         for binding in &bindings.constants {
-            let value = binding.value_term()?;
+            let value = binding.value_term(program)?;
             let name = program.symbols.name(binding.symbol);
             if substitution.iter().any(|(existing, _)| existing == name) {
                 return None;
@@ -1647,7 +1647,7 @@ pub(super) fn call_scalar_substitution(
     let mut values = applied
         .constants
         .iter()
-        .map(|binding| Some((binding.symbol, binding.value_term()?)))
+        .map(|binding| Some((binding.symbol, binding.value_term(program)?)))
         .collect::<Option<Vec<_>>>()?;
     if !applied.runtime_parameters.is_empty() {
         let executable = call_parameter_scope(program, caller, owner, site)?;
@@ -1991,8 +1991,13 @@ fn term_has_complete_substitution(
                 && term_has_complete_substitution(program, right)
         }
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
-        StructuralTerm::Constructor { data, case, fields } => {
-            constructor_fields_are_complete(program, data, case, fields)
+        StructuralTerm::Constructor {
+            declaration,
+            data,
+            case,
+            fields,
+        } => {
+            constructor_fields_are_complete(program, *declaration, data, case, fields)
                 && fields
                     .iter()
                     .all(|(_, value)| term_has_complete_substitution(program, value))
@@ -2002,23 +2007,20 @@ fn term_has_complete_substitution(
 
 fn constructor_fields_are_complete(
     program: &dyn crate::CheckingInput,
+    declaration: SymbolHandle,
     data: &str,
     case: &str,
     fields: &[(String, StructuralTerm)],
 ) -> bool {
     use typed_trees::data::DataMember;
-    if data == "bool" {
+    if !declaration.is_valid() && data == "bool" {
         return language_semantics::const_value::boolean_literal_spelling(case).is_some()
             && fields.is_empty();
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name.as_str() == data);
-    let Some(definition) = definitions.next() else {
+    let Some(definition) = program.data_definition_by_symbol(declaration) else {
         return false;
     };
-    if definitions.next().is_some() {
+    if definition.name.as_str() != data {
         return false;
     }
     let mut declared = program

@@ -228,6 +228,7 @@ pub(super) fn observed_projections(
     let mut children = Vec::new();
     let mut complete_constructor = false;
     if let StructuralTerm::Constructor {
+        declaration: declaration_name,
         data: name,
         case,
         fields,
@@ -240,6 +241,7 @@ pub(super) fn observed_projections(
         );
         if let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
             && let Some(data) = program.data_definition_by_symbol(owner)
+            && data.symbol == *declaration_name
             && data.name.as_str() == name.as_str()
         {
             let declared = program

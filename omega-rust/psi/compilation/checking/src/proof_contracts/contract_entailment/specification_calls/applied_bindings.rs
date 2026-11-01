@@ -135,7 +135,10 @@ impl AppliedRuntimeBinding {
 }
 
 enum AppliedConstValue {
-    Closed(CanonicalConstIdentity),
+    Closed {
+        value: CanonicalConstIdentity,
+        type_reference: TypeReferenceHandle,
+    },
     Parameter {
         symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
@@ -143,16 +146,21 @@ enum AppliedConstValue {
 }
 
 impl AppliedConstBinding {
-    pub fn value_term(&self) -> Option<StructuralTerm> {
+    pub fn value_term(&self, program: &dyn crate::CheckingInput) -> Option<StructuralTerm> {
         match &self.value {
             AppliedConstValue::Parameter {
                 symbol,
                 type_reference,
             } => (symbol.is_valid() && type_reference.is_valid())
                 .then_some(StructuralTerm::BoundValue(*symbol)),
-            AppliedConstValue::Closed(value) => {
-                super::super::structural_terms::admitted_const_value_term(value)
-            }
+            AppliedConstValue::Closed {
+                value,
+                type_reference,
+            } => super::super::structural_terms::admitted_const_value_term(
+                program,
+                *type_reference,
+                value,
+            ),
         }
     }
 }
@@ -245,7 +253,14 @@ impl AppliedProofBindings {
                     .ok()?;
                     result.constants.push(AppliedConstBinding {
                         symbol: actual.symbol,
-                        value: AppliedConstValue::Closed(actual.value.clone()),
+                        value: AppliedConstValue::Closed {
+                            value: actual.value.clone(),
+                            type_reference: typed_trees::static_applications::project_type_operand(
+                                program,
+                                type_reference,
+                                types,
+                            ),
+                        },
                     });
                 }
                 // These categories are not integer constants or type operands.
@@ -826,7 +841,10 @@ impl AppliedProofBindings {
                             &value,
                         )
                         .ok()?;
-                        AppliedConstValue::Closed(value)
+                        AppliedConstValue::Closed {
+                            value,
+                            type_reference: result.project_type(program, *type_reference),
+                        }
                     } else {
                         let symbol = match program.type_reference_table.type_reference(*reference) {
                             TypeReferenceNode::Named { symbol, .. } => *symbol,
@@ -1334,7 +1352,7 @@ impl AppliedProofBindings {
     }
 
     pub fn constant_integer(&self, symbol: SymbolHandle) -> Option<numerics::bignum::BigInt> {
-        let AppliedConstValue::Closed(value) = &self
+        let AppliedConstValue::Closed { value, .. } = &self
             .constants
             .iter()
             .find(|binding| binding.symbol == symbol)?

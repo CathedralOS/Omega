@@ -146,6 +146,16 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             self.proven = false;
             return;
         };
+        let Some(declaration) =
+            crate::expression_result_type_reference(program, machine, state, self.argument)
+                .and_then(|reference| {
+                    crate::value_custody::places::data_definition_for_type(program, reference)
+                })
+                .map(|definition| definition.symbol)
+        else {
+            self.proven = false;
+            return;
+        };
         let left = StructuralTerm::Application {
             result_type: crate::call_target_return_type(program, self.relation).unwrap_or_default(),
             target: self.relation,
@@ -153,6 +163,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             machine: "saturating_sub".to_owned(),
             arguments: vec![
                 StructuralTerm::Constructor {
+                    declaration,
                     data: "Nat".to_owned(),
                     case: "Succ".to_owned(),
                     fields: vec![(
@@ -164,6 +175,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             ],
         };
         let right = StructuralTerm::Constructor {
+            declaration,
             data: "Nat".to_owned(),
             case: "Zero".to_owned(),
             fields: Vec::new(),

@@ -229,14 +229,21 @@ pub(crate) fn diagnostic_shape_match(
                 && diagnostic_shape_match(collection, actual_collection, variables, bindings)
         }
         (
-            StructuralTerm::Constructor { data, case, fields },
             StructuralTerm::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            },
+            StructuralTerm::Constructor {
+                declaration: declaration_data_t,
                 data: data_t,
                 case: case_t,
                 fields: fields_t,
             },
         ) => {
-            data == data_t
+            declaration == declaration_data_t
+                && data == data_t
                 && case == case_t
                 && fields.len() == fields_t.len()
                 && fields
@@ -355,7 +362,9 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             display_structural_term(right)
         ),
         StructuralTerm::Float(value) => value.text().to_owned(),
-        StructuralTerm::Constructor { data, case, fields } => {
+        StructuralTerm::Constructor {
+            data, case, fields, ..
+        } => {
             if fields.is_empty() {
                 format!("{data}::{case}")
             } else {
