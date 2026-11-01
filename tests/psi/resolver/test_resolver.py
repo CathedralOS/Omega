@@ -1807,29 +1807,25 @@ def main() -> None:
         2,
     )
 
-    # Named conformances: the satisfied trait binds as a trait application,
-    # members bind like machines in the conformance's scope, and a reference
-    # row binds its requirement and its machine. `Conformance::member` names
-    # the member, else the machine its row or its trait supplies.
+    # Named conformances: the satisfied trait binds as a trait application
+    # and members bind like machines in the conformance's scope.
+    # `Conformance::member` names the member, else the machine its trait
+    # supplies.
     counter = b"data Counter<T> { value: T; }\ntrait Increment<C> { machine increment(counter: &mut C); machine reset(counter: &mut C); }\n"
     accepted(
         program,
-        "conformance-members-and-rows",
+        "conformance-members-and-requirements",
         counter
-        + b"machine Counter::clear<T>(counter: &mut Counter<T>) {}\n"
-        b"Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} "
-        b"Increment::reset = Counter::clear; }\n"
+        + b"Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} }\n"
         b"machine use_it(c: &mut Counter<u8>) { Saturating::increment(c); Saturating::reset(c); }",
         (
             generic(0),
             generic(1), REFERENCE_ROW, generic(1), REFERENCE_ROW,
+            generic(2), data(0), trait(0),
             generic(2), data(0), REFERENCE_ROW,
-            generic(3), data(0), trait(0),
-            generic(3), data(0), REFERENCE_ROW,
             builtin("u8"), data(0), REFERENCE_ROW,
         ),
-        (machine(3), parameter(4), NOT_A_NAME, machine(2), parameter(4), NOT_A_NAME),
-        (path_machine(1), path_machine(2)),
+        (machine(2), parameter(3), NOT_A_NAME, machine(1), parameter(3), NOT_A_NAME),
     )
     ranked = b"trait Ranked<T> { machine rank(value: T) -> u64; machine twice(value: T) -> u64 { 2 } }\n"
     accepted(
@@ -1840,28 +1836,6 @@ def main() -> None:
         (generic(0), builtin("u64"), generic(0), builtin("u64"), builtin("u64"), trait(0), builtin("u64"),
          builtin("u64"), builtin("u64")),
         (NOT_A_NAME, parameter(2), machine(1), NOT_A_NAME, NOT_A_NAME),
-    )
-    rejected(
-        program,
-        "row-names-no-requirement",
-        b"machine D::helper() {}\ntrait T { machine f(); }\nC satisfies T { D::helper = D::helper; }",
-        NOT_A_REQUIREMENT,
-        b"D::helper",
-        2,
-    )
-    rejected(
-        program,
-        "row-names-unknown-requirement",
-        b"trait T { machine f(); }\nmachine g() {}\nC satisfies T { T::missing = g; }",
-        UNKNOWN_NAME,
-        b"T::missing",
-    )
-    rejected(
-        program,
-        "row-names-unknown-machine",
-        b"trait T { machine f(); }\nC satisfies T { T::f = missing; }",
-        UNKNOWN_NAME,
-        b"missing",
     )
     rejected(program, "satisfied-data-is-not-a-trait", b"data D { }\nC satisfies D { }", NOT_A_TRAIT, b"D", 2)
     order = b"trait Order<T> { machine before(left: T, right: T) -> bool; }\n"
