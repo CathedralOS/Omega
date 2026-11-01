@@ -1124,7 +1124,10 @@ equality rejoins the projection's clone; report hashes or source pointers cannot
 replace it. Missing preparation refuses a nonempty use roster, while a completed
 empty selection remains valid. Registration failures
 suppress only that occurrence's plan diagnostics. Selected roots borrow the same
-identity table in occurrence order. The application carries exact declarations,
+identity table in occurrence order. Terminal Psi owns the prepared root records
+and their exact retained-body join; its constructor refuses invocation-local
+declaration owners before those records cross into Omega. Psi projects the
+requests and diagnostic associations. The application carries exact declarations,
 not callback source symbols. Composition rejoins each complete
 owner/signature/contract/specialization to exactly one unoptimized body, lazily
 after the semantic entry and before the physical adapter. Unavailable declarations

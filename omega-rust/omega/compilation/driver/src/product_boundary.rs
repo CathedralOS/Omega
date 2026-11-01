@@ -1836,24 +1836,43 @@ fn target_body_policy_consumes_psi_direct_call_declarations() {
 #[test]
 fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
-    assert!(
-        selection.contains("pub callback_roots: psi_terminal_production::PreparedTerminalRoots")
-    );
+    assert!(selection.contains("pub callback_roots: terminal_psi::PreparedTerminalRoots"));
     let custody =
         include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
     assert!(custody.contains("pub callback_roots: Option<&'a crate::PreparedTerminalRoots>"));
     assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/prepared_terminal_roots.rs"
+        "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
     );
     assert!(!preparation.contains("symbols::SymbolHandle"));
     assert!(preparation.contains("declaration.same_identity_as("));
+    assert!(preparation.contains("pub fn new("));
+    let compact_preparation = preparation
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",)", ")");
+    for owner in [
+        "declaration.machine.identity()",
+        "declaration.state.identity()",
+        "declaration.semantic_declaration",
+        "specialization.template.identity()",
+        "specialization.template_semantic_declaration",
+    ] {
+        assert!(compact_preparation.contains(&format!("identities.is_invocation_local({owner})")));
+    }
+    assert!(preparation.contains("selected root has multiple exact retained declarations"));
+    assert_absent(
+        &[preparation],
+        "Terminal root preparation reopens source",
+        &["checked_trees", "typed_trees", "psi_terminal_production"],
+    );
     let declarations = include_str!(
         "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));
-    assert!(declarations.contains("RootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("TerminalRootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("PreparedTerminalRoots::new(identities, requests)"));
     assert!(declarations.contains("usage.published_requirement_envelope"));
     assert!(declarations.contains("usage.selected_actual_envelope"));
     assert!(declarations.contains("usage.callback_entry.map("));

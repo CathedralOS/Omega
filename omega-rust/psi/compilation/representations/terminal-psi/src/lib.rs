@@ -25,6 +25,11 @@ pub use language_core::inline_assembly::{
 };
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 
+mod prepared_roots;
+pub use prepared_roots::{
+    PreparedTerminalRoots, RetainedTerminalRoot, TerminalRootDeclaration, TerminalRootRequest,
+};
+
 mod callback_application;
 pub use callback_application::TerminalCallbackApplication;
 mod callback_declarations;
