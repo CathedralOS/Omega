@@ -136,13 +136,6 @@ pub(crate) fn lower_selected_machine(
         ));
     }
     if !scalar_entry {
-        if std::env::var_os("OMEGA_DEBUG_CALLING_ADMISSION").is_some() {
-            eprintln!(
-                "calling admission: P05 unavailable {}\n{}",
-                checked.symbols.display_path(selection.machine, "::"),
-                std::backtrace::Backtrace::force_capture()
-            );
-        }
         return Err(LoweringError::InvalidUnitMachinePlan {
             machine: checked.symbols.display_path(selection.machine, "::"),
             reason: "machine has no checked executable body",

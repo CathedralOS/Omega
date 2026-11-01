@@ -521,7 +521,10 @@ pub(crate) fn validate_machine_call_cycles(
         &edges,
         &proof_dependencies,
         &mut ranking_failures,
-    );
+    )
+    .into_iter()
+    .map(|(_, component)| component)
+    .collect::<Vec<_>>();
 
     for members in strongly_connected_components(&edges) {
         // Runtime singletons retain their actual call edge and use the same
@@ -589,13 +592,34 @@ pub(crate) fn validate_machine_call_cycles(
     proof_components
 }
 
+/// Positive proof-recursion judgments for these exact source bodies. This
+/// shares structural and computed proof ranking with ordinary validation;
+/// runtime tail-position admission never supplies proof-call evidence.
+pub fn infer_checked_proof_recursive_machines(
+    program: &dyn crate::CheckingInput,
+) -> Vec<&typed_trees::machine::Machine> {
+    let proof_only = crate::proof_only_classification(program);
+    let graph = build_machine_call_graph(program, &proof_only);
+    build_validated_proof_recursive_components(
+        program,
+        &proof_only,
+        &graph.edges,
+        &graph.proof_dependencies,
+        &mut Vec::new(),
+    )
+    .into_iter()
+    .flat_map(|(positions, _)| positions)
+    .map(|position| &program.machines()[position])
+    .collect()
+}
+
 fn build_validated_proof_recursive_components(
     program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     adjacency: &[Vec<usize>],
     proof_dependencies: &[Vec<usize>],
     failures: &mut Vec<(Vec<usize>, &'static str)>,
-) -> Vec<ValidatedProofCallComponent> {
+) -> Vec<(Vec<usize>, ValidatedProofCallComponent)> {
     let machines = program.machines();
     proof_components::complete(program, proof_only, adjacency, proof_dependencies)
         .into_iter()
@@ -617,7 +641,7 @@ fn build_validated_proof_recursive_components(
                     }
                 }
             };
-            Some(ValidatedProofCallComponent {
+            let validated = ValidatedProofCallComponent {
                 members: component
                     .members
                     .iter()
@@ -625,7 +649,8 @@ fn build_validated_proof_recursive_components(
                     .collect(),
                 structural,
                 intervals,
-            })
+            };
+            Some((component.members, validated))
         })
         .collect()
 }

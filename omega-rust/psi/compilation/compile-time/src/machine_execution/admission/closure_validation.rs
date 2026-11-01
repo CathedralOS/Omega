@@ -5,7 +5,9 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, StateSignature};
-use typed_trees_to_checked_trees::infer_machine_termination_summary;
+use typed_trees_to_checked_trees::{
+    infer_checked_recursive_machine_terminations, infer_machine_termination_summary,
+};
 
 /// `discharge_authored_requires` records ordinary contract checking of either
 /// the concrete invocation at snapshot arguments or the internal call sites
@@ -18,16 +20,11 @@ pub(super) fn checked_closure_violation(
     root: &Machine,
     discharge_authored_requires: bool,
 ) -> Option<String> {
-    let mut completed = Vec::new();
-    let mut active = Vec::new();
-    let mut path = Vec::new();
     machine_termination_violation(
         call_edges,
         program,
         root.symbol,
-        &mut completed,
-        &mut active,
-        &mut path,
+        &mut ClosureWalk::default(),
         discharge_authored_requires,
     )
 }
@@ -192,60 +189,65 @@ fn is_parameter_domain_premise(
         })
 }
 
+#[derive(Default)]
+struct ClosureWalk {
+    completed: Vec<SymbolHandle>,
+    active: Vec<SymbolHandle>,
+    path: Vec<String>,
+    recursive_terminations: Option<Vec<checked_trees::CheckedRuntimeRankMember>>,
+}
+
 fn machine_termination_violation(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
-    completed: &mut Vec<SymbolHandle>,
-    active: &mut Vec<SymbolHandle>,
-    path: &mut Vec<String>,
+    walk: &mut ClosureWalk,
     discharge_authored_requires: bool,
 ) -> Option<String> {
-    if completed.contains(&machine_symbol) {
+    if walk.completed.contains(&machine_symbol) {
         return None;
     }
     let machine = program.machine(machine_symbol)?;
-    path.push(machine.name.as_str().to_owned());
+    walk.path.push(machine.name.as_str().to_owned());
 
     if !discharge_authored_requires
-        && let Some(violation) = machine_precondition_violation(program, machine, path)
+        && let Some(violation) = machine_precondition_violation(program, machine, &walk.path)
     {
-        path.pop();
+        walk.path.pop();
         return Some(violation);
     }
-    if let Some(violation) = machine_linear_carrier_violation(program, machine, path) {
-        path.pop();
+    if let Some(violation) = machine_linear_carrier_violation(program, machine, &walk.path) {
+        walk.path.pop();
         return Some(violation);
     }
 
-    if active.contains(&machine_symbol) {
-        // Re-entering an active machine is a recursive cycle. A machine whose
-        // authored `terminates by` measure already produced a checked
-        // `Terminates` summary has an ordinary termination proof, so the cycle
-        // is discharged instead of reported.
-        let measured = machine.supply_mode == MachineSupplyMode::CheckedBody
-            && matches!(
-                infer_machine_termination_summary(program, machine_symbol),
-                Some(TerminationGuarantee::Terminates { .. })
-            );
+    if walk.active.contains(&machine_symbol) {
+        // Re-entering an active machine is a recursive call cycle. Local state acyclicity does not
+        // prove call-cycle termination. Reuse the ranking owner's complete
+        // component judgment, including members with a joint witness.
+        let measured = walk
+            .recursive_terminations
+            .get_or_insert_with(|| infer_checked_recursive_machine_terminations(program))
+            .iter()
+            .any(|member| member.machine == machine_symbol && member.body == machine.states);
         if !measured {
             let violation = format!(
                 "recursive machine-call cycle has no ordinary termination proof along `{}`",
-                path.join(" -> ")
+                walk.path.join(" -> ")
             );
-            path.pop();
+            walk.path.pop();
             return Some(violation);
         }
-        path.pop();
+        walk.path.pop();
         return None;
     }
-    active.push(machine_symbol);
+    walk.active.push(machine_symbol);
 
     let target_snapshot = match program.layout_target_facts_result(machine_symbol) {
         Ok(snapshot) => snapshot.is_some(),
         Err(reason) => {
-            active.pop();
-            path.pop();
+            walk.active.pop();
+            walk.path.pop();
             return Some(reason.to_owned());
         }
     };
@@ -266,16 +268,17 @@ fn machine_termination_violation(
         ) {
             format!(
                 "machine call path `{}` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement",
-                path.join(" -> ")
+                walk.path.join(" -> ")
             )
         } else {
             format!(
                 "machine call path `{}` has no ordinary checked `Terminates` guarantee",
-                path.join(" -> ")
+                walk.path.join(" -> ")
             )
         };
-        active.retain(|active_symbol| *active_symbol != machine_symbol);
-        path.pop();
+        walk.active
+            .retain(|active_symbol| *active_symbol != machine_symbol);
+        walk.path.pop();
         return Some(violation);
     }
 
@@ -288,30 +291,31 @@ fn machine_termination_violation(
                 call_edges,
                 program,
                 target_machine_symbol,
-                completed,
-                active,
-                path,
+                walk,
                 discharge_authored_requires,
             ) {
-                active.retain(|active_symbol| *active_symbol != machine_symbol);
-                path.pop();
+                walk.active
+                    .retain(|active_symbol| *active_symbol != machine_symbol);
+                walk.path.pop();
                 return Some(violation);
             }
         } else if let Some(violation) = callable_contract_violation(
             program,
             call.target_state_symbol,
-            path,
+            &walk.path,
             discharge_authored_requires,
         ) {
-            active.retain(|active_symbol| *active_symbol != machine_symbol);
-            path.pop();
+            walk.active
+                .retain(|active_symbol| *active_symbol != machine_symbol);
+            walk.path.pop();
             return Some(violation);
         }
     }
 
-    active.retain(|active_symbol| *active_symbol != machine_symbol);
-    completed.push(machine_symbol);
-    path.pop();
+    walk.active
+        .retain(|active_symbol| *active_symbol != machine_symbol);
+    walk.completed.push(machine_symbol);
+    walk.path.pop();
     None
 }
 

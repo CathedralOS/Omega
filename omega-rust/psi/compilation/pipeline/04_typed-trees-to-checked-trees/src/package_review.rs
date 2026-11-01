@@ -153,3 +153,13 @@ pub fn infer_machine_termination_summary(
         program, machine, None,
     ))
 }
+
+/// Derive recursive call-component termination once for a semantic admission
+/// closure. Only exact bodies with an established complete ranking judgment
+/// are returned; ordinary acyclic local summaries cannot discharge recursion.
+/// These coordinates are private pre-check results, not executable authority.
+pub fn infer_checked_recursive_machine_terminations(
+    program: &dyn ::validation::CheckingInput,
+) -> Vec<checked_trees::CheckedRuntimeRankMember> {
+    checks::termination::infer_checked_recursive_machine_terminations(program)
+}

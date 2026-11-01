@@ -113,13 +113,28 @@ call and the composite descriptor fixture at native and Terminal exit 0;
 returning a descriptor borrowing a callee-local array still rejects. These
 observations retain their original producer identities.
 
-The current compiler reconciles selected-helper execution with canonical ABI
-publication from main. Fresh integrated validation remains required, including
-the remaining places, all fact-sensitive Width-4 twins and
-selected/missing/nested-provider controls. The row is still open. Package
-review also exposed a workflow defect: the private retained source graph exceeds
-its 512 MiB encoding limit, so repeated preparations cannot reuse that graph.
-Its limit and admission checks remain intact.
+The exact optimized producer `9f23a5b84ed0f35bab3261c68648faef69b7a13f`
+now checks all nine positives and rejects all nine Width-4 twins with their
+byte-coverage diagnostic. All nine pinned positives execute natively and in
+Terminal Psi at exit 0, including strengthened field-neighbor and both-arm
+match observations. Six public projects (root, field, match join, nested
+machine, other machine and target body) complete ordinary package review and
+run at native/Terminal exit 0. The four unchanged public observations above
+retain their original `e67b77c` producer identity. These observations do not
+claim execution by a later compiler or on foreign hosts.
+
+The selected unranked helper exposed a distinct admission defect: a locally
+acyclic state graph was incorrectly used as proof of a recursive machine-call
+cycle. Its current failure reaches an unrelated lowering refusal and does not
+count as the intended termination rejection. The repair must use the ordinary
+complete call-component ranking judgment, preserve valid joint recursion and
+keep proof recursion under its separate existing checker. The row remains open
+until that control, the exact provider-selection controls, current integration,
+scoped golden recording and final review pass.
+
+Package review also exposed a workflow defect: the private retained source
+graph exceeds its 512 MiB encoding limit, so repeated preparations cannot reuse
+that graph. Its limit and admission checks remain intact.
 
 ## Historical target-family evidence
 

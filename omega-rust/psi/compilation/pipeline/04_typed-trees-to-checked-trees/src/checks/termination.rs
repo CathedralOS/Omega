@@ -40,8 +40,69 @@ pub(crate) fn admit_machine_rankings(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> checked_trees::CheckedRankArrivalPlan {
-    let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
     let topology = validation::prepare_runtime_rank_components(program);
+    admit_machine_rankings_with_topology(program, call_frames, topology.as_ref())
+}
+
+/// Pre-check recursive execution through source admission's separate runtime
+/// and proof judgments. Acyclic local bodies are not proofs of a call cycle.
+pub(crate) fn infer_checked_recursive_machine_terminations(
+    program: &dyn ::validation::CheckingInput,
+) -> Vec<checked_trees::CheckedRuntimeRankMember> {
+    let mut proven = validation::infer_checked_proof_recursive_machines(program)
+        .into_iter()
+        .map(|machine| checked_trees::CheckedRuntimeRankMember {
+            machine: machine.symbol,
+            body: machine.states,
+        })
+        .collect::<Vec<_>>();
+    let Some(topology) = validation::prepare_runtime_rank_components(program) else {
+        return proven;
+    };
+    let call_frames = validation::CallFrameResolver::new(program);
+    let admitted =
+        admit_machine_rankings_with_topology(program, call_frames.as_ref(), Some(&topology));
+    proven.extend(
+        admitted
+            .judgments
+            .iter()
+            .enumerate()
+            .filter_map(|(position, (_, judgment))| {
+                let machine = program.machines().get(position)?;
+                if judgment.machine != machine.symbol
+                    || judgment.body != machine.states
+                    || !topology.requires_arrival_witness(position)
+                    || !judgment.local_terminates
+                    || !judgment.diagnostic.is_empty()
+                    || admitted.runtime_components.iter().any(|(_, component)| {
+                        !component.diagnostic.is_empty()
+                            && admitted
+                                .runtime_members
+                                .span_or_empty(component.members)
+                                .iter()
+                                .any(|member| {
+                                    member.machine == machine.symbol
+                                        && member.body == machine.states
+                                })
+                    })
+                {
+                    return None;
+                }
+                Some(checked_trees::CheckedRuntimeRankMember {
+                    machine: machine.symbol,
+                    body: machine.states,
+                })
+            }),
+    );
+    proven
+}
+
+fn admit_machine_rankings_with_topology(
+    program: &dyn ::validation::CheckingInput,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    topology: Option<&validation::RuntimeRankComponents>,
+) -> checked_trees::CheckedRankArrivalPlan {
+    let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
     let mut components = topology
         .as_ref()
         .map(|topology| {
