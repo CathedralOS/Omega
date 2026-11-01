@@ -1,5 +1,4 @@
 // A bare family keeps independent owned fields without supplying unknown indices.
-// Returning both independent fields preserves owned backing and retained debt.
 use omega::language::core::content;
 public data ByteUnit {}
 public data Buffer [linear] { value: u64; }
