@@ -13,6 +13,7 @@ use semantic_vocabulary::{
 use crate::{ProofError, ProofNode, check_certificate};
 
 pub(crate) use semantic_vocabulary::{scalar_term_binary_operands, scalar_term_unary_operand};
+use std::iter::once;
 
 mod budget;
 mod value_equalities;
@@ -46,10 +47,7 @@ fn checked_denotations<'input>(
     let mut budget = Budget::new();
     // Bound input traversal before recursive type validation or cloning. The
     // same budget subsequently covers all newly expanded Boolean branches.
-    for proposition in std::iter::once(goal)
-        .chain(requirements)
-        .chain(semantic_axioms)
-    {
+    for proposition in once(goal).chain(requirements).chain(semantic_axioms) {
         budget.proposition(proposition, 0)?;
         context
             .validate(proposition)
@@ -103,7 +101,7 @@ impl CheckedPredicateDenotations<'_> {
     ) -> Result<(), PredicateDenotationError> {
         // A checked conversion may be used with a different context only if
         // every original proposition still has its exact declared types there.
-        for proposition in std::iter::once(self.original_goal)
+        for proposition in once(self.original_goal)
             .chain(self.original_requirements)
             .chain(self.original_semantic_axioms)
         {

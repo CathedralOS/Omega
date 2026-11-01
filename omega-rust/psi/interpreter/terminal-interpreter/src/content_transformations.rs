@@ -7,6 +7,7 @@ use crate::execution::TerminalExecution;
 use crate::record::storage::ConstructorValue;
 use semantic_vocabulary::ClaimId;
 use terminal_psi::{ContentTransformationDerivation, StructuralArgument};
+use terminal_semantics::structural_paths_may_overlap;
 
 impl TerminalExecution<'_> {
     pub(crate) fn content_parent_claims(
@@ -76,10 +77,7 @@ impl TerminalExecution<'_> {
                 && (crate::custody::has_live_loan(self.reference_referents.as_map(), value)
                     || self.reference_referents.keys().any(|carrier| {
                         carrier.opaque_identity == value.opaque_identity
-                            && terminal_semantics::structural_paths_may_overlap(
-                                &carrier.path,
-                                &value.path,
-                            )
+                            && structural_paths_may_overlap(&carrier.path, &value.path)
                     }))
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
@@ -126,7 +124,7 @@ impl TerminalExecution<'_> {
             // because a sibling claim has a content equation.
             if self.live_affine_frontier.iter().any(|entry| {
                 entry.place == parent.place
-                    && terminal_semantics::structural_paths_may_overlap(&entry.path, &parent.path)
+                    && structural_paths_may_overlap(&entry.path, &parent.path)
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

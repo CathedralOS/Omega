@@ -1,25 +1,22 @@
 //! The Terminal adapter reads current executable rows once. The shared reader
 //! receives normalized data and a current graph, never a callback or old source.
 use super::*;
+use semantic_vocabulary::InvocationSite;
+use terminal_psi::OperationResult;
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
     for invocation in &module.proof_output_calls {
-        if invocation.runtime_call.is_some_and(|call| {
-            matches!(
-                call.site,
-                semantic_vocabulary::InvocationSite::ExternalCompletion(_)
-            )
-        }) {
+        if invocation
+            .runtime_call
+            .is_some_and(|call| matches!(call.site, InvocationSite::ExternalCompletion(_)))
+        {
             return Err("ordinary evidence invocation names an external completion");
         }
         let no_normal =
             invocation.runtime_result == Some(terminal_psi::ProofOutputRuntimeResult::NoNormal);
-        let edge = invocation.runtime_call.is_some_and(|call| {
-            matches!(
-                call.site,
-                semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
-            )
-        });
+        let edge = invocation
+            .runtime_call
+            .is_some_and(|call| matches!(call.site, InvocationSite::InvokeNoNormal(_)));
         if no_normal || edge {
             if !no_normal || !edge || !invocation.outputs.is_empty() {
                 return Err("nonreturning evidence invocation has a normal result or output");
@@ -75,7 +72,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
                     continue;
                 };
                 calls.push(RuntimeEvidenceOperation {
-                    site: semantic_vocabulary::InvocationSite::Operation(operation.id),
+                    site: InvocationSite::Operation(operation.id),
                     position: (
                         block.id,
                         u32::try_from(index)
@@ -86,14 +83,12 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
                     arguments: parts.arguments.to_vec(),
                     structural_arguments: parts.structural_arguments.to_vec(),
                     result: match &operation.result {
-                        terminal_psi::OperationResult::Unit => RuntimeEvidenceResult::Unit,
-                        terminal_psi::OperationResult::Scalar(value) => {
-                            RuntimeEvidenceResult::Scalar {
-                                id: value.id,
-                                scalar_type: value.scalar_type,
-                            }
-                        }
-                        terminal_psi::OperationResult::Structural(result) => {
+                        OperationResult::Unit => RuntimeEvidenceResult::Unit,
+                        OperationResult::Scalar(value) => RuntimeEvidenceResult::Scalar {
+                            id: value.id,
+                            scalar_type: value.scalar_type,
+                        },
+                        OperationResult::Structural(result) => {
                             RuntimeEvidenceResult::Structural(result.clone())
                         }
                     },
@@ -102,9 +97,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
             }
             if let Some(invocation) = block.terminator.module_invocation() {
                 calls.push(RuntimeEvidenceOperation {
-                    site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
-                        block.terminator.edge(),
-                    ),
+                    site: InvocationSite::InvokeNoNormal(block.terminator.edge()),
                     position: (
                         block.id,
                         u32::try_from(block.operations.len())

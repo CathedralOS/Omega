@@ -11,6 +11,7 @@ use super::{
 use crate::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::MachineId;
+use semantic_vocabulary::ValueId;
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::StructuralTypeDeclaration;
 
@@ -221,7 +222,7 @@ pub fn require_completed_scalar_capture(
     identity: MachineId,
     source: DescriptorPosition,
     observation: DescriptorPosition,
-    values: &[semantic_vocabulary::ValueId],
+    values: &[ValueId],
 ) -> Result<(), &'static str> {
     if source == observation {
         return Err("evidence capture has not completed before use");
@@ -685,11 +686,9 @@ pub fn unchanged_stored_scalar_sources(
     types: &[StructuralTypeDeclaration],
     graph: &[DescriptorMachine],
     identity: MachineId,
-    value: semantic_vocabulary::ValueId,
-    mut actual_writes: impl FnMut(
-        DescriptorPosition,
-    ) -> Vec<(DescriptorLocation, semantic_vocabulary::ValueId)>,
-) -> Option<Vec<semantic_vocabulary::ValueId>> {
+    value: ValueId,
+    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, ValueId)>,
+) -> Option<Vec<ValueId>> {
     let machine = descriptor_machine(graph, identity)?;
     let mut reads = machine
         .scalar_payload_reads

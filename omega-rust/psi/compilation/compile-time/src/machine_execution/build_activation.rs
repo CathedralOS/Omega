@@ -7,6 +7,7 @@ use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 
 /// Admit the compiler-issued Build before any build effects execute.
 ///
@@ -74,9 +75,7 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
         .data_members(build)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == "x86_deployment_features" =>
-            {
+            DataMember::Field(field) if field.name.as_str() == "x86_deployment_features" => {
                 Some(field)
             }
             _ => None,

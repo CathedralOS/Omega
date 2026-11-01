@@ -7,10 +7,12 @@
 //! retirement. The original allocation and its unused tail are never replaced.
 
 use super::ProviderStorageBinding;
+use crate::custody::bind_result_claim;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::values::StructuralRuntimePlace;
+use access_plans::{AccessPlanDiagnostic, StableCapability};
 use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
@@ -140,9 +142,7 @@ impl TerminalExecution<'_> {
             .loan(binding.offset, binding.length)
             .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
                 boundary: plan.boundary,
-                diagnostic: access_plans::AccessPlanDiagnostic(format!(
-                    "extraction extent loan: {diagnostic}"
-                )),
+                diagnostic: AccessPlanDiagnostic(format!("extraction extent loan: {diagnostic}")),
             })?;
         let supplied = profile.restrict_to_loan(&loan).map_err(|diagnostic| {
             TerminalInterpretError::ResourceProfile {
@@ -165,8 +165,7 @@ impl TerminalExecution<'_> {
             if region.offset != covered
                 || !matches!(
                     region.stable,
-                    access_plans::StableCapability::Read
-                        | access_plans::StableCapability::ReadWrite
+                    StableCapability::Read | StableCapability::ReadWrite
                 )
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
@@ -257,12 +256,7 @@ impl TerminalExecution<'_> {
             if !expected_claims.remove(&binding.path) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
-            crate::custody::bind_result_claim(
-                &mut claims,
-                binding,
-                result.place,
-                result.multiplicity,
-            )?;
+            bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
         }
         if !expected_claims.is_empty() {
             return Err(TerminalInterpretError::ClaimTransferMismatch);

@@ -133,6 +133,7 @@ pub(crate) fn check_product_source(
         source_completion_accounting,
         program,
         provider_inventory,
+        calling_policy_code: Arc::default(),
         external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,

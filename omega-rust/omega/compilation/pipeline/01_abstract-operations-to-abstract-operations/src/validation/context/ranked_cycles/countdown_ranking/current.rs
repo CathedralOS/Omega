@@ -2,9 +2,10 @@
 
 use super::super::super::super::O;
 use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, ValueId};
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerValue, ScalarType};
+use optimization_unit::{OptimizationBlock, OptimizationNode, PsiOptimizationFunction};
+use semantic_vocabulary::{
+    BlockId, IntegerCarrier, IntegerSign, IntegerValue, ScalarType, ValueId,
+};
 
 use super::super::{
     OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
@@ -203,17 +204,11 @@ fn derive_from_header(
     })
 }
 
-fn block(
-    function: &PsiOptimizationFunction,
-    id: BlockId,
-) -> Option<&optimization_unit::OptimizationBlock> {
+fn block(function: &PsiOptimizationFunction, id: BlockId) -> Option<&OptimizationBlock> {
     function.block(id)
 }
 
-fn scalar_node(
-    block: &optimization_unit::OptimizationBlock,
-    value: ValueId,
-) -> Option<&optimization_unit::OptimizationNode> {
+fn scalar_node(block: &OptimizationBlock, value: ValueId) -> Option<&OptimizationNode> {
     block.nodes.iter().find(|node| {
         node.definitions
             .iter()

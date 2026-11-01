@@ -10,14 +10,19 @@ use crate::expressions::equatable::EqualityScope;
 use crate::expressions::expression::domain_membership::{
     lower_case_membership_expression, lower_domain_membership_expression,
 };
+use crate::expressions::expression::lower_static_machine_argument;
 use crate::expressions::expression::name_paths::{
     lower_name_path_members_into_table, lower_table_name_path_node_into_table,
 };
+use crate::expressions::expression::native_code_layout::lower_request;
 use crate::expressions::expression::operators::lower_binary_operator;
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::name::lower_name;
+use crate::type_reference::lower_type_reference_into_trees_with_exposure;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
+use resolved::expression::display_name_path;
+use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
@@ -357,13 +362,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
-                let target_type =
-                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
-                        program,
-                        self.target_trees,
-                        program.child_type_reference(cast.target_type),
-                        exposure,
-                    )?;
+                let target_type = lower_type_reference_into_trees_with_exposure(
+                    program,
+                    self.target_trees,
+                    program.child_type_reference(cast.target_type),
+                    exposure,
+                )?;
                 let target_label = lower_name_path_members_into_table(
                     self.source,
                     self.target(),
@@ -378,7 +382,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .child_type_references(cast.semantic_domain_arguments)
                     .iter()
                     .map(|argument| {
-                        crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        lower_type_reference_into_trees_with_exposure(
                             program,
                             self.target_trees,
                             argument,
@@ -526,16 +530,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     && !call.target_symbol.is_valid()
                     && !call.receiver.is_valid()
                 {
-                    Some(
-                        crate::expressions::expression::native_code_layout::lower_request(
-                            self.program,
-                            self.target_trees,
-                            self.source.authored_expression_exposure(expression),
-                            &call.machine_arguments,
-                            call.arguments.len(),
-                            call.evidence_arguments.len(),
-                        )?,
-                    )
+                    Some(lower_request(
+                        self.program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
+                        &call.machine_arguments,
+                        call.arguments.len(),
+                        call.evidence_arguments.len(),
+                    )?)
                 } else {
                     None
                 };
@@ -617,7 +619,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             "an applied requirement call requires its resolved program",
                         )
                     })?;
-                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                    lower_type_reference_into_trees_with_exposure(
                         program,
                         self.target_trees,
                         program.child_type_reference(call.requirement_application),
@@ -814,13 +816,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
-                let reference =
-                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
-                        program,
-                        self.target_trees,
-                        program.child_type_reference(*type_reference),
-                        exposure,
-                    )?;
+                let reference = lower_type_reference_into_trees_with_exposure(
+                    program,
+                    self.target_trees,
+                    program.child_type_reference(*type_reference),
+                    exposure,
+                )?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::TypeExpression(reference)))
@@ -842,13 +843,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
-                let type_reference =
-                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
-                        program,
-                        self.target_trees,
-                        program.child_type_reference(*type_reference),
-                        exposure,
-                    )?;
+                let type_reference = lower_type_reference_into_trees_with_exposure(
+                    program,
+                    self.target_trees,
+                    program.child_type_reference(*type_reference),
+                    exposure,
+                )?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::ZeroValue(type_reference)))
@@ -956,7 +956,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     } else {
                         typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
                     },
-                    application: crate::expressions::expression::lower_static_machine_argument(
+                    application: lower_static_machine_argument(
                         self.program,
                         self.target_trees,
                         None,
@@ -969,13 +969,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
 
         Ok(Some(typed::expression::QuotientOperationRequest {
             kind,
-            representative_operation:
-                crate::expressions::expression::lower_static_machine_argument(
-                    self.program,
-                    self.target_trees,
-                    None,
-                    representative_operation,
-                )?,
+            representative_operation: lower_static_machine_argument(
+                self.program,
+                self.target_trees,
+                None,
+                representative_operation,
+            )?,
             theorem_evidence,
         }))
     }
@@ -1051,7 +1050,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
 
         Ok(Some(typed::expression::PrivateLayoutOperationRequest {
-            selected_slot: crate::expressions::expression::lower_static_machine_argument(
+            selected_slot: lower_static_machine_argument(
                 self.program,
                 self.target_trees,
                 None,
@@ -1105,7 +1104,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ))
             .with_source_span(call.target.source_span()));
         }
-        let mut lowered = crate::expressions::expression::lower_static_machine_argument(
+        let mut lowered = lower_static_machine_argument(
             self.program,
             self.target_trees,
             self.source.authored_expression_exposure(expression),
@@ -1167,7 +1166,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .program
             .ok_or_else(|| Diagnostic::error("layout query requires its resolved program"))?;
         if operand.type_reference.is_valid() {
-            return crate::type_reference::lower_type_reference_into_trees_with_exposure(
+            return lower_type_reference_into_trees_with_exposure(
                 program,
                 self.target_trees,
                 program.child_type_reference(operand.type_reference),
@@ -1412,10 +1411,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(lowered);
         }
 
-        let domain_name = resolved::expression::display_name_path(
-            self.source.name_path_members(membership.domain),
-            "::",
-        );
+        let domain_name = display_name_path(self.source.name_path_members(membership.domain), "::");
         Err(Diagnostic::error(format!(
             "unknown domain `{domain_name}` in executable membership expression"
         )))
@@ -1424,7 +1420,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
 
 fn quotient_zero_value_target(
     program: &resolved::SymbolResolvedTrees,
-    type_reference: &resolved::types::TypeReference,
+    type_reference: &TypeReference,
 ) -> Option<String> {
     resolved_data_definition_for_type(program, type_reference)
         .filter(|definition| definition.quotient.is_some())
@@ -1433,9 +1429,9 @@ fn quotient_zero_value_target(
 
 pub(super) fn resolved_data_definition_for_type<'program>(
     program: &'program resolved::SymbolResolvedTrees,
-    type_reference: &'program resolved::types::TypeReference,
+    type_reference: &'program TypeReference,
 ) -> Option<&'program resolved::data::DataDefinition> {
-    if let resolved::types::TypeReference::Generic(application) = type_reference {
+    if let TypeReference::Generic(application) = type_reference {
         let constructor = program
             .data_definitions
             .iter()
@@ -1455,11 +1451,9 @@ pub(super) fn resolved_data_definition_for_type<'program>(
         }
     }
     let (symbol, name) = match type_reference {
-        resolved::types::TypeReference::Named { symbol, name, .. } => (*symbol, Some(name)),
-        resolved::types::TypeReference::Generic(reference) => {
-            (reference.base_symbol, Some(&reference.base_name))
-        }
-        resolved::types::TypeReference::Constrained(reference) => {
+        TypeReference::Named { symbol, name, .. } => (*symbol, Some(name)),
+        TypeReference::Generic(reference) => (reference.base_symbol, Some(&reference.base_name)),
+        TypeReference::Constrained(reference) => {
             return resolved_data_definition_for_type(
                 program,
                 program.child_type_reference(reference.base_type),

@@ -5,14 +5,12 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedFunction;
 use target::Architecture;
 
-use super::super::super::ordinary::plan;
+use super::super::super::ordinary::{instructions, plan};
 use super::super::row;
 use super::{PreLayoutRows, order, roster};
 
-use super::super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,
-    SelectedFunctionLayoutPolicy,
-};
+use super::super::super::OptimizedResolvedSelectedFormLayoutError as Error;
+use super::super::super::{ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy};
 
 pub(super) fn validate(
     architecture: Architecture,
@@ -23,12 +21,12 @@ pub(super) fn validate(
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
     encoded: &machine_code::SelectedFormEncodedRowStore,
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<(), Error> {
     if selected.machine != machine.machine
         || selected.machine != candidate.machine
         || selected.blocks.len() != machine.blocks.len()
     {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let pre_rows = roster::collect_pre_layout_rows(selected, pre_rows)?;
     let machine_blocks = machine
@@ -37,20 +35,18 @@ pub(super) fn validate(
         .map(|block| (block.block, block))
         .collect::<BTreeMap<_, _>>();
     if machine_blocks.len() != machine.blocks.len() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+        return Err(Error::RootMismatch);
     }
     let ordered = order::derive(selected, policy)?;
     if candidate.blocks.len() != ordered.len() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let layout = plan::derive(architecture, &ordered, &pre_rows)?;
     if candidate.byte_count != layout.function_size {
-        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     for (block, candidate_block) in ordered.iter().copied().zip(&candidate.blocks) {
-        let machine_block = machine_blocks
-            .get(&block.id)
-            .ok_or(OptimizedResolvedSelectedFormLayoutError::RootMismatch)?;
+        let machine_block = machine_blocks.get(&block.id).ok_or(Error::RootMismatch)?;
         let instruction_count = block.instructions.len() + 1;
         if machine_block.instructions.len() != instruction_count
             || candidate_block.instructions.len() != instruction_count
@@ -58,20 +54,19 @@ pub(super) fn validate(
             || candidate_block.offset != layout.block_offsets[&block.id]
             || candidate_block.byte_count != layout.block_sizes[&block.id]
         {
-            return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
         let mut instruction_offset = candidate_block.offset;
-        for ((instruction, machine_instruction), candidate_row) in
-            crate::resolved_selected_form_layout::ordinary::instructions(block)
-                .zip(&machine_block.instructions)
-                .zip(&candidate_block.instructions)
+        for ((instruction, machine_instruction), candidate_row) in instructions(block)
+            .zip(&machine_block.instructions)
+            .zip(&candidate_block.instructions)
         {
             if machine_instruction.instruction != instruction.id {
-                return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+                return Err(Error::RootMismatch);
             }
-            let pre = pre_rows.get(&instruction.id).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-            )?;
+            let pre = pre_rows
+                .get(&instruction.id)
+                .ok_or(Error::MissingInstruction(instruction.id))?;
             row::validate(
                 architecture,
                 block,
@@ -88,17 +83,17 @@ pub(super) fn validate(
             instruction_offset = instruction_offset
                 .checked_add(
                     u64::try_from(candidate_row.bytes.len())
-                        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?,
+                        .map_err(|_| Error::ArtifactMismatch)?,
                 )
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+                .ok_or(Error::ArtifactMismatch)?;
         }
         if instruction_offset
             != candidate_block
                 .offset
                 .checked_add(candidate_block.byte_count)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+                .ok_or(Error::ArtifactMismatch)?
         {
-            return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            return Err(Error::ArtifactMismatch);
         }
     }
     Ok(())

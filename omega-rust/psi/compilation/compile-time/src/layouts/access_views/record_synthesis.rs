@@ -11,6 +11,7 @@ use syntax_trees::item::{DataDefinition, DataField, DataMember, DataProperties, 
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Application, ApplicationKey, DeclarationKey, PendingRewrite, SchemaRecord};
+use source::SourceMap;
 
 /// A synthesized declaration's symbol provenance: the authored `Access<P, T>`
 /// use-site that derived it. Compiler-owned shells are source-free text, but
@@ -36,7 +37,7 @@ pub(super) fn synthesize_probe_records(
     applications: &[Application],
     rewrites: &[PendingRewrite],
     schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
-    sources: Option<&source::SourceMap>,
+    sources: Option<&SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
     let template_spans = |forest: &SyntaxTrees| {
         forest
@@ -108,7 +109,7 @@ pub(super) fn synthesize_exact_records(
     rewrites: &[PendingRewrite],
     schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
     plans: &BTreeMap<ApplicationKey, ValidatedAccessPlan>,
-    sources: Option<&source::SourceMap>,
+    sources: Option<&SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
     let cohort_template;
     let template: &SyntaxTrees = match retained_templates {
@@ -310,7 +311,7 @@ fn accessor_name(
 fn sealed_accessor_template(
     syntax: &SyntaxTrees,
     machine: &Machine,
-    sources: Option<&source::SourceMap>,
+    sources: Option<&SourceMap>,
 ) -> bool {
     machine
         .attached_data
@@ -327,10 +328,7 @@ fn sealed_accessor_template(
         })
 }
 
-pub(super) fn retire_accessor_templates(
-    syntax: &mut SyntaxTrees,
-    sources: Option<&source::SourceMap>,
-) {
+pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees, sources: Option<&SourceMap>) {
     // These generic declarations are elaboration inputs, not unrealized target
     // bodies. Retire their declaration roots after cloning exact accessors;
     // a synthetic target tag would keep them in all-target source checking and

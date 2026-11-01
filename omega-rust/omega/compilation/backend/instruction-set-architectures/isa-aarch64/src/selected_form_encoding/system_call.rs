@@ -113,7 +113,7 @@ pub fn validate_aarch64_selected_system_call_form(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use selected_instructions::{MachineEncodedControlEffect, MachineEncodedStackEffect};
+    use isa_conformance::system_call::{Encoding, conformance};
     use semantic_vocabulary::BoundaryMachineId;
 
     #[test]
@@ -129,119 +129,55 @@ mod tests {
             family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
             variant: 0,
         };
-        for key in crate::aarch64_linux_system_call_keys() {
-            let row = catalog.constraint(key).unwrap();
-            let views: Vec<_> = row
-                .operands
-                .iter()
-                .map(|operand| operand.fixed_view.unwrap())
-                .collect();
-            let accesses: Vec<_> = row.operands.iter().map(|operand| operand.access).collect();
-            for number in [0, 211, 0x0123_4567_89ab_cdef, i64::MAX] {
-                let encoded = encode_aarch64_selected_system_call_form(
-                    target,
-                    physical,
-                    kind,
-                    alternative,
-                    &views,
-                    &accesses,
-                    number,
-                )
-                .unwrap();
-                let replay = |bytes: &[u8]| {
-                    validate_aarch64_selected_system_call_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        &accesses,
-                        number,
-                        bytes,
-                    )
-                };
-                assert_eq!(replay(encoded.bytes()).unwrap(), encoded);
-                assert_eq!(
-                    encoded.footprint().encoded.implicit_unit_clobbers,
-                    row.clobbers
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::SupervisorCallV1
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1
-                );
-                // Exhaust the bits of one representative form, not permutations of source syntax.
-                if number == 211 && row.operands.len() == 7 {
-                    for position in 0..encoded.bytes().len() {
-                        for bit in 0..8 {
-                            let mut forged = encoded.bytes().to_vec();
-                            forged[position] ^= 1 << bit;
-                            assert!(
-                                replay(&forged).is_err(),
-                                "accepted byte {position}, bit {bit}"
-                            );
-                        }
-                    }
-                }
-                assert!(replay(&encoded.bytes()[1..]).is_err());
-                assert!(
-                    validate_aarch64_selected_system_call_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        &accesses,
-                        number ^ 1,
-                        encoded.bytes(),
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_aarch64_selected_system_call_form(
-                        NativeTarget::macos_arm64(),
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        &accesses,
-                        number,
-                        encoded.bytes(),
-                    )
-                    .is_err()
-                );
-            }
-            assert!(
+        let summarize = |encoded: ValidatedAarch64SelectedFormEncoding| Encoding {
+            bytes: encoded.bytes().to_vec(),
+            effects: encoded.footprint().encoded.clone(),
+        };
+        let rows: Vec<_> = crate::aarch64_linux_system_call_keys()
+            .into_iter()
+            .map(|key| catalog.constraint(key).unwrap())
+            .collect();
+        conformance(
+            &rows,
+            physical.model().view_named("x16").unwrap().id,
+            |views, accesses, number| {
                 encode_aarch64_selected_system_call_form(
                     target,
                     physical,
                     kind,
                     alternative,
-                    &views,
-                    &accesses,
-                    -1,
+                    views,
+                    accesses,
+                    number,
+                )
+                .map(summarize)
+            },
+            |views, accesses, number, bytes| {
+                validate_aarch64_selected_system_call_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    views,
+                    accesses,
+                    number,
+                    bytes,
+                )
+                .map(summarize)
+            },
+            |views, accesses, number, bytes| {
+                validate_aarch64_selected_system_call_form(
+                    NativeTarget::macos_arm64(),
+                    physical,
+                    kind,
+                    alternative,
+                    views,
+                    accesses,
+                    number,
+                    bytes,
                 )
                 .is_err()
-            );
-            if !views.is_empty() {
-                let mut forged_views = views.clone();
-                forged_views[0] = physical.model().view_named("x16").unwrap().id;
-                assert!(
-                    encode_aarch64_selected_system_call_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &forged_views,
-                        &accesses,
-                        211,
-                    )
-                    .is_err()
-                );
-            }
-        }
+            },
+        );
     }
 }

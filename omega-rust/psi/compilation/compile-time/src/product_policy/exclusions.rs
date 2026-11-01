@@ -6,14 +6,12 @@ use crate::is_exact_toolchain_build_prelude_data;
 use crate::unique::push_unique;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
-};
-use language_semantics::declaration_selection::{
-    BuildOperation, ExclusionVocabulary, ExecutedEnumExclusion, ExecutedProductSelection,
-    ProductDeclarationRequest,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BuildOperation, ExclusionVocabulary,
+    ExecutedEnumExclusion, ExecutedProductSelection, ProductDeclarationRequest,
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 
 pub fn resolve(
     typed: &TypedTrees,
@@ -95,9 +93,7 @@ pub fn resolve(
                 .data_members(declaration)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == *case =>
-                    {
+                    DataMember::Variant(variant) if variant.name.as_str() == *case => {
                         Some(variant.symbol)
                     }
                     _ => None,
@@ -222,7 +218,7 @@ fn evaluated_exclusion_case<'a>(
         .data_members(declaration)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant)
+            DataMember::Variant(variant)
                 if variant.symbol == case_symbol
                     && typed.symbols.get(variant.symbol).parent == declaration.symbol =>
             {

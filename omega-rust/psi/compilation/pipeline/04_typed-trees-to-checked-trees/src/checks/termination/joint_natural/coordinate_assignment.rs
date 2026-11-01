@@ -114,12 +114,27 @@ fn search(
                     },
                     entry_indexes: coordinate.entry_indexes.clone(),
                     parameter_position: u32::try_from(coordinate.position).ok()?,
-                    primitive_type: candidates[position][chosen[position]]
-                        .application
-                        .map_or(coordinate.primitive, |application| {
-                            application.result_primitive
-                        }),
-                    observation: coordinate.observation,
+                    primitive_type: if order == Order::BoundedDistance {
+                        typed_trees::types::PrimitiveType::U64
+                    } else {
+                        candidates[position][chosen[position]]
+                            .application
+                            .map_or(coordinate.primitive, |application| {
+                                application.result_primitive
+                            })
+                    },
+                    observation: if order == Order::BoundedDistance {
+                        validation::RuntimeRankInput::Distance {
+                            lower_observation: coordinate.observation,
+                            lower_primitive: coordinate.primitive,
+                            upper: candidates[position][chosen[position]]
+                                .bound
+                                .as_ref()?
+                                .observation(program, program.machine_states(machine)[0].symbol)?,
+                        }
+                    } else {
+                        coordinate.observation.into()
+                    },
                     function: order.function(),
                     application: candidates[position][chosen[position]].formation.clone(),
                 }],

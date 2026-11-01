@@ -13,6 +13,8 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 
 use terminal_psi_to_abstract_operations::ComponentNativeInputs;
+use terminal_psi_to_abstract_operations::admit_prepared_native_realization;
+use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority;
 
 pub struct ComponentExportRequest<'input> {
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
@@ -31,8 +33,7 @@ pub struct ComponentNativeExport<'input> {
     body: image_emission::ObjectArtifact,
     entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
     runtime: native_artifact::TerminalCallableRuntimeProvisions,
-    authority:
-        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
+    authority: AdmittedNativeCallableAuthority,
 }
 
 /// Complete semantic/native export relationship after shared-container emission.
@@ -44,8 +45,7 @@ pub struct ComponentExportImage<'input> {
     calling_application: &'input BoundaryCallingApplication,
     image: image_emission::ComponentSharedImage,
     runtime: native_artifact::TerminalCallableRuntimeProvisions,
-    authority:
-        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
+    authority: AdmittedNativeCallableAuthority,
 }
 
 impl<'input> ComponentExportImage<'input> {
@@ -80,10 +80,7 @@ impl<'input> ComponentExportImage<'input> {
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
         &self.image
     }
-    pub const fn authority(
-        &self,
-    ) -> &terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority
-    {
+    pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.authority
     }
 }
@@ -174,9 +171,7 @@ pub fn emit_component_exports<'input>(
             request.receiving_permissions,
         );
         admission.entry = entry;
-        let admitted = terminal_psi_to_abstract_operations::admit_prepared_native_realization(
-            input, artifact, &admission,
-        )?;
+        let admitted = admit_prepared_native_realization(input, artifact, &admission)?;
         let projection = super::callable_objects::emit_callable_object(
             admitted,
             admission,

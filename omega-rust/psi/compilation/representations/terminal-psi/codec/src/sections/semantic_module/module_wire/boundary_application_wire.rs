@@ -126,6 +126,7 @@ mod tests {
 
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_counted};
+use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
@@ -238,20 +239,18 @@ fn decode_application(reader: &mut Reader<'_>) -> Result<BoundaryApplication, Co
     Ok(application)
 }
 
-fn encode_package(writer: &mut Writer, package: Option<semantic_vocabulary::PackageKeyIdentity>) {
+fn encode_package(writer: &mut Writer, package: Option<PackageKeyIdentity>) {
     writer.boolean(package.is_some());
     if let Some(package) = package {
         writer.bytes(&package.digest());
     }
 }
 
-fn decode_package(
-    reader: &mut Reader<'_>,
-) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, CodecError> {
+fn decode_package(reader: &mut Reader<'_>) -> Result<Option<PackageKeyIdentity>, CodecError> {
     if !reader.boolean()? {
         return Ok(None);
     }
-    semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?)
+    PackageKeyIdentity::from_digest(reader.array()?)
         .map(Some)
         .ok_or(CodecError::MalformedStructuralFoundation(
             "empty boundary package identity",

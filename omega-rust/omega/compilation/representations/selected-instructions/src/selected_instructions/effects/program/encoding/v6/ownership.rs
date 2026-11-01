@@ -2,6 +2,8 @@ use super::{
     ClaimId, Cursor, ObligationId, OwnershipEvent, PlaceId, PreAllocationMachineEffectDecodeError,
     StructuralTypeId, decode_ids, decode_machine,
 };
+use terminal_psi::StructuralPathSegment::Field;
+use terminal_psi::TerminalAffineCleanupAction::{DiscardResidual, InvokeNominal};
 pub fn decode_ownership(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<OwnershipEvent>, PreAllocationMachineEffectDecodeError> {
@@ -54,13 +56,11 @@ fn decode_cleanup(
     Ok(match cursor.byte()? {
         4 => terminal_psi::TerminalAffineCleanupAction::RetireHome(decode_place(cursor)?),
         1 => terminal_psi::TerminalAffineCleanupAction::DiscardRoot(decode_place(cursor)?),
-        2 => terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-            terminal_psi::StructuralAffineDiscard {
-                place: decode_place(cursor)?,
-                path: decode_path(cursor)?,
-                structural_type: decode_structural_type(cursor)?,
-            },
-        ),
+        2 => DiscardResidual(terminal_psi::StructuralAffineDiscard {
+            place: decode_place(cursor)?,
+            path: decode_path(cursor)?,
+            structural_type: decode_structural_type(cursor)?,
+        }),
         tag @ (3 | 5) => {
             let place = decode_place(cursor)?;
             let path = decode_path(cursor)?;
@@ -73,18 +73,16 @@ fn decode_cleanup(
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };
             let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                terminal_psi::NominalAffineCleanup {
-                    retains_descendants: tag == 5,
-                    place,
-                    path,
-                    structural_type,
-                    cleanup_machine,
-                    consumed_claims,
-                    cleanup_receiver,
-                    requirement_obligations,
-                },
-            )
+            InvokeNominal(terminal_psi::NominalAffineCleanup {
+                retains_descendants: tag == 5,
+                place,
+                path,
+                structural_type,
+                cleanup_machine,
+                consumed_claims,
+                cleanup_receiver,
+                requirement_obligations,
+            })
         }
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
@@ -97,9 +95,7 @@ fn decode_path(
     let mut path = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
         path.push(match cursor.byte()? {
-            1 => terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(
-                cursor.u32()?,
-            )),
+            1 => Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
             2 => terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => terminal_psi::StructuralPathSegment::Referent,
             4 => terminal_psi::StructuralPathSegment::FixedByteRange {
@@ -135,6 +131,8 @@ fn decode_structural_type(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::selected_instructions::effects::program::identity::encode_cleanup;
+    use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
         StructuralAffineDiscard, StructuralPathSegment, TerminalAffineCleanupAction,
     };
@@ -144,11 +142,9 @@ mod tests {
         let mut previous_encoding = None;
         for path in [
             Vec::new(),
-            vec![StructuralPathSegment::Field(
-                terminal_psi::TerminalIdentityIndex(1),
-            )],
+            vec![StructuralPathSegment::Field(TerminalIdentityIndex(1))],
             vec![
-                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
+                StructuralPathSegment::Field(TerminalIdentityIndex(1)),
                 StructuralPathSegment::FixedIndex(1),
             ],
         ] {
@@ -164,10 +160,7 @@ mod tests {
                     requirement_obligations: vec![ObligationId::new(6).unwrap()],
                 });
             let mut encoded = Vec::new();
-            crate::selected_instructions::effects::program::identity::encode_cleanup(
-                &mut encoded,
-                &action,
-            );
+            encode_cleanup(&mut encoded, &action);
             let mut cursor = Cursor::new(&encoded);
             assert_eq!(decode_cleanup(&mut cursor).unwrap(), action);
             assert_eq!(cursor.remaining(), 0);
@@ -192,7 +185,7 @@ mod tests {
             place: PlaceId::new(1).unwrap(),
             structural_type: StructuralTypeId::new(2).unwrap(),
             path: vec![
-                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
+                StructuralPathSegment::Field(TerminalIdentityIndex(1)),
                 StructuralPathSegment::FixedIndex(3),
                 StructuralPathSegment::Referent,
                 StructuralPathSegment::FixedByteRange { start: 4, end: 8 },
@@ -204,10 +197,7 @@ mod tests {
             ],
         });
         let mut encoded = Vec::new();
-        crate::selected_instructions::effects::program::identity::encode_cleanup(
-            &mut encoded,
-            &action,
-        );
+        encode_cleanup(&mut encoded, &action);
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_cleanup(&mut cursor).unwrap(), action);
         assert_eq!(cursor.remaining(), 0);

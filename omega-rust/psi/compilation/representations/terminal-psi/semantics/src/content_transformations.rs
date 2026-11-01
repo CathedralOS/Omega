@@ -46,10 +46,12 @@
 //! the executed operation, as for other semantic operations; it adds no implicit
 //! native metering.
 
+use crate::runtime_structural_path_tip;
 use semantic_vocabulary::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentTerm, PlaceId,
     StructuralDomainId, StructuralTypeId,
 };
+use terminal_psi::ContentTransformationCustody;
 use terminal_psi::{
     ContentClaimProjection, ContentTransformationDerivation, StructuralArgument,
     StructuralDomainDeclaration, StructuralOperationResult, StructuralPathQualification,
@@ -77,7 +79,7 @@ pub fn structural_path<'a>(
                 StructuralPathSegment::FixedIndex(*position)
             }
             ContentPlaceSegment::Case(identity) => {
-                let carrier = crate::runtime_structural_path_tip(types.clone(), root, &path)?;
+                let carrier = runtime_structural_path_tip(types.clone(), root, &path)?;
                 let identity = identities.index_of(identity)?;
                 StructuralPathSegment::Case(
                     carrier
@@ -90,7 +92,7 @@ pub fn structural_path<'a>(
             }
         });
     }
-    crate::runtime_structural_path_tip(types, root, &path)?;
+    runtime_structural_path_tip(types, root, &path)?;
     Some(path)
 }
 
@@ -113,8 +115,7 @@ pub fn content_path<'a>(
                 ContentPlaceSegment::FixedIndex(*position)
             }
             StructuralPathSegment::Case(identity) => {
-                let carrier =
-                    crate::runtime_structural_path_tip(types.clone(), root, &path[..position])?;
+                let carrier = runtime_structural_path_tip(types.clone(), root, &path[..position])?;
                 let case = carrier
                     .shape
                     .sum_cases()?
@@ -125,7 +126,7 @@ pub fn content_path<'a>(
             _ => return None,
         });
     }
-    crate::runtime_structural_path_tip(types, root, path)?;
+    runtime_structural_path_tip(types, root, path)?;
     Some(segments)
 }
 
@@ -309,7 +310,7 @@ pub fn validate_parent_memberships(
             let Some(relative) = path.strip_prefix(parent.path.as_slice()) else {
                 continue;
             };
-            let carrier = crate::runtime_structural_path_tip(types.iter(), root_type, &path)
+            let carrier = runtime_structural_path_tip(types.iter(), root_type, &path)
                 .ok_or("content parent membership carrier is absent")?;
             let domain = projection_owner(domains, carrier.id, &input.projection, derived)
                 .ok_or("content parent membership has no exact qualification owner")?;
@@ -370,7 +371,7 @@ pub fn validate_contract(
         }
     }
     let source_type = carrier_of(source.place).ok_or("content payload has no carrier")?;
-    if crate::runtime_structural_path_tip(types.iter(), source_type, &source.path)
+    if runtime_structural_path_tip(types.iter(), source_type, &source.path)
         .is_none_or(|carrier| carrier.id != result.structural_type)
     {
         return Err("content transformation changes payload carrier");
@@ -380,10 +381,7 @@ pub fn validate_contract(
     let mut covered_parents = vec![false; parents.len()];
     for derived in derivations {
         let mut qualification_owner = None;
-        let ordinary = matches!(
-            derived.custody,
-            terminal_psi::ContentTransformationCustody::Derived
-        );
+        let ordinary = matches!(derived.custody, ContentTransformationCustody::Derived);
         boundary_correspondence::validate_relation(derived)?;
         boundary_correspondence::validate_backing(types, identities, carrier_of, result, derived)?;
         let equation = semantic_vocabulary::ContentConservation::new(
@@ -418,7 +416,7 @@ pub fn validate_contract(
                     &binding.subject.segments,
                 )
                 .ok_or("content claim projection has no exact typed path")?;
-                let carrier = crate::runtime_structural_path_tip(types.iter(), root_type, &path)
+                let carrier = runtime_structural_path_tip(types.iter(), root_type, &path)
                     .ok_or("content claim projection carrier is absent")?;
                 let domain = projection_owner(domains, carrier.id, &binding.projection, derived)
                     .ok_or("content projection differs from its qualification owner")?;
@@ -486,10 +484,7 @@ pub fn validate_memberships(
     let mut whole = inherited.to_vec();
     let mut projected = inherited_projected.to_vec();
     for derived in derivations {
-        if !matches!(
-            derived.custody,
-            terminal_psi::ContentTransformationCustody::Derived
-        ) {
+        if !matches!(derived.custody, ContentTransformationCustody::Derived) {
             continue;
         }
         for output in &derived.outputs {
@@ -503,9 +498,8 @@ pub fn validate_memberships(
                 &output.subject.segments,
             )
             .ok_or("content output membership has no exact typed path")?;
-            let carrier =
-                crate::runtime_structural_path_tip(types.iter(), result.structural_type, &path)
-                    .ok_or("content output membership carrier is absent")?;
+            let carrier = runtime_structural_path_tip(types.iter(), result.structural_type, &path)
+                .ok_or("content output membership carrier is absent")?;
             let domain = projection_owner(domains, carrier.id, &output.projection, derived)
                 .ok_or("content output membership has no qualification owner")?;
             if path.is_empty() {

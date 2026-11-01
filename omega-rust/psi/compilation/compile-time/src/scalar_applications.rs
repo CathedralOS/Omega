@@ -6,8 +6,10 @@
 //! provisional observations; the caller still owes complete condition discharge
 //! and target admission before ordinary execution.
 
+use crate::evaluation_accounting::CanonicalScalarEvaluationReceipt;
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_installation::{ScalarApplicationClosure, TerminalScalarValue};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
 use terminal_interpreter::{
     TerminalEntryResultRequest, TerminalExecutionResult, TerminalExecutionStatus,
@@ -64,11 +66,10 @@ fn complete_scopes(
     deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
-    records: &mut Vec<crate::evaluation_accounting::CanonicalScalarEvaluationReceipt>,
+    records: &mut Vec<CanonicalScalarEvaluationReceipt>,
     select: &mut impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
-    let mut closure =
-        terminal_installation::ScalarApplicationClosure::new(artifact.view(), primary);
+    let mut closure = ScalarApplicationClosure::new(artifact.view(), primary);
     if let Some(scopes) = deployment_scopes {
         closure = closure.with_deployment_scopes(scopes);
     }
@@ -113,16 +114,14 @@ fn complete_scopes(
                         reason: reason.clone(),
                     },
                 };
-                records.push(
-                    crate::evaluation_accounting::CanonicalScalarEvaluationReceipt::new(
-                        std::sync::Arc::clone(&input),
-                        job.application,
-                        values,
-                        job.results.clone(),
-                        outcome,
-                        meter.into_usage(),
-                    ),
-                );
+                records.push(CanonicalScalarEvaluationReceipt::new(
+                    std::sync::Arc::clone(&input),
+                    job.application,
+                    values,
+                    job.results.clone(),
+                    outcome,
+                    meter.into_usage(),
+                ));
                 result
             })?;
         closure.close_scope(observations, conditions, selected.address_model)?;
@@ -185,11 +184,8 @@ fn evaluate_scope<'artifact>(
 }
 
 struct EntryObservation {
-    value: terminal_installation::TerminalScalarValue,
-    captured: Vec<(
-        semantic_vocabulary::ValueId,
-        terminal_installation::TerminalScalarValue,
-    )>,
+    value: TerminalScalarValue,
+    captured: Vec<(semantic_vocabulary::ValueId, TerminalScalarValue)>,
 }
 
 fn execute_entry(

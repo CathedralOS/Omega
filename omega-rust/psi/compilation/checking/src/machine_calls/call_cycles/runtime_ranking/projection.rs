@@ -106,7 +106,7 @@ impl RankProjection {
             let (argument_position, parameter) = entry_parameter(program, entry, *lower)?;
             // The cursor has an exact storage carrier. Its bound is an
             // expression, not necessarily another formal: the call judgment
-            // independently proves its meaning, formation and conservation.
+            // independently proves its meaning and formation after exact substitution.
             let primitive = integer_subject_carrier(program, machine, entry, *lower, parameter)?;
             return Some(Self {
                 order: RankOrder::BoundedDistance(primitive),
@@ -611,7 +611,7 @@ pub(super) fn natural_component(
                         entry_indexes: Vec::new(),
                         parameter_position: u32::try_from(position).ok()?,
                         primitive_type: *primitive_type,
-                        observation: crate::RankPremiseObservation::Value,
+                        observation: crate::RankPremiseObservation::Value.into(),
                         function: checked_trees::CheckedNaturalRankFunction::Identity,
                     })
                 })

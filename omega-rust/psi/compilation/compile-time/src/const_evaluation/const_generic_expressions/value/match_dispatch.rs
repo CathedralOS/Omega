@@ -1,5 +1,7 @@
 //! Scalar Match joins and anonymous-result landing before selective execution.
 
+use validation::evaluate_anonymous_numeric_expression;
+
 mod rational_bounds;
 
 use super::{Shape, Value, land_anonymous, primitive};
@@ -34,11 +36,9 @@ impl MatchSubject {
         builtin: impl FnMut(ExpressionHandle) -> bool,
     ) -> Result<Self, String> {
         if let Value::Anonymous(expression) = value {
-            validation::evaluate_anonymous_numeric_expression(
-                program, expression, selected, builtin,
-            )
-            .map(Self::Anonymous)
-            .ok_or("constant Match needs a defined anonymous subject".into())
+            evaluate_anonymous_numeric_expression(program, expression, selected, builtin)
+                .map(Self::Anonymous)
+                .ok_or("constant Match needs a defined anonymous subject".into())
         } else {
             Ok(Self::Scalar(value))
         }
@@ -53,10 +53,9 @@ impl MatchSubject {
     ) -> Result<bool, String> {
         match (self, pattern) {
             (Self::Anonymous(subject), Value::Anonymous(expression)) => {
-                let pattern = validation::evaluate_anonymous_numeric_expression(
-                    program, expression, selected, builtin,
-                )
-                .ok_or("constant Match needs a defined anonymous pattern")?;
+                let pattern =
+                    evaluate_anonymous_numeric_expression(program, expression, selected, builtin)
+                        .ok_or("constant Match needs a defined anonymous pattern")?;
                 Ok(subject.cmp_value(&pattern).is_eq())
             }
             (Self::Scalar(subject), pattern) => {
@@ -357,7 +356,7 @@ fn landing_summaries(
                     pending.push(Step::Enter(binary.left));
                 }
                 _ => {
-                    let value = validation::evaluate_anonymous_numeric_expression(
+                    let value = evaluate_anonymous_numeric_expression(
                         program,
                         expression,
                         &[],
@@ -536,12 +535,9 @@ pub(super) fn validate_anonymous_fragments(
             pending.push(binary.right);
             pending.push(binary.left);
         } else {
-            validation::evaluate_anonymous_numeric_expression(
-                program,
-                expression,
-                &[],
-                |operand| context.has_builtin(program, operand),
-            )
+            evaluate_anonymous_numeric_expression(program, expression, &[], |operand| {
+                context.has_builtin(program, operand)
+            })
             .ok_or("anonymous constant expression requires defined exact numeric values")?;
         }
     }
@@ -589,13 +585,11 @@ pub(super) fn coerce(
 ) -> Result<Value, String> {
     match (value, shape) {
         (Value::Anonymous(expression), Shape::Float(format)) => {
-            let exact = validation::evaluate_anonymous_numeric_expression(
-                program,
-                expression,
-                selected,
-                |operand| context.has_builtin(program, operand),
-            )
-            .ok_or("floating constant requires a defined exact anonymous value")?;
+            let exact =
+                evaluate_anonymous_numeric_expression(program, expression, selected, |operand| {
+                    context.has_builtin(program, operand)
+                })
+                .ok_or("floating constant requires a defined exact anonymous value")?;
             Ok(Value::Float(
                 format,
                 match format {

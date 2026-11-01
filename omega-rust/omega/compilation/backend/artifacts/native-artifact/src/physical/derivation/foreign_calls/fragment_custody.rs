@@ -7,11 +7,20 @@
 use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::foreign_calls::{floating_control, foreign_scalar_shape};
 use crate::physical::fragment_publication::FragmentPublicationBinding;
+use calling_conventions::NativePlace;
 use calling_conventions::ValueLocation;
+use image_emission::foreign_invocation_provenance_matches;
 use image_emission::{
     foreign_result_operand_count, fragment_instruction_span, structural_result_capture,
 };
+use object_file::canonical_normalized_foreign_import_symbol_name;
+use selected_instructions::VirtualRegisterOrigin;
+use selected_instructions::calls;
+use selected_instructions::calls::normalized_foreign::return_transport::resolve;
+use semantic_vocabulary::IeeeFloatFormat;
 use semantic_vocabulary::ScalarType;
+use target_operations::TargetBoundaryResult;
+use target_operations::TargetUnitScalarArgumentSource;
 
 /// The selected-plan roster row for one normalized-foreign D41 child, plus
 /// its unresolved field and symbol for imports only. Kernel entries have no
@@ -61,10 +70,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     let (block, instruction) =
         image_emission::unique_block_instruction(function, record.instruction)
             .ok_or("normalized foreign D41 roster row names an absent instruction")?;
-    if !image_emission::foreign_invocation_provenance_matches(
-        &instruction.provenance,
-        record.invocation_site,
-    ) {
+    if !foreign_invocation_provenance_matches(&instruction.provenance, record.invocation_site) {
         return Err("normalized foreign call changed its invocation source custody");
     }
     if !matches!(instruction.kind,
@@ -74,12 +80,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     {
         return Err("normalized foreign D41 instruction kind does not match its roster row");
     }
-    if record.invocation_site.operation().is_none()
-        && selected_instructions::calls::normalized_foreign::return_transport::resolve(
-            function, block, record,
-        )
-        .is_none()
-    {
+    if record.invocation_site.operation().is_none() && resolve(function, block, record).is_none() {
         return Err("normalized foreign completion lost its containment trap");
     }
     let mut fragments = publication
@@ -137,10 +138,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 );
             };
             if import.name
-                != object_file::canonical_normalized_foreign_import_symbol_name(
-                    import.boundary,
-                    import.ordinal,
-                )
+                != canonical_normalized_foreign_import_symbol_name(import.boundary, import.ordinal)
             {
                 return Err("normalized foreign D41 import symbol drifted from its canonical name");
             }
@@ -306,11 +304,9 @@ fn fragment_callback_materialization_rejoin(
                         root_register,
                         byte_offset,
                     } => {
-                        matches!(
-                            callback.destination,
-                            calling_conventions::NativePlace::Field { .. }
-                        ) && callback.field_byte_offset
-                            == Some(usize::try_from(byte_offset).unwrap_or(usize::MAX))
+                        matches!(callback.destination, NativePlace::Field { .. })
+                            && callback.field_byte_offset
+                                == Some(usize::try_from(byte_offset).unwrap_or(usize::MAX))
                             && callback.application.placement.locations.as_slice()
                                 == [ValueLocation::Register {
                                     register: root_register,
@@ -337,12 +333,7 @@ fn fragment_scalar_argument_custody_rejoin(
     let parameter_slot_materializations = plan
         .callback_materializations
         .iter()
-        .filter(|row| {
-            matches!(
-                row.destination,
-                calling_conventions::NativePlace::Parameter(_)
-            )
-        })
+        .filter(|row| matches!(row.destination, NativePlace::Parameter(_)))
         .count();
     if foreign.scalar_arguments.len() != record.call.scalar_arguments.len()
         || plan.parameters.len()
@@ -387,8 +378,7 @@ fn fragment_scalar_argument_custody_rejoin(
     }
     // Parameter identities are not operand offsets: an aggregate may
     // contribute multiple fragments or one owned-copy pointer.
-    let register_positions =
-        selected_instructions::calls::constraints::foreign_argument_registers(&record.call);
+    let register_positions = calls::constraints::foreign_argument_registers(&record.call);
     let register_arguments = register_positions.len();
     if !foreign_result_operand_count(record).is_some_and(|results| {
         register_arguments.checked_add(results) == Some(instruction.operands.len())
@@ -423,14 +413,10 @@ fn fragment_scalar_argument_custody_rejoin(
             .unwrap_or(register_arguments);
         let span_rejoins = match (argument.source, physical.source) {
             (
-                source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
-                | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)
-                | target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
-                    ..
-                }
-                | target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-                    ..
-                }),
+                source @ (TargetUnitScalarArgumentSource::Parameter { .. }
+                | TargetUnitScalarArgumentSource::BlockParameter(_)
+                | TargetUnitScalarArgumentSource::BooleanImmediate { .. }
+                | TargetUnitScalarArgumentSource::IeeeFloatImmediate { .. }),
                 machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
                     source_value,
                     scalar_type,
@@ -447,7 +433,7 @@ fn fragment_scalar_argument_custody_rejoin(
                         == Some((physical.code_offset as u64, physical.byte_count as u64))
             }
             (
-                target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                TargetUnitScalarArgumentSource::IntegerImmediate {
                     defining_operation,
                     source_value,
                     scalar_type,
@@ -480,7 +466,7 @@ fn fragment_scalar_argument_custody_rejoin(
                     )
             }
             (
-                target_operations::TargetUnitScalarArgumentSource::Home(home),
+                TargetUnitScalarArgumentSource::Home(home),
                 machine_code::InternalUnitScalarArgumentSourceRecord::Home(projected),
             ) => {
                 let allocated = home_offsets
@@ -562,19 +548,13 @@ fn fragment_scalar_result_custody_rejoin(
     physical: Option<&machine_code::ForeignCallScalarResultRecord>,
 ) -> bool {
     let plan = &record.call.binding.boundary_entry_plan.call;
-    if matches!(
-        record.call.result,
-        target_operations::TargetBoundaryResult::Structural(_)
-    ) {
+    if matches!(record.call.result, TargetBoundaryResult::Structural(_)) {
         return physical.is_none()
             && structural_result_capture(function, block, fragment, record, instruction).is_some();
     }
     let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
         return physical.is_none()
-            && matches!(
-                record.call.result,
-                target_operations::TargetBoundaryResult::Unit
-            )
+            && matches!(record.call.result, TargetBoundaryResult::Unit)
             && plan.result.is_none();
     };
     let Some(physical) = physical else {
@@ -590,11 +570,7 @@ fn fragment_scalar_result_custody_rejoin(
     {
         return false;
     }
-    let Some(transport) =
-        selected_instructions::calls::normalized_foreign::return_transport::resolve(
-            function, block, record,
-        )
-    else {
+    let Some(transport) = resolve(function, block, record) else {
         return false;
     };
     let Some(normalization) = block.instructions.get(transport.normalization_position) else {
@@ -622,12 +598,10 @@ fn fragment_scalar_result_custody_rejoin(
             != record.invocation_site.operation().as_slice()
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
-            != Some(
-                selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                    instruction: normalization.id,
-                    source_value: home.source_value,
-                },
-            )
+            != Some(VirtualRegisterOrigin::InstructionResult {
+                instruction: normalization.id,
+                source_value: home.source_value,
+            })
     {
         return false;
     }
@@ -676,12 +650,8 @@ fn fragment_scalar_result_normalization_kind(
         return Some(Kind::CopyI64);
     }
     match scalar_type {
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-            Some(Kind::Float32ToBits)
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-            Some(Kind::Float64ToBits)
-        }
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(Kind::Float32ToBits),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(Kind::Float64ToBits),
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),
         ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
             (semantic_vocabulary::IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),

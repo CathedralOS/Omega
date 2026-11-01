@@ -12,7 +12,8 @@ use crate::integer_rules::fixed_integer::{
 use crate::integer_rules::integer_affine::CheckedIntegerAffineForm;
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use semantic_vocabulary::{
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
+    ScalarTerm, ScalarType,
 };
 
 mod relative_translation;
@@ -876,9 +877,9 @@ fn map_direct_multiply_bound(
 }
 
 enum DirectAddEndpoint {
-    Exact(semantic_vocabulary::IntegerMathLiteral),
+    Exact(IntegerMathLiteral),
     Oriented {
-        literal: semantic_vocabulary::IntegerMathLiteral,
+        literal: IntegerMathLiteral,
         lower: bool,
     },
     Carrier,
@@ -892,20 +893,14 @@ impl DirectAddEndpoint {
         }
     }
 
-    fn literal(
-        &self,
-        integer_type: IntegerType,
-        lower: bool,
-    ) -> semantic_vocabulary::IntegerMathLiteral {
+    fn literal(&self, integer_type: IntegerType, lower: bool) -> IntegerMathLiteral {
         match self {
             Self::Exact(literal) | Self::Oriented { literal, .. } => *literal,
-            Self::Carrier => {
-                semantic_vocabulary::IntegerMathLiteral::from_integer_value(if lower {
-                    integer_type.minimum_value()
-                } else {
-                    integer_type.maximum_value()
-                })
-            }
+            Self::Carrier => IntegerMathLiteral::from_integer_value(if lower {
+                integer_type.minimum_value()
+            } else {
+                integer_type.maximum_value()
+            }),
         }
     }
 }
@@ -920,7 +915,7 @@ fn direct_operand_endpoint(
             return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
         }
         return Ok(DirectAddEndpoint::Exact(
-            semantic_vocabulary::IntegerMathLiteral::from_integer_value(*value),
+            IntegerMathLiteral::from_integer_value(*value),
         ));
     }
     if evidence == &Proposition::Truth {
@@ -941,7 +936,7 @@ fn direct_operand_endpoint(
             return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
         }
         return Ok(DirectAddEndpoint::Exact(
-            semantic_vocabulary::IntegerMathLiteral::from_integer_value(value),
+            IntegerMathLiteral::from_integer_value(value),
         ));
     }
     let Proposition::LessOrEqual(left, right) = evidence else {
@@ -964,15 +959,15 @@ fn direct_operand_endpoint(
         return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
     }
     Ok(DirectAddEndpoint::Oriented {
-        literal: semantic_vocabulary::IntegerMathLiteral::from_integer_value(value),
+        literal: IntegerMathLiteral::from_integer_value(value),
         lower,
     })
 }
 
 fn add_math_literals(
-    left: semantic_vocabulary::IntegerMathLiteral,
-    right: semantic_vocabulary::IntegerMathLiteral,
-) -> Result<semantic_vocabulary::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    left: IntegerMathLiteral,
+    right: IntegerMathLiteral,
+) -> Result<IntegerMathLiteral, IntegerAffineBoundConversionError> {
     let (negative, magnitude) = if left.negative() == right.negative() {
         (
             left.negative(),
@@ -987,14 +982,14 @@ fn add_math_literals(
             std::cmp::Ordering::Greater => (left.negative(), left.magnitude() - right.magnitude()),
         }
     };
-    semantic_vocabulary::IntegerMathLiteral::new(negative, magnitude)
+    IntegerMathLiteral::new(negative, magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::DirectAddBoundOverflow)
 }
 
 fn subtract_math_literals(
-    left: semantic_vocabulary::IntegerMathLiteral,
-    right: semantic_vocabulary::IntegerMathLiteral,
-) -> Result<semantic_vocabulary::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    left: IntegerMathLiteral,
+    right: IntegerMathLiteral,
+) -> Result<IntegerMathLiteral, IntegerAffineBoundConversionError> {
     let (negative, magnitude) = if left.negative() != right.negative() {
         (
             left.negative(),
@@ -1009,29 +1004,26 @@ fn subtract_math_literals(
             std::cmp::Ordering::Greater => (left.negative(), left.magnitude() - right.magnitude()),
         }
     };
-    semantic_vocabulary::IntegerMathLiteral::new(negative, magnitude)
+    IntegerMathLiteral::new(negative, magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::DirectSubtractBoundOverflow)
 }
 
 fn multiply_math_literals(
-    left: semantic_vocabulary::IntegerMathLiteral,
-    right: semantic_vocabulary::IntegerMathLiteral,
-) -> Result<semantic_vocabulary::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    left: IntegerMathLiteral,
+    right: IntegerMathLiteral,
+) -> Result<IntegerMathLiteral, IntegerAffineBoundConversionError> {
     let magnitude = left
         .magnitude()
         .checked_mul(right.magnitude())
         .ok_or(IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)?;
-    semantic_vocabulary::IntegerMathLiteral::new(
+    IntegerMathLiteral::new(
         magnitude != 0 && left.negative() != right.negative(),
         magnitude,
     )
     .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)
 }
 
-fn math_literal_less(
-    left: semantic_vocabulary::IntegerMathLiteral,
-    right: semantic_vocabulary::IntegerMathLiteral,
-) -> bool {
+fn math_literal_less(left: IntegerMathLiteral, right: IntegerMathLiteral) -> bool {
     match (left.negative(), right.negative()) {
         (true, false) => true,
         (false, true) => false,
@@ -1100,7 +1092,7 @@ fn carrier_endpoint_image(
 /// lower bound, `term ≤ literal` otherwise.
 fn literal_endpoint_image(
     term: IntegerMathTerm,
-    literal: semantic_vocabulary::IntegerMathLiteral,
+    literal: IntegerMathLiteral,
     lower: bool,
 ) -> Proposition {
     if lower {
@@ -1266,13 +1258,13 @@ fn bitwise_or_image_maximum(left_upper: i128, right_upper: i128) -> Option<i128>
 fn shift_math_literal(
     value: IntegerValue,
     count: u32,
-) -> Result<semantic_vocabulary::IntegerMathLiteral, IntegerAffineBoundConversionError> {
-    let literal = semantic_vocabulary::IntegerMathLiteral::from_integer_value(value);
+) -> Result<IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    let literal = IntegerMathLiteral::from_integer_value(value);
     let magnitude = literal
         .magnitude()
         .checked_shl(count)
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
-    semantic_vocabulary::IntegerMathLiteral::new(literal.negative(), magnitude)
+    IntegerMathLiteral::new(literal.negative(), magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOverflow)
 }
 

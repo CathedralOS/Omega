@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
-use crate::expressions::proposition::lower_proposition_application;
+use crate::expressions::proposition::{is_proposition_call_target, lower_proposition_application};
 
 pub(crate) fn lower_proposition_definition(
     lowerer: &mut Lowerer,
@@ -78,10 +78,8 @@ pub(crate) fn lower_proposition_definition(
         resolved::proposition::PropositionBody::Transparent { proposition } => {
             let formula = if let resolved::expression::ExpressionNode::Call(call) =
                 resolved_expressions(lowerer.source_trees).expression(*proposition)
-                && crate::expressions::proposition::is_proposition_call_target(
-                    &lowerer.source_trees.symbols,
-                    call.target_symbol,
-                ) {
+                && is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol)
+            {
                 typed::proposition::PropositionFormula::Application(lower_proposition_application(
                     lowerer, call,
                 )?)

@@ -4,13 +4,15 @@
 use super::super::machine_declaration_wire;
 use super::super::wire::{Reader, Writer, decode_counted};
 use super::super::{CodecError, MAX_PROPOSITION_DEPTH};
+use super::boundary_application_wire::{decode_requirement, encode_requirement};
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::proof_applications::{
     ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember, ProofCallGraph,
     ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
 };
 use terminal_psi::{
-    ProofApplicationScope, ProofDeclarationId, ProofScopeDeclaration, TerminalIdentityIndex,
+    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
+    TerminalIdentityIndex,
 };
 
 fn references(
@@ -77,13 +79,13 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
             }
             ProofScopeDeclaration::Operator(requirement) => {
                 writer.u8(4);
-                super::boundary_application_wire::encode_requirement(writer, requirement)?;
+                encode_requirement(writer, requirement)?;
             }
         }
     }
     writer.len("proof scope callables", scope.callables.len())?;
     for (_, row) in scope.callables.iter() {
-        let terminal_psi::ProofCallableAssociation::Callable {
+        let ProofCallableAssociation::Callable {
             declaration,
             callable,
         } = row
@@ -211,20 +213,16 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             3 => {
                 ProofScopeDeclaration::Unavailable(reader.string("unavailable proof declaration")?)
             }
-            4 => ProofScopeDeclaration::Operator(
-                super::boundary_application_wire::decode_requirement(reader)?,
-            ),
+            4 => ProofScopeDeclaration::Operator(decode_requirement(reader)?),
             tag => return Err(CodecError::InvalidTag("ProofScopeDeclaration", tag)),
         };
         result.declarations.insert(declaration);
     }
     for _ in 0..reader.count()? {
-        result
-            .callables
-            .insert(terminal_psi::ProofCallableAssociation::Callable {
-                declaration: ProofDeclarationId(reader.u32()?),
-                callable: super::target_family_wire::decode_callable(reader)?,
-            });
+        result.callables.insert(ProofCallableAssociation::Callable {
+            declaration: ProofDeclarationId(reader.u32()?),
+            callable: super::target_family_wire::decode_callable(reader)?,
+        });
     }
     let plan = &mut result.plan;
     plan.has_obligations = reader.boolean()?;
@@ -301,6 +299,8 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
 
 #[cfg(test)]
 mod tests {
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity};
+
     use super::*;
 
     fn scope() -> ProofApplicationScope {
@@ -377,21 +377,15 @@ mod tests {
         for (declaration, callable) in [
             (
                 1,
-                terminal_psi::TargetMachineCallable::Machine(
-                    semantic_vocabulary::MachineId::new(41).unwrap(),
-                ),
+                terminal_psi::TargetMachineCallable::Machine(MachineId::new(41).unwrap()),
             ),
             (
                 2,
-                terminal_psi::TargetMachineCallable::Machine(
-                    semantic_vocabulary::MachineId::new(42).unwrap(),
-                ),
+                terminal_psi::TargetMachineCallable::Machine(MachineId::new(42).unwrap()),
             ),
             (
                 9,
-                terminal_psi::TargetMachineCallable::Boundary(
-                    semantic_vocabulary::BoundaryMachineId::new(41).unwrap(),
-                ),
+                terminal_psi::TargetMachineCallable::Boundary(BoundaryMachineId::new(41).unwrap()),
             ),
         ] {
             scope
@@ -405,7 +399,7 @@ mod tests {
             terminal_psi::BoundaryOperatorRequirement::new(
                 terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
                 "operator::compare(u64,u64)->bool".into(),
-                semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+                PackageKeyIdentity::from_digest([7; 32]),
             )
             .unwrap(),
         ));

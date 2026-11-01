@@ -28,22 +28,48 @@ mod storage_foundations;
 mod structural_type_foundations;
 mod target_layouts;
 mod task_activation;
+mod unoptimized_behavior;
 mod value_foundations;
 
 use super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalIdentityIndex;
 
+use self::call_foundations::{
+    validate_boundary_call, validate_call_dynamic, validate_call_structural,
+    validate_call_structural_scalar, validate_call_unit, validate_port_write,
+    validate_register_access,
+};
 use semantic_vocabulary::{
-    ClaimId, ScalarDomainId, ScalarQualificationSetId, ScalarType, ServiceId, StructuralPlaceKind,
-    StructuralTypeId,
+    BlockId, ClaimId, IntegerCarrier, IntegerSign, PlaceId, ScalarDomainId,
+    ScalarQualificationSetId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use std::collections::BTreeSet;
+use terminal_psi::types::atomic_once_outcome_cases;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, ScalarDomainDeclaration, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration, find_structural_case,
+    AtomicAccessEvent, BoundaryDeclarationRole, ByteSequenceCarrier, Operation, OperationKind,
+    OperationResult, ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess,
+    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
+    TerminalRootServiceReach, Terminator, ValueDeclaration, call_structural_pair_pattern,
+    field_by_identity, find_structural_case, find_structural_type, record_or_mixed_shape_pattern,
+    structural_leaf_copy_pair_pattern,
+};
+use terminal_semantics::descriptor_results::terminal_payload_contract;
+use terminal_semantics::{
+    access_view_input_parameter, borrowed_primitive_projection_declaration,
+    borrowed_referent_matches, boundary_buffer_capacity, bounded_byte_owner_capacity,
+    byte_owned_result_predicates, byte_parameter_predicates, byte_sequence_source_predicates,
+    contains_access_carrier, fixed_byte_array_loan, fixed_element_array_extent,
+    fused_service_field_carrier, primitive_projection_declaration, projected_field_declaration,
+    pure_byte_qualifications, qualification_path_carrier, reference_origin_type,
+    representation_view_declaration, runtime_structural_path_tip, scalar_array_leaf_shape,
+    shared_boundary_buffer_capacity, stored_view_field_presentation,
+    structural_memberships_disjoint_from_write, validate_access_lifecycle_plans,
+    validate_access_view_plans, validate_dynamic_reference_regions,
+    validate_runtime_evidence_inputs,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -51,7 +77,7 @@ use terminal_psi::{
 /// results.
 pub(super) fn declared_scalar_type(
     machine: &TerminalMachine,
-    value: semantic_vocabulary::ValueId,
+    value: ValueId,
 ) -> Option<ScalarType> {
     machine
         .parameters
@@ -142,12 +168,10 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         )) {
             return malformed("access-view inputs repeat one structural formal");
         }
-        terminal_semantics::access_view_input_parameter(module, row)
-            .map_err(CodecError::AccessViewInput)?;
+        access_view_input_parameter(module, row).map_err(CodecError::AccessViewInput)?;
     }
-    terminal_semantics::validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
-    terminal_semantics::validate_access_lifecycle_plans(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
+    validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
+    validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
@@ -231,11 +255,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     validate_structural_type_graph(&module.structural_types)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
-            terminal_semantics::validate_dynamic_reference_regions(
-                module.structural_types.iter(),
-                slot,
-            )
-            .map_err(CodecError::MalformedStructuralFoundation)?;
+            validate_dynamic_reference_regions(module.structural_types.iter(), slot)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
         }
     }
     declaration_foundations::validate_domains(module)?;
@@ -257,6 +278,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
+    unoptimized_behavior::validate(module)?;
     declaration_foundations::validate_calling_signatures(module)?;
     for boundary in &module.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
@@ -273,8 +295,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     storage_foundations::validate_reference_memberships(module)?;
-    terminal_semantics::validate_runtime_evidence_inputs(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
+    validate_runtime_evidence_inputs(module).map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 
@@ -329,7 +350,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
     match module.entry {
-        None if module.root_service_reach == terminal_psi::TerminalRootServiceReach::default() => {}
+        None if module.root_service_reach == TerminalRootServiceReach::default() => {}
         Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
         Some(head @ TargetMachineCallable::Boundary(boundary))
             if module.target_machine_families.iter().any(|family| {
@@ -339,7 +360,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                 .boundary_machine(boundary)
                 .is_some_and(|declaration| {
                     declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-                        && declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+                        && declaration.role == BoundaryDeclarationRole::Callable
                 }) => {}
         _ => return malformed("portable entry has no retained machine or target-family head"),
     }
@@ -366,7 +387,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
             };
             if module.boundary_machine(head).is_none_or(|declaration| {
                 declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
-                    || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+                    || declaration.role != BoundaryDeclarationRole::Callable
             }) {
                 return malformed("independent target-family head has no machine declaration");
             }
@@ -401,7 +422,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                 TargetMachineCallable::Boundary(boundary) => {
                     if member.supply == TargetMachineSupply::CheckedBody
                         || module.boundary_machine(boundary).is_none_or(|declaration| {
-                            declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+                            declaration.role != BoundaryDeclarationRole::Callable
                         })
                     {
                         return malformed(
@@ -439,11 +460,7 @@ fn validate_provider_attachment_foundation(
                 fields
                     .iter()
                     .filter(|field| {
-                        terminal_semantics::fused_service_field_carrier(
-                            &module.structural_types,
-                            field,
-                        )
-                        .is_some()
+                        fused_service_field_carrier(&module.structural_types, field).is_some()
                     })
                     .collect::<Vec<_>>(),
             ),
@@ -520,12 +537,13 @@ pub(crate) fn validate_structural_path(
 pub(crate) fn validate_reference_origin_family(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
-    path: &[terminal_psi::ReferenceOriginProjection],
+    path: &[ReferenceOriginProjection],
 ) -> Result<StructuralTypeId, CodecError> {
-    terminal_semantics::reference_origin_type(module.structural_types.iter(), structural_type, path)
-        .ok_or(CodecError::MalformedStructuralFoundation(
+    reference_origin_type(module.structural_types.iter(), structural_type, path).ok_or(
+        CodecError::MalformedStructuralFoundation(
             "reference origin has an invalid typed projection",
-        ))
+        ),
+    )
 }
 
 fn validate_reference_origin_path(
@@ -535,21 +553,17 @@ fn validate_reference_origin_path(
 ) -> Result<StructuralTypeId, CodecError> {
     // Runtime type coordinates include inline descriptors, whose original
     // root/path retain custody. They do not create an owned canonical place.
-    if let Some(endpoint) = terminal_semantics::runtime_structural_path_tip(
-        module.structural_types.iter(),
-        structural_type,
-        path,
-    ) {
+    if let Some(endpoint) =
+        runtime_structural_path_tip(module.structural_types.iter(), structural_type, path)
+    {
         return Ok(endpoint.id);
     }
     // Primitive projected storage uses the shared endpoint judgment, including
     // byte elements whose carrier is inline rather than a declared child.
     // Runtime selectors retain their owning operation's independent bounds.
-    if let Some(endpoint) = terminal_semantics::primitive_projection_declaration(
-        module.structural_types.iter(),
-        structural_type,
-        path,
-    ) {
+    if let Some(endpoint) =
+        primitive_projection_declaration(module.structural_types.iter(), structural_type, path)
+    {
         return Ok(endpoint);
     }
     let mut payload_fields = None;
@@ -591,7 +605,7 @@ fn validate_reference_origin_path(
                         "storage interpretation cannot replace a descriptor crossing",
                     );
                 }
-                let Some(view) = terminal_semantics::representation_view_declaration(
+                let Some(view) = representation_view_declaration(
                     module.structural_types.iter(),
                     *view,
                     *stored_scalar,
@@ -623,7 +637,7 @@ fn validate_reference_origin_path(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
+                        record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
                         _ => {
                             return malformed(
                                 "structural field path requires a record or case payload",
@@ -634,7 +648,7 @@ fn validate_reference_origin_path(
                 if identity.is_absent() {
                     return malformed("structural path field identity cannot be empty");
                 }
-                let Some(field) = terminal_psi::field_by_identity(fields, *identity) else {
+                let Some(field) = field_by_identity(fields, *identity) else {
                     return malformed("structural path has an unknown structural field");
                 };
                 if field.relevance.is_erased() {
@@ -726,8 +740,8 @@ fn validate_structural_parameters(
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("structural parameter references an unknown type");
         }
-        if parameter.access == terminal_psi::StructuralAccess::Owned
-            && terminal_semantics::contains_access_carrier(module, parameter.structural_type)
+        if parameter.access == StructuralAccess::Owned
+            && contains_access_carrier(module, parameter.structural_type)
         {
             return malformed("ordinary owned parameters cannot receive placed custody");
         }
@@ -746,7 +760,7 @@ fn validate_structural_parameters(
 pub(super) fn operation_foundation_error(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    block: semantic_vocabulary::BlockId,
+    block: BlockId,
     operation: &Operation,
     error: CodecError,
 ) -> CodecError {
@@ -807,7 +821,7 @@ fn validate_operation_foundation(
         return malformed("returned-origin interpretation is not an executable projection");
     }
     if let Some(result) = operation.result.structural() {
-        if terminal_semantics::contains_access_carrier(module, result.structural_type) {
+        if contains_access_carrier(module, result.structural_type) {
             return malformed("ordinary value production cannot establish placed custody");
         }
         validate_structural_qualifications(
@@ -865,8 +879,8 @@ fn validate_operation_foundation(
         }
         OperationKind::EstablishActivationClaim { committed, .. } => {
             if !matches!(declared_scalar_type(machine, *committed), Some(ScalarType::Integer(integer))
-                if integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                    && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
                     "activation committed extent must be an unsigned fixed 64-bit value",
@@ -876,8 +890,7 @@ fn validate_operation_foundation(
                 .map_err(CodecError::MalformedStructuralFoundation)?;
         }
         OperationKind::ReleaseActivationClaim { source, .. } => {
-            if operation.result != OperationResult::Unit
-                || source.access != terminal_psi::StructuralAccess::Owned
+            if operation.result != OperationResult::Unit || source.access != StructuralAccess::Owned
             {
                 return malformed(
                     "activation release requires one owned claim and Unit completion",
@@ -890,10 +903,10 @@ fn validate_operation_foundation(
             ..
         } => {
             if operation.result.structural().is_none()
-                || source.access != terminal_psi::StructuralAccess::Owned
+                || source.access != StructuralAccess::Owned
                 || !matches!(declared_scalar_type(machine, *committed_at), Some(ScalarType::Integer(integer))
-                    if integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                        && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                    if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                        && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
                     "activation split requires one owned claim and an unsigned fixed 64-bit cut",
@@ -902,8 +915,8 @@ fn validate_operation_foundation(
         }
         OperationKind::MergeActivationClaim { lower, upper, .. } => {
             if operation.result.structural().is_none()
-                || lower.access != terminal_psi::StructuralAccess::Owned
-                || upper.access != terminal_psi::StructuralAccess::Owned
+                || lower.access != StructuralAccess::Owned
+                || upper.access != StructuralAccess::Owned
             {
                 return malformed("activation merge requires two owned claims");
             }
@@ -937,22 +950,18 @@ fn validate_operation_foundation(
             if operation.result != OperationResult::Unit {
                 return malformed("element-view write requires a Unit result");
             }
-            let root = terminal_semantics::descriptor_results::terminal_payload_contract(
-                machine,
-                destination.place,
-            )
-            .ok_or(CodecError::MalformedStructuralFoundation(
-                "element-view write root is absent",
-            ))?;
+            let root = terminal_payload_contract(machine, destination.place).ok_or(
+                CodecError::MalformedStructuralFoundation("element-view write root is absent"),
+            )?;
             // Preserve the original root roster and every stored-descriptor
             // crossing before selecting the written element and its field.
             let mut written = destination.path.clone();
-            written.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+            written.push(StructuralPathSegment::RuntimeIndex {
                 index: *index,
                 obligation: *obligation,
             });
             written.extend(path.iter().cloned());
-            if !terminal_semantics::structural_memberships_disjoint_from_write(
+            if !structural_memberships_disjoint_from_write(
                 &root.qualifications,
                 &root.projected_qualifications,
                 &written,
@@ -965,7 +974,7 @@ fn validate_operation_foundation(
         OperationKind::StructuralCaseMembership { .. } => {
             storage_foundations::validate_structural_case_membership(operation)?
         }
-        terminal_psi::structural_leaf_copy_pair_pattern!() => {
+        structural_leaf_copy_pair_pattern!() => {
             storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
         }
         OperationKind::MoveStructuralValue { .. } => {
@@ -1011,24 +1020,16 @@ fn validate_operation_foundation(
         OperationKind::EstablishByteSequenceLiteral { .. } => {
             value_foundations::validate_establish_byte_sequence_literal(module, machine, operation)?
         }
-        OperationKind::CallUnit { .. } => call_foundations::validate_call_unit(module, operation)?,
-        OperationKind::CallDynamic { .. } => {
-            call_foundations::validate_call_dynamic(module, machine, operation)?
-        }
+        OperationKind::CallUnit { .. } => validate_call_unit(module, operation)?,
+        OperationKind::CallDynamic { .. } => validate_call_dynamic(module, machine, operation)?,
         OperationKind::CallStructuralScalar { .. } => {
-            call_foundations::validate_call_structural_scalar(module, operation)?
+            validate_call_structural_scalar(module, operation)?
         }
-        terminal_psi::call_structural_pair_pattern!(..) => {
-            call_foundations::validate_call_structural(module, machine, operation)?
-        }
-        OperationKind::BoundaryCall { .. } => {
-            call_foundations::validate_boundary_call(module, machine, operation)?
-        }
-        OperationKind::PortWrite { .. } => {
-            call_foundations::validate_port_write(module, operation)?
-        }
+        call_structural_pair_pattern!(..) => validate_call_structural(module, machine, operation)?,
+        OperationKind::BoundaryCall { .. } => validate_boundary_call(module, machine, operation)?,
+        OperationKind::PortWrite { .. } => validate_port_write(module, operation)?,
         OperationKind::RegisterAccess { .. } => {
-            call_foundations::validate_register_access(module, machine, operation)?
+            validate_register_access(module, machine, operation)?
         }
         OperationKind::EstablishZeroedStructural { .. } => {
             value_foundations::validate_establish_zeroed_structural(module, machine, operation)?
@@ -1080,17 +1081,13 @@ fn validate_operation_foundation(
                     "atomic location has no declared root".into(),
                 )
             })?;
-            let declaration = terminal_semantics::projected_field_declaration(
-                module.structural_types.iter(),
-                root,
-                path,
-                *field,
-            )
-            .ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "atomic location is not an atomic cell".into(),
-                )
-            })?;
+            let declaration =
+                projected_field_declaration(module.structural_types.iter(), root, path, *field)
+                    .ok_or_else(|| {
+                        CodecError::MalformedStructuralFoundation(
+                            "atomic location is not an atomic cell".into(),
+                        )
+                    })?;
             let resident = declaration.field_type.atomic_scalar_type().ok_or_else(|| {
                 CodecError::MalformedStructuralFoundation(
                     "atomic location is not an atomic cell".into(),
@@ -1098,7 +1095,7 @@ fn validate_operation_foundation(
             })?;
             let bounded = matches!(
                 declaration.field_type,
-                terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                StructuralFieldType::AtomicBoundedInteger(_)
             );
             if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
                 return malformed(
@@ -1112,10 +1109,7 @@ fn validate_operation_foundation(
             {
                 return malformed("atomic operand differs from the exact resident type");
             }
-            let once = matches!(
-                event,
-                terminal_psi::AtomicAccessEvent::CompareExchangeOnce { .. }
-            );
+            let once = matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. });
             let shape_matches = match &operation.result {
                 OperationResult::Scalar(result) => {
                     !once && event.observes_resident() && result.scalar_type == resident
@@ -1126,11 +1120,7 @@ fn validate_operation_foundation(
                         && result.qualification_establishments.is_empty()
                         && module.structural_type(result.structural_type).is_some_and(
                             |declaration| {
-                                terminal_psi::types::atomic_once_outcome_cases(
-                                    declaration,
-                                    resident,
-                                )
-                                .is_some()
+                                atomic_once_outcome_cases(declaration, resident).is_some()
                             },
                         )
                 }
@@ -1154,8 +1144,8 @@ fn validate_operation_foundation(
 fn validate_structural_qualifications(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
-    whole: &[semantic_vocabulary::StructuralDomainId],
-    projected: &[terminal_psi::StructuralPathQualification],
+    whole: &[StructuralDomainId],
+    projected: &[StructuralPathQualification],
 ) -> Result<(), CodecError> {
     if !strictly_increasing(whole.iter().copied()) || !strictly_increasing(projected.iter()) {
         return malformed("structural qualifications are noncanonical");
@@ -1169,7 +1159,7 @@ fn validate_structural_qualifications(
                 if row.path.is_empty() {
                     malformed("projected qualification requires a child path")
                 } else {
-                    terminal_semantics::qualification_path_carrier(
+                    qualification_path_carrier(
                         module.structural_types.iter(),
                         structural_type,
                         &row.path,
@@ -1241,8 +1231,7 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
                 .is_some_and(|operation_result| {
                     operation_result.place == *source
                         && operation_result.structural_type == result.structural_type
-                        && operation_result.multiplicity
-                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && operation_result.multiplicity == StructuralMultiplicity::Unrestricted
                         && operation_result.qualifications.is_empty()
                         && operation_result.claims.is_empty()
                 })
@@ -1284,8 +1273,8 @@ fn validate_structural_arguments(
             &argument.path,
             expected.access,
         )?;
-        if expected.access == terminal_psi::StructuralAccess::Owned
-            && terminal_semantics::contains_access_carrier(module, expected.structural_type)
+        if expected.access == StructuralAccess::Owned
+            && contains_access_carrier(module, expected.structural_type)
         {
             return malformed("ordinary owned call transport cannot carry placed custody");
         }
@@ -1297,25 +1286,22 @@ fn validate_structural_arguments(
             .operations()
             .filter_map(|operation| operation.result.structural())
             .find(|result| result.place == argument.place);
-        let owned_array_payload = terminal_semantics::scalar_array_leaf_shape(
-            module.structural_types.iter(),
-            actual_type,
-        )
-        .is_some()
-            && (parameter.is_some_and(|parameter| {
-                parameter.access == terminal_psi::StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            }) || result.is_some());
+        let owned_array_payload =
+            scalar_array_leaf_shape(module.structural_types.iter(), actual_type).is_some()
+                && (parameter.is_some_and(|parameter| {
+                    parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                }) || result.is_some());
         if owned_array_payload {
-            let payload_loan = argument.access == expected.access
-                && argument.access != terminal_psi::StructuralAccess::Owned;
+            let payload_loan =
+                argument.access == expected.access && argument.access != StructuralAccess::Owned;
             // Predicate-only array memberships travel in the ordinary source
             // contract. This classifies the retained theory; independent call
             // validation still authenticates its actual source and handback.
             let supported = |carrier, whole: &[_], projected: &[_]| {
                 projected.is_empty()
                     || payload_loan
-                        && terminal_semantics::pure_byte_qualifications(
+                        && pure_byte_qualifications(
                             module.structural_types.iter(),
                             module.structural_domains.iter(),
                             carrier,
@@ -1324,7 +1310,7 @@ fn validate_structural_arguments(
                         )
             };
             let plain_source = parameter.is_some_and(|parameter| {
-                parameter.access == terminal_psi::StructuralAccess::Owned
+                parameter.access == StructuralAccess::Owned
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && supported(
                         actual_type,
@@ -1349,10 +1335,7 @@ fn validate_structural_arguments(
             // and exclusive overlap; canonicalization establishes none of them.
             let admitted_access = matches!(
                 (argument.access, expected.access),
-                (
-                    terminal_psi::StructuralAccess::Owned,
-                    terminal_psi::StructuralAccess::Owned
-                )
+                (StructuralAccess::Owned, StructuralAccess::Owned)
             ) || payload_loan;
             if !plain_source
                 || !admitted_access
@@ -1389,7 +1372,7 @@ fn validate_structural_arguments(
             position: expected.position,
             structural_type: actual_type,
             multiplicity: result.multiplicity,
-            access: terminal_psi::StructuralAccess::Owned,
+            access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
         });
@@ -1397,7 +1380,7 @@ fn validate_structural_arguments(
             .or_else(|| block_parameter(machine, argument.place))
             .or(result_backing.as_ref());
         if backing.is_some_and(|actual| {
-            (terminal_semantics::fixed_byte_array_loan(
+            (fixed_byte_array_loan(
                 module.structural_types.iter(),
                 module.structural_domains.iter(),
                 actual,
@@ -1405,7 +1388,7 @@ fn validate_structural_arguments(
                 expected,
             )
             .is_some()
-                || terminal_semantics::fixed_element_array_extent(
+                || fixed_element_array_extent(
                     module.structural_types.iter(),
                     actual,
                     argument,
@@ -1431,8 +1414,7 @@ fn validate_structural_arguments(
         // predicate contract instead of manufacturing a structural leaf type.
         if matches!(presentation, StructuralArgumentPresentation::Ordinary)
             && backing.is_some_and(|actual| {
-                terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
-                    .is_some()
+                bounded_byte_owner_capacity(module, actual, argument, expected).is_some()
             })
             && !result.is_some_and(|result| {
                 !result.claims.is_empty() || !result.qualification_establishments.is_empty()
@@ -1459,13 +1441,13 @@ fn validate_structural_arguments(
                         .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
                     && machine.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
-                            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                            && parameter.access == StructuralAccess::MutableBorrow
                             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     })
             }
         };
         if inline_byte_view
-            && terminal_semantics::boundary_buffer_capacity(
+            && boundary_buffer_capacity(
                 module.structural_types.iter(),
                 actual_type,
                 argument,
@@ -1479,7 +1461,7 @@ fn validate_structural_arguments(
         // bounded storage. Call kind and entry-versus-block placement do not
         // change that presentation; verification separately checks source
         // permission, multiplicity, availability and overlapping loans.
-        let shared_byte_field_loan = terminal_semantics::shared_boundary_buffer_capacity(
+        let shared_byte_field_loan = shared_boundary_buffer_capacity(
             module.structural_types.iter(),
             actual_type,
             argument,
@@ -1494,7 +1476,7 @@ fn validate_structural_arguments(
         // no standalone structural type, so the field's carrier and the
         // formal's shared view shape are the whole canonical check. Predicate
         // implication and custody stay with module validation.
-        if terminal_semantics::stored_view_field_presentation(
+        if stored_view_field_presentation(
             module.structural_types.iter(),
             actual_type,
             argument,
@@ -1514,9 +1496,9 @@ fn validate_structural_arguments(
         // Psi owns source predicate preservation at writable handback; this
         // representation boundary checks carrier, access and exact coordinates.
         let borrowed_endpoint = (argument.access == expected.access
-            && argument.access != terminal_psi::StructuralAccess::Owned)
+            && argument.access != StructuralAccess::Owned)
             .then(|| {
-                terminal_semantics::borrowed_primitive_projection_declaration(
+                borrowed_primitive_projection_declaration(
                     module.structural_types.iter(),
                     actual_type,
                     &argument.path,
@@ -1530,8 +1512,8 @@ fn validate_structural_arguments(
         };
         if actual_type != expected.structural_type
             && !(argument.access == expected.access
-                && argument.access != terminal_psi::StructuralAccess::Owned
-                && terminal_semantics::borrowed_referent_matches(
+                && argument.access != StructuralAccess::Owned
+                && borrowed_referent_matches(
                     module.structural_types.iter(),
                     actual_type,
                     expected.structural_type,
@@ -1550,8 +1532,8 @@ fn owned_byte_view_presentation(
     expected: &StructuralParameterDeclaration,
 ) -> bool {
     if !argument.path.is_empty()
-        || argument.access != terminal_psi::StructuralAccess::SharedBorrow
-        || expected.access != terminal_psi::StructuralAccess::SharedBorrow
+        || argument.access != StructuralAccess::SharedBorrow
+        || expected.access != StructuralAccess::SharedBorrow
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || !expected.projected_qualifications.is_empty()
         || machine
@@ -1562,33 +1544,27 @@ fn owned_byte_view_presentation(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == argument.place)
-        || terminal_semantics::byte_owned_result_predicates(module, machine, argument.place)
-            .is_none()
+        || byte_owned_result_predicates(module, machine, argument.place).is_none()
         || !module.structural_types.iter().any(|declaration| {
             declaration.id == expected.structural_type
                 && matches!(
                     declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
-                        }
-                    )
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    })
                 )
         })
     {
         return false;
     }
-    let Some(required) = terminal_semantics::byte_parameter_predicates(module, expected) else {
+    let Some(required) = byte_parameter_predicates(module, expected) else {
         return false;
     };
-    terminal_semantics::byte_sequence_source_predicates(module, machine, argument.place)
+    byte_sequence_source_predicates(module, machine, argument.place)
         .is_some_and(|available| available.implies(required))
 }
 
-fn structural_place_type(
-    machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-) -> Option<StructuralTypeId> {
+fn structural_place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     machine
         .structural_parameters
         .iter()
@@ -1622,7 +1598,7 @@ fn structural_place_type(
 /// The declaration a block parameter place binds at its block's entry.
 fn block_parameter(
     machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
+    place: PlaceId,
 ) -> Option<&StructuralParameterDeclaration> {
     machine.structural_places.iter().find_map(|declaration| {
         let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
@@ -1642,10 +1618,7 @@ fn block_parameter(
 /// Qualifications remain attached to that value; their presence is not a
 /// cleanup prohibition. Current-ownership checking independently enforces
 /// residual partitions, live claims, loans and nominal cleanup obligations.
-fn is_owned_cleanup_operation_result(
-    machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-) -> bool {
+fn is_owned_cleanup_operation_result(machine: &TerminalMachine, place: PlaceId) -> bool {
     let mut places = machine
         .structural_places
         .iter()
@@ -1738,10 +1711,10 @@ fn has_structural_type(module: &TerminalModule, id: StructuralTypeId) -> bool {
 }
 
 fn validate_structural_type_graph(
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    declarations: &[StructuralTypeDeclaration],
 ) -> Result<(), CodecError> {
     fn visit(
-        declarations: &[terminal_psi::StructuralTypeDeclaration],
+        declarations: &[StructuralTypeDeclaration],
         id: StructuralTypeId,
         active: &mut BTreeSet<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
@@ -1752,7 +1725,7 @@ fn validate_structural_type_graph(
         if !active.insert(id) {
             return malformed("structural type graph contains a by-value cycle");
         }
-        let declaration = terminal_psi::find_structural_type(declarations, id)
+        let declaration = find_structural_type(declarations, id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
             // A reference does not inline its referent storage. The target's

@@ -1,8 +1,8 @@
 use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
-use crate::tables::type_constraints;
-use crate::tables::type_references;
+use crate::tables::{type_constraints, type_references};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
@@ -14,9 +14,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraintNode>,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -63,9 +61,7 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let exposure = exposure.into();
     let mut span = HandleSpan::empty();
@@ -118,9 +114,7 @@ fn lower_range_constraint(
 fn lower_domain_constraint_node(
     domain_name: &resolved::name::DiagnosticName,
     arguments: Vec<typed::types::TypeReferenceHandle>,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> typed::types::TypeConstraintNode {
     let name = crate::lowerer::name::lower_name(domain_name);
     typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
@@ -141,9 +135,7 @@ fn lower_type_constraint_node_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraint: &resolved::types::TypeConstraint,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
     match constraint {
         resolved::types::TypeConstraint::Named(name) => Ok(

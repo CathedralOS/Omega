@@ -3,6 +3,7 @@ use super::{
 };
 use crate::{decode_module, encode_module, semantic_fingerprint};
 use language_semantics::{ExternalBindingIdentity, numeric_intrinsics::NumericIntrinsic};
+use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::*;
 
 fn module() -> TerminalModule {
@@ -31,11 +32,11 @@ fn module() -> TerminalModule {
             contract: [17; 32],
             specialization: None,
         },
-        realization_package: semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+        realization_package: PackageKeyIdentity::from_digest([1; 32]),
         provider: Some(ExternalProviderOwner {
             declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(6)),
             identity: TerminalIdentityIndex(6),
-            package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
+            package: PackageKeyIdentity::from_digest([2; 32]),
         }),
         binding: ExternalBindingIdentity::CompilerIntrinsic,
     }];
@@ -123,13 +124,10 @@ fn external_provider_satisfaction_binds_declaration_package_owner_and_mechanism(
         let candidate = &mut changed.external_providers[0];
         match mutation {
             0 => candidate.realization.contract = [18; 32],
-            1 => {
-                candidate.realization_package =
-                    semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32])
-            }
+            1 => candidate.realization_package = PackageKeyIdentity::from_digest([3; 32]),
             2 => {
                 candidate.provider.as_mut().unwrap().package =
-                    semantic_vocabulary::PackageKeyIdentity::from_digest([4; 32])
+                    PackageKeyIdentity::from_digest([4; 32])
             }
             3 => candidate.provider = None,
             4 => candidate.binding = ExternalBindingIdentity::Syscall { number: 14 },

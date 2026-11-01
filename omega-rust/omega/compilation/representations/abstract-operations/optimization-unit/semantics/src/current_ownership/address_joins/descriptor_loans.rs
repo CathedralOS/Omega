@@ -24,11 +24,17 @@ use terminal_semantics::descriptor_results::{
     DescriptorCallOrigin, DescriptorCompatibilityRequirement, DescriptorSourceOrigin,
 };
 mod compatibility;
+use crate::descriptor_results::element_coordinates_preserved;
+use crate::unit_validation::function_structure::operation_place_inputs;
+use crate::unit_validation::operation_contracts::structural_source_contract;
+use abstract_operations::element_view_or_byte_subslice_pattern;
+use abstract_operations::return_or_return_unit_pattern;
 pub(crate) use compatibility::validate_compatibility;
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, live_field_by_id};
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation,
 };
+use terminal_semantics::runtime_structural_path_tip;
 
 struct DescriptorLoan {
     incoming: Option<DescriptorSourceOrigin>,
@@ -104,9 +110,9 @@ impl DescriptorLoans {
                 let descriptor = match &node.operation {
                     O::EstablishElementView { result, source, element, region, .. }
                         if source.access == StructuralAccess::SharedBorrow
-                            || !crate::descriptor_results::element_coordinates_preserved(function, types.values().copied(), source, *element, *region) => {
+                            || !element_coordinates_preserved(function, types.values().copied(), source, *element, *region) => {
                         let mut projection = Projection::new(&source.path);
-                        if !crate::descriptor_results::element_coordinates_preserved(function, types.values().copied(), source, *element, *region) {
+                        if !element_coordinates_preserved(function, types.values().copied(), source, *element, *region) {
                             // This descriptor owns the narrowed loan itself, unlike
                             // the temporary exclusive whole-collection capability.
                             // Its child coordinates cannot refine differently typed backing.
@@ -114,7 +120,7 @@ impl DescriptorLoans {
                         }
                         Some((result.place, source.place, projection, source.access))
                     },
-                    abstract_operations::element_view_or_byte_subslice_pattern!(result,
+                    element_view_or_byte_subslice_pattern!(result,
                         source,
                         start,
                         end, ..) => Some((
@@ -342,10 +348,7 @@ impl DescriptorLoans {
         let position = (block, node);
         // Normal return cleanup closes the activation after its scalar result
         // is observed. It is not a move while an escaped child can still run.
-        let moved = if matches!(
-            operation,
-            abstract_operations::return_or_return_unit_pattern!()
-        ) {
+        let moved = if matches!(operation, return_or_return_unit_pattern!()) {
             &[][..]
         } else {
             moved
@@ -558,9 +561,7 @@ fn operation_observations(
         let region = storage_regions::projected(function, types, place, path, field);
         let mut projection = Projection::new(&region.path);
         projection.indirect |= region.indirect;
-        let root = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place,
-        );
+        let root = structural_source_contract(function, place);
         // The shared path owner interprets selectors. A nested view/reference
         // dereferences storage outside this record; no contained-field alias
         // has been reconstructed here, so it cannot justify descendant access.
@@ -568,7 +569,7 @@ fn operation_observations(
         // its establishment registered the backing alias `resolve_at` applies.
         projection.indirect |= root.is_none_or(|root| {
             (0..path.len()).any(|length| {
-                terminal_semantics::runtime_structural_path_tip(
+                runtime_structural_path_tip(
                     types.values().copied(),
                     root.structural_type,
                     &path[..length],
@@ -587,27 +588,23 @@ fn operation_observations(
     };
     let byte_field_projection = |place, path: &[StructuralPathSegment], field| {
         let mut projection = projected(place, path, Some(field));
-        let owned = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place,
-        )
-        .and_then(|root| {
-            terminal_semantics::runtime_structural_path_tip(
-                types.values().copied(),
-                root.structural_type,
-                path,
-            )
-        })
-        .and_then(|declaration| match &declaration.shape {
-            terminal_psi::record_or_mixed_shape_pattern!(fields) => live_field_by_id(fields, field),
-            _ => None,
-        })
-        .and_then(|field| field.field_type.byte_sequence_carrier())
-        .is_some_and(|carrier| {
-            matches!(
-                carrier,
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            )
-        });
+        let owned = structural_source_contract(function, place)
+            .and_then(|root| {
+                runtime_structural_path_tip(types.values().copied(), root.structural_type, path)
+            })
+            .and_then(|declaration| match &declaration.shape {
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => {
+                    live_field_by_id(fields, field)
+                }
+                _ => None,
+            })
+            .and_then(|field| field.field_type.byte_sequence_carrier())
+            .is_some_and(|carrier| {
+                matches!(
+                    carrier,
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            });
         // A descriptor field reads its backing, not its containing slot. Only
         // declared inline owned bytes permit direct sibling disjointness.
         projection.indirect |= !owned;
@@ -674,7 +671,7 @@ fn operation_observations(
                 ),
             );
         }
-        abstract_operations::element_view_or_byte_subslice_pattern!(source, start, end, ..) => {
+        element_view_or_byte_subslice_pattern!(source, start, end, ..) => {
             retain(
                 source.place,
                 projected(source.place, &source.path, None).with_window(*start, *end, position),
@@ -702,11 +699,7 @@ fn operation_observations(
                 // A callee can read through a descriptor stored inside an
                 // otherwise disjoint record. Only closed addressed storage or
                 // a direct view's reconstructed backing bounds that read.
-                projection.indirect |=
-                    !crate::unit_validation::operation_contracts::structural_source_contract(
-                        function,
-                        argument.place,
-                    )
+                projection.indirect |= !structural_source_contract(function, argument.place)
                     .is_some_and(|source| {
                         argument_storage_is_closed(
                             types,
@@ -764,8 +757,7 @@ fn descriptor_flow(
             let Some(step) = steps.get_mut(&position) else {
                 continue;
             };
-            let mut all =
-                crate::unit_validation::function_structure::operation_place_inputs(&node.operation);
+            let mut all = operation_place_inputs(&node.operation);
             for retained in descriptor_inputs(function, types, &node.operation) {
                 if let Some(index) = all.iter().position(|place| *place == retained) {
                     all.remove(index);
@@ -835,12 +827,9 @@ fn descriptor_inputs(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     operation: &O,
 ) -> Vec<PlaceId> {
-    let mut inputs = crate::unit_validation::function_structure::operation_place_inputs(operation);
+    let mut inputs = operation_place_inputs(operation);
     let mut dispose = |place: PlaceId| {
-        let descriptor = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place,
-        )
-        .is_some_and(|source| {
+        let descriptor = structural_source_contract(function, place).is_some_and(|source| {
             source.operation_result().is_some()
                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
@@ -858,7 +847,7 @@ fn descriptor_inputs(
         O::Jump {
             cleanup_actions, ..
         }
-        | abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
+        | return_or_return_unit_pattern!(cleanup_actions, ..)
         | O::ReturnStructural {
             cleanup_actions, ..
         } => {

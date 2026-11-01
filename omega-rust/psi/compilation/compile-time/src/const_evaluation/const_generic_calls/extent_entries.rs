@@ -3,6 +3,7 @@
 //! selections, integer carriers and consuming exposure survive ordinary typing,
 //! dependency settlement, checking, admission and selected-provider evaluation.
 
+use crate::machine_execution::admission::require_closed_expression_custody;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
 use symbols::SymbolHandle;
@@ -12,7 +13,9 @@ use syntax_trees::{
     identifier::Identifier,
     types::{ConstArgumentOrigin, TypeReferenceHandle},
 };
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::retain_deferred_array_extent;
 use typed_trees::TypedTrees;
+use validation::expression_result_type_reference;
 
 type Application = (
     TypeReferenceHandle,
@@ -91,23 +94,18 @@ pub(super) fn retain(
                 "extent entry changed original declaration selections".into(),
             ));
         }
-        crate::machine_execution::admission::require_closed_expression_custody(
-            execution, *root, authority,
-        )
-        .map_err(&failure)?;
-        let (natural, policy) =
-            validation::expression_result_type_reference(execution, machine, state, *root)
-                .and_then(|result| {
-                    super::super::const_generic_expressions::extent_integer_destination(
-                        execution, result,
-                    )
-                })
-                .ok_or_else(|| {
-                    failure(
-                        "array extent entry has no supported integer result carrier and policy"
-                            .into(),
-                    )
-                })?;
+        require_closed_expression_custody(execution, *root, authority).map_err(&failure)?;
+        let (natural, policy) = expression_result_type_reference(execution, machine, state, *root)
+            .and_then(|result| {
+                super::super::const_generic_expressions::extent_integer_destination(
+                    execution, result,
+                )
+            })
+            .ok_or_else(|| {
+                failure(
+                    "array extent entry has no supported integer result carrier and policy".into(),
+                )
+            })?;
         let base = syntax
             .type_references
             .insert_named(Identifier::new(natural.name(), reference));
@@ -128,9 +126,7 @@ pub(super) fn retain(
             destination,
             *public,
         );
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::retain_deferred_array_extent(
-            syntax, *argument, entry,
-        );
+        retain_deferred_array_extent(syntax, *argument, entry);
         retained = true;
     }
     Ok(retained)

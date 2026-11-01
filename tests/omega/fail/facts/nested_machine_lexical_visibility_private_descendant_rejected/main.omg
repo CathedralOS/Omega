@@ -1,0 +1,14 @@
+// A sibling machine can name its visible siblings but not their private descendants.
+machine outer(value: u64) -> u64 {
+    right(value)
+    machine left(value: u64) -> u64 {
+        deep(value)
+        machine deep(value: u64) -> u64 { value }
+    }
+    machine right(value: u64) -> u64 { deep(value) }
+}
+machine main() crashes Trap {
+    let seen: u64 = outer(7);
+    transition seen == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

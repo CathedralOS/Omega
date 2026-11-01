@@ -1,6 +1,10 @@
 use crate::bodies::trait_default::parse_trait_default_machine_body;
+use crate::contracts::parse_contract_clauses::retired_where_conformance;
 use crate::contracts::signature::parse_signature_clauses;
+use crate::declarations::operator::parse_operator_spelling;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{
@@ -11,7 +15,8 @@ use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{StateSignature, TraitDefinition};
+use syntax_trees::item::{PropositionParameterSignature, StateSignature, TraitDefinition};
+use syntax_trees::types::TypeReferenceNode;
 use tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_trait_definition<'tokens, 'source>(
@@ -64,9 +69,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             |_| "T".to_owned(),
             |(subject, _)| subject.as_str(syntax_trees).to_owned(),
         );
-        return Err(after_where.error_here(
-            crate::contracts::parse_contract_clauses::retired_where_conformance(&subject),
-        ));
+        return Err(after_where.error_here(retired_where_conformance(&subject)));
     }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut requires = crate::handle_spans::HandleSpanBuilder::new();
@@ -144,8 +147,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 .first()
                 .is_some_and(|token| token.punctuation().is_some())
             {
-                let (spelling, rest) =
-                    crate::declarations::operator::parse_operator_spelling(input)?;
+                let (spelling, rest) = parse_operator_spelling(input)?;
                 input = rest;
                 Some(spelling)
             } else {
@@ -163,8 +165,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 token.punctuation().is_some()
                     && token.punctuation() != Some(PunctuationKind::Semicolon)
             }) {
-                let (spelling, rest) =
-                    crate::declarations::operator::parse_operator_spelling(input)?;
+                let (spelling, rest) = parse_operator_spelling(input)?;
                 input = rest;
                 Some(spelling)
             } else {
@@ -175,11 +176,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.spelling = spelling;
         let (clauses, rest) =
             parse_signature_clauses(syntax_trees, rest, signature.type_parameters)?;
-        crate::parameters::contracts::validate_machine_parameter_contracts(
-            syntax_trees,
-            signature.type_parameters,
-            rest,
-        )?;
+        validate_machine_parameter_contracts(syntax_trees, signature.type_parameters, rest)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
@@ -281,10 +278,8 @@ fn parse_refinement_clause<'tokens, 'source>(
             let base_name =
                 refines.and_then(
                     |base| match type_refs_of(syntax_trees).type_reference(base) {
-                        syntax_trees::types::TypeReferenceNode::Named(name) => Some(name.clone()),
-                        syntax_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
-                            Some(base_name.clone())
-                        }
+                        TypeReferenceNode::Named(name) => Some(name.clone()),
+                        TypeReferenceNode::Generic { base_name, .. } => Some(base_name.clone()),
                         _ => None,
                     },
                 );
@@ -473,10 +468,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
         items(syntax_trees).type_parameters_mut(type_parameters)[parameter_index].kind =
             syntax_trees::item::TypeParameterKind::Proposition {
-                contract: Some(syntax_trees::item::PropositionParameterSignature {
-                    name,
-                    parameters,
-                }),
+                contract: Some(PropositionParameterSignature { name, parameters }),
             };
         input = rest;
     }
@@ -539,11 +531,8 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     let ((parameters, native_callback_parameters), input) =
         parse_boundary_parameter_telescope(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
-    let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        generic_parameters.type_parameters,
-        input,
-    )?;
+    let ((), input) =
+        parse_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, input)?;
 
     Ok((
         StateSignature {

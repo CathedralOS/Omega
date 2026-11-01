@@ -25,7 +25,11 @@ use crate::physical::fragment_publication::FragmentPublicationBinding;
 use crate::physical::normalized_foreign_call_import_field;
 use crate::physical::normalized_foreign_call_relocation;
 use crate::physical::normalized_foreign_callback_relocation;
+use calling_conventions::NativePlace;
+use calling_conventions::ValuePlacement;
+use calling_conventions::validate_boundary_entry_plan;
 use installation_evidence::ProviderExecutionEvidence;
+use machine_code::CallbackAddressDestination;
 use object_file::RelocationKind;
 use object_file::SectionKind;
 use object_file::invocation_relocation_origin;
@@ -33,9 +37,13 @@ use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::ScalarType;
 use target::Architecture;
 use target::NativeTarget;
+use target_operations::NormalizedForeignCallMechanism;
 use target_operations::ProviderExecutionBinding;
 use target_operations::ProviderPlanReportIdentity;
+use target_operations::TargetBoundaryResult;
+use terminal_psi::BoundaryMachineResult;
 use terminal_psi::OperationKind;
+use terminal_psi::OperationResult;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_normalized_foreign_child(
@@ -195,10 +203,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 &caller.structural_parameters,
                 &declaration.parameter_order,
                 foreign.callback_addresses.iter().any(|callback| {
-                    matches!(
-                        callback.target.destination,
-                        calling_conventions::NativePlace::Parameter(_)
-                    )
+                    matches!(callback.target.destination, NativePlace::Parameter(_))
                 }),
                 &foreign.binding.operand_placements(),
                 pointer_shape,
@@ -225,15 +230,11 @@ pub(crate) fn derive_normalized_foreign_child(
         })
         .transpose()?;
     let result_shape = match (source_result, &declaration.result, &foreign.scalar_result) {
+        (Some(OperationResult::Unit), BoundaryMachineResult::Unit, None)
+        | (None, BoundaryMachineResult::Unit, None) => None,
         (
-            Some(terminal_psi::OperationResult::Unit),
-            terminal_psi::BoundaryMachineResult::Unit,
-            None,
-        )
-        | (None, terminal_psi::BoundaryMachineResult::Unit, None) => None,
-        (
-            Some(terminal_psi::OperationResult::Scalar(value)),
-            terminal_psi::BoundaryMachineResult::Scalar(declared),
+            Some(OperationResult::Scalar(value)),
+            BoundaryMachineResult::Scalar(declared),
             Some(physical),
         ) if value.value_type() == *declared
             && physical.home.source_value == value.id
@@ -244,11 +245,7 @@ pub(crate) fn derive_normalized_foreign_child(
             };
             Some(shape)
         }
-        (
-            Some(terminal_psi::OperationResult::Scalar(value)),
-            terminal_psi::BoundaryMachineResult::Scalar(declared),
-            None,
-        ) => {
+        (Some(OperationResult::Scalar(value)), BoundaryMachineResult::Scalar(declared), None) => {
             // Fragment custody rows keep `scalar_result` empty; the retained
             // roster row's result-home requirement carries the same custody
             // the object route proves through its emitted durable-home record.
@@ -273,8 +270,8 @@ pub(crate) fn derive_normalized_foreign_child(
             Some(shape)
         }
         (
-            Some(terminal_psi::OperationResult::Structural(result)),
-            terminal_psi::BoundaryMachineResult::Structural(declared),
+            Some(OperationResult::Structural(result)),
+            BoundaryMachineResult::Structural(declared),
             None,
         ) => {
             // The admitted fragment retains the complete typed home and independently
@@ -282,9 +279,7 @@ pub(crate) fn derive_normalized_foreign_child(
             let Some(rejoin) = fragment_rejoin else {
                 return Ok(None);
             };
-            let target_operations::TargetBoundaryResult::Structural(home) =
-                &rejoin.record.call.result
-            else {
+            let TargetBoundaryResult::Structural(home) = &rejoin.record.call.result else {
                 return Err("normalized foreign D41 child changed its structural result custody");
             };
             let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout
@@ -329,10 +324,7 @@ pub(crate) fn derive_normalized_foreign_child(
         _ => return Err("normalized foreign D41 child changed its result custody"),
     };
     if let Some(rejoin) = fragment_rejoin
-        && matches!(
-            rejoin.record.call.result,
-            target_operations::TargetBoundaryResult::Unit
-        ) != result_shape.is_none()
+        && matches!(rejoin.record.call.result, TargetBoundaryResult::Unit) != result_shape.is_none()
     {
         return Err("normalized foreign D41 child changed its scalar result custody");
     }
@@ -359,10 +351,7 @@ pub(crate) fn derive_normalized_foreign_child(
     for callback in callbacks {
         // Field destinations occupy their root parameter's existing slot;
         // only Parameter destinations add a native parameter position.
-        if !matches!(
-            callback.target.destination,
-            calling_conventions::NativePlace::Parameter(_)
-        ) {
+        if !matches!(callback.target.destination, NativePlace::Parameter(_)) {
             continue;
         }
         let ordinal = usize::try_from(callback.target.application.native_ordinal)
@@ -425,28 +414,24 @@ pub(crate) fn derive_normalized_foreign_child(
     let mut ordinal_cursor = callback_ordinals.iter().copied();
     for callback in callbacks {
         let expected_placement = match callback.destination {
-            machine_code::CallbackAddressDestination::Register(register) => {
-                calling_conventions::ValuePlacement {
-                    shape: callback.target.application.shape,
-                    locations: vec![calling_conventions::ValueLocation::Register {
-                        register,
-                        value_byte_offset: 0,
-                        byte_size: callback.target.application.shape.byte_size,
-                    }],
-                }
-            }
-            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                calling_conventions::ValuePlacement {
-                    shape: callback.target.application.shape,
-                    locations: vec![calling_conventions::ValueLocation::Stack {
-                        stack_byte_offset: byte_offset,
-                        value_byte_offset: 0,
-                        byte_size: callback.target.application.shape.byte_size,
-                        alignment: callback.target.application.shape.alignment,
-                    }],
-                }
-            }
-            machine_code::CallbackAddressDestination::RecordField {
+            CallbackAddressDestination::Register(register) => ValuePlacement {
+                shape: callback.target.application.shape,
+                locations: vec![calling_conventions::ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: callback.target.application.shape.byte_size,
+                }],
+            },
+            CallbackAddressDestination::OutgoingStack { byte_offset } => ValuePlacement {
+                shape: callback.target.application.shape,
+                locations: vec![calling_conventions::ValueLocation::Stack {
+                    stack_byte_offset: byte_offset,
+                    value_byte_offset: 0,
+                    byte_size: callback.target.application.shape.byte_size,
+                    alignment: callback.target.application.shape.alignment,
+                }],
+            },
+            CallbackAddressDestination::RecordField {
                 root_register,
                 byte_offset,
             } => {
@@ -455,7 +440,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 {
                     return Err("normalized foreign D41 child changed its callback target custody");
                 }
-                calling_conventions::ValuePlacement {
+                ValuePlacement {
                     shape: callback.target.application.shape,
                     locations: vec![calling_conventions::ValueLocation::Register {
                         register: root_register,
@@ -470,10 +455,8 @@ pub(crate) fn derive_normalized_foreign_child(
         // slot and take no ordinal of their own.
         let callback_ordinal = usize::try_from(callback.target.application.native_ordinal)
             .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
-        if matches!(
-            callback.target.destination,
-            calling_conventions::NativePlace::Parameter(_)
-        ) && ordinal_cursor.next() != Some(callback_ordinal)
+        if matches!(callback.target.destination, NativePlace::Parameter(_))
+            && ordinal_cursor.next() != Some(callback_ordinal)
         {
             return Err("normalized foreign D41 child changed its callback target custody");
         }
@@ -520,11 +503,8 @@ pub(crate) fn derive_normalized_foreign_child(
             |_| "normalized foreign D41 child contains an invalid callback boundary entry plan",
         )?
     } else {
-        calling_conventions::validate_boundary_entry_plan(
-            foreign.binding.boundary_entry_plan.clone(),
-            &signature,
-        )
-        .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?
+        validate_boundary_entry_plan(foreign.binding.boundary_entry_plan.clone(), &signature)
+            .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?
     };
     let boundary_plan_identity = validated_plan.contract_commitment_digest();
     // Physical provider evidence names the selected schema requirement; the
@@ -542,23 +522,21 @@ pub(crate) fn derive_normalized_foreign_child(
         return Err("normalized external child changed its binding or boundary plan");
     }
     let commitment = match &foreign.binding.mechanism {
-        target_operations::NormalizedForeignCallMechanism::Import {
+        NormalizedForeignCallMechanism::Import {
             same_stack_contribution,
             ..
         }
-        | target_operations::NormalizedForeignCallMechanism::Component {
+        | NormalizedForeignCallMechanism::Component {
             same_stack_contribution,
             ..
         }
-        | target_operations::NormalizedForeignCallMechanism::Table {
+        | NormalizedForeignCallMechanism::Table {
             same_stack_contribution,
             ..
         } => same_stack_contribution
             .provider_plan_commitment()
             .as_bytes(),
-        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
-            kernel.provider_plan_commitment
-        }
+        NormalizedForeignCallMechanism::SystemCall(kernel) => kernel.provider_plan_commitment,
     };
     if commitment != *selected_plan.plan_digest().as_bytes() {
         return Err("normalized external child changed its selected provider commitment");

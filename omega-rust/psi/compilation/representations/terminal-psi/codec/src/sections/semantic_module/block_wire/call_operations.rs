@@ -24,12 +24,15 @@ use terminal_psi::{
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificGuard,
 };
-use terminal_psi::{CrashRouteBucket, StructuralArgument};
+use terminal_psi::{
+    CrashRouteBucket, ModuleInvocationInputs, OutcomeSpecificCallArgumentSubstitution,
+    OutcomeSpecificEvidenceUse, RegisterAccessEvent, RegisterOperation, StructuralArgument,
+};
 
 /// The same entry payload crosses ordinary calls and no-normal invocation edges.
 pub(super) fn encode_module_invocation_inputs(
     writer: &mut Writer,
-    invocation: terminal_psi::ModuleInvocationInputs<'_>,
+    invocation: ModuleInvocationInputs<'_>,
 ) -> Result<(), CodecError> {
     writer.id(invocation.callee);
     writer.ids("module invocation scalar arguments", invocation.arguments)?;
@@ -100,7 +103,7 @@ pub(super) fn encode_tagged_module_invocation(
     writer.u8(tag);
     encode_module_invocation_inputs(
         writer,
-        terminal_psi::ModuleInvocationInputs {
+        ModuleInvocationInputs {
             callee,
             arguments: &arguments,
             erased_arguments: &erased_arguments,
@@ -354,7 +357,7 @@ fn decode_selected_evidence(
                 }
             },
             argument_substitutions: decode_counted(reader, |reader| {
-                Ok(terminal_psi::OutcomeSpecificCallArgumentSubstitution {
+                Ok(OutcomeSpecificCallArgumentSubstitution {
                     argument_position: reader.u32()?,
                     parameter_position: reader.u32()?,
                     structural_path: match reader.u8()? {
@@ -377,7 +380,7 @@ fn decode_selected_evidence(
             },
             expected_use_count: reader.u32()?,
             uses: decode_counted(reader, |reader| {
-                Ok(terminal_psi::OutcomeSpecificEvidenceUse {
+                Ok(OutcomeSpecificEvidenceUse {
                     target: reader.id("MachineId")?,
                     input_position: reader.u32()?,
                     target_requirement: reader.id("PropositionId")?,
@@ -496,7 +499,7 @@ pub(super) fn decode_port_write(reader: &mut Reader<'_>) -> Result<OperationKind
 pub(super) fn encode_register_access(
     writer: &mut Writer,
     service: Option<ServiceId>,
-    event: terminal_psi::RegisterAccessEvent,
+    event: RegisterAccessEvent,
 ) -> Result<(), CodecError> {
     if !event.operation().is_admitted()
         || service.is_some() != event.operation().requires_service_authority()
@@ -528,7 +531,7 @@ pub(super) fn decode_register_access(
         None
     };
     let tag = reader.u16()?;
-    let operation = terminal_psi::RegisterOperation::from_catalog_tag(tag).ok_or(
+    let operation = RegisterOperation::from_catalog_tag(tag).ok_or(
         CodecError::MalformedStructuralFoundation("unknown register access catalog identity"),
     )?;
     if service.is_some() != operation.requires_service_authority() {
@@ -537,44 +540,28 @@ pub(super) fn decode_register_access(
         ));
     }
     let event = match operation {
-        terminal_psi::RegisterOperation::MemoryFence(kind) => {
-            terminal_psi::RegisterAccessEvent::MemoryFence { kind }
-        }
-        terminal_psi::RegisterOperation::ProcessorHalt => {
-            terminal_psi::RegisterAccessEvent::ProcessorHalt
-        }
-        terminal_psi::RegisterOperation::InterruptControl(kind) => {
-            terminal_psi::RegisterAccessEvent::InterruptControl { kind }
-        }
-        terminal_psi::RegisterOperation::SystemRead(register) => {
-            terminal_psi::RegisterAccessEvent::Read { register }
-        }
-        terminal_psi::RegisterOperation::SystemWrite(register) => {
-            terminal_psi::RegisterAccessEvent::Write {
-                register,
-                value: reader.id("ValueId")?,
-            }
-        }
-        terminal_psi::RegisterOperation::PortRead => terminal_psi::RegisterAccessEvent::PortRead {
+        RegisterOperation::MemoryFence(kind) => RegisterAccessEvent::MemoryFence { kind },
+        RegisterOperation::ProcessorHalt => RegisterAccessEvent::ProcessorHalt,
+        RegisterOperation::InterruptControl(kind) => RegisterAccessEvent::InterruptControl { kind },
+        RegisterOperation::SystemRead(register) => RegisterAccessEvent::Read { register },
+        RegisterOperation::SystemWrite(register) => RegisterAccessEvent::Write {
+            register,
+            value: reader.id("ValueId")?,
+        },
+        RegisterOperation::PortRead => RegisterAccessEvent::PortRead {
             port: reader.id("ValueId")?,
         },
-        terminal_psi::RegisterOperation::PortWrite => {
-            terminal_psi::RegisterAccessEvent::PortWrite {
-                port: reader.id("ValueId")?,
-                value: reader.id("ValueId")?,
-            }
-        }
-        terminal_psi::RegisterOperation::ModelSpecificRead => {
-            terminal_psi::RegisterAccessEvent::ModelSpecificRead {
-                index: reader.id("ValueId")?,
-            }
-        }
-        terminal_psi::RegisterOperation::ModelSpecificWrite => {
-            terminal_psi::RegisterAccessEvent::ModelSpecificWrite {
-                index: reader.id("ValueId")?,
-                value: reader.id("ValueId")?,
-            }
-        }
+        RegisterOperation::PortWrite => RegisterAccessEvent::PortWrite {
+            port: reader.id("ValueId")?,
+            value: reader.id("ValueId")?,
+        },
+        RegisterOperation::ModelSpecificRead => RegisterAccessEvent::ModelSpecificRead {
+            index: reader.id("ValueId")?,
+        },
+        RegisterOperation::ModelSpecificWrite => RegisterAccessEvent::ModelSpecificWrite {
+            index: reader.id("ValueId")?,
+            value: reader.id("ValueId")?,
+        },
     };
     Ok(OperationKind::RegisterAccess { service, event })
 }

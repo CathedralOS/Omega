@@ -2,11 +2,13 @@
 // local by value; a later call cannot receive it again.
 data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 machine consume(receipt: Receipt) -> i32 {
     let observed: i32 = receipt.code;
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     observed
 }
 

@@ -50,7 +50,7 @@
 use crate::common::*;
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
-    check_signature, check_type, convertible, indexed_scheme,
+    argument_error_pair_pattern, check_signature, check_type, convertible, indexed_scheme,
 };
 
 /// The eliminator tests' ceiling: `iindW`'s typing and computation
@@ -913,10 +913,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
         &mut budget,
     )
     .unwrap_err();
-    assert!(matches!(
-        error,
-        proof_admission::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, argument_error_pair_pattern!()));
 
     // An *ill-typed* `next` is malformed outright: answering the minor
     // position with the bare conclusion `ψ : Frm` where a judgment `I`

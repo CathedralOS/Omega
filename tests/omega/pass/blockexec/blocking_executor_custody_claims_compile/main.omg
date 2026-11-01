@@ -134,7 +134,7 @@ boundary requirement Submission::release(submission: Submission);
 
 // Cancellation request authority: borrows the claim and retains it — the
 // request asks for a transition, it is not proof the worker stopped and it
-// discharges nothing (Task::request_cancel's shape). The linear claim must
+// discharges nothing (TaskLifecycle::request_cancel's shape). The linear claim must
 // still be settled exactly once after this call.
 machine Ticket::request_cancel() { }
 

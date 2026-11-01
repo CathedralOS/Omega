@@ -1,5 +1,7 @@
+use crate::declarations::parse_declaration::starts_following_item;
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
+use crate::expressions::parse_expression::parse_logical_proof_fact_expression_handle;
 use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
 use crate::tables::{exprs, items};
@@ -9,14 +11,15 @@ use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableMembershipExpression,
 };
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ProofFact, ProofMembershipFact};
 use syntax_trees::types::TypeReferenceHandle;
 use tokens::PunctuationKind;
 
 fn copy_item_path_to_expression_path(
     syntax_trees: &mut SyntaxTrees,
-    span: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    span: HandleSpan<Identifier>,
+) -> HandleSpan<Identifier> {
     let mut copy = crate::handle_spans::HandleSpanBuilder::new();
     let members = syntax_trees
         .tables
@@ -37,10 +40,7 @@ fn copy_item_path_to_expression_path(
 }
 
 /// One authored membership domain and its indexed application, if any.
-type MembershipDomain = (
-    HandleSpan<syntax_trees::identifier::Identifier>,
-    HandleSpan<TypeReferenceHandle>,
-);
+type MembershipDomain = (HandleSpan<Identifier>, HandleSpan<TypeReferenceHandle>);
 
 fn expand_carry_portable_item_paths(
     syntax_trees: &mut SyntaxTrees,
@@ -64,15 +64,11 @@ fn expand_carry_portable_item_paths(
         for permission in language_core::CarryPermission::ALL {
             let mut parts = permission.name().split("::");
             let namespace = items(syntax_trees).append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated(
-                    parts.next().expect("carry permission has a namespace"),
-                ),
+                Identifier::generated(parts.next().expect("carry permission has a namespace")),
             );
-            let member = items(syntax_trees).append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated(
-                    parts.next().expect("carry permission has a member"),
-                ),
-            );
+            let member = items(syntax_trees).append_identifier_path_member(Identifier::generated(
+                parts.next().expect("carry permission has a member"),
+            ));
             debug_assert_eq!(member.arena_index(), namespace.arena_index() + 1);
             expanded.push((HandleSpan::from_parts(namespace, 2), HandleSpan::empty()));
         }
@@ -167,10 +163,7 @@ fn parse_fact_list<'tokens, 'source>(
         let fact_input = input;
         let mut authored_fact_handles = Vec::new();
         let (value, rest) = if logical_subject {
-            crate::expressions::parse_expression::parse_logical_proof_fact_expression_handle(
-                syntax_trees,
-                input,
-            )?
+            parse_logical_proof_fact_expression_handle(syntax_trees, input)?
         } else {
             parse_proof_fact_expression_handle(syntax_trees, input)?
         };
@@ -346,10 +339,7 @@ fn parse_fact_list<'tokens, 'source>(
             // or a data/machine body. Logical declaration predicates and
             // machine contracts share this boundary rule.
             if machine_final_semicolon
-                && (crate::declarations::parse_declaration::starts_following_item(
-                    syntax_trees,
-                    after,
-                ) || after.tokens.is_empty())
+                && (starts_following_item(syntax_trees, after) || after.tokens.is_empty())
             {
                 break;
             }
@@ -409,7 +399,7 @@ fn range_membership_expression(
 /// rejected by name rather than as a stray `<` before the fact terminator.
 fn parse_proof_fact_domain_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    domain: HandleSpan<syntax_trees::identifier::Identifier>,
+    domain: HandleSpan<Identifier>,
     input: Input<'tokens, 'source>,
 ) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::Less) {

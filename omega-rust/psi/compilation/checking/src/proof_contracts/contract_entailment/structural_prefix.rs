@@ -8,15 +8,15 @@
 mod private_arrivals;
 pub use private_arrivals::private_invocation_entry_is_closed;
 
-pub(super) use private_arrivals::observe_private_arrivals;
+pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
 };
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
-    recognize_structural_case_arms, recognize_structural_state_prefix,
-    recognize_structural_state_prefixes, structural_arm_judge,
+    recognize_structural_case_arms, recognize_structural_case_arms_batched,
+    recognize_structural_state_prefix, recognize_structural_state_prefixes, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;

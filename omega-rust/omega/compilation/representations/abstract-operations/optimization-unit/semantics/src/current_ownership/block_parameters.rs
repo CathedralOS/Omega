@@ -10,9 +10,11 @@
 //! continues incoming obligations; missing custody cannot create a claim.
 //! Sibling claims and residual custody stay on the source until the same
 //! edge's cleanup retires them. A containing claim is indivisible.
+use super::references::owned_resident;
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{CurrentOwnership, LiveClaim};
+use crate::unit_validation::operation_contracts::structural_source_contract;
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, ClaimId, PlaceId, StructuralCaseId, StructuralTypeId};
@@ -57,10 +59,7 @@ pub(super) fn consume_edge_sources(
         // affine source into a copy. Signature validation pins its type
         // and source memberships independently.
         if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
-            let contract = crate::unit_validation::operation_contracts::structural_source_contract(
-                function, source,
-            )
-            .ok_or_else(invalid)?;
+            let contract = structural_source_contract(function, source).ok_or_else(invalid)?;
             if contract.access != StructuralAccess::Owned
                 || contract.multiplicity != StructuralMultiplicity::Unrestricted
                 || frontier.owned_places.contains_key(&source)
@@ -108,8 +107,7 @@ pub(super) fn consume_edge_sources(
             super::references::discard_owned(function, types, block, &mut remaining, source)?;
             if remaining.iter().any(|reference| {
                 super::references::borrows_owned_storage(function, types, reference, source)
-                    || (reference.carrier == source
-                        && super::references::owned_resident(&reference.carrier_path, &[]))
+                    || (reference.carrier == source && owned_resident(&reference.carrier_path, &[]))
             }) {
                 return Err(invalid());
             }
@@ -154,10 +152,7 @@ pub(super) fn consume_edge_sources(
                         && parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         && binding.argument.access == StructuralAccess::Owned
                         && binding.argument.place == reference.carrier
-                        && super::references::owned_resident(
-                            &reference.carrier_path,
-                            &binding.argument.path,
-                        )
+                        && owned_resident(&reference.carrier_path, &binding.argument.path)
                 })
         else {
             continue;
@@ -270,11 +265,7 @@ fn consume_projected_source(
         )
         || frontier.owned_places.get(&argument.place) != Some(&StructuralMultiplicity::Affine)
         || function.content_entry_claim_declared(argument.place)
-        || !crate::unit_validation::operation_contracts::structural_source_contract(
-            function,
-            argument.place,
-        )
-        .is_some_and(|source| {
+        || !structural_source_contract(function, argument.place).is_some_and(|source| {
             source.access == StructuralAccess::Owned
                 && source.multiplicity == StructuralMultiplicity::Affine
                 && crate::unit_validation::structural_catalog::resolve_structural_path(

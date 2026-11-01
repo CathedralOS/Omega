@@ -1,0 +1,12 @@
+// A local named like another machine's private helper stays an ordinary local.
+// Expected exit: 0
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine main() crashes Trap {
+    let hidden: u64 = 7;
+    let seen: u64 = outer(hidden);
+    transition seen == 7 && hidden == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

@@ -23,6 +23,7 @@ use super::content_wire::{
 };
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::proposition_wire::{decode_proposition, encode_proposition};
+use super::reach_application_wire::{decode_argument, encode_argument};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
 use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
@@ -30,6 +31,7 @@ use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{
     decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
+use language_semantics::numeric_intrinsics::NumericIntrinsic;
 use terminal_psi::TerminalIdentityIndex;
 
 mod reference_outputs;
@@ -44,7 +46,7 @@ pub(crate) fn encode_boundary_machine(
         super::machine_declaration_wire::encode(writer, &checked.source)?;
         writer.len("boundary method arguments", checked.method_arguments.len())?;
         for argument in &checked.method_arguments {
-            super::reach_application_wire::encode_argument(writer, argument);
+            encode_argument(writer, argument);
         }
         writer.u8(match checked.execution {
             terminal_psi::CheckedBoundaryExecution::Provider => 0,
@@ -280,10 +282,7 @@ pub(crate) fn decode_boundary_machine(
         declaration: if reader.boolean()? {
             Some(terminal_psi::CheckedBoundaryCallable {
                 source: super::machine_declaration_wire::decode(reader)?,
-                method_arguments: decode_counted(
-                    reader,
-                    super::reach_application_wire::decode_argument,
-                )?,
+                method_arguments: decode_counted(reader, decode_argument)?,
                 execution: match reader.u8()? {
                     0 => terminal_psi::CheckedBoundaryExecution::Provider,
                     1 => terminal_psi::CheckedBoundaryExecution::AccessInitialize,
@@ -298,10 +297,7 @@ pub(crate) fn decode_boundary_machine(
         numeric_intrinsic: if reader.boolean()? {
             let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
             Some(
-                language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
-                    bytes,
-                )
-                .ok_or_else(|| {
+                NumericIntrinsic::from_canonical_encoding(bytes).ok_or_else(|| {
                     CodecError::MalformedStructuralFoundation(
                         "invalid numeric intrinsic meaning".into(),
                     )

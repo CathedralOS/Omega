@@ -5,7 +5,10 @@
 //! ExecutableImage nor InstalledCode: filesystem publication and process-lifetime
 //! loader/instance admission remain explicit consumers of these inputs.
 
+use component_description::component_description::StackDemandFacts;
+use std::path::PathBuf;
 use std::sync::Arc;
+use task_plans::SameStackProviderPlanCommitment;
 use terminal_psi_to_abstract_operations::{
     AdmittedNativeComponentCall, provider_admission::AdmittedNativeCallableAuthority,
 };
@@ -81,13 +84,11 @@ impl NativeComponentProduct {
             component_description::ComponentDescriptionFacts {
                 artifact: call.component().artifact(),
                 selected_provider_plans,
-                stack_demand: Some(
-                    component_description::component_description::StackDemandFacts {
-                        entry: demand.entry(),
-                        ceiling_bytes: demand.ceiling_bytes(),
-                        stack_alignment: demand.stack_alignment(),
-                    },
-                ),
+                stack_demand: Some(StackDemandFacts {
+                    entry: demand.entry(),
+                    ceiling_bytes: demand.ceiling_bytes(),
+                    stack_alignment: demand.stack_alignment(),
+                }),
                 realization_identity: Some(*locator.identity_digest()),
             },
         )
@@ -151,9 +152,7 @@ impl NativeComponentProduct {
         contribution: &task_plans::AdmittedSameStackContribution,
     ) -> Result<(), &'static str> {
         if contribution.provider_plan_commitment()
-            != task_plans::SameStackProviderPlanCommitment::from_digest(
-                *self.provider_plan.as_bytes(),
-            )
+            != SameStackProviderPlanCommitment::from_digest(*self.provider_plan.as_bytes())
             || contribution.bytes() != self.stack_bytes
             || contribution.alignment() != u64::from(self.stack_alignment)
         {
@@ -184,13 +183,10 @@ impl NativeComponentProduct {
 #[derive(Debug, Clone)]
 pub struct NativeComponentPublicationReceipt {
     product: Arc<NativeComponentProduct>,
-    path: std::path::PathBuf,
+    path: PathBuf,
 }
 impl NativeComponentPublicationReceipt {
-    pub fn verify(
-        product: Arc<NativeComponentProduct>,
-        path: std::path::PathBuf,
-    ) -> Result<Self, String> {
+    pub fn verify(product: Arc<NativeComponentProduct>, path: PathBuf) -> Result<Self, String> {
         if path.file_name().and_then(|name| name.to_str())
             != Some(product.locator().image_filename().as_str())
         {
@@ -206,7 +202,7 @@ impl NativeComponentPublicationReceipt {
     pub const fn product(&self) -> &Arc<NativeComponentProduct> {
         &self.product
     }
-    pub const fn path(&self) -> &std::path::PathBuf {
+    pub const fn path(&self) -> &PathBuf {
         &self.path
     }
     pub fn revalidate(&self) -> Result<(), String> {

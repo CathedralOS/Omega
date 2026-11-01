@@ -1,11 +1,15 @@
 //! Constructor operands move their affine complement and linear claims together.
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
-use crate::custody::resolve_single_structural_argument;
-use crate::custody::whole_path_discard;
+use crate::custody::{
+    resolve_single_structural_argument, resolve_structural_path_type, whole_path_discard,
+};
 use crate::errors::TerminalInterpretError;
 use crate::execution::{LiveClaim, TerminalExecution};
+use crate::scalar_array::empty_storage::EmptyArrayRetirement;
+use crate::structural_inputs::case_membership::case_projection_with_membership_is_active;
 use crate::values::StructuralRuntimePlace;
+use semantic_vocabulary::StructuralCaseId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
@@ -24,10 +28,7 @@ pub(crate) enum ResultClaimOrigin {
 /// Preparation is fallible; committing this transaction performs no lookup
 /// that can refuse after another part of a compound operation has committed.
 pub(crate) struct PreparedConstructorOperands {
-    homes: Vec<(
-        StructuralArgument,
-        crate::scalar_array::empty_storage::EmptyArrayRetirement,
-    )>,
+    homes: Vec<(StructuralArgument, EmptyArrayRetirement)>,
     frontier: BTreeSet<StructuralAffineDiscard>,
     claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
 }
@@ -61,7 +62,7 @@ impl TerminalExecution<'_> {
         source: &StructuralArgument,
         result: &StructuralOperationResult,
         result_frontier: &BTreeSet<StructuralAffineDiscard>,
-        result_case: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
+        result_case: &impl Fn(&StructuralAffineDiscard) -> Option<StructuralCaseId>,
     ) -> Result<(), TerminalInterpretError> {
         let types = self.structural_types();
         // A nominal linear claim cannot be divided by projecting its fields.
@@ -116,8 +117,7 @@ impl TerminalExecution<'_> {
                 .find(|expected| path.starts_with(&expected.path))
                 .cloned()
                 .ok_or(TerminalInterpretError::AffineFrontierMismatch)?;
-            let selected =
-                crate::custody::resolve_structural_path_type(&types, result.structural_type, path)?;
+            let selected = resolve_structural_path_type(&types, result.structural_type, path)?;
             if selected != entry.structural_type {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
@@ -200,9 +200,7 @@ impl TerminalExecution<'_> {
         result: &StructuralOperationResult,
         operands: &[(&StructuralArgument, Vec<StructuralPathSegment>)],
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
-        case_membership: &impl Fn(
-            &StructuralAffineDiscard,
-        ) -> Option<semantic_vocabulary::StructuralCaseId>,
+        case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<StructuralCaseId>,
     ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::ClaimTransferMismatch;
         // Only an admitted nominal data construction can establish a distinct
@@ -283,7 +281,7 @@ impl TerminalExecution<'_> {
             // Transparent construction must instead match every child identity
             // and typed destination path in the result roster.
             if nominal_root.is_none()
-                || crate::custody::resolve_structural_path_type(
+                || resolve_structural_path_type(
                     &self.structural_types(),
                     result.structural_type,
                     path,
@@ -302,27 +300,18 @@ impl TerminalExecution<'_> {
         &self,
         result: &StructuralOperationResult,
         path: &[StructuralPathSegment],
-        membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
+        membership: &impl Fn(&StructuralAffineDiscard) -> Option<StructuralCaseId>,
     ) -> Result<bool, TerminalInterpretError> {
         let types = self.structural_types();
-        crate::structural_inputs::case_membership::case_projection_with_membership_is_active(
-            &types,
-            result.structural_type,
-            path,
-            &|prefix| {
-                let structural_type = crate::custody::resolve_structural_path_type(
-                    &types,
-                    result.structural_type,
-                    prefix,
-                )
-                .ok()?;
-                membership(&StructuralAffineDiscard {
-                    place: result.place,
-                    path: prefix.to_vec(),
-                    structural_type,
-                })
-            },
-        )
+        case_projection_with_membership_is_active(&types, result.structural_type, path, &|prefix| {
+            let structural_type =
+                resolve_structural_path_type(&types, result.structural_type, prefix).ok()?;
+            membership(&StructuralAffineDiscard {
+                place: result.place,
+                path: prefix.to_vec(),
+                structural_type,
+            })
+        })
     }
 
     /// Establish only the affine complement of a completed value. Constructors
@@ -332,9 +321,7 @@ impl TerminalExecution<'_> {
         &self,
         result: &StructuralOperationResult,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
-        case_membership: &impl Fn(
-            &StructuralAffineDiscard,
-        ) -> Option<semantic_vocabulary::StructuralCaseId>,
+        case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<StructuralCaseId>,
     ) -> Result<(), TerminalInterpretError> {
         if result.multiplicity == StructuralMultiplicity::Affine {
             let mut active_claims = Vec::new();

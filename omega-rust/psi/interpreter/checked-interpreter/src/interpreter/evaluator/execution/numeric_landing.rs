@@ -3,10 +3,11 @@
 //! destinations and Ref values keep their existing storage relationships.
 
 use crate::interpreter::evaluator::{
-    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
+    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
     PrimitiveType, Reference, State, TypeReferenceHandle, TypeReferenceNode, Value,
     type_reference_table, unsupported,
 };
+use checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback;
 impl Evaluator<'_> {
     /// Preserve aggregate destinations until each literal element reaches its
     /// own scalar type, and reference destinations until their alias is retained.
@@ -24,11 +25,7 @@ impl Evaluator<'_> {
             self.tick()?;
             let declared = self
                 .expression_type_reference(carrier.place, frame)
-                .ok_or_else(|| {
-                    crate::interpreter::evaluator::Halt::Unsupported(
-                        "atomic attempt lost its cell type".to_owned(),
-                    )
-                })?;
+                .ok_or_else(|| Halt::Unsupported("atomic attempt lost its cell type".to_owned()))?;
             let TypeReferenceNode::Named { symbol, .. } =
                 self.program.type_reference_table.type_reference(declared)
             else {
@@ -254,10 +251,7 @@ impl Evaluator<'_> {
                     .operator_facts
                     .and_then(|facts| facts.expression_use(expression))
                 {
-                    Some(operator) => {
-                        operator.status
-                            == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                    }
+                    Some(operator) => operator.status == BuiltinFallback,
                     None => validation::has_anonymous_operator_meaning(self.program, expression),
                 },
             )

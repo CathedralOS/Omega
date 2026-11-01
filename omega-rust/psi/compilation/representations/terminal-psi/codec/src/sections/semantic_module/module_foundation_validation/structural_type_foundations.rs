@@ -6,6 +6,9 @@
 use super::require_unique_nonempty_identities;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{
+    AuthoredBitFragments, AuthoredFieldStorage, IeeeFloatFormat, ScalarType,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children};
 use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
@@ -139,9 +142,7 @@ pub(super) fn validate_catalog_type_shape(
                             );
                         }
                         let extent = extent!(module => field => field_storage => record.byte_size)?;
-                        if let semantic_vocabulary::AuthoredFieldStorage::Fragmented(recipe) =
-                            field_storage
-                        {
+                        if let AuthoredFieldStorage::Fragmented(recipe) = field_storage {
                             for fragment in recipe.fragments() {
                                 let start = u128::from(fragment.container_byte_offset) * 8
                                     + u128::from(fragment.destination_lsb);
@@ -344,7 +345,7 @@ pub(super) fn validate_catalog_type_shape(
 fn validate_authored_field_extent(
     module: &StructuralCatalog<'_>,
     field: &terminal_psi::StructuralFieldDeclaration,
-    storage: &semantic_vocabulary::AuthoredFieldStorage,
+    storage: &AuthoredFieldStorage,
     record_size: u64,
 ) -> Result<Option<(u64, u64)>, CodecError> {
     use semantic_vocabulary::AuthoredFieldStorage;
@@ -436,7 +437,7 @@ fn validate_authored_field_extent(
 fn validate_authored_fragments(
     module: &StructuralCatalog<'_>,
     field: &terminal_psi::StructuralFieldDeclaration,
-    recipe: &semantic_vocabulary::AuthoredBitFragments,
+    recipe: &AuthoredBitFragments,
     record_size: u64,
 ) -> Result<(), CodecError> {
     let source_width = authored_fragment_source_width(module, &field.field_type).ok_or(
@@ -510,14 +511,10 @@ fn authored_fragment_source_width(
         Some(scalar)
     })?;
     match scalar {
-        semantic_vocabulary::ScalarType::Boolean => Some(1),
-        semantic_vocabulary::ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
-        semantic_vocabulary::ScalarType::IeeeFloat(
-            semantic_vocabulary::IeeeFloatFormat::Binary32,
-        ) => Some(32),
-        semantic_vocabulary::ScalarType::IeeeFloat(
-            semantic_vocabulary::IeeeFloatFormat::Binary64,
-        ) => Some(64),
+        ScalarType::Boolean => Some(1),
+        ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(32),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(64),
     }
 }
 
@@ -610,6 +607,14 @@ pub(super) fn attachment_storage_types(
 
 #[cfg(test)]
 mod authored_storage_envelope_tests {
+    use semantic_vocabulary::{
+        AuthoredBitFragment, AuthoredBitFragments, IntegerSign, IntegerType, MachineId,
+        StructuralTypeId,
+    };
+    use terminal_psi::{
+        ArrayExtent, StructuralTypeDeclaration, TerminalIdentityIndex, TerminalModule,
+    };
+
     use super::{validate_authored_field_extent, validate_field_storage_envelope};
     use semantic_vocabulary::{
         AuthoredFieldStorage, AuthoredRecordStorage, ScalarType, StructuralCaseId,
@@ -624,24 +629,22 @@ mod authored_storage_envelope_tests {
     fn field_geometry_requires_the_record_envelope_in_every_field_roster() {
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field identity"),
-            identity: terminal_psi::TerminalIdentityIndex(291),
+            identity: TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-            storage: Some(AuthoredFieldStorage::Fragmented(
-                semantic_vocabulary::AuthoredBitFragments::new([
-                    semantic_vocabulary::AuthoredBitFragment {
-                        container_byte_offset: 0,
-                        container_width_bits: 8,
-                        destination_lsb: 0,
-                        source_lsb: 0,
-                        width: 1,
-                    },
-                ]),
-            )),
+            storage: Some(AuthoredFieldStorage::Fragmented(AuthoredBitFragments::new(
+                [AuthoredBitFragment {
+                    container_byte_offset: 0,
+                    container_width_bits: 8,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 1,
+                }],
+            ))),
         };
         let case = StructuralCaseDeclaration {
             id: StructuralCaseId::new(1).expect("case identity"),
-            identity: terminal_psi::TerminalIdentityIndex(826),
+            identity: TerminalIdentityIndex(826),
             fields: vec![field.clone()],
         };
         for shape in [
@@ -675,30 +678,24 @@ mod authored_storage_envelope_tests {
 
     #[test]
     fn contiguous_fields_must_fit_the_whole_footprint() {
-        let mut module = terminal_psi::TerminalModule::for_entry(
-            semantic_vocabulary::MachineId::new(1).expect("entry"),
-        );
-        let scalar_type = semantic_vocabulary::StructuralTypeId::new(1).expect("scalar type");
-        let integer = ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64)
-                .expect("signed integer"),
-        );
-        module
-            .structural_types
-            .push(terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: scalar_type,
-                identity: terminal_psi::TerminalIdentityIndex(77),
-                shape: StructuralTypeShape::PrimitiveScalar(integer),
-            });
+        let mut module = TerminalModule::for_entry(MachineId::new(1).expect("entry"));
+        let scalar_type = StructuralTypeId::new(1).expect("scalar type");
+        let integer =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"));
+        module.structural_types.push(StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            copyable: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: scalar_type,
+            identity: TerminalIdentityIndex(77),
+            shape: StructuralTypeShape::PrimitiveScalar(integer),
+        });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
-            identity: terminal_psi::TerminalIdentityIndex(291),
+            identity: TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(scalar_type),
             storage: None,
@@ -730,49 +727,39 @@ mod authored_storage_envelope_tests {
 
     #[test]
     fn repeated_fields_require_aligned_nonoverlapping_bounded_extents() {
-        let mut module = terminal_psi::TerminalModule::for_entry(
-            semantic_vocabulary::MachineId::new(1).expect("entry"),
-        );
-        let element = semantic_vocabulary::StructuralTypeId::new(1).expect("element");
-        let array = semantic_vocabulary::StructuralTypeId::new(2).expect("array");
-        module
-            .structural_types
-            .push(terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: element,
-                identity: terminal_psi::TerminalIdentityIndex(599),
-                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Signed,
-                        64,
-                    )
-                    .expect("signed integer"),
-                )),
-            });
-        module
-            .structural_types
-            .push(terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: array,
-                identity: terminal_psi::TerminalIdentityIndex(941),
-                shape: StructuralTypeShape::FixedArray {
-                    element,
-                    length: terminal_psi::ArrayExtent::Literal(2),
-                },
-            });
+        let mut module = TerminalModule::for_entry(MachineId::new(1).expect("entry"));
+        let element = StructuralTypeId::new(1).expect("element");
+        let array = StructuralTypeId::new(2).expect("array");
+        module.structural_types.push(StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            copyable: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: element,
+            identity: TerminalIdentityIndex(599),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
+            )),
+        });
+        module.structural_types.push(StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            copyable: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: array,
+            identity: TerminalIdentityIndex(941),
+            shape: StructuralTypeShape::FixedArray {
+                element,
+                length: ArrayExtent::Literal(2),
+            },
+        });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
-            identity: terminal_psi::TerminalIdentityIndex(535),
+            identity: TerminalIdentityIndex(535),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(array),
             storage: None,
@@ -804,7 +791,7 @@ mod authored_storage_envelope_tests {
         }
         module.structural_types[1].shape = StructuralTypeShape::FixedArray {
             element,
-            length: terminal_psi::ArrayExtent::Literal(u64::MAX),
+            length: ArrayExtent::Literal(u64::MAX),
         };
         assert!(
             extent!(&super::StructuralCatalog::from(&module) => &field => &storage => u64::MAX)

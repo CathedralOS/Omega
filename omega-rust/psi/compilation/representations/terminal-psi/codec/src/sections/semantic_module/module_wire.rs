@@ -19,6 +19,7 @@ mod calling_signature_wire;
 mod carry_and_suspension_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
+mod unoptimized_behavior_wire;
 
 pub(crate) mod access_lifecycle_wire;
 pub(crate) mod access_view_plan_wire;
@@ -153,6 +154,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     )?;
     c!("boundary machines" => &module.boundary_machines => encode_boundary_machine)?;
     c!("calling signatures" => &module.calling_signatures => calling_signature_wire::encode)?;
+    c!("unoptimized semantic bodies" => &module.unoptimized_behavior => unoptimized_behavior_wire::encode)?;
     writer.counted(
         "external provider conformances",
         &module.external_providers,
@@ -342,6 +344,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let calling_signatures = decode_counted(reader, calling_signature_wire::decode)?;
+    let unoptimized_behavior = decode_counted(reader, unoptimized_behavior_wire::decode)?;
     let external_providers = decode_counted(reader, external_provider_wire::decode)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
@@ -408,6 +411,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reborrow_restored_call_uses,
         boundary_machines,
         calling_signatures,
+        unoptimized_behavior,
         external_providers,
         provider_candidates,
         dynamic_dispatch,

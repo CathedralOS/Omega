@@ -1,4 +1,8 @@
 //! Checked fixed representation application evaluation and installation.
+use crate::provider_declarations::{retain_provider_defaults, source_checking_applications};
+use source::DependencyScope;
+use typed_trees::references::collect_selected_program_type_occurrences;
+
 mod layout_installation;
 pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 
@@ -36,11 +40,8 @@ pub fn evaluate_fixed_layout_applications(
         return Ok(());
     }
     typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
-    let defaults = crate::provider_declarations::retain_provider_defaults(
-        crate::provider_declarations::ProviderPlanningContext::new(
-            typed,
-            source::DependencyScope::Product,
-        ),
+    let defaults = retain_provider_defaults(
+        crate::provider_declarations::ProviderPlanningContext::new(typed, DependencyScope::Product),
     )?;
     let mut topology =
         typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
@@ -58,14 +59,8 @@ pub fn evaluate_fixed_layout_applications(
     let operational = validation::infer_operational_may(typed);
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
-    let checking = crate::provider_declarations::source_checking_applications(
-        typed,
-        scopes,
-        &defaults,
-        &topology,
-        &operational,
-    )
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let checking = source_checking_applications(typed, scopes, &defaults, &topology, &operational)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     for (scope, work) in scopes.iter().zip(&checking) {
         if let Some(facts) = &scope.facts {
             facts
@@ -82,16 +77,11 @@ pub fn evaluate_fixed_layout_applications(
                 targets.push(facts.clone());
             }
         }
-        for occurrence in
-            typed_trees::references::collect_selected_program_type_occurrences(typed, work)
-        {
+        for occurrence in collect_selected_program_type_occurrences(typed, work) {
             let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
                 continue;
             };
-            if typed
-                .closed_data_field_definition(storage.semantic_type)
-                .is_none()
-            {
+            if typed.data_field_definition(storage.semantic_type).is_none() {
                 continue;
             }
             let facts = scope.facts.as_ref().ok_or_else(|| vec![Diagnostic::error(format!(
@@ -124,9 +114,7 @@ pub fn evaluate_fixed_layout_applications(
     )?;
     for occurrence in typed_trees::references::collect_program_type_occurrences(typed) {
         if let Some(storage) = typed.layout_storage_arguments(occurrence.reference)
-            && typed
-                .closed_data_field_definition(storage.semantic_type)
-                .is_some()
+            && typed.data_field_definition(storage.semantic_type).is_some()
             && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
             && typed
                 .plan_laid_layout_for_type(storage.application)

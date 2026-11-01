@@ -4,6 +4,7 @@
 
 use crate::LoweringError;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use calling_conventions::validate_boundary_entry_plan_with_callback_materializations;
 use calling_conventions::{CallSignature, NativePlace, ValueShape};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeMap;
@@ -112,13 +113,11 @@ fn native_callback_application_is_exact(
             .as_ref()
             .map(|result| result.shape),
     };
-    let Ok(validated) =
-        calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-            admitted.registrar_boundary_entry_plan.clone(),
-            &signature,
-            &admitted.registrar_context,
-        )
-    else {
+    let Ok(validated) = validate_boundary_entry_plan_with_callback_materializations(
+        admitted.registrar_boundary_entry_plan.clone(),
+        &signature,
+        &admitted.registrar_context,
+    ) else {
         return false;
     };
     if validated.plan() != &admitted.registrar_boundary_entry_plan

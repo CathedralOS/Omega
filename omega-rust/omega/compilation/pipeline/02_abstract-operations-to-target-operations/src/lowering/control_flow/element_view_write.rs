@@ -1,10 +1,12 @@
 //! Indexed scalar-element store through a mutable element view.
 use super::{RowSite, observations};
 use crate::LoweringError;
+use crate::lowering::scalar::descriptor_operands::observes_count;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::IntegerSign;
 use target_operations::TargetUnitOperation;
 use terminal_psi::StructuralTypeShape;
+use terminal_semantics::element_view_leaf_scalar;
 
 /// An indexed element write names one view place verified mutable. The view
 /// is a signature parameter or non-entry block parameter declared
@@ -30,13 +32,7 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
-    if !crate::lowering::scalar::descriptor_operands::observes_count(
-        function,
-        &values,
-        *length,
-        destination,
-        false,
-    ) {
+    if !observes_count(function, &values, *length, destination, false) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (view_structural_type, indices) =
@@ -53,11 +49,9 @@ pub(super) fn lower(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let Some(element_scalar) = terminal_semantics::element_view_leaf_scalar(
-        structural_types.catalog().as_slice(),
-        *element,
-        path,
-    ) else {
+    let Some(element_scalar) =
+        element_view_leaf_scalar(structural_types.catalog().as_slice(), *element, path)
+    else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     // Resolve the authored leaf value from the common dominating scalar roster.

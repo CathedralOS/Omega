@@ -3,6 +3,7 @@
 //! This module validates root, residual, and nominal cleanup actions against
 //! retained places, structural paths, provenance, code attribution, and cleanup targets.
 //! It does not choose cleanup actions, infer layouts, or emit instructions.
+use crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_result;
 
 mod cleanup_roots;
 mod discard_actions;
@@ -191,11 +192,8 @@ pub(crate) fn validate_unit_affine_cleanup(
         .checked_add(cleanup.byte_count)
         .ok_or_else(invalid)?;
     let roots = cleanup_roots::cleanup_roots(&inputs);
-    let projected_result = crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_result(
-        parameter_homes,
-        internal_unit_calls,
-        Some(cleanup),
-    );
+    let projected_result =
+        exact_projected_affine_result(parameter_homes, internal_unit_calls, Some(cleanup));
     let action_shape_invalid = if projected_result.is_some() {
         false
     } else if cleanup.actions == roots.expected_root_actions {

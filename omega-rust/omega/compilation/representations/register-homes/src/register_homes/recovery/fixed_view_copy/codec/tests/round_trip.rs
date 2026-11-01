@@ -1,4 +1,4 @@
-use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
+use crate::{FixedPrecoloredSplitRequirementPlanIdentity, FixedViewCopyPlan, FixedViewCopyPolicy};
 use selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use semantic_vocabulary::MachineId;
 
@@ -155,9 +155,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
         fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
-        split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
-            [22; 32],
-        ),
+        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([22; 32]),
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode().unwrap();

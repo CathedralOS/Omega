@@ -153,18 +153,18 @@ retired-syntax deletions to completion.
   [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
   and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
   source `state` with arbitrarily nested named machines.
-  - Resolve recursive lexical scopes and forward references, enforce enclosing-scope-only
-    visibility for nested helpers, permit value/Unit completion before trailing
-    declarations, elaborate static declaration context to flat machine identities
-    with explicit arguments, and reject runtime capture, enclosing-local use,
-    hidden context parameters, and executable code after trailing declarations.
+  - Resolve recursive lexical scopes and forward references, permit value/Unit
+    completion before trailing declarations, elaborate static declaration context
+    to flat machine identities with explicit arguments, and reject runtime
+    capture, enclosing-local use, hidden context parameters, and executable code
+    after trailing declarations.
   - Complete cyclic private arrivals and the remaining normal-return
     obligations, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     other declared body forms, remaining nonscalar orders beyond fixed-integer
-    lexicographic products, or dependent distances
+    lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -176,11 +176,11 @@ retired-syntax deletions to completion.
   sibling/ancestor terminal cycles, generic enclosing declaration context and
   explicit borrowed/local data, across the applicable nine-place row
   (`other_state/` becomes the nested-machine place) and fact-sensitive reject
-  twins. Reject inaccessible descendants, accidental capture, stale parent
-  facts, mismatched results, missing exact call markers, unclosed restoration,
-  invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Finish the full affected sample/corpus migration and both
-  compiler implementations before closure.
+  twins. Reject accidental capture, stale parent facts, mismatched results,
+  missing exact call markers, unclosed restoration, invalid loan escape, lost
+  linear custody, unjustified recursion and retired `state` syntax. Finish the
+  full affected sample/corpus migration and both compiler implementations before
+  closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -189,7 +189,7 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, remaining record-field and owned-array
+    remaining case/aggregate writes, record-field and owned-array
     predicate handback with current storage versions,
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
@@ -210,16 +210,12 @@ retired-syntax deletions to completion.
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
   - Carry one general predicate representation through formation, construction,
-    calls, matching, coverage, writes, and erasure so case membership plus the
-    established domain recovers type equality and guarded payload bounds while
-    preserving recursive/indexed data encoding obligations, exact subject
-    identity, first-case zero gating, and mutation restoration.
-  Acceptance: execute a generic typed extractor over Integer/Boolean and a
-  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
-  exercising the same predicate as a default domain and a named generic domain
-  through all nine fact places. Reject mismatched case/type construction,
-  unguarded inactive payload access, reversed bounds, stale facts after writes,
-  invalid zero establishment and the retired syntax.
+    calls, matching, coverage, writes, and erasure, preserving recursive/indexed
+    data encoding obligations, exact subject identity, first-case zero gating,
+    and mutation restoration.
+  Acceptance: reject mismatched case/type construction, unguarded inactive
+  payload access, reversed bounds, stale facts after writes, invalid zero
+  establishment and the retired syntax.
 
 - **STATIC-MACHINE-MIGRATION.** (also covers
   **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
@@ -338,6 +334,14 @@ retired-syntax deletions to completion.
     target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
     sine, square, and melody consumers through unchanged playback oracles;
     shared binding-value producers and helpers remain ordinary machines.
+    Frontier: 410 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 17 facts spell it in all nine places
+    (`checked_asm_{arm_load,compare_preserves,fence_contracts,register_contract_bound}`,
+    `foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    `generic_calling_policy`, `opaque_closed_carrier_exchange`,
+    `scalar_boundary_parameter`, `selected_provider_issuance`,
+    `target_family_contract_operand`, `target_layout_derived_constant`,
+    `target_recursive_bound`, `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -346,6 +350,11 @@ retired-syntax deletions to completion.
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
     source or exposing a selected body's private guarantees to callers.
+  - Carry the requirement-guarantee dependency to generic evidence binders: a
+    binder `S satisfies R` instantiated at the implementation that defines its
+    caller still imports `R`'s guarantee, so a citation cycle through it is
+    accepted (reproduction in
+    `samples/cli/facts/independent_call_result_bound/README.md`).
   Acceptance: one portable call selects distinct ordinary implementations for
   two targets from the same Terminal artifact and Build companion, with authored
   results observed by `omega run --both` on matching hosts. Migrated target,
@@ -397,11 +406,9 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 70 test files to boundary traits with explicit reach clauses, lift stage
-    04's template-dependent result borrow-elision fence for `core/task.omg`'s
-    generic `request_cancel` and `finish`, and preserve source-selected trait
-    tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
+    probe to boundary traits with explicit reach clauses, and preserve
+    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.
@@ -432,30 +439,20 @@ retired-syntax deletions to completion.
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
 
-- **ARITHMETIC-POLICY-REALIZATION.** (also covers **IMPLICIT-STORE-CONVERSION**)
-  Close remaining [numeric-policy](wiki/spec/language/numeric_values.md)
-  realization and the implicit-store-conversion rejection and migration under
-  [explicit coercion/erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure)
-  end to end (`omega run --both`).
-  Owners: `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/{assignments,operand_reports}.rs`,
-  stage 04 scalar checking, stage 05 expression preparation, and
-  `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
-  with its interpreter and native consumers.
-  - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
-    `tests/omega/pass/arithmetic`, `tests/omega/pass/core`, and
-    `tests/omega/pass/float` to explicit conversions (`as` requires
-    unchanged denotation and representability;
-    wrapping/clamping use
-    `core/numeric_conversion.omg`), producing one actionable diagnostic per
-    authored conversion error.
-  Acceptance: comparisons, conversions, and policy-explicit stores agree between
-  the interpreter and matching-host native execution across all six relations,
-  operand orientations, widths, signedness, and extrema above `i64::MAX`
-  (`python tools/corpus_gate.py --both --filter numeric_,runtime_explicit_call_,runtime_shift_count_domain_exit,runtime_comparison_signedness_exit,runtime_wrapping_operand_truncation_exit`);
-  `tests/omega/fail/arithmetic/implicit_{store_conversion,store_widening,store_call_result_conversion,call_operand_conversion,call_result_policy_change,integer_policy_erasure}_rejected`
-  and `fail/slices/signed_slice_index_upper_only` each report their intended
-  refusal.
+- **LOC-OMEGA-CONSOLIDATION.** Fold Omega-side (non-Psi) semantic duplication
+  where only data differs, deleting the superseded copy in the same change.
+  Base `55f4a84e523`; target net -1,500 lines across `omega-rust/omega/`.
+  - Per-ISA (`isa-x86_64`/`isa-aarch64`) selected-form test bodies that differ
+    only in roster, bytes and target move into `isa-conformance`: hosted exit,
+    read and write byte, floating control, scalar call, memory pointer and
+    integer normalization tests.
+  - Per-ISA register-catalog builder helpers (`view`, `fixed`, `allocatable`,
+    `merged_units`, `convention`) and the matching error enums move to
+    `register-model`.
+  - Driver test adapters (`TerminalImportAdapter` + `TerminalEffectHandler`
+    stubs) share one test-support type.
+  Acceptance: each family has one path and the old copies are gone; touched
+  crates' `mbx nextest run` and `corpus_gate --filter` on touched groups pass.
 
 ## Pipeline route
 
@@ -885,11 +882,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
-    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
-    with the original 256-width and mismatched-policy-argument reject controls.
-    Its exact source and unfinished repairs are retained at that checkpoint;
-    the completed storage/bit rows do not establish this composition.
+    The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
+    with the original 256-width and mismatched-policy-argument rejects.
+    Stored-descriptor reads/roundtrips, other-host execution and broader
+    reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
     [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
     also remains unqualified: preserve its distinct environment/storage regions
     and the same constant index through the original forwarding call.

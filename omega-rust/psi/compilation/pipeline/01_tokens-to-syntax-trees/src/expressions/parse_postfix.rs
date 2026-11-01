@@ -6,25 +6,22 @@ use crate::type_syntax::parse_type::parse_cast_target_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
-    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableRangeExpression,
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, StaticSymbolApplication,
+    TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
+    TableRangeExpression,
 };
 use tokens::{KeywordKind, PunctuationKind};
 
 use super::parse_expression::{parse_expression_handle, parse_expression_handle_in};
 use super::primary::parse_primary_expression_handle;
+use crate::type_syntax::parse_type::parse_domain_argument_handles;
+use numerics::arithmetic::ArithmeticDomain;
+use syntax_trees::identifier::Identifier;
 
 pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        HandleSpan<ExpressionHandle>,
-        Box<[syntax_trees::identifier::Identifier]>,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<ExpressionHandle>, Box<[Identifier]>)> {
     parse_arguments_in(syntax_trees, input, ExpressionContext::Default)
 }
 
@@ -32,14 +29,7 @@ fn parse_arguments_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     context: ExpressionContext,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        HandleSpan<ExpressionHandle>,
-        Box<[syntax_trees::identifier::Identifier]>,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<ExpressionHandle>, Box<[Identifier]>)> {
     let mut arguments = Vec::new();
 
     if !input.at_punctuation(PunctuationKind::RightParen)
@@ -297,14 +287,14 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let mut target_label = HandleSpan::empty();
             exprs(syntax_trees).append_identifier_path_member_to_span(
                 &mut target_label,
-                syntax_trees::identifier::Identifier::generated(target_label_text),
+                Identifier::generated(target_label_text),
             );
             input = rest;
             // Optional arithmetic DOMAIN cast suffix (`x as u8 in Saturating`),
             // decision 17 S2: re-tags the value's arithmetic domain so it can
             // legally take part in domained arithmetic (the escape hatch for the
             // mixed-domain rejection). `in` is the contextual membership keyword.
-            let mut domain = numerics::arithmetic::ArithmeticDomain::Exact;
+            let mut domain = ArithmeticDomain::Exact;
             let mut semantic_domain = arena::HandleSpan::empty();
             let mut semantic_domain_arguments = arena::HandleSpan::empty();
             if input.at_contextual("in") {
@@ -314,9 +304,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 // `in units::u64::Km`.
                 let (domain_name, rest) =
                     crate::type_syntax::parse_type::parse_static_name(after_in)?;
-                match numerics::arithmetic::ArithmeticDomain::from_name(
-                    domain_name.as_str(syntax_trees),
-                ) {
+                match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
                     Some(_) if form.is_recast() => {
                         return Err(input.error_here(
                             "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
@@ -332,11 +320,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                             &mut semantic_domain,
                             domain_name.clone(),
                         );
-                        let (arguments, rest) =
-                            crate::type_syntax::parse_type::parse_domain_argument_handles(
-                                syntax_trees,
-                                rest,
-                            )?;
+                        let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
                         semantic_domain_arguments = arguments;
                         input = rest;
                     }
@@ -436,7 +420,7 @@ fn build_call_expression_handle(
     expression: ExpressionHandle,
     machine_arguments: Box<[StaticMachineArgument]>,
     arguments: HandleSpan<ExpressionHandle>,
-    evidence_arguments: Box<[syntax_trees::identifier::Identifier]>,
+    evidence_arguments: Box<[Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = exprs_of(syntax_trees).expression(expression);
     let call = match expression {
@@ -856,13 +840,7 @@ fn parse_static_value_alternatives<'tokens, 'source>(
 pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Result<
-    Option<(
-        Box<syntax_trees::expression::StaticSymbolApplication>,
-        Input<'tokens, 'source>,
-    )>,
-    ParseError,
-> {
+) -> Result<Option<(Box<StaticSymbolApplication>, Input<'tokens, 'source>)>, ParseError> {
     let checkpoint = syntax_trees.append_checkpoint();
     let result = parse_static_symbol_application(syntax_trees, input);
     if !matches!(&result, Ok(Some(_))) {
@@ -874,13 +852,7 @@ pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
 fn parse_static_symbol_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Result<
-    Option<(
-        Box<syntax_trees::expression::StaticSymbolApplication>,
-        Input<'tokens, 'source>,
-    )>,
-    ParseError,
-> {
+) -> Result<Option<(Box<StaticSymbolApplication>, Input<'tokens, 'source>)>, ParseError> {
     if input.at_punctuation(PunctuationKind::Less) {
         let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();
@@ -916,7 +888,7 @@ fn parse_static_symbol_application<'tokens, 'source>(
             }
             cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
             break Ok(Some((
-                Box::new(syntax_trees::expression::StaticSymbolApplication {
+                Box::new(StaticSymbolApplication {
                     member: arena::Handle::invalid(),
                     lifetime_arguments: lifetime_arguments.into_boxed_slice(),
                     arguments: arguments.into_boxed_slice(),
@@ -952,11 +924,8 @@ fn parse_static_type_argument<'tokens, 'source>(
 /// storage exactly as before. Callers own their empty-path diagnostic.
 pub(crate) fn call_path_target_and_receiver(
     syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> (
-    Option<syntax_trees::identifier::Identifier>,
-    ExpressionHandle,
-) {
+    path: HandleSpan<Identifier>,
+) -> (Option<Identifier>, ExpressionHandle) {
     let members = exprs_of(syntax_trees).identifier_path_members(path);
     let count = members.len();
     let target = members.last().cloned();

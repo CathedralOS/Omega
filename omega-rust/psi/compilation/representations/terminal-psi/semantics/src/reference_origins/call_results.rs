@@ -3,7 +3,9 @@
 //! input ordinals. Normalize that distinction here, before ordinary custody
 //! transports the actual carrier. Neither route selects a runtime address.
 
+use super::reference_origin_type;
 use semantic_vocabulary::{ReferenceOriginExtent, StructuralTypeId};
+use terminal_psi::TerminalDynamicReferenceOrigin;
 use terminal_psi::{
     ReferenceOriginProjection, StructuralArgument, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralReferenceResultSource, StructuralTypeDeclaration,
@@ -67,12 +69,10 @@ pub fn bind_reference_call_results<'types>(
                             extent,
                             access,
                         } => {
-                            let endpoint = super::reference_origin_type(
-                                types.clone(),
-                                *carrier_type,
-                                path,
-                            )
-                            .ok_or("invocation reference origin has no typed provider endpoint")?;
+                            let endpoint =
+                                reference_origin_type(types.clone(), *carrier_type, path).ok_or(
+                                    "invocation reference origin has no typed provider endpoint",
+                                )?;
                             candidates.push(ReferenceCallSource {
                                 origin: ReferenceCallOrigin::Invocation {
                                     carrier_type: *carrier_type,
@@ -144,21 +144,16 @@ pub fn bind_reference_call_results<'types>(
                     continue;
                 }
                 let index = match region.origin {
-                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
-                        argument_index
-                    }
-                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                    TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
+                    TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
                         let path = region
                             .source_path
                             .iter()
                             .cloned()
                             .map(ReferenceOriginProjection::Exact)
                             .collect::<Vec<_>>();
-                        let endpoint =
-                            super::reference_origin_type(types.clone(), carrier_type, &path)
-                                .ok_or(
-                                    "dynamic invocation reference origin has no typed endpoint",
-                                )?;
+                        let endpoint = reference_origin_type(types.clone(), carrier_type, &path)
+                            .ok_or("dynamic invocation reference origin has no typed endpoint")?;
                         let candidate = ReferenceCallSource {
                             origin: ReferenceCallOrigin::Invocation {
                                 carrier_type,
@@ -194,12 +189,9 @@ pub fn bind_reference_call_results<'types>(
                     .cloned()
                     .map(ReferenceOriginProjection::Exact)
                     .collect::<Vec<_>>();
-                let endpoint = super::reference_origin_type(
-                    types.clone(),
-                    parameter.structural_type,
-                    &origin_path,
-                )
-                .ok_or("dynamic returned region has no typed input endpoint")?;
+                let endpoint =
+                    reference_origin_type(types.clone(), parameter.structural_type, &origin_path)
+                        .ok_or("dynamic returned region has no typed input endpoint")?;
                 let source_path = crate::reference_source_storage_path(
                     types.clone(),
                     parameter.structural_type,

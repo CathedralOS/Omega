@@ -6,6 +6,7 @@
 
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::{BoundaryMachineResult, TerminalModule};
+use terminal_semantics::descriptor_results::{DescriptorAnalysis, terminal_graph};
 
 /// Validate every table row, including rows with no local call site. Replay is
 /// prepared once at this trust boundary and shared across selected row queries.
@@ -45,11 +46,8 @@ pub(super) fn validate_dynamic_descriptor_results(
     if rows.is_empty() {
         return Ok(());
     }
-    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
-    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-        &module.structural_types,
-        &graph,
-    );
+    let graph = terminal_graph(module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
     for (row, slot) in rows {
         let callee = module
             .machine(row)

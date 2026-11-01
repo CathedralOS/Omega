@@ -6,7 +6,10 @@ use super::{
     MachineSemanticKind, MachineSizeKnowledge, RegisterInstructionConstraint,
     RegisterOperandAccess, validate_declaration,
 };
+use crate::MachineMemoryEffect::NoneV1;
+use crate::MachineTrapBehavior::NeverV1;
 use crate::{MachineAlternative, MachineAlternativeKey, MachineLatencyKnowledge};
+use register_model::RegisterUnitId;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterOperandConstraint, RegisterViewId,
@@ -74,7 +77,7 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
         42,
         &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
     );
-    constraint.clobbers = vec![register_model::RegisterUnitId(1)];
+    constraint.clobbers = vec![RegisterUnitId(1)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
     encoded.implicit_unit_clobbers = constraint.clobbers.clone();
     encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -91,7 +94,7 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
     let source = MachineEffectDeclaration {
         semantic: semantic(IeeeFloatToIntegerDomain::Trapping),
         constraint: constraint.key,
-        memory: crate::MachineMemoryEffect::NoneV1,
+        memory: NoneV1,
         trap: crate::MachineTrapBehavior::TrappingIntegerV1,
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
@@ -107,7 +110,7 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
         let mut changed = source.clone();
         match mutation {
             0 => changed.barrier = MachineBarrier::None,
-            1 => changed.trap = crate::MachineTrapBehavior::NeverV1,
+            1 => changed.trap = NeverV1,
             2 => changed.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::NeverV1,
             3 => {
                 changed.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1
@@ -147,7 +150,7 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
     for row in constraint.operands.iter_mut().skip(3) {
         row.early_clobber = true;
     }
-    constraint.clobbers = vec![register_model::RegisterUnitId(0)];
+    constraint.clobbers = vec![RegisterUnitId(0)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1, 2], vec![3, 4]);
     encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
         source_pointer_operand: 0,
@@ -176,7 +179,7 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
         let encoded = &mut changed.alternatives[0].encoded;
         match mutation {
             0 => {
-                changed.memory = crate::MachineMemoryEffect::NoneV1;
+                changed.memory = NoneV1;
                 encoded.memory = MachineEncodedMemoryEffect::NoneV1;
             }
             1 => {
@@ -224,7 +227,7 @@ fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
     for row in constraint.operands.iter_mut().skip(2) {
         row.early_clobber = true;
     }
-    constraint.clobbers = vec![register_model::RegisterUnitId(0)];
+    constraint.clobbers = vec![RegisterUnitId(0)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
     encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
         destination_pointer_operand: 0,
@@ -252,7 +255,7 @@ fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
         let encoded = &mut changed.alternatives[0].encoded;
         match mutation {
             0 => {
-                changed.memory = crate::MachineMemoryEffect::NoneV1;
+                changed.memory = NoneV1;
                 encoded.memory = MachineEncodedMemoryEffect::NoneV1;
             }
             1 => {
@@ -388,11 +391,11 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
         let mut changed = source.clone();
         match mutation {
             0 => {
-                changed.memory = crate::MachineMemoryEffect::NoneV1;
+                changed.memory = NoneV1;
                 changed.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::NoneV1;
             }
             1 => {
-                changed.trap = crate::MachineTrapBehavior::NeverV1;
+                changed.trap = NeverV1;
                 changed.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::NeverV1;
             }
             2 => changed.alternatives[0]
@@ -421,8 +424,8 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
         MachineEffectDeclaration {
             semantic,
             constraint: constraint.key,
-            memory: crate::MachineMemoryEffect::NoneV1,
-            trap: crate::MachineTrapBehavior::NeverV1,
+            memory: NoneV1,
+            trap: NeverV1,
             barrier: MachineBarrier::ControlFlow,
             call: crate::MachineCallEffect::NoneV1,
             cleanup: crate::MachineCleanupEffect::NoneV1,
@@ -499,8 +502,8 @@ fn returns_and_calls_reject_each_others_stack_effects() {
         MachineEffectDeclaration {
             semantic,
             constraint: key,
-            memory: crate::MachineMemoryEffect::NoneV1,
-            trap: crate::MachineTrapBehavior::NeverV1,
+            memory: NoneV1,
+            trap: NeverV1,
             barrier,
             call: if barrier == MachineBarrier::Call {
                 crate::MachineCallEffect::InternalNormalReturnV1 {
@@ -612,14 +615,14 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
             variant: 780,
         },
         operands: Vec::new(),
-        implicit_uses: vec![register_model::RegisterUnitId(7)],
-        implicit_defs: vec![register_model::RegisterUnitId(7)],
+        implicit_uses: vec![RegisterUnitId(7)],
+        implicit_defs: vec![RegisterUnitId(7)],
         clobbers: Vec::new(),
     };
     let source = MachineEffectDeclaration {
         semantic: MachineSemanticKind::Crash,
         constraint: constraint.key,
-        memory: crate::MachineMemoryEffect::NoneV1,
+        memory: NoneV1,
         trap: crate::MachineTrapBehavior::ExplicitCrashV1,
         barrier: MachineBarrier::ControlFlow,
         call: crate::MachineCallEffect::NoneV1,
@@ -641,7 +644,7 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
         let mut candidate = source.clone();
         let effects = &mut candidate.alternatives[0].encoded;
         match mutation {
-            0 => candidate.trap = crate::MachineTrapBehavior::NeverV1,
+            0 => candidate.trap = NeverV1,
             1 => candidate.barrier = MachineBarrier::None,
             2 => {
                 candidate.call = crate::MachineCallEffect::InternalNormalReturnV1 {
@@ -653,9 +656,7 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
             5 => effects.control = MachineEncodedControlEffect::ReturnFromActivationStackV1,
             6 => effects.external_operand_reads.push(0),
             7 => effects.external_operand_writes.push(0),
-            8 => effects
-                .implicit_unit_clobbers
-                .push(register_model::RegisterUnitId(0)),
+            8 => effects.implicit_unit_clobbers.push(RegisterUnitId(0)),
             9 => {
                 effects.stack = MachineEncodedStackEffect::PopBytesV1 {
                     stack_pointer: RegisterViewId(0),
@@ -761,7 +762,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
             &declaration(
                 MachineSemanticKind::Load64,
                 crate::MachineMemoryEffect::ReadPointerV1,
-                crate::MachineTrapBehavior::NeverV1,
+                NeverV1,
                 &pointer_read,
             ),
         )
@@ -774,7 +775,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
             &constraint,
             &declaration(
                 MachineSemanticKind::ExactAddI64,
-                crate::MachineMemoryEffect::NoneV1,
+                NoneV1,
                 crate::MachineTrapBehavior::HostedReadFailureV1,
                 &MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
             ),
@@ -783,7 +784,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     );
     // Store64 owns the frame-storage write on its single value operand.
     let mut store_constraint = instruction_constraint(29, &[RegisterOperandAccess::Use]);
-    store_constraint.implicit_uses = vec![register_model::RegisterUnitId(9)];
+    store_constraint.implicit_uses = vec![RegisterUnitId(9)];
     let mut frame_store = MachineEncodedEffects::fallthrough_v1(vec![0], Vec::new());
     frame_store.memory = MachineEncodedMemoryEffect::WriteFrameStorageV1 {
         stack_pointer: RegisterViewId(5),
@@ -833,8 +834,8 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
         MachineEffectDeclaration {
             semantic,
             constraint: key,
-            memory: crate::MachineMemoryEffect::NoneV1,
-            trap: crate::MachineTrapBehavior::NeverV1,
+            memory: NoneV1,
+            trap: NeverV1,
             barrier: MachineBarrier::None,
             call: crate::MachineCallEffect::NoneV1,
             cleanup: crate::MachineCleanupEffect::NoneV1,
@@ -1032,7 +1033,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
 
 #[test]
 fn encoded_rows_restate_the_contracted_implicit_custody() {
-    let unit = |id| register_model::RegisterUnitId(id);
+    let unit = |id| RegisterUnitId(id);
     let constraint = |variant,
                       accesses: &[RegisterOperandAccess],
                       uses: &[u16],
@@ -1047,8 +1048,8 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
     let declaration = |semantic, key, encoded| MachineEffectDeclaration {
         semantic,
         constraint: key,
-        memory: crate::MachineMemoryEffect::NoneV1,
-        trap: crate::MachineTrapBehavior::NeverV1,
+        memory: NoneV1,
+        trap: NeverV1,
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
@@ -1174,26 +1175,17 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
     let add = declaration(
         MachineSemanticKind::ExactAddI64,
         arithmetic.key,
-        crate::MachineMemoryEffect::NoneV1,
-        crate::MachineTrapBehavior::NeverV1,
+        NoneV1,
+        NeverV1,
         MachineBarrier::None,
         crate::MachineCallEffect::NoneV1,
         MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
     );
     validate_declaration(target::Architecture::X86_64, &arithmetic, &add).unwrap();
     for (memory, trap) in [
-        (
-            crate::MachineMemoryEffect::NoneV1,
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        ),
-        (
-            crate::MachineMemoryEffect::NoneV1,
-            crate::MachineTrapBehavior::HostedReadFailureV1,
-        ),
-        (
-            crate::MachineMemoryEffect::ReadPointerV1,
-            crate::MachineTrapBehavior::NeverV1,
-        ),
+        (NoneV1, crate::MachineTrapBehavior::MayArchitecturalFaultV1),
+        (NoneV1, crate::MachineTrapBehavior::HostedReadFailureV1),
+        (crate::MachineMemoryEffect::ReadPointerV1, NeverV1),
         (
             crate::MachineMemoryEffect::WriteFrameStorageV1,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -1230,10 +1222,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
     );
     validate_declaration(target::Architecture::X86_64, &load, &load64).unwrap();
     for (memory, trap) in [
-        (
-            crate::MachineMemoryEffect::ReadPointerV1,
-            crate::MachineTrapBehavior::NeverV1,
-        ),
+        (crate::MachineMemoryEffect::ReadPointerV1, NeverV1),
         (
             crate::MachineMemoryEffect::ReadPointerV1,
             crate::MachineTrapBehavior::HostedWriteFailureV1,
@@ -1242,10 +1231,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
             crate::MachineMemoryEffect::WritePointerV1,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         ),
-        (
-            crate::MachineMemoryEffect::NoneV1,
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        ),
+        (NoneV1, crate::MachineTrapBehavior::MayArchitecturalFaultV1),
     ] {
         let mut forged = load64.clone();
         forged.memory = memory;
@@ -1275,22 +1261,16 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
     let returned_row = declaration(
         MachineSemanticKind::ReturnScalar,
         returned.key,
-        crate::MachineMemoryEffect::NoneV1,
-        crate::MachineTrapBehavior::NeverV1,
+        NoneV1,
+        NeverV1,
         MachineBarrier::ControlFlow,
         crate::MachineCallEffect::NoneV1,
         return_encoded,
     );
     validate_declaration(target::Architecture::X86_64, &returned, &returned_row).unwrap();
     for (memory, trap) in [
-        (
-            crate::MachineMemoryEffect::ReadPointerV1,
-            crate::MachineTrapBehavior::NeverV1,
-        ),
-        (
-            crate::MachineMemoryEffect::NoneV1,
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        ),
+        (crate::MachineMemoryEffect::ReadPointerV1, NeverV1),
+        (NoneV1, crate::MachineTrapBehavior::MayArchitecturalFaultV1),
     ] {
         let mut forged = returned_row.clone();
         forged.memory = memory;
@@ -1320,8 +1300,8 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
     let call_row = declaration(
         MachineSemanticKind::CallScalar,
         called.key,
-        crate::MachineMemoryEffect::NoneV1,
-        crate::MachineTrapBehavior::NeverV1,
+        NoneV1,
+        NeverV1,
         MachineBarrier::Call,
         crate::MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
@@ -1330,14 +1310,8 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
     );
     validate_declaration(target::Architecture::X86_64, &called, &call_row).unwrap();
     for (memory, trap) in [
-        (
-            crate::MachineMemoryEffect::WritePointerV1,
-            crate::MachineTrapBehavior::NeverV1,
-        ),
-        (
-            crate::MachineMemoryEffect::NoneV1,
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        ),
+        (crate::MachineMemoryEffect::WritePointerV1, NeverV1),
+        (NoneV1, crate::MachineTrapBehavior::MayArchitecturalFaultV1),
     ] {
         let mut forged = call_row.clone();
         forged.memory = memory;
@@ -1361,7 +1335,7 @@ fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
     let declaration = MachineEffectDeclaration {
         semantic: MachineSemanticKind::HostedExitProcessI32,
         constraint: constraint.key,
-        memory: crate::MachineMemoryEffect::NoneV1,
+        memory: NoneV1,
         trap: crate::MachineTrapBehavior::HostedExitReturnedV1,
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
@@ -1379,7 +1353,7 @@ fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
 
 #[test]
 fn normalized_foreign_call_declarations_bind_external_call_effects() {
-    let unit = |id| register_model::RegisterUnitId(id);
+    let unit = |id| RegisterUnitId(id);
     // One per-plan foreign row: two Use arguments and one Def result, every
     // operand pinned to the exact ABI view the evaluated plan selected.
     let foreign_row = |variant: u32, arity: u16, result: bool| RegisterInstructionConstraint {
@@ -1413,8 +1387,8 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let declaration = |key, encoded: MachineEncodedEffects| MachineEffectDeclaration {
         semantic: MachineSemanticKind::NormalizedForeignCall,
         constraint: key,
-        memory: crate::MachineMemoryEffect::NoneV1,
-        trap: crate::MachineTrapBehavior::NeverV1,
+        memory: NoneV1,
+        trap: NeverV1,
         barrier: MachineBarrier::Call,
         call: crate::MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
@@ -1574,7 +1548,7 @@ fn directed_stack_effect_cannot_borrow_unbalanced_or_nearest_custody() {
                 early_clobber: false,
             })
             .collect(),
-        implicit_uses: vec![register_model::RegisterUnitId(1)],
+        implicit_uses: vec![RegisterUnitId(1)],
         implicit_defs: vec![],
         clobbers: vec![],
     };

@@ -18,8 +18,7 @@
 //! synthesizes afterwards (the guard tag clamp survives only as that
 //! internal lowering of `in`).
 
-use crate::tables::resolved_expressions;
-use crate::tables::resolved_statements;
+use crate::tables::{resolved_expressions, resolved_statements};
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};

@@ -1,0 +1,25 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+public data Holder { before: u64; items: [u64; 2]; after: u64; }
+public data Index requires self.value < 2 { value: u64; }
+public machine select_current(holder: &mut Holder, index: &mut Index)
+requires index.value == 0 && holder.items[1] == 7
+ensures holder.items[index.value] == 7
+{
+    holder.items[0] = 4;
+    index.value = 1;
+}
+machine agree(saved: u64, current: u64) requires saved == 7 && current == saved {}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { before: 11, items: [1, 7], after: 13 };
+    let mut index: Index = Index { value: 0 };
+    let saved: u64 = holder.items[1];
+    select_current(&mut holder, &mut index);
+    agree(saved, holder.items[index.value]);
+    transition index.value == 1 && holder.items[0] == 4 && holder.items[1] == 7 && holder.before == 11 && holder.after == 13 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

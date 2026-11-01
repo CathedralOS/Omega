@@ -35,6 +35,9 @@ use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNod
 
 use super::BuildTimeProgram;
 use super::closure_validation::has_authored_requires;
+use crate::syntax_probes::PreparedEvaluationInputs;
+use typed_trees_to_checked_trees::{infer_checked_machine_crash_causes, lower_typed_trees};
+use typed_trees_to_typed_trees::prepare_typed_trees;
 
 /// Whether a private checked probe discharges `machine`'s authored
 /// `requires` premises for the concrete zero-argument call `machine()`.
@@ -99,21 +102,17 @@ pub(super) fn zero_argument_invocation_discharges(
     // `requires` premises are still decided at the synthesized call.
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-    let Ok((probe, preparation)) =
-        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
-    else {
+    let Ok((probe, preparation)) = prepare_typed_trees(probe, &preparation_request) else {
         return false;
     };
-    let Ok(checked) =
-        typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
-    else {
+    let Ok(checked) = lower_typed_trees(probe, preparation, &checking) else {
         return false;
     };
     if require_complete_invocation_conditions(&checked, owner).is_err() {
         return false;
     }
     matches!(
-        typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
+        infer_checked_machine_crash_causes(
             &checked.typed,
             &checked.facts,
             owner,
@@ -170,21 +169,18 @@ pub(super) fn checked_demanded_closure(
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
     let (probe, preparation) =
-        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request).map_err(
-            |error| {
-                format!(
-                    "demanded premise closure preparation failed: {}",
-                    diagnostics::join_messages(&error)
-                )
-            },
-        )?;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
-        .map_err(|error| {
+        prepare_typed_trees(probe, &preparation_request).map_err(|error| {
             format!(
-                "demanded premise closure checking failed: {}",
+                "demanded premise closure preparation failed: {}",
                 diagnostics::join_messages(&error)
             )
         })?;
+    let checked = lower_typed_trees(probe, preparation, &checking).map_err(|error| {
+        format!(
+            "demanded premise closure checking failed: {}",
+            diagnostics::join_messages(&error)
+        )
+    })?;
     Ok(checked)
 }
 
@@ -292,10 +288,8 @@ pub(crate) fn snapshot_arguments_discharge(
         .expression_table
         .set_source_span(concrete, program.expression_table.source_span(expression));
     let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
-    let checked = typed_trees_to_typed_trees::prepare_typed_trees(probe, preparation_request)
-        .and_then(|(probe, preparation)| {
-            typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, checking)
-        })
+    let checked = prepare_typed_trees(probe, preparation_request)
+        .and_then(|(probe, preparation)| lower_typed_trees(probe, preparation, checking))
         .map_err(|diagnostics| {
             format!(
                 "constant invocation of `{callee}` failed checking: {}",
@@ -303,12 +297,8 @@ pub(crate) fn snapshot_arguments_discharge(
             )
         })?;
     require_complete_invocation_conditions(&checked, owner)?;
-    let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
-        &checked.typed,
-        &checked.facts,
-        owner,
-    )
-    .ok_or("constant invocation has no complete checked failure summary")?;
+    let causes = infer_checked_machine_crash_causes(&checked.typed, &checked.facts, owner)
+        .ok_or("constant invocation has no complete checked failure summary")?;
     if !causes.is_empty() {
         return Err(format!(
             "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
@@ -398,11 +388,7 @@ pub(crate) fn require_complete_invocation_conditions(
         return Ok(());
     }
 
-    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-        &checked.typed,
-        &[root],
-        &[],
-    );
+    let domain = PreparedEvaluationInputs::domain_for_program(&checked.typed, &[root], &[]);
     let demanded = |owner: SymbolHandle| !owner.is_valid() || domain.contains(owner);
     if has_pending_boundary_scalars
         && checked

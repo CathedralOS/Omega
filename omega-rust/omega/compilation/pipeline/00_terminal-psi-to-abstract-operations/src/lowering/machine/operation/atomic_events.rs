@@ -30,9 +30,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge};
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralFieldId};
 use terminal_psi::{
-    AtomicAccessEvent, Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine,
+    AtomicAccessEvent, Operation, OperationKind, StructuralPathSegment, StructuralTypeDeclaration,
+    TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -336,11 +337,7 @@ fn reaching_fact(
     Ok(reached)
 }
 
-type Location = (
-    PlaceId,
-    Vec<terminal_psi::StructuralPathSegment>,
-    semantic_vocabulary::StructuralFieldId,
-);
+type Location = (PlaceId, Vec<StructuralPathSegment>, StructuralFieldId);
 
 /// The first preceding operation that prevents looking farther for a write.
 fn latest_write(

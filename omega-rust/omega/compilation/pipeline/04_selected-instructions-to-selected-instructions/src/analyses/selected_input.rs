@@ -1,12 +1,10 @@
-use crate::ValidatedFixedOccurrences;
-use crate::ValidatedStoredLoadForwarding;
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
     ValidatedCopiedCallOperand, ValidatedCopyRemoval, ValidatedDeadCompare,
-    ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedLiteralFold,
-    ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
+    ValidatedEquivalentCompare, ValidatedFixedOccurrences, ValidatedFixedViewCopies,
+    ValidatedLiteralFold, ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
     ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRuntimeRematerialization,
-    ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedStoredLoadForwarding,
 };
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};

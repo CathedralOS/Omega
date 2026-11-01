@@ -9,6 +9,7 @@ use typed_trees::typed_trees::{AccessLifecycleOperation, AccessLifecyclePlan};
 use typed_trees::{FrozenTypedTrees, TypedTrees};
 
 use crate::machine_execution::admission::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody};
+use language_semantics::Multiplicity;
 
 mod demands;
 
@@ -133,9 +134,7 @@ fn validate_nonresident_schema(program: &TypedTrees, schema: SymbolHandle) -> Re
         }
         let mut represented_types = Vec::new();
         for field in program.live_data_fields(program.data_members(data)) {
-            if program.type_multiplicity(field.type_reference)
-                != language_semantics::Multiplicity::Unrestricted
-            {
+            if program.type_multiplicity(field.type_reference) != Multiplicity::Unrestricted {
                 return Err(format!(
                     "nonresident access View cannot acquire non-copy field `{}`; initialization or existing resident custody is required",
                     field.name,

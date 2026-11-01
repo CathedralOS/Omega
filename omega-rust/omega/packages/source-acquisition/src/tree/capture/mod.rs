@@ -17,6 +17,7 @@ use super::ResolvedLocalSource;
 use super::filesystem::{IoResultAt, open_canonical_source_root, require_unchanged_entry};
 use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
+use crate::error::too_many_files;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
 use traversal::{CapturedTreeObservations, verify_captured_tree, visit_directory};
 
@@ -103,9 +104,7 @@ pub(crate) fn capture_local_source_from_open_root(
     let mut entries = Vec::new();
     entries
         .try_reserve_exact(source_entries.len())
-        .map_err(|_| SourceResolveError::TooManyFiles {
-            limit: limits.max_entries,
-        })?;
+        .map_err(|_| too_many_files(limits.max_entries))?;
     for entry in source_entries {
         let kind = match entry.kind {
             SourceEntryKind::Directory => {

@@ -1,6 +1,7 @@
+use crate::expressions::parse_expression::parse_expression_handle;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 #[test]
 fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
@@ -22,9 +23,8 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
         &retained_source,
         &mut parsed,
     );
-    let (_, rest) =
-        crate::expressions::parse_expression::parse_expression_handle(&mut parsed, input)
-            .expect("parse nested values on the default stack");
+    let (_, rest) = parse_expression_handle(&mut parsed, input)
+        .expect("parse nested values on the default stack");
     assert!(rest.tokens.is_empty());
     let count = |predicate: fn(&ExpressionNode) -> bool| {
         parsed
@@ -58,9 +58,7 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
     let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
     let input =
         crate::input::token_cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
-    let (expression, rest) =
-        crate::expressions::parse_expression::parse_expression_handle(&mut parsed, input)
-            .expect("parse expression");
+    let (expression, rest) = parse_expression_handle(&mut parsed, input).expect("parse expression");
     assert!(
         rest.tokens.is_empty(),
         "expression must consume all input: {source}"
@@ -201,10 +199,7 @@ fn long_operator_chains_keep_bounded_parser_stack_and_exact_prefix_order() {
         let ExpressionNode::Unary(unary) = parsed.expressions.expression(expression) else {
             panic!("each prefix retains its operand and source position");
         };
-        assert_eq!(
-            unary.operator,
-            syntax_trees::expression::UnaryOperator::BitwiseNot
-        );
+        assert_eq!(unary.operator, UnaryOperator::BitwiseNot);
         expression = unary.operand;
     }
     assert_eq!(parsed.display_expression_name(expression), "value");

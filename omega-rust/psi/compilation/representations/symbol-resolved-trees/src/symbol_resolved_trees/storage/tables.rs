@@ -2,6 +2,7 @@ use crate::data::{DataField, DataMember};
 use crate::expression::{ExpressionSource, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
 use crate::name::DiagnosticName;
+use crate::operator::OperatorDefinition;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, StatementNode, StatementTable};
@@ -267,11 +268,7 @@ impl SymbolResolvedTreeTables {
         }
     }
 
-    fn insert_operator(
-        &mut self,
-        transplant: &Transplant<'_>,
-        operator: &crate::operator::OperatorDefinition,
-    ) {
+    fn insert_operator(&mut self, transplant: &Transplant<'_>, operator: &OperatorDefinition) {
         self.insert_parameter_and_return_types(
             transplant,
             transplant

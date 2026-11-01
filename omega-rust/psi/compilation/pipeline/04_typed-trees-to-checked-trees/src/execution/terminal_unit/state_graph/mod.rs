@@ -129,6 +129,7 @@ pub(super) fn build_traced(
     trace.phase("state graph: natural ranks");
     let (mut natural_ranks, preserving_rank_edges) =
         natural_rank_plans_for_fused(program, fused, &facts.termination.rank_arrivals)?;
+    trace.phase("state graph: rank observations");
     let rank_components = ranking::bind_observations(
         program,
         &facts.termination.rank_arrivals,

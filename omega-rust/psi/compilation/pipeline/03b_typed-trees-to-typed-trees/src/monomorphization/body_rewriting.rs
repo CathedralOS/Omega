@@ -9,7 +9,9 @@
 //! and static machine transition targets.
 
 use crate::tables::{expressions_of, expressions_of_mut};
+use typed_trees::static_applications::StaticMachineBindingValue;
 use validation::collect_statement_expression_trees;
+use validation::runtime_field_subject;
 
 mod cloned_calls;
 mod const_substitution;
@@ -122,11 +124,7 @@ fn retained_capture_operand(
         .static_machine_application_bindings(application)
         .iter()
         .find_map(|binding| {
-            let typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
-                expression,
-                ..
-            } = binding.value
-            else {
+            let StaticMachineBindingValue::RuntimeValue { expression, .. } = binding.value else {
                 return None;
             };
             if !expression.is_valid() {
@@ -175,12 +173,7 @@ fn plan_runtime_operand(
         return Some(OperandPlan::Recipe(expression));
     }
     if let Some(projection) = &argument.evidence_projection {
-        let subject = validation::runtime_field_subject(
-            program,
-            state,
-            &projection.term,
-            &projection.member,
-        )?;
+        let subject = runtime_field_subject(program, state, &projection.term, &projection.member)?;
         return Some(OperandPlan::Field {
             receiver_name: projection.term.clone(),
             receiver: subject.receiver,
@@ -441,7 +434,7 @@ fn stamp_field_subjects(
         .to_vec();
     let mut operands = operands.iter().copied();
     for binding in &mut bindings {
-        let typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
+        let StaticMachineBindingValue::RuntimeValue {
             subject,
             expression,
             ..

@@ -4,6 +4,7 @@ use super::{
     NativeArtifactIdentity, NativePhysicalEvidenceScope, NativeProviderExecution,
     NativeSelectedProviderPlan,
 };
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
@@ -88,8 +89,7 @@ pub(super) fn compiler_identity_evidence(
 pub(super) fn derive_native_artifact_identity(
     fields: NativeArtifactIdentityFields<'_>,
 ) -> NativeArtifactIdentity {
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
+    let mut digest = DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
     digest.raw(&fields.terminal_artifact_identity);
     // The target's canonical wire identity: architecture, object format,
     // pointer size and alignment, stated once by the target owner.
@@ -208,9 +208,7 @@ pub(super) fn derive_native_artifact_identity(
 }
 
 pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeignCall]) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-artifact.foreign-call-custody.v4\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.native-artifact.foreign-call-custody.v4\0");
     digest.raw(&canonical_usize(calls.len()));
     for call in calls {
         digest.raw(&call.machine.get().to_le_bytes());
@@ -290,7 +288,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
 /// length-prefixed field the plan encoder wrote; the zero coordinate renders
 /// empty, which is the preimage every family-row identity fold requires.
 fn hash_identity_text(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     identities: &terminal_psi::TerminalIdentityTable,
     identity: terminal_psi::TerminalIdentityIndex,
 ) {
@@ -301,7 +299,7 @@ fn hash_identity_text(
 }
 
 fn hash_floating_control(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     control: Option<machine_code::ForeignCallFloatingControlRecord>,
 ) {
     match control {
@@ -322,10 +320,7 @@ fn hash_floating_control(
     }
 }
 
-fn hash_optional_digest(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    value: Option<[u8; 32]>,
-) {
+fn hash_optional_digest(digest: &mut DomainDigestEncoder, value: Option<[u8; 32]>) {
     match value {
         None => digest.raw(&[0]),
         Some(value) => {
@@ -336,7 +331,7 @@ fn hash_optional_digest(
 }
 
 fn hash_optional_digest_and_report(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     value: Option<([u8; 32], u64)>,
 ) {
     match value {

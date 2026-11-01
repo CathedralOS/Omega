@@ -1,6 +1,9 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
+use arena::HandleSpan;
+use const_arguments::resolve_runtime_subject;
+use const_integer::classify;
 use validation::expression_traversal::{
     collect_contract_facts, collect_statement_expression_trees,
 };
@@ -14,6 +17,7 @@ use crate::monomorphization::{
 use crate::tables::expressions_of;
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::types::TypeReferenceNode;
+use validation::runtime_field_subject;
 
 /// An explicit argument has no binder slot of its selected kind. Omitted
 /// arguments can still be inferred; excess arguments cannot be discarded.
@@ -57,11 +61,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             }
             // An open `Degree - 1` waits for the caller to specialize. A
             // closed integer uses the same named binding as a decimal literal.
-            match const_integer::classify(
-                expressions_of(program),
-                expression,
-                &|symbol, spelling| const_binder(program, symbol, spelling),
-            ) {
+            match classify(expressions_of(program), expression, &|symbol, spelling| {
+                const_binder(program, symbol, spelling)
+            }) {
                 Some(ConstIntegerExpression::Closed(value)) => {
                     if let Some((handle, _, _)) = program
                         .type_reference_table
@@ -93,12 +95,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 .evidence_projection
                 .as_ref()
                 .and_then(|projection| {
-                    validation::runtime_field_subject(
-                        program,
-                        state,
-                        &projection.term,
-                        &projection.member,
-                    )
+                    runtime_field_subject(program, state, &projection.term, &projection.member)
                 })
         });
         if selected.type_reference.is_valid() && !(value_slot && runtime_expression.is_some()) {
@@ -153,25 +150,15 @@ pub(crate) fn collect_machine_proposals_for_callee(
             && (runtime_expression.is_some()
                 || runtime_field.is_some()
                 || runtime_scope.is_some_and(|(scope_state, scope_limit)| {
-                    const_arguments::resolve_runtime_subject(
-                        program,
-                        scope_state,
-                        scope_limit,
-                        selected,
-                    )
-                    .is_some()
+                    resolve_runtime_subject(program, scope_state, scope_limit, selected).is_some()
                 }))
         {
             return Err(StaticArgumentOverflow);
         }
         if value_slot {
             if let Some((scope_state, scope_limit)) = runtime_scope
-                && let Some(subject) = const_arguments::resolve_runtime_subject(
-                    program,
-                    scope_state,
-                    scope_limit,
-                    selected,
-                )
+                && let Some(subject) =
+                    resolve_runtime_subject(program, scope_state, scope_limit, selected)
             {
                 let mut subject_argument = selected.clone();
                 subject_argument.symbol = subject;
@@ -407,11 +394,7 @@ pub(crate) fn contract_expression_handles(
     // Prepared and imported proof schemas also contain non-executable
     // occurrences, even when no source declaration supplies their telescope.
     for (fact, _) in program.proof_facts.iter() {
-        collect_contract_facts(
-            program,
-            arena::HandleSpan::from_parts(fact, 1),
-            &mut handles,
-        );
+        collect_contract_facts(program, HandleSpan::from_parts(fact, 1), &mut handles);
     }
     handles.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     handles.dedup();

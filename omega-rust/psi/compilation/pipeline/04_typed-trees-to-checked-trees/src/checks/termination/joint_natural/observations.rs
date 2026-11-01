@@ -107,15 +107,34 @@ fn retain_component(
             primitive_type: input.primitive_type,
         }
     } else {
-        match input.observation {
-            validation::RankPremiseObservation::Value => {
+        match &input.observation {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Value) => {
                 checked_trees::CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,
                     primitive_type: input.primitive_type,
                 }
             }
-            validation::RankPremiseObservation::Length => {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Length) => {
                 checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate }
+            }
+            validation::RuntimeRankInput::Distance {
+                lower_observation,
+                lower_primitive,
+                upper,
+            } => {
+                if input.function != checked_trees::CheckedNaturalRankFunction::Identity {
+                    return Err("an exact distance cannot retain a complement normalization");
+                }
+                let lower =
+                    admitted
+                        .rank_operands
+                        .insert(checked_trees::CheckedRankOperand::Coordinate {
+                            coordinate,
+                            primitive_type: *lower_primitive,
+                            observation: *lower_observation,
+                        });
+                let upper = upper.retain(admitted);
+                checked_trees::CheckedNaturalRankMeasure::Distance { lower, upper }
             }
         }
     };

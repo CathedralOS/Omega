@@ -1,0 +1,8 @@
+// A statement call names only a machine visible from the call site.
+machine outer() {
+    hidden();
+    machine hidden() {}
+}
+machine main() crashes Trap {
+    hidden();
+}

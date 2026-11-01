@@ -11,6 +11,7 @@ use proof_admission::{
     TermHandle,
 };
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 
 /// An ordinary, kernel-checked theorem. This is not itself permission to
 /// erase or cite a source machine.
@@ -222,9 +223,7 @@ impl Elaborator<'_> {
         let type_symbols = family
             .parameters
             .iter()
-            .filter(|parameter| {
-                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-            })
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         let type_sort = self

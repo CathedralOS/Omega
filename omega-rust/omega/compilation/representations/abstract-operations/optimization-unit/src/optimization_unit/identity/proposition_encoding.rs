@@ -1,15 +1,13 @@
 //! Canonical proof proposition, content term, and scalar term encoding.
 
+use super::carrier_encoding::{
+    encode_integer_type, encode_integer_value, encode_optional, encode_scalar_type,
+};
+use super::structural_encoding::{encode_content_algebra, encode_content_place};
 use super::{
     ByteSequenceStructuralField, CanonicalBytes, CanonicalStructuralPathSegment, ContentTerm,
     IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
     IntegerType, Proposition, ScalarTerm, StructuralCaseSubject,
-};
-use crate::optimization_unit::identity::carrier_encoding::{
-    encode_integer_type, encode_integer_value, encode_optional, encode_scalar_type,
-};
-use crate::optimization_unit::identity::structural_encoding::{
-    encode_content_algebra, encode_content_place,
 };
 pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Proposition) {
     match proposition {

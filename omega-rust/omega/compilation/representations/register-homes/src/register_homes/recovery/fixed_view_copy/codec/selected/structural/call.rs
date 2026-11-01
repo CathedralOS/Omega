@@ -5,6 +5,8 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_accepted_fact, decode_id, decode_ids, decode_list, decode_option_u64,
     encode_ids, encode_option_u64, length,
 };
+use crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar;
+use crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar;
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, encode_call_plan, encode_placement,
 };
@@ -249,10 +251,7 @@ pub(in super::super) fn encode_runtime_indices(
     length(bytes, indices.len());
     for index in indices {
         crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
-        crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar(
-            bytes,
-            index.operand.scalar_type,
-        );
+        encode_scalar(bytes, index.operand.scalar_type);
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
         encode_option_u64(bytes, index.extent);
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
@@ -267,10 +266,7 @@ pub(in super::super) fn decode_runtime_indices(
         Ok(legalized_operations::LegalizedRuntimeIndexOperand {
             operand: abstract_operations::AbstractResult {
                 value: decode_id(cursor, ValueId::new)?,
-                scalar_type:
-                    crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar(
-                        cursor,
-                    )?,
+                scalar_type: decode_scalar(cursor)?,
             },
             stride: cursor.u32()?,
             extent: decode_option_u64(cursor)?,

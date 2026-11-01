@@ -4,6 +4,7 @@
 //! intervals. This module regenerates the physical bytes from those semantic
 //! fields and the callee ABI; producer-authored expected bytes are deliberately
 //! absent.
+use crate::object_artifact::replay::instruction_loads::x86_replay_stack_store;
 
 pub(crate) mod entry_spills;
 
@@ -952,10 +953,8 @@ fn expected_x86_immediate(bytes: &mut Vec<u8>, register: u8, bits: u64) {
 
 pub(crate) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32) {
     // A scalar stack home is one eight-byte ABI word; that width is admitted.
-    crate::object_artifact::replay::instruction_loads::x86_replay_stack_store(
-        bytes, register, offset, 8,
-    )
-    .expect("eight-byte stack store is an admitted instruction");
+    x86_replay_stack_store(bytes, register, offset, 8)
+        .expect("eight-byte stack store is an admitted instruction");
 }
 
 fn expected_x86_normalize(bytes: &mut Vec<u8>, register: u8, scalar: ScalarType) {

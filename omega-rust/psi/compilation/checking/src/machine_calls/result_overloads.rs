@@ -252,7 +252,9 @@ pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let boolean_equalities = crate::static_type_boolean_equalities(program);
-    program.prepare_static_type_contexts(&boolean_equalities);
+    let case_memberships = crate::case_membership_type_facts(program);
+    program.prepare_static_type_contexts(&boolean_equalities, case_memberships);
+    program.elide_unreachable_case_arms();
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
             .into_iter()

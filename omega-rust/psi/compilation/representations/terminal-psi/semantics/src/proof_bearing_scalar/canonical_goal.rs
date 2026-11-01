@@ -13,6 +13,7 @@ use crate::{OperationSemanticError, ScalarLeafGoalShape};
 
 use super::ProofBearingScalarLeafSchema;
 use crate::semantic_rows::OperationSemanticTag;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalScalarGoal {
@@ -531,13 +532,10 @@ fn exact_cast_representability_proposition(
     })
 }
 
-fn compare_math_literals(
-    left: IntegerMathLiteral,
-    right: IntegerMathLiteral,
-) -> std::cmp::Ordering {
+fn compare_math_literals(left: IntegerMathLiteral, right: IntegerMathLiteral) -> Ordering {
     match (left.negative(), right.negative()) {
-        (true, false) => std::cmp::Ordering::Less,
-        (false, true) => std::cmp::Ordering::Greater,
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
         (false, false) => left.magnitude().cmp(&right.magnitude()),
         (true, true) => right.magnitude().cmp(&left.magnitude()),
     }

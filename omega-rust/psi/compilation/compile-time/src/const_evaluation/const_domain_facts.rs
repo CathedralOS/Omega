@@ -19,6 +19,7 @@
 //! keeps its authored selection.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::machine_execution::selected_operators::prepare_selected_execution;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -138,12 +139,8 @@ pub(crate) fn evaluate_selected_domain_facts(
     // provider joins the ordinary call closure and runs its real body, while
     // the caller's tree and its source-owned handles stay untouched.
     let selected_program =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            selected.provider_bodies,
-            selected.operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        prepare_selected_execution(typed, selected.provider_bodies, selected.operators)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
     let execution = &execution_program;
     let admission = domain

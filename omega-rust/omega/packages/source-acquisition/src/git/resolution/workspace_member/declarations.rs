@@ -1,5 +1,6 @@
 //! Open exact catalog declarations without charging unrelated repository payloads.
 
+use crate::error::{too_many_bytes, too_many_files};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::{AuthenticatedGitTreeInspection, GitTreeEntry, GitTreeEntryKind};
@@ -57,9 +58,7 @@ pub(in crate::git::resolution) fn open_members(
         .maximum_total_declaration_bytes()
         .min(limits.max_bytes);
     if member_paths.len() > maximum_members {
-        return Err(SourceResolveError::TooManyFiles {
-            limit: maximum_members,
-        });
+        return Err(too_many_files(maximum_members));
     }
 
     let mut unique_members = BTreeSet::new();
@@ -74,16 +73,11 @@ pub(in crate::git::resolution) fn open_members(
         member_declaration_paths.push(format!("{}/build.omg", member_path.as_str()).into_bytes());
     }
 
-    let root_bytes = u64::try_from(root_declaration.bytes().len()).map_err(|_| {
-        SourceResolveError::TooManyBytes {
-            limit: maximum_total_declaration_bytes,
-        }
-    })?;
+    let root_bytes = u64::try_from(root_declaration.bytes().len())
+        .map_err(|_| too_many_bytes(maximum_total_declaration_bytes))?;
     let remaining_declaration_bytes = maximum_total_declaration_bytes
         .checked_sub(root_bytes)
-        .ok_or(SourceResolveError::TooManyBytes {
-            limit: maximum_total_declaration_bytes,
-        })?;
+        .ok_or(too_many_bytes(maximum_total_declaration_bytes))?;
     let member_entries = inspection.open_regular_files(
         executor,
         repository,
@@ -102,9 +96,7 @@ pub(in crate::git::resolution) fn open_members(
         .zip(member_entries)
     {
         if entry.size > maximum_declaration_bytes {
-            return Err(SourceResolveError::TooManyBytes {
-                limit: maximum_declaration_bytes,
-            });
+            return Err(too_many_bytes(maximum_declaration_bytes));
         }
         let repository_path = std::str::from_utf8(repository_path)
             .expect("validated workspace member paths are UTF-8")

@@ -16,7 +16,9 @@ data Receipt [linear] {
 
 // Hook-less linear obligation: the declared consuming contract is the
 // authorized terminal disposition.
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data ReceiptSink {}
 
@@ -59,13 +61,13 @@ macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 
 }
 
 windows_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via windows_x86_64_receipt_sink_binding();
+satisfies ReceiptAck::ack via windows_x86_64_receipt_sink_binding();
 linux_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via linux_x86_64_receipt_sink_binding();
+satisfies ReceiptAck::ack via linux_x86_64_receipt_sink_binding();
 linux_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via linux_arm64_receipt_sink_binding();
+satisfies ReceiptAck::ack via linux_arm64_receipt_sink_binding();
 macos_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via macos_arm64_receipt_sink_binding();
+satisfies ReceiptAck::ack via macos_arm64_receipt_sink_binding();
 
 data Pair {
     left: Receipt;
@@ -81,8 +83,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let forwarded: Pair = pair;
     let extracted_left: Receipt = forwarded.left;
     let extracted_right: Receipt = forwarded.right;
-    Receipt::ack(extracted_left);
-    Receipt::ack(extracted_right);
+    ReceiptAck::ack(extracted_left);
+    ReceiptAck::ack(extracted_right);
     Console::exit_process(0);
 }
 

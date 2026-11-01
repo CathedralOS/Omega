@@ -12,6 +12,7 @@ use semantic_vocabulary::ScalarType;
 use target::NativeTarget;
 
 use crate::LoweringError;
+use crate::lowering::structural_layout::internal_parameter_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 
 pub(super) struct PreparedScalarCallFormal {
@@ -68,14 +69,12 @@ pub(super) fn prepare(
             &mut shape_cache,
             &mut active,
         )?;
-        shapes.push(
-            crate::lowering::structural_layout::internal_parameter_shape(
-                parameter.structural_type,
-                referent,
-                parameter.access,
-                types,
-            ),
-        );
+        shapes.push(internal_parameter_shape(
+            parameter.structural_type,
+            referent,
+            parameter.access,
+            types,
+        ));
     }
     let result = if let Some(result) = declaration.structural_result() {
         Some(super::aggregate_results::value_home_layout(result.structural_type, types)?.shape())

@@ -1,9 +1,12 @@
+use crate::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments;
+use crate::contracts::signature::parse_signature_clauses;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::item::MachineParameterContract;
 use tokens::{KeywordKind, PunctuationKind};
 
 /// Parse the declaration-site contracts for static machine-symbol parameters.
@@ -98,7 +101,7 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             let parameter =
                 &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
             parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
-                contract: Some(syntax_trees::item::MachineParameterContract::Nominal {
+                contract: Some(MachineParameterContract::Nominal {
                     requirement,
                     trait_arguments,
                 }),
@@ -119,11 +122,8 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             parse_optional_return_type(syntax_trees, after_parameters)?;
         let ((), after_nested_contracts) =
             parse_machine_parameter_contracts(syntax_trees, nested_type_parameters, after_return)?;
-        let (clauses, rest) = crate::contracts::signature::parse_signature_clauses(
-            syntax_trees,
-            after_nested_contracts,
-            nested_type_parameters,
-        )?;
+        let (clauses, rest) =
+            parse_signature_clauses(syntax_trees, after_nested_contracts, nested_type_parameters)?;
         validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
         if clauses.service_reach_is_installation_bound {
             return Err(rest.error_here(
@@ -156,9 +156,7 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
         let parameter =
             &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
         parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(syntax_trees::item::MachineParameterContract::Structural(
-                contract,
-            )),
+            contract: Some(MachineParameterContract::Structural(contract)),
         };
         input = rest;
     }
@@ -226,11 +224,7 @@ fn parse_nominal_requirement_path<'tokens, 'source>(
                 return Err(rest
                     .error_here("a nominal machine parameter requirement applies its trait once"));
             }
-            let (arguments, next) =
-                crate::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments(
-                    syntax_trees,
-                    rest,
-                )?;
+            let (arguments, next) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
             trait_arguments = arguments;
             rest = next;
             if !rest.at_punctuation(PunctuationKind::ColonColon) {

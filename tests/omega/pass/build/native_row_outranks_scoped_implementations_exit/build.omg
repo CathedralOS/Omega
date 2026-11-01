@@ -1,0 +1,12 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::application(builder, "native_row_outranks_scoped_implementations");
+ Build::select_provider<Distance, MacosDistance>(builder, macos_arm64);
+ Build::select_provider<Distance, LinuxArmDistance>(builder, linux_arm64);
+ Build::bind<Distance::absolute>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });
+ Build::bind<Distance::absolute>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+ Build::bind(builder, windows_x86_64::ProgramEntry, native_entry);
+ Build::bind(builder, linux_x86_64::ProgramEntry, native_entry);
+ Build::bind(builder, linux_arm64::ProgramEntry, linux_arm_entry);
+ Build::bind(builder, macos_arm64::ProgramEntry, macos_entry);
+}

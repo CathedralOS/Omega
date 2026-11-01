@@ -1,6 +1,7 @@
 //! Affine cleanup plans: partial and nominal affine discards, caller
 //! requirements, claim transfers and call custody.
 
+use super::CheckedUnitEffectOperationPlan::ReleaseReference;
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -51,9 +52,7 @@ impl CheckedCleanupControlPlans {
             _ => &[],
         };
         let owners = match operation {
-            super::CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } => {
-                *owner_cleanups
-            }
+            ReleaseReference { owner_cleanups, .. } => *owner_cleanups,
             _ => arena::HandleSpan::empty(),
         };
         direct.iter().chain(
