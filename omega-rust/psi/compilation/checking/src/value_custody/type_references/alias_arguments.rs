@@ -142,7 +142,7 @@ pub(super) fn validate(
             // facts or deferred obligations may turn it into a closed value.
             if let TypeParameterKind::Const { type_reference } = parameter.kind
                 && let TypeReferenceNode::ConstExpression(expression) =
-                    program.type_reference_node(*argument)
+                    program.type_reference_table.type_reference(*argument)
                 && !program.pending_const_range_endpoints.contains(expression)
             {
                 match check_closed_const_expression_in_carrier(
