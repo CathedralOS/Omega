@@ -1,0 +1,27 @@
+// C record placement composes scalar-array extent and element geometry.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+data Record [copy] { first: u64; values: [u8; 3]; last: u16; }
+OtherPolicy satisfies FixedLayout<Record> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        CAbiPolicy<Record>::plan(schema, target)
+    }
+}
+machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
+machine main() crashes Trap {
+    let mut record: CLayout<Record>;
+    record.first = 17u64;
+    record.values[0] = 42u8;
+    record.values[1] = 77u8;
+    record.values[2] = 9u8;
+    record.last = 11u16;
+    let local: CLayout<Record> = explicit(record);
+    let mut words: [u64; 2];
+    words[0] = 17u64;
+    words[1] = 47245249834u64;
+    let mapped: &CLayout<Record> = &words as &CLayout<Record>;
+    transition local.first == 17u64 && local.last == 11u16 && local.values[0] == 42u8 && local.values[1] == 77u8 && local.values[2] == 9u8 && mapped.first == 17u64 && mapped.last == 11u16 && mapped.values[0] == 42u8 && mapped.values[1] == 77u8 && mapped.values[2] == 9u8 && size_of<CLayout<Record>>() == 16u64 && align_of<CLayout<Record>>() == 8u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

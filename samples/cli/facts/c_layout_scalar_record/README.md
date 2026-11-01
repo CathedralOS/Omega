@@ -17,10 +17,10 @@ extent and alignment. Every observed discrepancy traps.
 
 `invalid/wrong_policy` substitutes a distinct named policy with identical geometry;
 transparent aliases do not erase policy identity. The other controls reject a
-nested native record, numbered fields and a sum. The current policy supports
-complete nonempty, unnumbered scalar records only; it refuses repeated or nested
-shapes, empty records and sum cases rather than claiming their native Omega
-geometry is C ABI evidence. Ordinary scalar domains and access obligations remain
+nested native record, numbered fields and a sum. The policy now also composes scalar arrays and explicitly selected child
+representations, covered by the [nested representation row](../c_layout_nested_representation/README.md).
+Bare native aggregates, empty records and sum cases still reject; their native
+geometry is not evidence of a selected child representation. Ordinary scalar domains and access obligations remain
 in force; policy geometry grants no atomic or concurrent access permission.
 
 `controls/static_type_argument` independently passes an alias as an ordinary

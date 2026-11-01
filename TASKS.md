@@ -859,8 +859,11 @@ helper that passes does not close an item.
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete other-host execution for the
-    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md) and
-    remaining schema composition support; migrate complete platform ABI records;
+    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md). Finish
+    call-result, match-join, const-name, nested-machine, other-machine and selected
+    target transport for [explicit nested representations](samples/cli/facts/c_layout_nested_representation/README.md),
+    plus other-host execution and remaining schema/case composition support;
+    migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.

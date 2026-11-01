@@ -36,6 +36,7 @@ pub(crate) struct SchemaFieldInfo {
     /// scalar integer/bit/access semantics.
     pub(crate) primitive: Option<PrimitiveType>,
     pub(crate) kind: &'static str,
+    pub(crate) layout_source: typed_trees::PlanLaidFieldLayoutSource,
     pub(crate) declared_range: Option<(i64, i64)>,
     pub(crate) repeated: Option<RepeatedFieldInfo>,
     pub(crate) scalar_leaf_width_bits: Option<u16>,
@@ -139,6 +140,7 @@ pub(crate) fn schema_fields_for_target(
             source_bits,
             primitive,
             kind,
+            layout_source: typed.field_layout_source(field.type_reference),
             declared_range,
             repeated,
             scalar_leaf_width_bits: scalar_leaf_width_bits(typed, field.type_reference),
