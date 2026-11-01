@@ -170,7 +170,25 @@ not mean an unfilled or one-place fact is done: write the next missing place,
 or take the next uncovered fact. Take a new fact from an open `TASKS.md`
 item's remaining acceptance and name that item in the README; a folder that
 changes only a count, width, arity or extension pair of an existing row repeats
-that row and is not a new fact. Several places with one demonstrated root
+that row and is not a new fact.
+
+Before creating a fact folder, find the nearest existing row and show what is
+different, in the new README:
+
+- a different requirement or layer: name it, and show that the twin's
+  diagnostic names an obligation the nearest row's twins do not; or
+- a physical boundary: show the emitted placement, frame, register, encoding
+  or branch form that differs from the nearest row's, on at least one target.
+
+If neither holds, the program is a variation inside the existing row, or it is
+not needed. On 2026-11-01 three folds removed about 300,000 lines of rows that
+failed this test: 29 `live_across_{two…thirty}_calls` families with the same
+frame and register at every count, N-argument stack-call families on the same
+side of the register/stack boundary, and fixed-array sizes with the same frame
+layout. Twins that give the same diagnostic in every family are the usual
+sign.
+
+Several places with one demonstrated root
 cause may belong to one repair. Do not leave `samples/cli/facts` to fill
 compiler-advance capacity.
 
