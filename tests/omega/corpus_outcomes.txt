@@ -12304,8 +12304,7 @@ pass/generics/runtime_result_destination_inference_exit checked 3637ms check-tar
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
 pass/generics/runtime_selected_operator_body_exit checked 12412ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_static_requirement_complex_composition_exit rejected 5028ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `field` state `entry` statement 0: operand has no complete completed call-slot relation
+pass/generics/runtime_static_requirement_complex_composition_exit checked 8799ms check-target:macos_arm64 @2fbf0edf0329+wt
 pass/generics/runtime_symbolic_receiver_extent_exit rejected 1802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 pass/generics/runtime_transition_result_inference_exit checked 3433ms check-target:macos_arm64 @ccdb99ca2214
@@ -13473,8 +13472,7 @@ pass/providers/runtime_foreign_leaf_slice_element_argument_exit rejected 12855ms
 	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
 pass/providers/runtime_foreign_owned_allocation_release_exit checked 4441ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_generic_boundary_relay_exit checked 12378ms check-target:linux_x86_64 @25bbaead8c14+wt
-pass/providers/runtime_generic_boundary_relay_places_exit rejected 2583ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @25bbaead8c14+wt
-	machine `by_result` state `entry` statement 0: operand has no complete completed call-slot relation
+pass/providers/runtime_generic_boundary_relay_places_exit checked 4079ms check-target:linux_x86_64 @2fbf0edf0329+wt
 pass/providers/runtime_generic_case_extraction_exit checked 10497ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/providers/runtime_linear_provider_results_exit checked 4590ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_named_provider_explicit_state_exit checked 11809ms check-target:macos_arm64 @ccdb99ca2214
