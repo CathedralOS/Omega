@@ -661,7 +661,7 @@ fn validate_type_reference_node(
             );
         };
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::CaseView { subject } => validate_node!(*subject, false),
+        TypeReferenceNode::CaseView { subject } => validate_node!(*subject),
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {
