@@ -334,7 +334,7 @@ mod tests {
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(2),
                     foreign_descriptor: false,
-                    abstract_opaque: false,
+                    abstract_opaque: true,
                 }],
             ),
             parameters: Vec::new(),
@@ -393,7 +393,7 @@ mod tests {
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(3),
                 foreign_descriptor: false,
-                abstract_opaque: false,
+                abstract_opaque: true,
             }],
         );
         let mut changed = Vec::new();
