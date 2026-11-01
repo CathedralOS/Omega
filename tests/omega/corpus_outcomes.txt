@@ -177,6 +177,14 @@ fail/facts/c_layout_scalar_record_through_const_name_wrong_policy_rejected rejec
 	constant initializer: constant initializer result does not match its declared carrier
 fail/facts/c_layout_scalar_record_through_match_join_wrong_policy_rejected rejected 4615ms expected @cb12b89db565
 	machine `observe` state `entry` local `value` expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
+fail/facts/c_layout_scalar_record_through_other_machine_wrong_policy_rejected rejected 6078ms expected @035d82f9f4c1
+	machine `observe` state `entry` local `value` expects `LayoutStorage<Record, CAbiPolicy<Record>>`, but the value is delivered as `LayoutStorage<Record, OtherPolicy>`
+	argument `record` for state `entry` expects `LayoutStorage<Record, OtherPolicy>`, got `call expression`
+fail/facts/c_layout_scalar_record_through_other_state_wrong_policy_rejected rejected 5048ms expected @035d82f9f4c1
+	argument `record` for state `entry` expects `LayoutStorage<Record, OtherPolicy>`, got `call expression`
+	machine `inspect` state `entry` local `value` expects `LayoutStorage<Record, CAbiPolicy<Record>>`, but the value is delivered as `LayoutStorage<Record, OtherPolicy>`
+fail/facts/c_layout_scalar_record_through_target_body_wrong_policy_rejected rejected 4917ms expected @035d82f9f4c1
+	machine `verify` state `entry` local `value` expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
 fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 	match arms produce incompatible values
@@ -4342,6 +4350,9 @@ pass/facts/build_target_provider_through_target_body_exit checked 7404ms check-t
 pass/facts/c_layout_scalar_record_through_call_result_exit checked 14436ms check-target:macos_arm64 @cb12b89db565
 pass/facts/c_layout_scalar_record_through_const_name_exit checked 14247ms check-target:macos_arm64 @cb12b89db565
 pass/facts/c_layout_scalar_record_through_match_join_exit checked 12814ms check-target:macos_arm64 @cb12b89db565
+pass/facts/c_layout_scalar_record_through_other_machine_exit checked 14633ms check-target:macos_arm64 @035d82f9f4c1
+pass/facts/c_layout_scalar_record_through_other_state_exit checked 15589ms check-target:macos_arm64 @035d82f9f4c1
+pass/facts/c_layout_scalar_record_through_target_body_exit checked 14199ms check-target:macos_arm64 @035d82f9f4c1
 pass/facts/call_result_bound_discharge_through_call_result_exit checked 3382ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/call_result_bound_discharge_through_const_name_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/call_result_bound_discharge_through_field_exit checked 3753ms check-target:macos_arm64 @ccdb99ca2214
