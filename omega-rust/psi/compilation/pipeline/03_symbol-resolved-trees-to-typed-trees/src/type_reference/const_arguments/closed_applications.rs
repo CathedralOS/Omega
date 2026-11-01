@@ -35,6 +35,18 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             program.data_type_parameters(data).to_vec()
         } else if let Some(interface) = program.trait_definition_by_symbol(declaration) {
             program.trait_type_parameters(interface).to_vec()
+        } else if program.symbols.get(declaration).kind == symbols::SymbolKind::Conformance {
+            let mut declarations = program
+                .conformances()
+                .iter()
+                .filter(|definition| definition.symbol == declaration);
+            let Some(definition) = declarations.next() else {
+                continue;
+            };
+            if declarations.next().is_some() {
+                continue;
+            }
+            program.conformance_type_parameters(definition).to_vec()
         } else if program.symbols.get(declaration).kind == symbols::SymbolKind::TypeAlias {
             let mut aliases = program
                 .type_aliases()
@@ -144,18 +156,27 @@ mod tests {
         constant::ConstDeclaration,
         data::TypeParameter,
         expression::{BinaryOperator, Expression, ExpressionNode, NamePath, TableBinaryExpression},
+        trait_definition::Conformance,
         type_aliases::TypeAliasDefinition,
     };
 
     #[test]
-    fn alias_const_arguments_use_the_unique_header_and_keep_the_supplier() {
-        for (header_count, argument_scope) in [(0, false), (1, false), (2, false), (1, true)] {
+    fn closed_const_arguments_use_unique_headers_and_keep_the_supplier() {
+        for (kind, header_count, argument_scope) in [
+            (SymbolKind::TypeAlias, 0, false),
+            (SymbolKind::TypeAlias, 1, false),
+            (SymbolKind::TypeAlias, 2, false),
+            (SymbolKind::TypeAlias, 1, true),
+            (SymbolKind::Conformance, 0, true),
+            (SymbolKind::Conformance, 1, true),
+            (SymbolKind::Conformance, 2, true),
+        ] {
             let mut builder = SymbolTableBuilder::default();
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let children = builder.insert_children(
                 root,
                 symbols::builtin_type_symbols().into_iter().chain([
-                    (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
+                    (kind, SymbolNameRef::Static("Alias")),
                     (SymbolKind::Machine, SymbolNameRef::Static("supplier")),
                     (SymbolKind::Const, SymbolNameRef::Static("ZERO")),
                 ]),
@@ -187,11 +208,19 @@ mod tests {
                 ..Default::default()
             }]);
             for _ in 0..header_count {
-                program.push_type_alias_definition(TypeAliasDefinition {
-                    symbol: alias,
-                    type_parameters: parameters,
-                    ..Default::default()
-                });
+                if kind == SymbolKind::Conformance {
+                    program.push_conformance(Conformance {
+                        symbol: alias,
+                        type_parameters: parameters,
+                        ..Default::default()
+                    });
+                } else {
+                    program.push_type_alias_definition(TypeAliasDefinition {
+                        symbol: alias,
+                        type_parameters: parameters,
+                        ..Default::default()
+                    });
+                }
             }
             let value = program.expression_table.insert(ExpressionNode::Integer(
                 IntegerLiteral::from_value(1).with_landing(IntegerLanding {
