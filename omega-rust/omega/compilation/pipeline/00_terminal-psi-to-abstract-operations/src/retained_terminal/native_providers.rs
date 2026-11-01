@@ -374,6 +374,8 @@ impl TerminalNativeRealizationProposal {
             if leaf.plan.rows.iter().any(|row| {
                 direct_demands.contains(leaf.plan.identities.text(row.requirement_identity))
             }) {
+                leaf.validate_calling_custody()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 direct.push(leaf.plan.clone());
                 if let backend_plan::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
                     external_bindings.push(binding.clone()?);

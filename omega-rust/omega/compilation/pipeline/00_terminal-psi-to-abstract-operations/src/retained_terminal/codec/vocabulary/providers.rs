@@ -78,15 +78,6 @@ record_variants!(backend_plan::DirectBoundaryExecution {
     1 => Intrinsic(value0),
 });
 
-record_fields!(backend_plan::DirectBoundaryLeaf {
-    declaration_identity,
-    callable_identity,
-    satisfied_schema,
-    plan,
-    satisfied_requirement_identity,
-    execution
-});
-
 record_fields!(effects::InstallationReachResolution {
     requirement_identity,
     provider_plan_report_identity,

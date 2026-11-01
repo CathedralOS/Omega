@@ -5,8 +5,6 @@
 //! no projected plan or host grant. Selected execution joins target/accepted
 //! bindings and constructs complete leaves without reopening checked source.
 
-mod direct_calling;
-
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -194,6 +192,7 @@ impl DirectBoundaryInput {
             Diagnostic::error("direct boundary projection lost its original provider row")
         })?;
         let requirement = original.identities.text(row.requirement_identity);
+        let satisfied_schema = original.schema.clone();
         let mut plan = original.clone();
         plan.rows = vec![row.clone()];
         std::sync::Arc::make_mut(&mut plan.schema.declaration)
@@ -208,7 +207,6 @@ impl DirectBoundaryInput {
                 .iter()
                 .any(|method| method.requirement_identity == application.requirement)
         });
-        let satisfied_schema = plan.schema.clone();
         let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
         declaration.receiver_applications.clear();
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
@@ -223,44 +221,25 @@ impl DirectBoundaryInput {
             ));
         };
         method.requirement_identity = declaration.identities.intern(&self.callable_identity);
-        // The satisfied schema retains the original selected policy custody.
-        // This executable projection carries separately produced applications
-        // of the actual callable declaration, never relabeled source receipts.
-        plan.schema.calling_applications = match &execution {
-            backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) => binding
-                .calling_applications
-                .iter()
-                .map(
-                    |application| effects::provider_plan::ServiceCallingApplication {
-                        requirement: method.requirement_identity,
-                        abi: application.abi.clone(),
-                        plan: effects::provider_plan::ServiceCallingPlan {
-                            report_fingerprint: application.report_fingerprint,
-                            commitment:
-                                effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                                    application.commitment,
-                                ),
-                        },
-                    },
-                )
-                .collect(),
-            // A deferred foreign refusal grants no executable application;
-            // intrinsic execution uses its own source-owned settlement.
-            _ => Vec::new(),
-        };
+        // Calling belongs to the original public declaration. The synthetic
+        // callable route is authenticated against that separately retained
+        // schema; it must not relabel an authored calling application.
+        plan.schema.calling_applications.clear();
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
             binding.table_type = self.realization_owner.clone();
         }
-        Ok(backend_plan::DirectBoundaryLeaf {
+        let leaf = backend_plan::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
             callable_identity: self.callable_identity.clone(),
             satisfied_schema,
             plan,
             satisfied_requirement_identity: requirement.to_owned(),
             execution,
-        })
+        };
+        leaf.validate_calling_custody().map_err(Diagnostic::error)?;
+        Ok(leaf)
     }
 }
 
@@ -333,19 +312,6 @@ pub(crate) fn prepare(
                         )]
                     })
                 });
-            let binding = binding.and_then(|mut binding| {
-                binding.calling_applications = direct_calling::project(
-                    context.calling_program.artifact.semantic_module(),
-                    &callable_identity,
-                    &binding.calling_applications,
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "direct calling projection for `{callable_identity}`: {reason}"
-                    ))]
-                })?;
-                Ok(binding)
-            });
             DirectBoundaryMechanism::Foreign(binding)
         };
         // Invocation-local intrinsic declarations remain private. Foreign leaves
