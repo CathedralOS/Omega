@@ -726,6 +726,34 @@ fail/facts/nested_machine_joint_rank_structured_target_body_rejected rejected 28
 fail/facts/nested_machine_joint_rank_structured_wrong_guard_rejected rejected 1960ms expected @d4217dd821a4+wt
 	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexical_visibility_bare_name_value_rejected rejected 4431ms expected @ccc8f1c5cc93
+	machine `main` state `entry` uses `hidden`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/facts/nested_machine_lexical_visibility_call_result_rejected rejected 3295ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_const_name_rejected rejected 4317ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_field_rejected rejected 3351ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_local_rejected rejected 3268ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_match_join_rejected rejected 4720ms expected @ccc8f1c5cc93
+	machine `join` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_module_export_rejected rejected 2818ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `routines::hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_other_machine_rejected rejected 3902ms expected @ccc8f1c5cc93
+	machine `relay` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_other_state_rejected rejected 3900ms expected @ccc8f1c5cc93
+	machine `leaf` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_parameter_rejected rejected 4776ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_private_descendant_rejected rejected 4741ms expected @ccc8f1c5cc93
+	machine `right` state `entry`: value call `deep(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_statement_call_rejected rejected 3691ms expected @ccc8f1c5cc93
+	machine `main` cannot resolve ordinary call `hidden` to a machine entry or requirement
+fail/facts/nested_machine_lexical_visibility_target_body_rejected rejected 3688ms expected @ccc8f1c5cc93
+	machine `main` state `entry`: value call `hidden(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/facts/nested_machine_lexical_visibility_terminal_call_rejected rejected 1822ms expected @ccc8f1c5cc93
+	terminal call `hidden` does not select a declared machine entry or callable requirement
 fail/facts/nested_machine_lexicographic_rank_call_result_rejected rejected 3511ms expected @780e75fae678+wt
 	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_lexicographic_rank_const_name_rejected rejected 3397ms expected @780e75fae678+wt
@@ -7563,6 +7591,16 @@ pass/facts/nested_machine_lexical_entry_parameter_exit checked 3632ms check-targ
 pass/facts/nested_machine_lexical_entry_parenthesized_exit checked 3160ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_lexical_entry_qualified_exit checked 3090ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_lexical_entry_target_body_exit checked 4117ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_lexical_visibility_call_result_exit checked 7505ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_const_name_exit checked 8814ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_field_exit checked 7701ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_local_exit checked 9109ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_local_named_like_helper_exit checked 8386ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_match_join_exit checked 7380ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_other_machine_exit checked 10000ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_other_state_exit checked 7606ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_parameter_exit checked 7118ms check-target:macos_arm64 @ccc8f1c5cc93
+pass/facts/nested_machine_lexical_visibility_target_body_exit checked 7710ms check-target:macos_arm64 @ccc8f1c5cc93
 pass/facts/nested_machine_lexicographic_rank_call_result_exit checked 5169ms check-target:macos_arm64 @780e75fae678+wt
 pass/facts/nested_machine_lexicographic_rank_const_name_exit checked 3405ms check-target:macos_arm64 @780e75fae678+wt
 pass/facts/nested_machine_lexicographic_rank_field_exit checked 3968ms check-target:macos_arm64 @780e75fae678+wt

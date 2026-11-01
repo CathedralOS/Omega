@@ -1,0 +1,14 @@
+// A bare call names the machine visible from the call site: the private `hidden` inside `outer`, the free `hidden` anywhere else, and no callee once the free one is absent.
+// Expected exit: 0
+const SEED: u64 = 7;
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine hidden(value: u64) -> u64 { 107 }
+machine main() crashes Trap {
+    let inner: u64 = outer(SEED);
+    let free: u64 = hidden(SEED);
+    transition inner == 7 && free == 107 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
