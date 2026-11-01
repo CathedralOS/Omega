@@ -1,6 +1,6 @@
 # per_target_satisfies
 
-Per-target provider satisfaction: the same `Console` trait rows (`write_byte` `reaches Console terminates`, `exit_process`) are satisfied by `boundary machine`s scoped `macos_arm64`, `linux_x86_64`, and `windows_x86_64`. Windows resolves its byte write through a `ForeignBinding::DllImport { DllImport::PeByName { msvcrt.dll, _write } }` binding produced by a `windows_x86_64 machine`, with `WindowsConsoleImports::write` satisfying the `WindowsConsoleIo::write` `boundary requirement` `via` that binding.
+Per-target provider satisfaction: the same `Console` trait rows (`write_byte` `reaches Console terminates`, `exit_process`) are satisfied by `boundary machine`s scoped `macos_arm64`, `linux_x86_64`, and `windows_x86_64`. Windows resolves its byte write through a `ForeignBinding::DllImport { DllImport::PeByName { msvcrt.dll, _write } }` binding produced by a `windows_x86_64 machine`, with `WindowsConsoleImports::write` satisfying the `WindowsConsoleIo::write` boundary-trait requirement `via` that binding.
 
 ## Learnings
 

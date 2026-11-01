@@ -1,10 +1,12 @@
 // The selected source provider returns the actual descriptor and original
 // backing loan, not a length-only signature result or a builtin substitution.
-data Window { }
 data WindowBody { }
 
-boundary requirement Window::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
-requires start <= end && end <= bytes.len;
+boundary trait Window {
+    machine middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
+    reaches
+    requires start <= end && end <= bytes.len;
+}
 
 machine WindowBody::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
     satisfies Window::middle

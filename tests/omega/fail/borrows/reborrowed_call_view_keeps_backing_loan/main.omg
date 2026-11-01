@@ -1,5 +1,6 @@
-data Window { }
-boundary requirement Window::whole(bytes: &[u8]) -> &[u8];
+boundary trait Window {
+    machine whole(bytes: &[u8]) -> &[u8] reaches;
+}
 
 data Main { bytes: [u8; 4]; }
 

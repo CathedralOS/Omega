@@ -1,9 +1,11 @@
 use omega::language::core::external_binding;
-public data ForeignMath {}
-public boundary requirement ForeignMath::absolute(value: i32) -> i32
-terminates
-requires value >= 0 && value <= 9
-ensures result == value;
+public boundary trait ForeignMath {
+    machine absolute(value: i32) -> i32
+    reaches
+    terminates
+    requires value >= 0 && value <= 9
+    ensures result == value;
+}
 data ForeignProvider {}
 macos_arm64 machine abs_binding() -> ForeignBinding<17, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {

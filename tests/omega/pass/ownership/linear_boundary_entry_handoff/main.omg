@@ -4,13 +4,15 @@
 // The body observes the payload and then explicitly consumes the obligation.
 
 public data ImageHandle [linear] { raw: addr; }
-boundary requirement ImageHandle::release(handle: ImageHandle);
+boundary trait ImageHandleRelease {
+    machine release(handle: ImageHandle) reaches;
+}
 
 public data Main {}
 
-boundary machine Main::main(handle: ImageHandle) -> i32 {
+boundary machine Main::main(handle: ImageHandle) -> i32 invokes ImageHandleRelease {
     let raw: addr = handle.raw;
-    ImageHandle::release(handle);
+    ImageHandleRelease::release(handle);
     transition raw == 0 {
         true -> zero()
         false -> present()

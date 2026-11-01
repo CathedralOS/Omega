@@ -2,11 +2,13 @@ public boundary trait Read {}
 public boundary trait Handler {
     machine read() -> u64 reaches Read blocks;
 }
-public data Operations {}
 data Provider {}
-public boundary requirement Operations::execute<machine Callback>() -> u64
-requires machine Callback satisfies Handler::read;
-invokes Handler;
+public boundary trait Operations {
+    machine execute<machine Callback>() -> u64
+    reaches
+    requires machine Callback satisfies Handler::read;
+    invokes Handler;
+}
 
 machine Provider::callback() -> u64 satisfies Handler::read reaches Read { 7 }
 machine caller() -> u64 reaches { block Operations::execute<Provider::callback>() }

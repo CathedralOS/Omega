@@ -6,10 +6,12 @@ data ReceiptState {
     case Empty;
     case Live(receipt: Receipt);
 }
-boundary requirement ReceiptState::settle(state: ReceiptState);
+boundary trait ReceiptStateSettle {
+    machine settle(state: ReceiptState) reaches;
+}
 machine main() {
     let empty: ReceiptState = ReceiptState::Empty;
     let receipt: Receipt = Receipt { code: 7 };
     let live: ReceiptState = ReceiptState::Live { receipt: receipt };
-    ReceiptState::settle(live);
+    ReceiptStateSettle::settle(live);
 }

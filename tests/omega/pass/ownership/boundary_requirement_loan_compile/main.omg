@@ -1,11 +1,12 @@
-// A `boundary requirement` may take a `&mut` parameter: `Fill::fill`
+// A boundary-trait requirement may take a `&mut` parameter: `Fill::fill`
 // declares the obligation, and the call `Fill::fill(&mut main.slot)` hands
 // the provider exclusive access to the caller's member — the loan crosses
 // the boundary edge. Compile checks the call shape; realization binds the
 // provider later.
-data Fill { }
 
-boundary requirement Fill::fill(cell: &mut u64);
+boundary trait Fill {
+    machine fill(cell: &mut u64) reaches;
+}
 
 data Main {
     slot: u64;

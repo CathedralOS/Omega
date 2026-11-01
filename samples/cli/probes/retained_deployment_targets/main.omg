@@ -4,8 +4,9 @@
 // resolves its own family's body.
 data Helper { seed: u32; }
 trait Value<T> { machine unrealized(helper: &T) -> u32; }
-data Unused {}
-boundary requirement Unused::read(helper: &Helper) -> u32;
+boundary trait Unused {
+    machine read(helper: &Helper) -> u32 reaches;
+}
 
 uefi_x86_64 machine Helper::internal(helper: &Helper) -> u32 { helper.seed }
 uefi_x86_64 machine Helper::caller(helper: &Helper) -> u32 {
