@@ -54,20 +54,6 @@ macro_rules! row {
     };
 }
 
-/// Both source preparation and canonical projection preserve unique report IDs.
-pub(super) fn validate_fresh_native_parameter_report_identity(
-    prior: impl IntoIterator<Item = calling_conventions::NativeParameterId>,
-    identity: calling_conventions::NativeParameterId,
-    ordinal: u32,
-) -> Result<(), String> {
-    if prior.into_iter().any(|candidate| candidate == identity) {
-        return Err(format!(
-            "boundary runtime parameter {ordinal} collides with an earlier exact parameter on one compact native-parameter report identity"
-        ));
-    }
-    Ok(())
-}
-
 /// The zero-valued case an absent optional boundary field decodes to.
 fn zero_case(variant: &str, field: &str) -> BuildTimeValue {
     case(variant, vec![(field.to_owned(), BuildTimeValue::Int(0))])

@@ -595,6 +595,37 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
 }
 
 #[test]
+fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    let replay = include_str!(
+        "../../backend/calling-conventions/src/boundary_application/terminal_telescope.rs"
+    );
+    let projection = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
+    );
+    for consumer in [source, replay, projection] {
+        assert_eq!(
+            consumer.matches("NativeParameterTelescope::close(").count(),
+            1
+        );
+        assert_absent(
+            &[consumer],
+            "native telescope construction duplicated in a consumer:",
+            &["sort_unstable_by_key(|parameter| parameter.native_ordinal)"],
+        );
+    }
+    // Slot geometry has not been published yet. A direct callback does not
+    // prove that a nested field destination is absent, so retain this refusal.
+    assert!(
+        projection.contains(
+            "Terminal calling signature still requires private callback geometry closure"
+        )
+    );
+}
+
+#[test]
 fn provider_derivation_consumes_the_prepared_service_census() {
     let derivation = include_str!(
         "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"

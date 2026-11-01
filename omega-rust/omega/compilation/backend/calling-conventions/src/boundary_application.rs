@@ -11,11 +11,13 @@ use target::NativeTarget;
 mod callback_admission;
 mod callback_catalog;
 mod identity;
+mod native_telescope;
 mod recovery;
 mod terminal_telescope;
 pub use callback_catalog::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
 };
+pub use native_telescope::{NativeParameterTelescope, validate_fresh_native_parameter_identity};
 pub use recovery::BoundaryCallingApplicationCandidate;
 pub use terminal_telescope::TerminalCallingTelescope;
 
