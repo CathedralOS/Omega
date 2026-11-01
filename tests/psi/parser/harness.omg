@@ -271,11 +271,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedConformanceTrait -> parse_diagnostic(parser_harness, output, 122)
             ParseDiagnosticCode::ExpectedConformanceBody -> parse_diagnostic(parser_harness, output, 123)
             ParseDiagnosticCode::ExpectedConformanceMember -> parse_diagnostic(parser_harness, output, 124)
-            ParseDiagnosticCode::ExpectedConformanceRowEquals -> parse_diagnostic(parser_harness, output, 125)
-            ParseDiagnosticCode::ExpectedConformanceRowTarget -> parse_diagnostic(parser_harness, output, 126)
-            ParseDiagnosticCode::ExpectedConformanceRowEnd -> parse_diagnostic(parser_harness, output, 127)
             ParseDiagnosticCode::ConformanceCapacityExceeded -> parse_diagnostic(parser_harness, output, 128)
-            ParseDiagnosticCode::ConformanceRowCapacityExceeded -> parse_diagnostic(parser_harness, output, 129)
             ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130)
             ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131)
             ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132)
@@ -1478,9 +1474,8 @@ crashes Trap
 // span), traits (name, generic range, parent range, machine range, boundary
 // and visibility flags, span, contract range, refinement flag, base type
 // handle), trait parents (type handles), conformances
-// (name, generic range, trait type handle, machine range, row range,
-// visibility flag, span), conformance rows (requirement and target path
-// handles, span), domains (carrier type handle, name, index argument range,
+// (name, generic range, trait type handle, machine range, visibility flag,
+// span), domains (carrier type handle, name, index argument range,
 // generic range, subject flag and span, clause range, route range, alias
 // flag, constituent range, visibility flag, span), constants (owner flag and
 // span, name, type handle, value handle, visibility flag, span) and
@@ -1571,7 +1566,7 @@ crashes Trap
     machine conformance_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.conformance_count {
             true -> write_conformance(parser_harness, output, index)
-            _ -> reference_row_count(parser_harness, output)
+            _ -> domain_count(parser_harness, output)
         }
     }
 
@@ -1583,31 +1578,9 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.trait_type);
         ParserHarness::write_u64(parser_harness, item.first_machine);
         ParserHarness::write_u64(parser_harness, item.machine_count);
-        ParserHarness::write_u64(parser_harness, item.first_row);
-        ParserHarness::write_u64(parser_harness, item.row_count);
         ParserHarness::write_flag(parser_harness, item.is_public);
         ParserHarness::write_source_span(parser_harness, item.source_span);
         transition { _ -> conformance_row(parser_harness, output, index + 1) }
-    }
-
-    machine reference_row_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
-        ParserHarness::write_u64(parser_harness, output.conformance_row_count as u64 in Trapping);
-        transition { _ -> reference_row(parser_harness, output, 0) }
-    }
-
-    machine reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
-        transition index < output.conformance_row_count {
-            true -> write_reference_row(parser_harness, output, index)
-            _ -> domain_count(parser_harness, output)
-        }
-    }
-
-    machine write_reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
-        let row: ConformanceRow = SyntaxTrees::conformance_row(output, index);
-        ParserHarness::write_u64(parser_harness, row.requirement);
-        ParserHarness::write_u64(parser_harness, row.target);
-        ParserHarness::write_source_span(parser_harness, row.source_span);
-        transition { _ -> reference_row(parser_harness, output, index + 1) }
     }
 
     machine domain_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {

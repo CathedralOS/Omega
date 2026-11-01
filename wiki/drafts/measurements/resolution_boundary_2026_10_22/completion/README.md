@@ -47,7 +47,7 @@ predecessor clone still serves its transactional contract.
 The initial harness expected `computed_constant_initializers` to pass because
 it is stored under `tests/omega/pass`. It instead rejected an array-valued
 canonical const parameter on the clone-based baseline. The [failed initial
-attempt](baseline-attempt-1.json) is retained. Both subsequent modes reproduce
+attempt]([baseline-attempt-1.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/baseline-attempt-1.json)) is retained. Both subsequent modes reproduce
 that same diagnostic, with equal complete carriers; this is a known baseline
 failure, not passing coverage or a regression caused by this transfer.
 
@@ -66,13 +66,13 @@ first body's retained statement handles and contents, preserves both predecessor
 snapshots, and verifies a refused duplicate completion cannot mutate the
 published snapshot. No diagnostic branch or equality walk ships in production.
 
-Evidence: [row counts](summary.json), [baseline](baseline-observations.json),
-[transfer](transfer-observations.json), [diagnostic producer](instrumented-producer.json),
-[temporary oracle patch](instrumented.patch.gz), [frozen old normalizer](legacy-normalizer.rs.gz),
-and [implementation mechanism](candidate.patch.gz). The frozen executable and
+Evidence: [row counts](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/summary.json), [baseline](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/baseline-observations.json),
+[transfer](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/transfer-observations.json), [diagnostic producer](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/instrumented-producer.json),
+[temporary oracle patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/instrumented.patch.gz), [frozen old normalizer](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/legacy-normalizer.rs.gz),
+and [implementation mechanism](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/candidate.patch.gz). The frozen executable and
 build receipts are retained in `build/deferred-completion-storage` in this lane.
-[setup.py](setup.py), [build.py](build.py), [freeze.py](freeze.py) and
-[capture.py](capture.py) reproduce the diagnostic on its recorded base with a
+[setup.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/setup.py), [build.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/build.py), [freeze.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/freeze.py) and
+[capture.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/capture.py) reproduce the diagnostic on its recorded base with a
 fresh output directory. Preserve existing producer artifacts rather than
 replacing them during replay. The production path uses the candidate source and
 runs `capture.py production` against the immutable baseline record.
@@ -101,11 +101,11 @@ representation, parser/foundation dependencies and build configuration are
 unchanged. Production was rebuilt and replayed for those downstream changes.
 Formatting and whitespace checks pass. Existing warnings remain in the logs.
 
-The earlier production capture remains under [integrated](integrated/production-observations.json);
-the later one is under [production](production/production-observations.json),
-with its [producer receipt](production/candidate-producer.json),
-[native products](production/products.json) and
-[qualification summary](production/qualification-summary.json). The active warm
+The earlier production capture remains under [integrated](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/integrated/production-observations.json);
+the later one is under [production](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/production/production-observations.json),
+with its [producer receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/production/candidate-producer.json),
+[native products](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/production/products.json) and
+[qualification summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/production/qualification-summary.json). The active warm
 lane qualification uses the supported history-preserving amendment protocol:
 the prior published outcome keeps its immutable receipts, and this outcome has
 a distinct check ID and fresh executions. An earlier superseded production
@@ -120,21 +120,21 @@ including the newer call-result qualification and aggregate-address interpreter
 paths. A fresh optimized compiler repeats all 14 outcomes: seven dual-engine
 programs, one passing constant check, five refusal controls and the unchanged
 computed-constant baseline failure. Seven frozen native images separately exit 0.
-The [publication capture](publication/production-observations.json),
-[producer](publication/candidate-producer.json) and
-[qualification receipt](publication/qualification-summary.json) retain this
+The [publication capture](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/publication/production-observations.json),
+[producer](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/publication/candidate-producer.json) and
+[qualification receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/publication/qualification-summary.json) retain this
 execution separately from the earlier producers. No source/oracle changes were
 needed. Raw Clippy output is compressed to preserve suggestion whitespace.
 
-The [landing capture](landing/production-observations.json) observes producer
+The [landing capture](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/landing/production-observations.json) observes producer
 `6283071a408d324016f7215ecf154b9b93674441` on main `47168d09ee17e238aa0fe291d19c2a8ba60d8509`. Main is refreshed after
 acquiring the build slot, eliminating the stale-base queue gap. The protected
 resolver, representation, foundation, parser and witness inputs are unchanged
-([integration delta](landing/prebuild-integration.json)); downstream changes receive
+([integration delta](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/landing/prebuild-integration.json)); downstream changes receive
 a fresh optimized build and all 14 outcomes again. Qualification passes with
 no invalidations. Earlier captures retain their own identities.
 
-The [oracle refresh](oracle-refresh/production-observations.json) on main `19bde9234d5cdb98b51b3afc79b01e68ebc1e258`
+The [oracle refresh](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/completion/oracle-refresh/production-observations.json) on main `19bde9234d5cdb98b51b3afc79b01e68ebc1e258`
 consumes the nested-record expected-exit file after its blank content became
 explicit `0`. Compiler and library inputs remain byte-identical to the landing
 producer, whose identity is retained. All 14 outcomes are freshly replayed;

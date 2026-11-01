@@ -232,11 +232,11 @@ fn join_application<'application>(
     if application.target != target
         || application.requirement_identity != schema.identity_text(method.requirement_identity)
         || schema
-            .calling_plan(method.requirement_identity)
+            .calling_application(&application.abi)
             .map(|plan| plan.report_fingerprint)
             != Some(application.report_fingerprint)
         || schema
-            .calling_plan(method.requirement_identity)
+            .calling_application(&application.abi)
             .map(|plan| plan.commitment)
             .map(|commitment| commitment.as_bytes())
             != Some(application.commitment)

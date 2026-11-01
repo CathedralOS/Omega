@@ -18,7 +18,7 @@ including 0.3332 checking and 0.0228 lowering. The patch changes no source-check
 algorithm. This suggests variation, but cannot retroactively identify a host
 cause: those old observations have no system telemetry.
 
-[summary.json](summary.json) retains the attribution for all six old cold pairs.
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cold_variation/summary.json) retains the attribution for all six old cold pairs.
 These built-in phase durations are wall observations, not additive CPU work or
 a serial-fraction calculation.
 
@@ -125,9 +125,9 @@ binaries and source inputs are unchanged; those checks were not rerun. Existing
 golden discrepancies remain as recorded in that experiment.
 
 Base: `55fb4298335eece20c9d4426c6bf477380e69a69`, compiler semantic base
-`456c5e984452a45d977295e254b3ca9ae3cc7750`. [identity.json](identity.json) binds
-the exact inputs and producers; [run.py](run.py) retains the harness and self-check.
-[Raw observations](raw/) and [run.log.gz](run.log.gz) retain all scheduled runs.
+`456c5e984452a45d977295e254b3ca9ae3cc7750`. [identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cold_variation/identity.json) binds
+the exact inputs and producers; [run.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cold_variation/run.py) retains the harness and self-check.
+[Raw observations](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cold_variation/raw) and [run.log.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cold_variation/run.log.gz) retain all scheduled runs.
 Accepted locks, caches, binaries and build outputs remain ignored local evidence.
 Fresh execution requires the frozen producers or an explicitly recorded rebuild
 and fresh labels; scripts refuse existing case directories.

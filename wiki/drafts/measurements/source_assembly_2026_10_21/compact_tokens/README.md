@@ -36,9 +36,9 @@ lexer-only baseline binary remains applicable: its lexer/token/arena/source
 closure and toolchain are unchanged. Its observations were rerun on the changed
 `core/activation.omg` input; both sides now read that same updated source. Earlier
 input counts and allocation observations remain in their historical directories.
-[Binary identities](identities.json), [input hashes](input-hashes.json),
-[production source hashes](candidate-source-hashes.json) and
-[environment](environment.json) preserve the comparison inputs.
+[Binary identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/identities.json), [input hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/input-hashes.json),
+[production source hashes](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/candidate-source-hashes.json) and
+[environment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/environment.json) preserve the comparison inputs.
 
 ## Storage and work removed
 
@@ -71,12 +71,12 @@ The all-worker comparison requests **380,714,125 fewer bytes**, with **5,261 mor
 allocation requests**: 3,161,764,494 -> 2,781,050,369 bytes and 7,451,507 -> 7,456,768
 requests. For `length/local`, the same scope saves 1,804,680 requested bytes and
 adds 27 requests. Calling-thread-only counts are retained separately; they are
-not presented as the whole parallel workload. See [allocation comparison](allocation-comparison.json).
+not presented as the whole parallel workload. See [allocation comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/allocation-comparison.json).
 
 ## Timing and physical limits
 
 The preceding `4ba3cc7570dd` timing batch was inconclusive under host contention
-and remains in [before-loan-integration](before-loan-integration/cli-observations.json).
+and remains in [before-loan-integration](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/before-loan-integration/cli-observations.json).
 The lower-variance `b9060c9ca30d` comparison remains separately recorded at its base.
 The storage/work reduction reproduces on every integration; timing batches are
 not pooled across revisions.
@@ -103,7 +103,7 @@ Per-process `wait4` observations include wall/user/system time, RSS and page fau
 RSS medians were 231,424,000 -> 231,563,264 bytes with overlapping ranges; minor-fault
 medians were 14,682 -> 14,685; total major faults were 0 for baseline and 0 for candidate.
 This does not establish a substantial whole-process peak-memory or page-fault improvement.
-The [full timing records](cli-observations.json) retain stdout, stderr, producer
+The [full timing records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/cli-observations.json) retain stdout, stderr, producer
 profiles, digests and resource observations.
 
 The host has 128-byte cache lines and 16-KiB pages, not assumed 64-byte lines or
@@ -113,19 +113,19 @@ storage is not a claim of the minimum possible representation. Token columns and
 capacity planning remain separate experiments. No cache-miss, bandwidth-ceiling
 or cycle-throughput claim is made from these measurements.
 
-[Baseline assembly](token-baseline-excerpt.asm) contains the per-token Arc retain
-`ldadd` at `0x1000023c4`. [Candidate assembly](token-candidate-excerpt.asm) writes
+[Baseline assembly](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-baseline-excerpt.asm) contains the per-token Arc retain
+`ldadd` at `0x1000023c4`. [Candidate assembly](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-candidate-excerpt.asm) writes
 records at a 32-byte stride (`lsl #5`, stores at `0x100004d30` onward). The
 conversion loop is absent. The first candidate introduced out-of-crate calls to
 small token storage accessors; marking those accessors `#[inline]` removed the
 calls in the inspected optimized binary. The actual lexer loop and consuming
 serialization survive compilation. Full disassemblies and frozen binaries are
-in the raw evidence archive. [Disassembly identities](assembly-identities.json)
+in the raw evidence archive. [Disassembly identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/assembly-identities.json)
 name the retained inspected binaries; their addresses precede replay-harness
 formatting, and the production lexer/storage implementation is unchanged.
 
-The [first candidate](first-candidate/cli-observations.json) had flat timing within
-noise. The [inlined pre-integration run](before-integration/cli-observations.json)
+The [first candidate](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/first-candidate/cli-observations.json) had flat timing within
+noise. The [inlined pre-integration run](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/before-integration/cli-observations.json)
 was heavily contended and is inconclusive; its page faults and slow observations
 remain recorded. The final integrated run is a new comparison on a new base, not
 an exclusion of inconvenient observations. These separate batches do not isolate
@@ -136,7 +136,7 @@ the timing contribution of inlining by itself.
 Focused tests cover `tokens`, `source-files-to-tokens`, `tokens-to-syntax-trees`,
 `package-manager` and `package-compilation`: candidate 307/314 pass. Baseline
 303/310 pass; the same seven failures have identical panic locations and messages
-([comparison](test-comparison.json), [details](failure-details.json)). New tests
+([comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/test-comparison.json), [details](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/failure-details.json)). New tests
 cover single stream ownership, unchanged record-buffer transfer, wrong source
 identity rejection, decoded ranges across growth/clone/empty literals, logical
 stream equality, and names/float text/raw bytes surviving destruction of tokens
@@ -148,27 +148,27 @@ custody, missing dependencies, byte-encoding rejection, retained float literals,
 and string runtime behavior. Its exact comparison and actual engine outcomes are
 recorded alongside this report: 13 checking and eight `--both` fixtures, zero
 losses or gains, and identical statuses, execution facts and diagnostics after
-removing only timing/revision annotations ([detail comparison](corpus-detail-comparison.json)).
+removing only timing/revision annotations ([detail comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/corpus-detail-comparison.json)).
 Four positive generated-source fixtures already refuse on baseline; they retain
 the same missing generated output / 41-byte literal versus 38-byte array failures.
 They are not reported as passing. Four runnable cases actually agree between
 native and Terminal execution: direct file import exits 7; public generic import,
 UTF-8 string replacement and named-transition float arguments exit 0.
 `length/local run --both --keep` separately exits 0 in both engines; its retained
-native and Terminal artifacts are hashed in [runtime identities](runtime-identities.json).
+native and Terminal artifacts are hashed in [runtime identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/runtime-identities.json).
 Only macOS ARM64 engines were executed. This work claims no new language capability.
 
 Strict Clippy (`--no-deps -- -D warnings`) reports the same 78 findings on
 baseline and candidate, all in files byte-identical to baseline. The command,
-locations and messages are retained in [lint attribution](lint-attribution.json).
+locations and messages are retained in [lint attribution](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/lint-attribution.json).
 The strict lint and baseline unit observations retain their measured revision
 `4ba3cc7570ddfb541508c2674687722034f841a1`. The subsequent interpreter and crash-checking
 routines change neither selected lint sources/public schemas nor parser failure
 sites. The final candidate reran all focused tests with matching panic messages.
 Both corpus/runtime legs and measurements are fresh on
 `e8a7205c2959f3bace92f8def8c3eca34070b6a7`. See
-[commands](crash-integration-commands.json) and the
-[integration assessment](integration-assessment.json). Formatting and `git diff --check` pass. No failure was suppressed or expectation
+[commands](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/crash-integration-commands.json) and the
+[integration assessment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/integration-assessment.json). Formatting and `git diff --check` pass. No failure was suppressed or expectation
 rewritten.
 
 ## Replay
@@ -180,21 +180,21 @@ retained in the raw archive.
 Use an isolated checkout. Copy this directory's harnesses and scripts into
 `build/compact-token-ingress/`. In both copied Cargo manifests, change dependency
 prefix `../../../../../../omega-rust/` to `../../../omega-rust/`. Convert the copied
-`inputs.txt` and `token-inputs.txt` repository-relative lines to absolute paths in
-that checkout. Decode each filename/text entry of `token-controls.json` into
+[`inputs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/inputs.txt) and [`token-inputs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-inputs.txt) repository-relative lines to absolute paths in
+that checkout. Decode each filename/text entry of [`token-controls.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-controls.json) into
 `build/compact-token-ingress/token-controls/<filename>` as UTF-8 bytes; these are
 the eleven additional inputs, including intentional trailing whitespace.
 
-On the recorded baseline, put `token-probe-baseline.rs.txt` into
+On the recorded baseline, put [`token-probe-baseline.rs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-probe-baseline.rs.txt) into
 `build/compact-token-ingress/token-probe/src/main.rs`, build that manifest with
 `mbx build --manifest-path ...`, and freeze `token-ingress-probe` as
-`token-probe-baseline`. Run it with `token-inputs.txt` to capture logical outputs
+`token-probe-baseline`. Run it with [`token-inputs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/token-inputs.txt) to capture logical outputs
 and allocation/live/peak counters. `build_measure.py baseline` freezes the
 ordinary CLI and the two assembly harness binaries. On the candidate, restore
 the saved candidate probe source, build/freeze/run it the same way, then run
-`build_measure.py candidate`, `recount.py`, and `measure_cli.py` from the repository
+`build_measure.py candidate`, [`recount.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/recount.py), and [`measure_cli.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/measure_cli.py) from the repository
 root. Keep baseline and candidate binaries at the script's specified paths.
-`base.txt` must name the actual integrated comparison base. Do not overlap builds
+[`base.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/compact_tokens/base.txt) must name the actual integrated comparison base. Do not overlap builds
 with the timing run. Compare complete logical observations, not just counts.
 
 The assembly harness uses mimalloc like the CLI, with counters enabled only

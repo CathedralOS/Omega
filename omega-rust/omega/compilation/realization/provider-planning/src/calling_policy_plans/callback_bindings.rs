@@ -399,6 +399,7 @@ pub(super) fn source_free_application(
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
     let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
+        abi: signature.abi.clone(),
         requirement_identity: signature.owner_requirement_identity().to_owned(),
         target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),

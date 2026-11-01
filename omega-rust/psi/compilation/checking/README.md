@@ -161,9 +161,28 @@ owner and retained field handle before contributing declared bounds. References,
 locals, mutable parameters, and nested projections supply no snapshot-independent
 field interval. The same arithmetic rules retain each field's carrier and policy;
 neither a small final result nor algebraic cancellation excuses overflow.
+Occurrence-independent field bounds come from the complete store-enforced
+interval contract. Mixed default-domain conjuncts may be false inside an open
+restoration window; ordinary scalar reads retain their actual flow values.
+Established entry snapshots and guards keep their own versioned facts, while
+restoring the parent cannot qualify an earlier scalar copy. Arithmetic readers
+and recast representation requirements share this distinction; necessary logical
+consequences remain available to handback under its independent premises.
 Guard and entry-requirement readers check the selected equality or ordering
 before treating a literal or singleton field as a primitive bound. An authored
 `==` or `!=` supplies no builtin range or non-NaN fact merely through its spelling.
+
+Performed scalar stores use the frame owner's complete destination roster,
+including stored aliases and recasts. Parent predicates attach to the actual
+backing field, not the alias spelling. Runtime-prefix replay retains a formed
+exclusive reference as an opaque descriptor, then records later stores at their
+captured source coordinates. Value-preserving views retain the scalar value;
+other full-primitive views use the shared bit-interpretation term. Geometry
+alone cannot decode stored-width layouts or publish a source value.
+Readable nominal inputs retain separately authenticated entry scalar fields,
+so disjoint writes preserve a sibling's original facts while overlapping writes
+retire its current observation. These are entry premises, not executed reads,
+owned reference captures, or permission to observe a write-only referent.
 
 `struct_literals/guard_bounds.rs` passes the selected transition arm's numeric
 facts to constructor checks only for exact immutable owned inputs and builtin

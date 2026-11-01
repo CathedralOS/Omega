@@ -24,6 +24,19 @@ cleanup:
 - Commit lanes. A squash merge takes the pull request title as its subject;
   178 of 1,017 subjects from 2026-10-25 to 2026-11-01 used no listed lane.
   Lanes are read from AGENTS.md's table, so the table stays the only list.
+- Raw measurement dumps. `wiki/drafts/measurements` reached 5,828 raw files
+  (1.1M lines, 125 MB) committed as evidence by performance PRs, beside 223
+  summaries. A change may add summaries there, not data: only `.md` files of
+  at most 300 lines. Raw data is linked by a pinned commit or kept in the claim
+  note.
+- Status in contracts. `omega-rust/pipeline.md` and `wiki/spec` are normative
+  contracts, but by 2026-11-01 pipeline.md had gained 1,115 lines in two weeks,
+  about half of them migration log ("now lives", "still open", "remains
+  migration work"), and the spec held "Implementation status" blocks and test
+  commands with "exits 70 on macOS ARM64". The rules that would have stopped
+  per-case repairs sat after that narrative. Status belongs on the board; the
+  per-file counts of status phrasing in `tools/contract_status_phrases.txt`
+  may only fall.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -40,9 +53,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 RUST_ROOT = "omega-rust"
 READS_BASELINE = "tools/source_text_reads.txt"
+STATUS_BASELINE = "tools/contract_status_phrases.txt"
+CONTRACTS = ("omega-rust/pipeline.md", "wiki/spec")
 GOLDEN = "tests/omega/corpus_outcomes.txt"
 FIXTURE_TIERS = ("tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/")
 FACTS_ROOT = "samples/cli/facts/"
+MEASUREMENTS_ROOT = "wiki/drafts/measurements/"
+MEASUREMENT_LINE_LIMIT = 300
 NEAR_DUPLICATE = 0.8
 SUBJECT_LIMIT = 85
 
@@ -53,6 +70,27 @@ SOURCE_PATH = re.compile(r"\"[^\"\n]*\.(?:rs|toml)\"")
 RUNTIME_READ = re.compile(
     r"\b(?:read_to_string|fs::read)\s*\([^;]{0,240}?\"[^\"]*\.(?:rs|toml)\"",
     re.DOTALL,
+)
+
+# Wording that reports where the implementation stands rather than what the
+# contract requires. Words may wrap across lines.
+STATUS_PHRASE = re.compile(
+    r"^\#{1,6}[ \t]+(?:implementation[ \t]+|acceptance[ \t]+)?status[ \t]*$"
+    r"|\bnot\s+yet\b"
+    r"|\bno\s+longer\b"
+    r"|\bnow\s+(?:passes|clears|lives|owns|has|retains|admits|rejects|accepts|runs"
+    r"|takes|belongs|projects|joins|closes|carries)\b"
+    r"|\b(?:exits?|returns?)\s+\d+\s+(?:on|in)\b"
+    r"|\bre-verified\b"
+    r"|\b(?:enforced|claimed)\s+today\b"
+    r"|\b(?:is|are)\s+still\s+open\b"
+    r"|\bremains?\s+(?:open|unfinished|unimplemented)\b"
+    r"|\bremain\s+migration\b"
+    r"|\bmigration\s+work\b"
+    r"|\bnot\s+a\s+claim\b"
+    r"|\bdoes\s+not\s+claim\b"
+    r"|\b(?:is|are)\s+implemented\b",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 
@@ -124,6 +162,56 @@ def source_read_violations(counts: dict, baseline: dict) -> list:
             violations.append(
                 f"{path}: {now} source-text reads, baseline {allowed}. Lower the "
                 "baseline: python tools/check_rules.py --update-source-reads")
+    return violations
+
+
+# Status in contracts --------------------------------------------------------
+
+def count_status_phrases(text: str) -> int:
+    return len(STATUS_PHRASE.findall(text))
+
+
+def contract_files(root: Path = ROOT) -> list:
+    files = []
+    for contract in CONTRACTS:
+        path = root / contract
+        files += [path] if path.is_file() else sorted(path.rglob("*.md"))
+    return files
+
+
+def status_phrase_counts(root: Path = ROOT) -> dict:
+    counts = {}
+    for path in contract_files(root):
+        count = count_status_phrases(path.read_text(encoding="utf-8", errors="replace"))
+        if count:
+            counts[path.relative_to(root).as_posix()] = count
+    return counts
+
+
+def write_status_baseline(counts: dict) -> str:
+    lines = [
+        "# Status phrasing (\"not yet\", \"now passes\", \"exits N on <host>\", an",
+        "# \"Implementation status\" heading, ...) per contract file.",
+        "# Written by `python tools/check_rules.py --update-status-phrases`.",
+        "# Counts may only fall: put open work on its TASKS.md item, not in the contract.",
+    ]
+    lines += [f"{count} {path}" for path, count in sorted(counts.items())]
+    return "\n".join(lines) + "\n"
+
+
+def status_phrase_violations(counts: dict, baseline: dict) -> list:
+    violations = []
+    for path in sorted(set(counts) | set(baseline)):
+        now, allowed = counts.get(path, 0), baseline.get(path, 0)
+        if now > allowed:
+            violations.append(
+                f"{path}: {now} status phrases, baseline {allowed}. Contracts state "
+                "rules; record where the implementation stands as a remaining bullet "
+                "on the owning TASKS.md item, and phrase the rule without it.")
+        elif now < allowed:
+            violations.append(
+                f"{path}: {now} status phrases, baseline {allowed}. Lower the "
+                "baseline: python tools/check_rules.py --update-status-phrases")
     return violations
 
 
@@ -260,6 +348,30 @@ def fact_row_violations(nearest: dict, readmes: dict) -> list:
     return violations
 
 
+# Raw measurement dumps ------------------------------------------------------
+
+def measurement_violations(changes: list, count_lines) -> list:
+    """`changes` holds (status, path) pairs; `count_lines(path)` returns the
+    line count of a file as it stands at HEAD. Only added files count: the
+    summaries already in the folder may be edited."""
+    violations = []
+    for status, path in changes:
+        if status != "A" or not path.startswith(MEASUREMENTS_ROOT):
+            continue
+        if not path.endswith(".md"):
+            violations.append(
+                f"{path}: raw run data stays out of git. Commit a .md summary "
+                "and link the data by a pinned commit, or keep it in the claim note")
+            continue
+        lines = count_lines(path)
+        if lines > MEASUREMENT_LINE_LIMIT:
+            violations.append(
+                f"{path}: {lines} lines; a measurement summary is at most "
+                f"{MEASUREMENT_LINE_LIMIT}. Keep the numbers that decide something and "
+                "link the raw data by a pinned commit")
+    return violations
+
+
 # Commit lanes ---------------------------------------------------------------
 
 def lanes(agents_text: str) -> set:
@@ -302,6 +414,8 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
         changed_golden_rows(git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)),
         fixture_directories(root),
     )
+    violations += measurement_violations(
+        changes, lambda path: len(show("HEAD", path, root).splitlines()))
     base_folders = {path.split("/")[3] for path in
                     git("ls-tree", "-r", "--name-only", base, FACTS_ROOT, root=root).split()
                     if path.count("/") >= 4}
@@ -327,14 +441,24 @@ def main(arguments=None):
     parser.add_argument("--title", help="pull request title to check as a commit subject")
     parser.add_argument("--update-source-reads", action="store_true",
                         help=f"rewrite {READS_BASELINE} from the tree")
+    parser.add_argument("--update-status-phrases", action="store_true",
+                        help=f"rewrite {STATUS_BASELINE} from the tree")
     options = parser.parse_args(arguments)
     counts = source_read_counts()
-    if options.update_source_reads:
-        (ROOT / READS_BASELINE).write_text(write_baseline(counts), encoding="utf-8")
-        print(f"check_rules: wrote {len(counts)} files to {READS_BASELINE}")
+    statuses = status_phrase_counts()
+    if options.update_source_reads or options.update_status_phrases:
+        if options.update_source_reads:
+            (ROOT / READS_BASELINE).write_text(write_baseline(counts), encoding="utf-8")
+            print(f"check_rules: wrote {len(counts)} files to {READS_BASELINE}")
+        if options.update_status_phrases:
+            (ROOT / STATUS_BASELINE).write_text(write_status_baseline(statuses),
+                                                encoding="utf-8")
+            print(f"check_rules: wrote {len(statuses)} files to {STATUS_BASELINE}")
         return 0
     violations = source_read_violations(
         counts, read_baseline((ROOT / READS_BASELINE).read_text(encoding="utf-8")))
+    violations += status_phrase_violations(
+        statuses, read_baseline((ROOT / STATUS_BASELINE).read_text(encoding="utf-8")))
     base = options.base or git("merge-base", "origin/main", "HEAD").strip()
     violations += diff_checks(base)
     if options.title is not None:

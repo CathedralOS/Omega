@@ -30,10 +30,10 @@ policy ownership, source-authority upgrade, and the invalid length bound. No sam
 library, language contract or oracle is changed. The earlier full-carrier oracles
 remain historical evidence, not reruns relabeled as current-main results.
 
-[Summary](summary.json), [tests](tests.log), [producer receipt](candidate-producer.json),
-[compile/setup observations](setup.json), [runtime/rejection observations](validation.json),
-[qualification summary](qualification-run.log), [raw validator output](qualification.stdout),
-and [compressed immutable qualification receipt](qualification-receipt.json.gz).
+[Summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/summary.json), [tests](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/tests.log), [producer receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/candidate-producer.json),
+[compile/setup observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/setup.json), [runtime/rejection observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/validation.json),
+[qualification summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-run.log), [raw validator output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification.stdout),
+and [compressed immutable qualification receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-receipt.json.gz).
 The receipt's uncompressed SHA-256 is recorded in the summary. The full active
 qualification state and build transcripts are preserved with the replay artifacts.
 
@@ -48,9 +48,9 @@ newer integrated base before runtime qualification. That warm rebuild took
 The first qualification setup listed a nonexistent `.cargo` directory. The runner
 refused before executing the validator. The configuration was amended to remove
 that absent dependency; no real input, diagnostic or expected output changed.
-The [initial configuration](qualification-config-initial.json),
-[refusal](qualification-run-initial.log) and [amendment](qualification-amend.log)
-are retained. The successful capture uses [this closure](qualification-config.json).
+The [initial configuration](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-config-initial.json),
+[refusal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-run-initial.log) and [amendment](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-amend.log)
+are retained. The successful capture uses [this closure](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-config.json).
 
 The first landing preflight also refused an environment mismatch: the warm
 Cargo target and job limit were selected only for `verify`. The same validator
@@ -59,9 +59,9 @@ environment) and `CARGO_BUILD_JOBS=2`, matching verification/publication. All fi
 native/interpreter pairs and five rejections passed again with no invalidations.
 The compiler and native image identities are unchanged. This observation belongs
 to the evidence-only descendant `4bf4f360f71bdaab57316e000d435a6c3309e611`, whose compiler inputs
-match the measured producer. Retain the [refusal](verify-initial.log),
-[matched-environment run](qualification-matched-environment.log), and its separate
-[immutable receipt](publication-qualification-receipt.json.gz). The source and
+match the measured producer. Retain the [refusal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/verify-initial.log),
+[matched-environment run](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/qualification-matched-environment.log), and its separate
+[immutable receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/publication-qualification-receipt.json.gz). The source and
 compressed-receipt identities are in the summary. Match these environment settings
 before qualification and verification when replaying.
 
@@ -91,6 +91,6 @@ to the old `build/` children. The original source bundle requires commit
 The scripts here retain their recorded `build/resolution-integration-final`
 output path. In a replay worktree at the measured candidate, prepare a fresh output
 directory and base/main files, build/freeze with the ordinary two-slot protocol,
-run `setup.py`, configure the current absolute artifact paths with `configure.py`,
+run [`setup.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/setup.py), configure the current absolute artifact paths with [`configure.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/integration/configure.py),
 then start/run pinned qualification with the reviewed configuration. Never overwrite
 a frozen producer or relabel a replay as the original observation.

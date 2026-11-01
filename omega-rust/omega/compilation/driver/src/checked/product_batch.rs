@@ -16,6 +16,9 @@ impl CompilationSession {
         builds: Vec<(Owner, PreparedPackageBuild)>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
+        // The first checked source per distinct publication input owns the
+        // invocation's portable code; equal siblings adopt its slots.
+        let mut canonical_sources: Vec<compilation_products::CheckedProductSource> = Vec::new();
         let mut groups: Vec<Vec<(usize, Owner, PreparedPackageBuild)>> = Vec::new();
         for (position, (owner, build)) in builds.into_iter().enumerate() {
             artifacts::compile_timings::counters::record_checked_compilation();
@@ -59,6 +62,13 @@ impl CompilationSession {
             });
             match checked {
                 Ok(mut source) => {
+                    match canonical_sources
+                        .iter()
+                        .find(|prior| prior.shares_terminal_publication(&source))
+                    {
+                        Some(canonical) => source.adopt_derived_code(canonical),
+                        None => canonical_sources.push(source.clone()),
+                    }
                     let completion_timings = std::mem::replace(&mut source.timings, first_timings);
                     source.timings.extend(&completion_timings);
                     self.retain(&source.retained_checks);

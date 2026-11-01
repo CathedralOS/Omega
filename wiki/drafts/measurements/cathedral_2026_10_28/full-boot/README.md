@@ -32,7 +32,7 @@ and are exercised by this boot. Its parent `0737c5da` contains the shared UI
 compilation path. The source manifest and component receipts bind the tested
 inputs. Both original primary checkouts remain untouched.
 
-![Fresh desktop running the Notes close dialog](notes-close.png)
+![Fresh desktop running the Notes close dialog](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/full-boot/notes-close.png)
 
 ## Omega kernel result
 
@@ -60,14 +60,14 @@ existing `placed_primitive_generic_concrete`, `extent_view_external_write`, and
 the older documented kernel domain-evidence failures: the current run does not
 reach those later checks. No check was relaxed and no old EFI image was booted.
 The unfinished kernel migration remains uncommitted and is retained in
-`kernel-migration-incomplete.patch.gz`; it is not accepted kernel functionality.
+[`kernel-migration-incomplete.patch.gz`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/full-boot/kernel-migration-incomplete.patch.gz); it is not accepted kernel functionality.
 
 ## Evidence and limits
 
-[result.json](result.json) records commands, digests, cache state and artifact
+[result.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/full-boot/result.json) records commands, digests, cache state and artifact
 locations. Compressed logs retain the failed attempts, focused tests and the
 successful desktop run; both boot serial logs and timing records are adjacent.
-`compiler-source.patch.gz` binds the local compiler fix to its recorded base.
+[`compiler-source.patch.gz`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/full-boot/compiler-source.patch.gz) binds the local compiler fix to its recorded base.
 The Cathedral source-layout check passed (74 Omega and 151 Rust package edges).
 
 This establishes the default desktop on Windows-hosted QEMU TCG. It does not

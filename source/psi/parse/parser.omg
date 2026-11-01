@@ -222,7 +222,6 @@ where
     declaration_generic_count: u64 in Trapping;
     declaration_first_parent: u64 in Trapping;
     declaration_first_machine: u64 in Trapping;
-    declaration_first_row: u64 in Trapping;
     declaration_type: u64 in Trapping;
     declaration_first_argument: u64 in Trapping;
     declaration_argument_count: u64 in Trapping;

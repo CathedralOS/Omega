@@ -6,8 +6,7 @@ from static `const Count: u32`. Bodies are checked against their declared
 requirements; a concrete selection cannot silently strengthen the generic API.
 Runtime indices follow [dependent-value rules](dependent_values.md), not
 const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
-These are source contracts, not a claim of complete implementation; current
-normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
+These are source contracts; normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
 Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses);
 the spelling does not merge static admission with runtime entry obligations or

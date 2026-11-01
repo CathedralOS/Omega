@@ -95,7 +95,7 @@ component never reevaluates the expression that produced the outer value.
 This changes patterns, not case-literal construction or physical layout.
 `DATA-DECOMPOSITION` in [TASKS.md](../../../TASKS.md) retains both compiler
 implementations, source migration and retirement controls; these examples state
-the accepted language rather than completed parser/runtime support.
+the accepted language.
 
 Matching an established value combines its [default-domain predicates](data_and_literals.md#case-constraints)
 and any established named-domain predicates with the selected case fact, all
@@ -149,10 +149,9 @@ drop, retirement and restoration obligations.
 The original match and transition forms remain valid, including an irrefutable
 one-arm outer match followed by an inner case match. Prefer a local binding when
 only decomposition is intended. There is no separate `match expression as Pattern`
-header form. Ordinary scalar local declarations are unchanged. Implementation and
-source/tooling acceptance remain part of `DATA-DECOMPOSITION` in
-[TASKS.md](../../../TASKS.md), not a claim that the current parser supports this
-binding spelling.
+header form. Ordinary scalar local declarations are unchanged.
+`DATA-DECOMPOSITION` in [TASKS.md](../../../TASKS.md) owns implementation and
+source/tooling acceptance of this binding spelling.
 
 ## Coverage and domain tests
 

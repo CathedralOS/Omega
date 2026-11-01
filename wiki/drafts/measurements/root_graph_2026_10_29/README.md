@@ -7,7 +7,7 @@ projects. External per-root selection of whole graphs, using the same producer,
 reduced three-project warm latency by 24–28%. At six projects, shared graph
 decode alone cost 397–470 ms versus 62–63 ms per root. Both policies reported
 real graph loads and prepared hits, with identical native products. This is a
-diagnostic, not the shipping result. `diagnostic.py` and `diagnostic_profile.py`
+diagnostic, not the shipping result. [`diagnostic.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/diagnostic.py) and [`diagnostic_profile.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/diagnostic_profile.py)
 preserve its protocol; raw records live in `build/root-graph-policy`.
 
 The candidate selects one complete graph using compiler/library identity and
@@ -67,13 +67,13 @@ Subsequent evidence-only commits do not alter its compiler/library closure.
 The actual candidate was built from `7a90c4e74b4abd26e7125b56e43bdc4479a66ba9`
 in release opt-level 3, SHA-256
 `e95128f9eaf86fe38ce2c1c29afd9278c60e01f49ce843475f83883241b204b1`.
-[qualify.py](qualify.py), [compare.py](compare.py) and [controls.py](controls.py)
+[qualify.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/qualify.py), [compare.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/compare.py) and [controls.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/controls.py)
 ran sequentially under one build-slot hold. The implementation changes two
 source files, without a new flag, dependency, schema, proof rule or relaxed
-admission. [evidence.json.gz](evidence.json.gz) contains build/profile receipts,
-source hashes, diagnostics and raw observations; [summary.json](summary.json)
+admission. [evidence.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/evidence.json.gz) contains build/profile receipts,
+source hashes, diagnostics and raw observations; [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/summary.json)
 provides ranges, CPU, private commit and per-pair results. The preceding
-same-binary diagnostic is separately retained in [diagnostic.json.gz](diagnostic.json.gz).
+same-binary diagnostic is separately retained in [diagnostic.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/diagnostic.json.gz).
 
 Real end-to-end compile wall time, milliseconds; each row uses fresh processes
 and output directories with independent warm default caches. There are six
@@ -151,7 +151,7 @@ Fresh release opt-level 3 validation used source
 Nine explicit native/Terminal agreements, nine authored rejects, four malformed
 record controls, five root lookup/source change/pruning controls and scoped
 release Clippy passed again. The benchmark-subject native images matched the
-original qualified images. [landing_validation.json.gz](landing_validation.json.gz)
+original qualified images. [landing_validation.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/landing_validation.json.gz)
 retains these producer/build receipts, scripts and raw observations. It also
 preserves an interrupted first build attempt that produced no compiler or
 completed validation record; that attempt is not counted as a pass.
@@ -160,5 +160,5 @@ The native/cache change is unchanged; the integrated base includes other source
 changes, so the original timing samples remain tied to their original producer.
 Fresh behavior validation does not relabel those measurements as runs of the
 integrated compiler. The preceding memory optimization's publication is recorded
-in [prior_publication.json](prior_publication.json); its post-merge smoke has
+in [prior_publication.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/root_graph_2026_10_29/prior_publication.json); its post-merge smoke has
 since completed successfully.

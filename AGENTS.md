@@ -449,7 +449,11 @@ owning task and exact requirement, link the positive witnesses and fact-sensitiv
 reject twins, and list how each applicable requirement above is established and
 what remains open.
 Keep run records in the existing qualification/claim record or commit, with
-producer revision and target; distinguish fresh results, applicable retained
+producer revision and target. Raw run data (CSV, JSON, logs, per-fixture
+output, archives) stays out of git: commit a summary, and link raw data by a
+pinned commit or keep it in the claim note. `tools/check_rules.py` rejects any
+added file under `wiki/drafts/measurements/` that is not a `.md` file of about
+300 lines or fewer. Distinguish fresh results, applicable retained
 evidence and unverified cases. A missing or unrelated reject diagnostic is not
 evidence that the fact is enforced. Subtract only the acceptance demonstrated.
 A filled row does not close its parent requirement or the check/proof layer

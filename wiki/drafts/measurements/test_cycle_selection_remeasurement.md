@@ -52,7 +52,7 @@ elapsed only when the slow tail is unselected.
 head, two sequential runs: 1,223.6 s and 1,221.4 s wall (1220.7 s nextest
 summary), 15,666 library tests across 117 binaries: 15,571 passed (31 slow),
 95 failed, 2 skipped. The failures are the preexisting baseline clusters in
-[known_baseline_failures.md](known_baseline_failures.md) — selected-dispatch
+[known_baseline_failures.md](https://github.com/CathedralOS/Omega/blob/6139855b8efa49bc06d95f8b0ddcbeb30b5378d0/wiki/drafts/measurements/known_baseline_failures.md) — selected-dispatch
 and checked-trees-to-lowered-psi dominate, then terminal-codec block-wire,
 package-manager review/discovery, abstract-operations-to-abstract-operations,
 source-files-to-assembled-syntax, typed-trees-to-checked-trees,

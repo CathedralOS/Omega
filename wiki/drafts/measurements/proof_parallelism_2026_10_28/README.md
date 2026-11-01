@@ -95,12 +95,12 @@ queries with different proof facts or checking modes. No checks were skipped.
 ## Controls, failures, and evidence
 
 - Both producers report optimization level 1. Exact executable hashes, fixed
-  base and instrumentation patch digest are in [identity.json](identity.json).
-- [input-manifest.json](input-manifest.json) records 203 Omega source files and
+  base and instrumentation patch digest are in [identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/identity.json).
+- [input-manifest.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json) records 203 Omega source files and
   the original accepted lock. All source hashes were checked before/after the
   final series. Each producer has its own accepted lock bound to its compiler
   identity; each run records that lock's hash. Locks differ intentionally.
-  [The generated policy comparison](producer-policy-comparison.txt) shows equal
+  [The generated policy comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/producer-policy-comparison.txt) shows equal
   policy fingerprints and zero changed source entries; no review gate was bypassed.
 - Twelve successful fresh-cache compilations (ten timing/control runs, one
   counts run, one attribution run) produced the identical native image SHA-256
@@ -112,14 +112,14 @@ queries with different proof facts or checking modes. No checks were skipped.
 - The interval sweep has assert-based calibration for overlap and touching
   intervals. Windows process CPU measurement was calibrated with a bounded
   CPU-burning child. The observer context comparison unit test passed
-  (1 selected test, 24 skipped); see [observer-test.log](observer-test.log).
+  (1 selected test, 24 skipped); see [observer-test.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/observer-test.log).
 - The untouched producer's two fresh-cache wall times were 20.549 and 17.511
   seconds; instrumented collection-off times were 18.336 and 18.760 seconds.
   Observer overhead is unresolved within that host variation. Counting and
   attribution runs are excluded from timing comparisons.
 
 Rejected setup/exploratory observations are retained in
-[exploratory.json](exploratory.json). They include a missing initial package
+[exploratory.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/exploratory.json). They include a missing initial package
 acceptance, an initial compile-only `run --target` invocation caught by the
 runtime-output assertion, and the candidate's refusal to consume a lock bound
 to the other compiler. A review edit initially changed framing; regeneration
@@ -137,10 +137,10 @@ the shared cache. Accepted policy and program source remain fixed.
 
 ## Replay and scope
 
-[run.py](run.py) records wall/CPU time, both streams, compiler/profile identity,
+[run.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/run.py) records wall/CPU time, both streams, compiler/profile identity,
 lock identity and native image identity, then executes and checks the image.
-[private_batch.py](private_batch.py) supplies the bounded case order.
-[instrumentation.patch](instrumentation.patch) preserves the diagnostic hooks;
+[private_batch.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/private_batch.py) supplies the bounded case order.
+[instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/instrumentation.patch) preserves the diagnostic hooks;
 they are removed from the worktree's compiler sources after measurement.
 The patch adds no semantic decision and does not modify the source program.
 
@@ -154,8 +154,8 @@ labels/private cache directories. Scripts refuse existing result directories.
 Fresh producer hashes and accepted-lock hashes are expected for a rebuild;
 record them rather than claiming the archived binaries were reproduced.
 
-Compressed original traces and stream/status observations are under [raw](raw/),
-with [raw-manifest.json](raw-manifest.json). Analyze them from the repository:
+Compressed original traces and stream/status observations are under [raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/raw),
+with [raw-manifest.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/raw-manifest.json). Analyze them from the repository:
 
 ```powershell
 python wiki/drafts/measurements/proof_parallelism_2026_10_28/analyze.py wiki/drafts/measurements/proof_parallelism_2026_10_28/raw

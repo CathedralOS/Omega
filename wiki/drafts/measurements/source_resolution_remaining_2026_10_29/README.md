@@ -103,8 +103,8 @@ and warm cache regimes remain separate claims.
 Both producers report opt-level 1 on Windows x86_64, rustc 1.100.0-nightly
 (a69a63265 2026-09-03). Candidate SHA-256:
 `10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d`.
-[Metadata](comparison/metadata.json) binds source/Build and producer identities;
-[candidate.patch](candidate.patch) includes the complete implementation and
+[Metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/comparison/metadata.json) binds source/Build and producer identities;
+[candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/candidate.patch) includes the complete implementation and
 focused tests. No changes to Cargo dependencies, cache naming, record limits,
 source matching or compiler judgments were made.
 
@@ -131,8 +131,8 @@ Each measured cell has four unprofiled observations in interleaved order.
 The first-compile batch additionally retains two warmups and two profiles per
 workload; these are excluded from the unprofiled latency summary. All observations,
 including the slow candidate length/dispatch runs, remain in
-[comparison/runs.json](comparison/runs.json) and [warm/runs.json](warm/runs.json).
-[summary.json](summary.json) retains complete latency/memory vectors, counts and
+[comparison/runs.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/comparison/runs.json) and [warm/runs.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/warm/runs.json).
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/summary.json) retains complete latency/memory vectors, counts and
 attribution scopes. Memory savings are not claimed.
 
 The single stack32 profile pair attributes source resolution at 256.352 to
@@ -144,8 +144,8 @@ These figures are not directly comparable to the earlier deep-cache profiles.
 
 The final focused custody run passes **10/10** tests, including all three added
 Windows controls. The initial fixture failure is preserved in
-[custody-tests-initial-failure.log](custody-tests-initial-failure.log), with the
-corrected run in [custody-tests.log](custody-tests.log). Optimized `mbx build -p
+[custody-tests-initial-failure.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/custody-tests-initial-failure.log), with the
+corrected run in [custody-tests.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/custody-tests.log). Optimized `mbx build -p
 omega --locked`, touched rustfmt, diff whitespace and evidence-script syntax
 checks passed. Warnings in the build/test logs are retained.
 
@@ -157,10 +157,10 @@ ordinary package review with `count > 0`; it is not separately run under a stale
 manifest. Changed source at the same live path produces a changed image that
 matches A/B. Every unchanged workload's native bytes and exit 0 match across
 producers. The one original diagnostic launch timeout remains an unresolved
-failed observation in [interrupted/](interrupted/); its successful replay does
+failed observation in [interrupted/](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/interrupted); its successful replay does
 not erase that result. Package review's internal compilations are not counted.
 
-[collect.py](collect.py) asserts counts, exact producer/source/Build hashes,
+[collect.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_resolution_remaining_2026_10_29/collect.py) asserts counts, exact producer/source/Build hashes,
 native outcomes and image agreement, cache depths, final test success, and the
 candidate's unchanged source patch before collecting raw evidence. Diagnostic
 instrumentation was restored before each measurement batch and is absent from

@@ -60,8 +60,8 @@ Post-publication records add exactly 26 check rows (11 checked, 15 rejected),
 The content guard preserves every unrelated preexisting outcome, with no removed
 rows. Goldens were recorded only after the compiler commit was published.
 
-`manifest.json` identifies raw records and their uncompressed SHA-256 digests;
-`runtime-artifacts.json` identifies retained program products. Qualification
+[`manifest.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/tpr6_progress_selector_2026_10_23/manifest.json) identifies raw records and their uncompressed SHA-256 digests;
+[`runtime-artifacts.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/tpr6_progress_selector_2026_10_23/runtime-artifacts.json) identifies retained program products. Qualification
 receipts preserve every actual run, input closure, build profile and stream.
 Owner review is explicitly non-independent. A separate source/evidence review
 packet was uploaded to Library: summary

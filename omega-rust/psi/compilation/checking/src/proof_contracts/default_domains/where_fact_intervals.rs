@@ -1,8 +1,8 @@
-//! Read-only interval hypotheses derived from standing default-domain facts.
+//! Default-domain interval guarantees and logical consequences.
 //!
-//! This module does not participate in write-frame inference. It projects
-//! only facts that the write validator has already established at every legal
-//! observation point, and refuses cyclic or unsupported bounds.
+//! Occurrence-independent reads use only the complete interval-only store
+//! contract. A consequence of a mixed predicate is useful only when its caller
+//! independently knows that predicate holds for the value being considered.
 
 use crate::frozen_program::expression_table;
 use typed_trees::data::DataMember;
@@ -16,35 +16,15 @@ use super::place_queries::data_definition_for_expression;
 use super::symbolic_values::integer_literal_value;
 use crate::proof_contracts::arithmetic_domains::Interval;
 
-/// R2 rung 3 slice 7 -- READER HYPOTHESES: the standing where facts refine
-/// a field READ's interval. Sound because the write net is TOTAL (every
-/// write path re-proves the facts) and gated reads are access-gated, so
-/// the facts hold at every legal observation. Bounds come from literals or
-/// the co-field's DECLARED range (declared ranges always hold), never from
-/// flow values.
-pub(crate) fn where_fact_interval(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-) -> Option<Interval> {
-    let member = expression_table(program).member_node(expression)?;
-    let definition = data_definition_for_expression(program, machine, state, member.receiver)?;
-    field_fact_interval(program, definition, member.member.as_str(), 0)
-}
-
-/// The per-field core of the reader hypotheses: the interval the
-/// definition's standing where facts pin on `field`. `depth` bounds the
-/// TRANSITIVE chain (`count <= mid, mid <= capacity[0..=100]` chains
-/// through the unranged middle field); a cyclic pair exhausts the cap and
-/// resolves to None -- over-refusal only.
+/// Necessary interval consequences of an established data predicate. These
+/// are not standing read hypotheses: a restoration window may falsify the
+/// predicate while leaving ordinary scalar contents readable.
 fn field_fact_interval(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     field: &str,
-    depth: usize,
 ) -> Option<Interval> {
-    if depth >= 4 || definition.where_facts.is_empty() {
+    if definition.where_facts.is_empty() {
         return None;
     }
     let field_symbol = program
@@ -114,7 +94,7 @@ fn field_fact_interval(
                 && field_is_unsigned(program, definition, field_symbol)
                 && let Some(factor_low) = factor_lower_bound(program, definition, factor)
                 && factor_low >= 1
-                && let Some(bound) = bound_source_interval(program, definition, binary.right, depth)
+                && let Some(bound) = bound_source_interval(program, definition, binary.right)
                 && let Some(mut bound_high) = bound.high
             {
                 if matches!(binary.operator, BinaryOperator::Less) {
@@ -133,7 +113,7 @@ fn field_fact_interval(
         } else {
             continue;
         };
-        let Some(other_interval) = bound_source_interval(program, definition, other, depth) else {
+        let Some(other_interval) = bound_source_interval(program, definition, other) else {
             continue;
         };
         let operator = if field_side_left {
@@ -584,7 +564,7 @@ pub(crate) fn field_literal_where_interval(
     definition: &DataDefinition,
     field: &str,
 ) -> Option<Interval> {
-    field_fact_interval(program, definition, field, 3)
+    field_fact_interval(program, definition, field)
 }
 
 /// The interval a store to `target` must land in when the target is a field
@@ -662,7 +642,6 @@ fn bound_source_interval(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
-    depth: usize,
 ) -> Option<Interval> {
     match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => {
@@ -684,7 +663,6 @@ fn bound_source_interval(
                 program,
                 field.type_reference,
             )
-            .or_else(|| field_fact_interval(program, definition, field.name.as_str(), depth + 1))
         }
         _ => None,
     }
@@ -730,7 +708,7 @@ fn factor_lower_bound(
         .filter_map(|member| member.as_field())
         .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?
         .symbol;
-    if let Some(interval) = bound_source_interval(program, definition, factor, 4)
+    if let Some(interval) = bound_source_interval(program, definition, factor)
         && let Some(low) = interval.low
     {
         return Some(low);

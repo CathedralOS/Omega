@@ -7,7 +7,7 @@ same census when it does?
 Prior evidence: ../c2l_conjunct_lowering_cliff.md refers to removed code and is
 not applicable. ../stage_by_stage_optimization.md and the source-assembly
 records measure checking under the historical Stage 05 label, not this
-terminal-production/lowering scope. Fresh attribution is in attribution.txt.
+terminal-production/lowering scope. Fresh attribution is in [attribution.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/attribution.txt).
 
 Search: `site.llvm.org docs LazyCallGraph reachable functions lazy analysis`.
 Read the actual [LLVM LazyCallGraph header](https://llvm.org/docs/doxygen/LazyCallGraph_8h_source.html),

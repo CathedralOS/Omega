@@ -1436,7 +1436,16 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         expression: ExpressionHandle,
     ) -> NormalizedWriteFrame {
+        let trace_unavailable = |stage: &str| {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT unavailable-operation-write caller={} expression={expression:?} stage={stage}",
+                    current_machine.name,
+                );
+            }
+        };
         let Some(machine_symbols) = self.machine_symbols(current_machine) else {
+            trace_unavailable("caller symbols");
             return NormalizedWriteFrame::opaque();
         };
         // Operands have completed: substitute their captured origins, not the
@@ -1448,9 +1457,11 @@ impl<'program> CallFrameResolver<'program> {
         {
             let Some(origins) = self.expression_call_write_origins(current_machine, expression)
             else {
+                trace_unavailable("completed invocation origins");
                 return NormalizedWriteFrame::opaque();
             };
             if origins.receiver.is_none() {
+                trace_unavailable("completed receiver origin");
                 return NormalizedWriteFrame::opaque();
             }
             Some(
@@ -1479,7 +1490,7 @@ impl<'program> CallFrameResolver<'program> {
             |inference, prefix| {
                 let prefix = prefix?;
                 let mut written = Vec::new();
-                collect_operation_written_paths(
+                let collected = collect_operation_written_paths(
                     self.program,
                     expression,
                     current_machine,
@@ -1489,10 +1500,21 @@ impl<'program> CallFrameResolver<'program> {
                     &mut written,
                     prefix,
                     completed_arguments.as_deref(),
-                )?;
-                prefix.close_observed_paths(self.program, written)
+                );
+                if collected.is_none() {
+                    trace_unavailable("operation write paths");
+                    return None;
+                }
+                let closed = prefix.close_observed_paths(self.program, written);
+                if closed.is_none() {
+                    trace_unavailable("captured write alias closure");
+                }
+                closed
             },
         );
+        if written.is_none() {
+            trace_unavailable("caller prefix or completed write closure");
+        }
         written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 

@@ -43,7 +43,7 @@ The final comparison uses the same executable invocation path on both sides.
 Fusion alone removes **21,705 requests and 86,407,855 requested bytes**. Its
 289 complete output hashes match the separate-stage variant exactly. The
 combined change removes **713,159 requests and 164,159,412 requested bytes**.
-[Assembly counts](assembly-comparison.json), [isolated fusion](fusion-comparison.json).
+[Assembly counts](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/assembly-comparison.json), [isolated fusion](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/fusion-comparison.json).
 
 The first checkpoint experiment eagerly froze every checkpoint. It added 6,910
 requests to unique assembly and was rejected. Freezing only at a real fork
@@ -56,7 +56,7 @@ On 463 parser files, direct construction reduces requests from 230,629 to
 209,568 and requested bytes from 66,440,408 to 64,084,521. The sum of per-file
 live requested bytes changes from 30,692,680 to 30,700,096; summing per-file
 peaks would not establish whole-workload peak. Retained source references fall
-from 766 to 607. [Parser comparison](parser-summary.json).
+from 766 to 607. [Parser comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/parser-summary.json).
 
 ## Output equivalence and actual execution
 
@@ -81,8 +81,8 @@ fails in the baseline on an unrelated Optional zero-representation obligation.
 A smaller saved Build program isolates `capacity<[u8; 8], 8>()`; baseline and
 candidate both execute it with native/interpreter exit **0**. The complete raw
 diffs and runnable probe are retained; these are not claimed as exact full-arena
-baseline matches. [Root comparison](extent-root-comparison.json),
-[isolated execution](extent-runtime-final.json).
+baseline matches. [Root comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/extent-root-comparison.json),
+[isolated execution](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/extent-runtime-final.json).
 
 Validation records retain actual outcomes:
 
@@ -117,7 +117,7 @@ resource usage and host load. Other work was active on this host.
 Median peak RSS is 340,656,128 versus 342,908,928 bytes. Mean RSS is nearly
 unchanged. Whole-compile mean and maximum worsen while the median improves;
 there is **no supported whole-compile or RSS improvement claim**. Major faults
-and host contention are retained in [all paired observations](cli-observations.json).
+and host contention are retained in [all paired observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_22/ingress_ownership/cli-observations.json).
 
 ## Integration, provenance and replay
 

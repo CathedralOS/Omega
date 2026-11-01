@@ -496,7 +496,10 @@ fn append_incoming_reference_trackers(
         // A retained token's ingress identity carries a region, not a pointer.
         // Generic incomplete frontiers keep their ordinary deferred admission;
         // each closed execution body establishes its complete loan frontier.
-        if let Some(paths) = retained_lifetime_owner_paths(program, parameter.type_reference) {
+        let carrier = input_carrier_type(program, parameter.type_reference);
+        if let Some(carrier) = carrier
+            && let Some(paths) = retained_lifetime_owner_paths(program, carrier)
+        {
             for owner_path in paths {
                 let path = arenas
                     .owner_segments
@@ -507,7 +510,7 @@ fn append_incoming_reference_trackers(
                     origin: ReferenceOrigin::Parameter {
                         symbol: parameter.symbol,
                     },
-                    carrier_type: parameter.type_reference,
+                    carrier_type: carrier,
                     owner_path: path,
                 });
                 trackers.push(StateLoanTracker {
@@ -550,7 +553,7 @@ fn append_incoming_reference_trackers(
             );
         }
         // Readable referents may contain independently carried leaves.
-        let Some(carrier) = input_carrier_type(program, parameter.type_reference) else {
+        let Some(carrier) = carrier else {
             continue;
         };
         let Some(sources) = declared_carrier_references(program, carrier) else {

@@ -133,24 +133,24 @@ wall/CPU/private-commit measurements, not a misleading local read-time ratio.
 
 ### Evidence and replay
 
-[profile.py](profile.py) captures attribution. [candidate.py](candidate.py)
+[profile.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/profile.py) captures attribution. [candidate.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/candidate.py)
 builds the frozen candidate and reuses the prior experiment's nine-program
-qualification runner. [controls.py](controls.py) preserves and mutates only
+qualification runner. [controls.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/controls.py) preserves and mutates only
 task-owned private records, then verifies refusal and fresh source execution.
 The existing `small_followup.py` accepts the comparison directory and explicit
 subjects while retaining its original defaults. Each local chain ran in a
 shared build-slot hold; the attribution chain waited 277 seconds for a slot.
 No other session was interrupted or slot policy bypassed.
 
-[summary.json](summary.json) contains all-run statistics and ranges;
-[evidence.json.gz](evidence.json.gz) contains producer/build receipts, source
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/summary.json) contains all-run statistics and ranges;
+[evidence.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/evidence.json.gz) contains producer/build receipts, source
 hashes, profiles, observations, diagnostics, controls, lint output and logs.
-[report.py](report.py) regenerates these from ignored
+[report.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/report.py) regenerates these from ignored
 `build/retained-graph-experiment`. Frozen producers remain in that workbench.
 Scripts resume retained qualification observations; use a fresh experiment
 output directory when collecting a new run, preserving historical results.
 
-[publication.json](publication.json) closes the preceding allocator landing.
+[publication.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/publication.json) closes the preceding allocator landing.
 Its exact published smoke was canceled while pending as main advanced; a newer
 main commit containing it (`975705175c7d`) passed
 [Linux post-merge smoke](https://github.com/CathedralOS/Omega/actions/runs/40831730950).
@@ -180,7 +180,7 @@ those performance observations remain historical; they are not runs of this
 producer. The retained graph reader and compiler-storage codec preserve the
 measured capacity mechanism, read ceiling, format, budgets and freshness rules.
 
-[integration.py](integration.py) ran the affected checks afresh: nine explicit
+[integration.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/integration.py) ran the affected checks afresh: nine explicit
 native/Terminal agreements, nine invalid twins matching their authored
 `rejection_contains` fragments, six native seed/warm compiles, and four
 damaged-record controls (eight additional native seed/recovery images). All
@@ -190,7 +190,7 @@ image. The three benchmark native hashes still exactly match the earlier
 qualified products. Scoped `compiler`/`omega-build` release Clippy and
 touched-file formatting passed, with inherited warnings.
 
-[integration.json.gz](integration.json.gz) preserves these new producer/build
+[integration.json.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/retained_graph_2026_10_29/integration.json.gz) preserves these new producer/build
 receipts, source hashes, diagnostics and raw logs. This is focused integration
 validation, without another full-corpus sweep or relabeling old measurements.
 Subsequent result-record edits do not change the qualified compiler/library

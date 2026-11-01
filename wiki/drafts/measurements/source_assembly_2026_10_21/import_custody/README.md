@@ -9,7 +9,7 @@ establish an elapsed-time improvement.
 The bounded assignment continues layer 0 after the
 [metadata transfer](../import_assembly/README.md). Baseline is
 `d3f12beefc632903b9c405a30668474d79b2675b`; implementation candidate is
-`7c15baf6324` (full identity in [identities.json](identities.json)). Frozen
+`7c15baf6324` (full identity in [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/identities.json)). Frozen
 measurement binaries were built from that base plus the recorded implementation
 patch, before committing it. The report-only amendment does not change Rust.
 Hardware, toolchain, compiler profiles and binary hashes accompany the records.
@@ -37,7 +37,7 @@ requests around checkpoint preparation/assembly. Rayon parser-worker allocations
 are excluded; the changed custody and queue work runs on the caller. Requested
 bytes are allocation traffic, not retained memory or RSS. Single-run nanoseconds
 in the raw TSV are not timing evidence. See
-[allocation-summary.json](allocation-summary.json).
+[allocation-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/allocation-summary.json).
 
 Moving the incoming path into the seen table retains its spare capacity longer
 than the old cloned key. A separate, untimed diagnostic build records 4,409
@@ -47,7 +47,7 @@ The largest input accumulates 388 spare bytes and the largest key has 61;
 queues and are not peak-memory measurements. The pending path copy now has exact
 length. This small ownership-lifetime tradeoff is accepted in exchange for
 eliminating copies for all duplicate admissions. No RSS improvement is claimed.
-See [capacity-summary.json](capacity-summary.json) and the retained raw trace.
+See [capacity-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/capacity-summary.json) and the retained raw trace.
 
 ## Timing and machine code
 
@@ -65,7 +65,7 @@ loading/parsing and must not be added to their separately reported timings.
 
 These mixed movements do not establish a timing benefit. The retained reason is
 the directly measured elimination of unnecessary allocations.
-[cli-observations.json](cli-observations.json) retains every stdout/stderr,
+[cli-observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/cli-observations.json) retains every stdout/stderr,
 profile, digest, timing and load sample.
 
 Apple LLVM disassembly shows the old queue cloning its byte vector before the
@@ -73,7 +73,7 @@ lookup. The new queue calls `hashbrown::rustc_entry` first and branches past the
 clone on the occupied path. The custody snapshot symbol disappears. The queue
 function grows from 71 instructions / 284 bytes to 117 instructions / 468 bytes;
 this change does not claim reduced static code size. Full disassembly is archived;
-[assembly-summary.json](assembly-summary.json) records the observation.
+[assembly-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/assembly-summary.json) records the observation.
 
 ## Preserved design
 
@@ -98,11 +98,11 @@ Use an isolated checkout at the recorded baseline. Copy this directory's Python
 scripts and input/filter lists into `build/import-custody/`, and restore the three
 `measurement.*.txt` files as `harness/src/main.rs`, `harness/Cargo.toml` and
 `harness/Cargo.lock`. Record the baseline SHA in `base.txt`. Run
-`python3 build/import-custody/build_measure.py baseline`, then `experiment.py`.
+`python3 build/import-custody/build_measure.py baseline`, then [`experiment.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/experiment.py).
 The latter applies custody, measures it, adds the queue change, measures both,
-and runs the paired CLI comparison. `trace_capacity.py` temporarily instruments
+and runs the paired CLI comparison. [`trace_capacity.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/trace_capacity.py) temporarily instruments
 unique admissions and restores the source in a `finally` block. Its allocation
-counts are not used for the allocation comparison. Run `checks.py` on a committed
+counts are not used for the allocation comparison. Run [`checks.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/checks.py) on a committed
 candidate for scoped integration evidence.
 
 The raw archive under the primary checkout's
@@ -122,7 +122,7 @@ direct-file imports 7/7 and generic dependency imports 0/0. Four generated-sourc
 fixtures remain rejected on both baseline and candidate: two generated EOF/output
 mismatches and two fixed-byte-array length mismatches (41 versus 38). These are
 retained baseline failures, not passing runtime cases. Raw candidate and baseline
-records are adjacent; [validation.json](validation.json) names commands and exits.
+records are adjacent; [validation.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/validation.json) names commands and exits.
 
 Scoped Clippy exits 101 on unchanged `optimization-selections` line 152,
 `digest.finish().into()` (`clippy::useless_conversion`). Baseline and candidate
@@ -132,7 +132,7 @@ The corpus's dirty flag refers only to report/index edits during capture; the
 compiler, library, fixtures and oracles were the committed code candidate.
 
 The assessed incoming main change only updates task and crash-route README prose;
-[input applicability](integration-assessment.json) records exact blobs and why
+[input applicability](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/import_custody/integration-assessment.json) records exact blobs and why
 these do not affect the measured consumers. The landing script rejects unassessed
 movement, re-verifies the rebased SHA and checks golden content before publication.
 The archive retains the actual receipt and remote verification, without relabeling

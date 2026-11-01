@@ -32,6 +32,7 @@ struct ImportCoverageRows<'input> {
 /// and, for an import, one external implementation contract to derive from.
 pub(super) fn derive_source_evaluated_mechanisms(
     plan: &abstract_operations::AbstractOperationPlan,
+    module: &terminal_psi::TerminalModule,
     selected_plans: &effects::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     native_callbacks: &[crate::NativeCallbackArgumentProposal],
@@ -57,6 +58,9 @@ pub(super) fn derive_source_evaluated_mechanisms(
         let Some((provider_plan, row)) = rows.selected_external else {
             continue;
         };
+        let abi = module
+            .calling_abi_identity(rows.boundary)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         if rows.selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
@@ -92,9 +96,10 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         )]);
                     }
                 };
-                let entry = external
-                    .boundary_entry_plan()
-                    .ok_or_else(|| vec![Diagnostic::error("table binding has no calling plan")])?;
+                let entry =
+                    super::exact_plan::external_calling_application(external, provider_plan, &abi)?
+                        .plan
+                        .plan();
                 let signature = calling_conventions::CallSignature::of_placements(
                     &entry.call.parameters,
                     entry.call.result.as_ref(),
@@ -132,16 +137,16 @@ pub(super) fn derive_source_evaluated_mechanisms(
                 })?
             }
             ProviderBinding::Import { evaluated } => {
-                let Some(boundary_entry_plan) = rows
-                    .external
-                    .filter(|_| rows.external_count == 1)
-                    .and_then(|external| external.boundary_entry_plan())
-                else {
+                let Some(external) = rows.external.filter(|_| rows.external_count == 1) else {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} retained external implementation contracts",
                         rows.external_count,
                     ))]);
                 };
+                let boundary_entry_plan =
+                    super::exact_plan::external_calling_application(external, provider_plan, &abi)?
+                        .plan
+                        .plan();
                 match rows.callbacks.as_slice() {
                     [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
@@ -403,15 +408,18 @@ fn authenticate_callback_application(
         return Err("callback selected provider method is ambiguous".to_owned());
     }
     let application = &callback.registrar_application;
-    if !selected.selected_row_matches_requirement(
-        requirement,
-        &application.requirement_identity,
-        plan.report_fingerprint(),
-    ) || plan
-        .schema
-        .calling_plan(method.requirement_identity)
-        .map(|plan| plan.report_fingerprint)
-        != Some(application.report_fingerprint)
+    if application.abi.requirement_identity
+        != plan.schema.identity_text(method.requirement_identity)
+        || !selected.selected_row_matches_requirement(
+            requirement,
+            &application.requirement_identity,
+            plan.report_fingerprint(),
+        )
+        || plan
+            .schema
+            .calling_application(&application.abi)
+            .map(|plan| plan.report_fingerprint)
+            != Some(application.report_fingerprint)
         || callback.registrar_application_commitment != application.commitment
         || callback.registrar_boundary_entry_plan != *application.plan.plan()
     {
@@ -421,7 +429,7 @@ fn authenticate_callback_application(
     }
     let expected = plan
         .schema
-        .calling_plan(method.requirement_identity)
+        .calling_application(&application.abi)
         .map(|plan| plan.commitment)
         .ok_or("callback selected method has no admitted calling application")?
         .as_bytes();

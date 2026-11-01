@@ -206,9 +206,8 @@ and possession does not grant realization authority.
 Omega selects the exact implementation through those Build provider rows, not
 through a target modifier on a source declaration. Every implementation remains
 checked independently of selection; selected ABI, import, layout, and ISA
-applicability is a realization obligation. The reference compiler's retained
-target-family rows are legacy migration work under
-`BUILD-OWNED-TARGET-SELECTION`, not accepted Terminal product semantics.
+applicability is a realization obligation. Retained target-family rows are
+not accepted Terminal product semantics.
 
 The companion binds each target's pending selection to the complete
 build-selection identity. Terminal independently retains the Psi selection already executed.
@@ -225,8 +224,9 @@ artifact; they cannot supply executable choices absent from Terminal.
 
 The stage order is lowering, selected Psi optimization, then Terminal
 publication. An empty selection is the identity transformation of the same
-phase: validate input and output without constructing rule candidates,
-transformations, or pass manifests. Selection does not choose an alternate
+phase: it constructs no rule candidates, transformations, or pass manifests.
+Input and output validators run in the corpus runner and the tests, not on the
+default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Selection does not choose an alternate
 pipeline.
 
 Later Omega phases optimize their own representations while retaining the

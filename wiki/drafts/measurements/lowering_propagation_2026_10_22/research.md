@@ -31,7 +31,7 @@ principle, but its mutation/SCC machinery is not needed here.
 Implementation prepared the existing complete graph on the first descriptor
 or payload-history query. The candidate retained graph and descriptor analysis
 for the invocation, while payload histories still died before each membership
-update sweep. `lazy_graph/candidate.patch` preserves the implementation, which
+update sweep. [`lazy_graph/candidate.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/lazy_graph/candidate.patch) preserves the implementation, which
 was removed from production before the next experiment.
 
 Sixteen alternating pairs per completed subject show packet lowering median
@@ -49,7 +49,7 @@ No completed measurements were rerun during this resume.
 
 The rejected executable is preserved locally as
 `build/lowering-propagation/omega-lazy-graph`; its digest is the candidate digest
-in `lazy_graph/timings.json`. The original candidate path in those immutable
+in [`lazy_graph/timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/lazy_graph/timings.json). The original candidate path in those immutable
 command records names the path used at measurement time.
 
 ## Candidate 2: prepare the scalar namespace once
@@ -74,6 +74,6 @@ needed. The graph remains eager and the rejected OnceCell context is absent.
 
 The compiler emitted map construction in the old query routine; the new
 adapter constructs it at entry and retains the calls to expression expansion.
-See `assembly.json`. The full measured comparison and quality result are in
+See [`assembly.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/assembly.json). The full measured comparison and quality result are in
 `README.md`. The next question is the remaining expression-origin lookup and
 expansion cost, not more fixed-point scheduling on this one-sweep workload.

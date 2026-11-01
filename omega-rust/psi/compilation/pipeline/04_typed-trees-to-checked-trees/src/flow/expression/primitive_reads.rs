@@ -46,7 +46,7 @@ impl Execution<'_, '_, '_> {
         let mut scalar_complete = true;
         let mut bounds_complete = true;
         let active = crate::flow::active_context_handles(&self.context.contexts, *contexts);
-        let contents = validation::carrier_integer_range(primitive).map(|_| {
+        let mut contents = validation::carrier_integer_range(primitive).map(|_| {
             crate::values::CurrentIntegerBounds::new(
                 self.program,
                 self.context.operators,
@@ -100,7 +100,7 @@ impl Execution<'_, '_, '_> {
                 (_, Some(value)) => scalar = Some(value),
             }
             let range = contents
-                .as_ref()
+                .as_mut()
                 .and_then(|contents| contents.at_place(&place, primitive));
             match (bounds.take(), range) {
                 (_, None) => bounds_complete = false,

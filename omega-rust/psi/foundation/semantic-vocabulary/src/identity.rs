@@ -243,7 +243,7 @@ semantic_id!(
     "Nominal coordinate of one declaration ABI application, independently of callback selection."
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CallingOperandKind {
     Type,
     Const,
@@ -253,11 +253,49 @@ pub enum CallingOperandKind {
     Proposition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CallingStaticOperand {
     pub ordinal: u32,
     pub kind: CallingOperandKind,
     pub identity: String,
+}
+
+/// Complete portable declaration ABI key. Callback actuals belong to invocation
+/// selection and are deliberately absent from this declaration application.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+pub struct CallingAbiIdentity {
+    pub requirement_identity: String,
+    pub declaring_application: String,
+    pub operands: Vec<CallingStaticOperand>,
+}
+
+impl CallingAbiIdentity {
+    /// A compact checked coordinate, never a substitute for comparing this key.
+    pub fn id(&self) -> CallingSignatureId {
+        CallingSignatureId::for_application(
+            &self.requirement_identity,
+            &self.declaring_application,
+            self.operands
+                .iter()
+                .map(|operand| (operand.ordinal, operand.kind, operand.identity.as_str())),
+        )
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.requirement_identity.is_empty() || self.declaring_application.is_empty() {
+            return Err("declaration ABI key has an empty requirement or declaring application");
+        }
+        for (position, operand) in self.operands.iter().enumerate() {
+            if operand.identity.is_empty()
+                || position > 0 && self.operands[position - 1].ordinal >= operand.ordinal
+            {
+                return Err(
+                    "declaration ABI key has an empty operand or unordered formal ordinals",
+                );
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
