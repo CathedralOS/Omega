@@ -12,7 +12,9 @@ mod case_evidence;
 mod cleanup;
 mod coverage;
 mod transport;
-pub(super) use bindings::{CapturedBinding, retain_bindings};
+pub(super) use bindings::{
+    CapturedBinding, collect_alternative_reads, retain_alternative_reads, retain_bindings,
+};
 pub(crate) use cleanup::cleanup_predicates;
 
 #[derive(Default)]

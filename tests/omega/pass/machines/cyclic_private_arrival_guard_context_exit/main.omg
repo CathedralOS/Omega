@@ -1,0 +1,39 @@
+// Expected exit: 0. A cyclic diamond preserves 0 <= index < 48 at both increment sites.
+public machine blend(pixels: &mut [i32; 2], active: bool) {
+    transition active { true -> paint(pixels) _ -> paint_other(pixels) }
+    machine paint(pixels: &mut [i32; 2]) { pixels[0] = ((pixels[0] as i32 in Saturating) + (1 as i32 in Saturating)) as i32; }
+    machine paint_other(pixels: &mut [i32; 2]) { pixels[1] = ((pixels[1] as i32 in Saturating) + (1 as i32 in Saturating)) as i32; }
+    machine done() {}
+}
+public machine exercise(pixels: &mut [i32; 2], active: bool) {
+    transition { _ -> loop_pixels(pixels, active, 0) }
+    machine loop_pixels(pixels: &mut [i32; 2], active: bool, index: i32) {
+        transition index >= 0 && index < 48 { true -> coverage(pixels, active, index) _ -> done() }
+    }
+    machine coverage(pixels: &mut [i32; 2], active: bool, index: i32) {
+        transition active { true -> pair(pixels, active, index) _ -> edge(pixels, active, index) }
+    }
+    machine edge(pixels: &mut [i32; 2], active: bool, index: i32) {
+        transition { _ -> pair(pixels, active, index) }
+    }
+    machine pair(pixels: &mut [i32; 2], active: bool, index: i32) {
+        blend(pixels, active);
+        transition active { true -> right(pixels, active, index) _ -> loop_pixels(pixels, active, index + 1) }
+    }
+    machine right(pixels: &mut [i32; 2], active: bool, index: i32) {
+        blend(pixels, active);
+        transition { _ -> loop_pixels(pixels, active, index + 1) }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut pixels: [i32; 2] = [0, 0];
+    exercise(&mut pixels, true);
+    transition pixels[0] == 96 && pixels[1] == 0 { true -> run_false(&mut pixels) _ -> bad() }
+    machine run_false(pixels: &mut [i32; 2]) crashes Trap {
+        exercise(pixels, false);
+        transition pixels[0] == 96 && pixels[1] == 48 { true -> done() _ -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

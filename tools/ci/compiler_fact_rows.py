@@ -32,9 +32,11 @@ def authored_files(project):
                       "expected_interpreter_exit.txt", "expected_stdout.txt", "expected_stderr.txt"}))
 
 
-def project_fixtures(prefix, additional_projects=()):
+def project_fixtures(prefix, additional_projects=(), *, places=PLACES):
     """The nine places plus explicitly named producers of the same fact."""
-    projects = tuple((place, f"{prefix}_through_{place}") for place in PLACES) + tuple(additional_projects)
+    if not places or len(set(places)) != len(places) or any(place not in PLACES for place in places):
+        raise ValueError("fact places must be a nonempty distinct selection of the standard nine")
+    projects = tuple((place, f"{prefix}_through_{place}") for place in places) + tuple(additional_projects)
     names = [name for name, _ in projects]
     if len(set(names)) != len(names) or "root" in names:
         raise ValueError("fact projects must have distinct names outside root")
@@ -43,14 +45,18 @@ def project_fixtures(prefix, additional_projects=()):
     return projects
 
 
-def fixtures(root, fact, prefix, *, additional_projects=()):
+def fixtures(root, fact, prefix, *, additional_projects=(), places=PLACES, invalid_prefix=None, root_entry=True):
     """Pin every authored place/twin before any compiler build or measurement."""
     positive, negative = [], []
-    projects = project_fixtures(prefix, additional_projects)
+    projects = project_fixtures(prefix, additional_projects, places=places)
+    invalid_additional = (tuple((place, f"{invalid_prefix}_{stem}") for place, stem in additional_projects)
+                          if invalid_prefix else additional_projects)
+    invalid_projects = dict(project_fixtures(invalid_prefix or prefix, invalid_additional, places=places))
     for place, fixture_stem in projects:
         for tier, suffix, source in (("pass", "exit", fact / place),
                                      ("fail", "rejected", fact / place / "invalid")):
-            name = f"{tier}/facts/{fixture_stem}_{suffix}"
+            stem = invalid_projects[place] if tier == "fail" else fixture_stem
+            name = f"{tier}/facts/{stem}_{suffix}"
             pinned = root / "tests/omega" / name
             required = ["main.omg", "build.omg"] + (["expected.txt"] if tier == "fail" else [])
             for filename in required:
@@ -67,9 +73,11 @@ def fixtures(root, fact, prefix, *, additional_projects=()):
                 if not any(line.strip() and not line.startswith("#") for line in fragments):
                     raise ValueError(f"{name}: empty rejection oracle")
                 negative.append(name)
-    if not (fact / "main.omg").is_file() or not (fact / "build.omg").is_file():
-        raise ValueError("fact root has no authored executable entry")
-    for source in [fact] + [fact / place for place, _ in projects]:
+    present = ((fact / "main.omg").is_file(), (fact / "build.omg").is_file())
+    if present != ((True, True) if root_entry else (False, False)):
+        raise ValueError("fact root entry differs from its declared project topology")
+    roots = [fact] if root_entry else []
+    for source in roots + [fact / place for place, _ in projects]:
         if "Expected exit: 0" not in (source / "main.omg").read_text(encoding="utf-8"):
             raise ValueError(f"{source}: fact has no authored zero-exit oracle")
         for name in ("expected_native_exit.txt", "expected_interpreter_exit.txt"):
@@ -79,21 +87,39 @@ def fixtures(root, fact, prefix, *, additional_projects=()):
     return tuple(positive), tuple(negative)
 
 
-def prepare(output, fact, producer, *, additional_projects=()):
+def prepare(output, fact, producer, *, additional_projects=(), places=PLACES, replay_resources=(), root_entry=True, review_timeout=180):
     """Retain successful and failed preparation separately from frozen runs."""
     producer.verify()
     records = []
-    projects = project_fixtures("", additional_projects)
-    for place in ("root",) + tuple(name for name, _ in projects):
+    projects = project_fixtures("", additional_projects, places=places)
+    resource_inputs = {}
+    replay = output / "replay"
+    # A package dependency is source input too. Preserve repository-relative
+    # topology so authored relative requests retain their meaning after capture;
+    # never rewrite Build source into another anonymous program.
+    for relative in replay_resources:
+        source = compiler_pilot.ROOT / relative
+        destination = replay / relative
+        if not source.is_dir() or not source.resolve().is_relative_to(compiler_pilot.ROOT.resolve()):
+            raise ValueError("replay resource must be an existing repository directory")
+        shutil.copytree(source, destination, ignore=shutil.ignore_patterns("build", ".omega", ".git", "omega.lock"))
+        for captured in destination.rglob("*"):
+            if captured.is_file():
+                original = source / captured.relative_to(destination)
+                resource_inputs[str(original)] = digest(original)
+                resource_inputs[str(captured)] = digest(captured)
+    root_places = ("root",) if root_entry else ()
+    for place in root_places + tuple(name for name, _ in projects):
         authored = fact if place == "root" else fact / place
-        project = output / "samples" / place
+        project = (replay / authored.relative_to(compiler_pilot.ROOT)
+                   if replay_resources else output / "samples" / place)
         project.mkdir(parents=True, exist_ok=False)
         sources = {}
         for source in authored_files(authored):
             shutil.copy2(source, project / source.name)
             sources[str(source)] = digest(source)
         failure, text = sample_native_gate.accept_review(
-            str(producer.cli), str(project), producer.target, 180)
+            str(producer.cli), str(project), producer.target, review_timeout)
         # Admission owns the complete replay source inventory. Logs and
         # products are evidence, so adding them inside that inventory would
         # invalidate the lock immediately after approving it.
@@ -102,7 +128,7 @@ def prepare(output, fact, producer, *, additional_projects=()):
         (recording / "preparation.log").write_text(text, encoding="utf-8")
         record = dict(place=place, project=str(project), authored_inputs=sources,
                       preparation=failure,
-                      inputs={str(path): digest(path) for path in authored_files(project)})
+                      inputs={**resource_inputs, **{str(path): digest(path) for path in authored_files(project)}})
         lock = project / "omega.lock"
         if not failure and not lock.is_file():
             raise ValueError(f"{place}: accepted package has no retained lock")
@@ -180,9 +206,10 @@ def measure_cases(project, recording, producer):
                 canonical_exit=canonical.returncode, passed=True)
 
 
-def measure(output, inventory, producer, *, additional_projects=()):
+def measure(output, inventory, producer, *, additional_projects=(), places=PLACES, root_entry=True):
     producer.verify()
-    expected_places = ("root",) + tuple(name for name, _ in project_fixtures("", additional_projects))
+    root_places = ("root",) if root_entry else ()
+    expected_places = root_places + tuple(name for name, _ in project_fixtures("", additional_projects, places=places))
     if tuple(row["place"] for row in inventory["rows"]) != expected_places:
         raise ValueError("prepared project roster differs from the complete fact and producer roster")
     observations = []

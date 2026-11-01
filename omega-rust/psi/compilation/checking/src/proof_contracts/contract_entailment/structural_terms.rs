@@ -83,13 +83,39 @@ pub(crate) fn denotation_preserving_conversion(
 /// Retain both the receiving carrier and the mathematical value observed by
 /// an admitted conversion. Integer formation remains with the original cast;
 /// its source observation supplies bounds instead of a destination annotation.
-/// Descriptors still need independent content observation before conversion.
+/// A carrierless input needs canonical anonymous-value landing, not an invented
+/// physical source. Descriptors still need independent content observation.
 pub(super) fn conversion_term(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
-    source: typed_trees::types::TypeReferenceHandle,
+    source: Option<typed_trees::types::TypeReferenceHandle>,
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
+    let Some(source) = source else {
+        // Anonymous arithmetic has no earlier physical carrier. Its already
+        // completed exact value lands once at this conversion; target policy
+        // cannot repair an out-of-range or nonintegral initial value. Keep the
+        // canonical result qualification without inventing a source type.
+        if cast.form.is_recast()
+            || !crate::value_custody::literals::has_anonymous_numeric_results(program, cast.value)
+        {
+            return None;
+        }
+        let primitive = program
+            .primitive_type_reference(cast.target_type)
+            .filter(|primitive| primitive.is_fixed_integer())?;
+        let StructuralTerm::Integer(integer) = value.semantic_value() else {
+            return None;
+        };
+        crate::value_custody::literals::land_integer_value(integer, primitive)?;
+        return Some(StructuralTerm::ObservedValue {
+            observed_type: crate::value_custody::expression_types::cast_result_type_reference(
+                program, cast,
+            )?,
+            descriptor: None,
+            value: Box::new(value),
+        });
+    };
     // A primitive conversion may read an authenticated scalar referent. Its
     // completed contents have the referent's carrier, not the descriptor's.
     // Keep this value-dependent cut here: the type-only conversion predicate
@@ -727,7 +753,7 @@ pub(super) fn structural_term(
                 scope.and_then(|(machine, state, _)| {
                     crate::expression_result_type_reference(program, machine, state, cast.value)
                 })
-            }?;
+            };
             let value = structural_term(program, scope, frame, cast.value, bindings)?;
             conversion_term(program, cast, source, value)
         }

@@ -1,0 +1,17 @@
+// Fact: A transparent alias computes its array extent from its declaration-owned const argument without capturing a same-named caller value.
+// Expected exit: 0
+use leaf::buffers;
+machine observe(value: &[u8; 4]) -> u8 { value[3u64] }
+machine main() crashes Trap {
+    let Count: u64 = 17u64;
+    let represented: leaf::buffers::Padded<3u64> = [17u8, 0u8, 0u8, 42u8];
+    let observed: u8 = observe(&represented);
+    let explicit: [u8; 4] = represented;
+    let again: u8 = observe(&explicit);
+    transition observed == 42u8 && again == 42u8 && explicit[0u64] == 17u8 && Count == 17u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -37,9 +37,55 @@ class OwnedForeignCohortTests(unittest.TestCase):
                         (folder / "expected.txt").write_text("holds no value\n")
         return fact
 
+    def test_partial_row_requires_selected_pins_and_exact_declared_root_topology(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            fact=self.fact(root)
+            for name in ("main.omg", "build.omg"):
+                (fact/name).unlink()
+            for place in ("local", "field", "parameter"):
+                old=root/f"tests/omega/fail/facts/example_through_{place}_rejected"
+                new=root/f"tests/omega/fail/facts/example/record_through_{place}_rejected"
+                new.parent.mkdir(parents=True,exist_ok=True)
+                old.rename(new)
+            positives, negatives=rows.fixtures(root,fact,"example",places=("local","field","parameter"),
+                invalid_prefix="example/record",root_entry=False)
+            self.assertEqual(len(positives),3)
+            self.assertEqual(negatives[0],"fail/facts/example/record_through_local_rejected")
+            with self.assertRaisesRegex(ValueError,"root entry differs"):
+                rows.fixtures(root,fact,"example",places=("local",),invalid_prefix="example/record")
+            with self.assertRaisesRegex(ValueError,"nonempty distinct"):
+                rows.project_fixtures("example",places=("local","local"))
+
+    def test_package_resource_replay_preserves_relative_requests_and_detects_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            fact=self.fact(root)
+            resource=root/"source/library/std"
+            resource.mkdir(parents=True)
+            (resource/"main.omg").write_text("public data Shared { value: u64; }\n")
+            (fact/"local/build.omg").write_text('machine build() { "../../../../../source/library/std" }\n')
+            producer=Mock(cli=root/"omega",target="macos_arm64")
+            producer.record.return_value={"revision":"a"*40}
+            def review(cli,project,target,timeout):
+                project=Path(project)
+                self.assertEqual((project/"../../../../../source/library/std/main.omg").resolve().read_text(),
+                    (resource/"main.omg").read_text())
+                (project/"omega.lock").write_text("accepted shared dependency\n")
+                return None,"accepted"
+            with patch.object(pilot,"ROOT",root), patch.object(rows.sample_native_gate,"accept_review",side_effect=review):
+                inventory=rows.prepare(root/"evidence",fact,producer,places=("local",),
+                    replay_resources=("source/library/std",),root_entry=False)
+            row=inventory["rows"][0]
+            rows.validate_inputs(row)
+            copied=Path(row["project"])/"../../../../../source/library/std/main.omg"
+            copied.resolve().write_text("changed source\n")
+            with self.assertRaisesRegex(ValueError,"changed"):
+                rows.validate_inputs(row)
+
     def test_selection_is_explicit_and_default_cohort_stays_available(self):
         self.assertEqual(foreign.select_cohorts("nested, arrays,nested"), ("nested", "arrays"))
-        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays", "zero-leaf", "scalar-backing"))
+        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "darwin-stat", "nested", "arrays", "zero-leaf", "scalar-backing"))
         self.assertEqual(foreign.select_cohorts("zero-leaf"), ("zero-leaf",))
         for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
             with self.subTest(selection=selection), self.assertRaises(ValueError):

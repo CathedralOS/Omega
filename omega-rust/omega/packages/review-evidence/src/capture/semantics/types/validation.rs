@@ -46,7 +46,8 @@ pub(crate) fn validate_package_type_identity_input_inner(
         };
     }
     // A declared type argument carries a value only in the const slot of its
-    // own telescope; domain rosters index their arguments past the carrier.
+    // own telescope. Domain applications use the declaration's index roster:
+    // only generic-carrier families omit a carrier parameter from that roster.
     let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
         let is_const = parameters
             .and_then(|parameters| parameters.get(index))
@@ -121,9 +122,11 @@ pub(crate) fn validate_package_type_identity_input_inner(
                             == typed_trees::types::DomainConstraintSubject::Declared)
                             .then(|| program.domain_definition(domain.symbol))
                             .flatten()
-                            .map(|definition| program.domain_type_parameters(definition));
+                            .map(|definition| {
+                                typed_trees::domain::index_parameters(program, definition)
+                            });
                         for (index, argument) in domain.arguments.iter().enumerate() {
-                            validate_argument(*argument, declared_parameters, index + 1)?;
+                            validate_argument(*argument, declared_parameters, index)?;
                         }
                     }
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}

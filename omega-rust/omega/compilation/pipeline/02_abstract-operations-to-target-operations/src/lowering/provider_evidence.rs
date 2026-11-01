@@ -39,8 +39,10 @@ pub(super) fn bind_provider_executions(
                     })?
                     .into()
                 }
-                AdmittedBoundaryExecution::CompilerBuiltin(execution) => {
-                    target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution)
+                AdmittedBoundaryExecution::CompilerBuiltin(settled) => {
+                    target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                        settled.execution(),
+                    )
                 }
             };
             Ok(BoundarySettlementBinding {

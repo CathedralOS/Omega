@@ -61,8 +61,8 @@ pub(crate) fn collect_machine_proposals_for_callee(
             }
             // An open `Degree - 1` waits for the caller to specialize. A
             // closed integer uses the same named binding as a decimal literal.
-            match classify(expressions_of(program), expression, &|symbol, spelling| {
-                const_binder(program, symbol, spelling)
+            match classify(expressions_of(program), expression, &|symbol, _| {
+                const_binder(program, symbol)
             }) {
                 Some(ConstIntegerExpression::Closed(value)) => {
                     if let Some((handle, _, _)) = program
@@ -77,14 +77,23 @@ pub(crate) fn collect_machine_proposals_for_callee(
                     const_index += 1;
                     continue;
                 }
-                Some(ConstIntegerExpression::Open) => {
-                    const_index += 1;
-                    continue;
-                }
-                // A typed nonnumeric Const recipe occupies its value slot.
-                // It waits for caller substitution and canonical normalization;
-                // it never consumes an unrelated Type binder position.
-                None => {
+                Some(ConstIntegerExpression::Open) | None => {
+                    // An explicit open recipe still binds this exact slot.
+                    // Keeping only its ordinal loses the symbolic application
+                    // on declaration-owned edges such as domain cleanup. The
+                    // shared closure query keeps it unresolved until ordinary
+                    // substitution and const admission produce a closed value;
+                    // it grants neither an executable tuple nor a Type slot.
+                    if !typed_trees::domain::index_argument_is_closed(
+                        program,
+                        selected.type_reference,
+                    ) {
+                        proposals.constants.push((
+                            callee.candidate_index,
+                            const_index,
+                            selected.type_reference,
+                        ));
+                    }
                     const_index += 1;
                     continue;
                 }
@@ -443,19 +452,9 @@ fn const_expression_argument(
     }
 }
 
-fn const_binder(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-    spelling: &str,
-) -> bool {
-    program.machines().iter().any(|machine| {
-        program
-            .machine_type_parameters(machine)
-            .iter()
-            .any(|parameter| {
-                parameter.kind.is_const_or_value()
-                    && ((symbol.is_valid() && parameter.symbol == symbol)
-                        || parameter.name.as_str() == spelling)
-            })
-    })
+fn const_binder(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && program
+            .data_type_parameter_by_symbol(symbol)
+            .is_some_and(|parameter| parameter.kind.is_const_or_value())
 }

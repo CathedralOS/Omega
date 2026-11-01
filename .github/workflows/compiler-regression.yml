@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       foreign_record_cohorts:
-        description: Comma-separated scalar-opaque,nested,arrays,zero-leaf,scalar-backing (or all); applies to foreign_records
+        description: Comma-separated scalar-opaque,nested,arrays,zero-leaf,scalar-backing,darwin-stat (or all); applies to foreign_records
         type: string
         default: scalar-opaque
       foreign_record_fixtures:
@@ -30,7 +30,7 @@ on:
       foreign_record_target:
         description: Native host for foreign_records; default preserves the existing host selection
         type: choice
-        options: [default, linux_x86_64, windows_x86_64, linux_arm64]
+        options: [default, linux_x86_64, windows_x86_64, linux_arm64, macos_arm64]
         default: default
       runtime_value_generics:
         description: Qualify runtime Value indices on all four existing hosted targets
@@ -61,7 +61,7 @@ jobs:
         runner: >-
           ${{ inputs.runtime_value_generics && fromJSON('["ubuntu-24.04", "windows-2025", "macos-15", "ubuntu-24.04-arm"]')
               || inputs.foreign_records && inputs.foreign_record_target && inputs.foreign_record_target != 'default'
-                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"]}')[inputs.foreign_record_target] || fromJSON('[]'))
+                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-15"]}')[inputs.foreign_record_target] || fromJSON('[]'))
               || fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # Windows used 30 minutes building, completed both corpus legs, then hit

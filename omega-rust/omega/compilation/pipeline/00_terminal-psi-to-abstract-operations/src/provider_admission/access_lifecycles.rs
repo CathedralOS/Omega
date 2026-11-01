@@ -9,7 +9,10 @@
 //! admitted resource premise; an arbitrary constructed profile cannot do so.
 //! No interpreter allocation registry or second numeric-address grant is made.
 
-use super::{AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism};
+use super::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
+    SettledCompilerBuiltin,
+};
 use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
@@ -138,14 +141,16 @@ pub(super) fn settle_native_lifecycles<'execution>(
                     "native lifecycle at machine {:?}, operation {:?} has no receiving classification for {:?}",
                     machine.id, operation.id, error.mechanism(),
                 ))])?;
+                let settled = SettledCompilerBuiltin::from_identity(mechanism, plan.boundary, None)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "native lifecycle at machine {:?}, operation {:?} has no catalog entry",
+                            machine.id, operation.id,
+                        ))]
+                    })?;
                 settlements.push(AdmittedBoundarySettlement {
                     boundary: plan.boundary,
-                    execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::AccessLifecycle {
-                            boundary: plan.boundary,
-                            operation: plan.operation,
-                        },
-                    ),
+                    execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
                     realization: target_operations::BoundarySettlementRealization::Builtin(
                         target_operations::BoundaryRealization::AccessLifecycle {
                             boundary: plan.boundary,

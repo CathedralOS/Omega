@@ -24,6 +24,7 @@
 
 mod assignment_windows;
 pub(crate) mod call_summaries;
+mod case_requirements;
 mod data_reads;
 mod element_stores;
 mod float_predicates;
@@ -35,6 +36,7 @@ mod symbolic_values;
 mod where_fact_intervals;
 
 pub use super::contract_entailment::data_predicates_admit_zero;
+pub(crate) use case_requirements::selected_case_requirements;
 pub use float_predicates::data_float_predicate;
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
 pub(crate) use place_queries::completed_case_occurrences;

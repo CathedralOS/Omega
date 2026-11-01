@@ -79,7 +79,6 @@ pub(crate) fn realize_native_artifact(
                             realization: settlement.realization.clone(),
                         })
                         .collect(),
-                    &input.plan().boundary_machines,
                     request.admission.providers.selected_provider_plans,
                     request.admission.providers.external_binding_rows,
                 )

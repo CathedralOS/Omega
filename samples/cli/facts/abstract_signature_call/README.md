@@ -294,23 +294,40 @@ exact integrated review is a separate qualification gate.
 
 Further valid-positive refusals are retained against fixed baseline 37
 and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
-`an unclosed machine or runtime operand`, and a cross-module const alias loses its
-exact declaration selection. Their current producer behavior has not been re-observed.
+`an unclosed machine or runtime operand`. Its current producer behavior has not been re-observed.
+A cross-module const alias no longer loses its exact declaration selection: at
+`949694bc033` on windows_x86_64,
+[`cross_module_const_alias_callable_arguments_exit`](../../../../tests/omega/pass/generics/cross_module_const_alias_callable_arguments_exit/main.omg)
+exits 0 on both engines with the alias as a callback const argument, a premise
+subject and an implementation argument, beside a same-spelled consumer constant
+with another value. Its three `cross_module_const_alias_shadowed_*` reject twins
+name that local constant instead and reject.
 The generic abstract-premise confusion of actual and required `T` is the
 [generic exact type actual](#generic-exact-type-actual) production.
 This Type/Const application step does not claim those repairs. The broader
 task's law, declaration migration and other-host acceptance remain open.
 
-The bounded existing contextual-call check also preserves two inherited
-open-Const refusals:
+The two open-Const contextual positives,
 [`contextual_static_machine_const_scopes_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg)
-and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg).
-Both fixed producer 37 and current producer `3c2ec6aaf4dd` refuse those positives
-before execution. All 38 selected existing fixtures retain exactly the same
-status, diagnostic, facts and oracle fields, including three inherited diagnostic
-movements. The raw gate exit remains 3, with no oracle or infrastructure errors;
-it is an attributed inherited failure, not a clean corpus or an accepted language
-restriction. Open-Const families remain part of the parent formation acceptance.
+and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg),
+which fixed producer 37 and producer `3c2ec6aaf4dd` refused, exit 0 on both
+engines at `949694bc033` on windows_x86_64, and check for the macos_arm64
+realization target.
+
+An applied callback may carry its own premise over its const binder:
+[`const_premise`](constant_initializer/applied_callback/const_premise/main.omg)
+applies `witness<7>` with `requires Marker == 7`, and
+[`computed_const_premise`](constant_initializer/applied_callback/computed_const_premise/main.omg)
+applies `witness<3 + 4>`. Base `949694bc033` refused both initializers with
+`realized custody has no exact source preparation dependency`: the realized
+custody walk returned the callee premise's `==` and the static argument's `+`
+under the initializer's context, so the receipt claimed them as initializer
+operators, while source preparation correctly lists neither. Type- and
+contract-owned endpoints now leave the initializer context. Both positives exit
+0 on both engines; their premise-false twins reject `premise(kept)` as
+structurally false, and
+[`const_premise_violation`](constant_initializer/applied_callback/const_premise_violation/main.omg)
+(`witness<3>`) rejects because the callback no longer refines `Observe`.
 
 ### Current call-binding regression and runtime oracles
 

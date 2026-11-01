@@ -158,8 +158,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                 // Only immutable scalar values can be reconstructed here.
                 // Owned aggregate fields may change even without `let mut`;
                 // their reads require live evidence, not initializer replay.
-                (local_matches && !local.is_mutable && self.closed_value(local.initial_value))
-                    .then_some(local.initial_value)
+                let initializer = local.ordinary_value_initializer()?;
+                (local_matches && !local.is_mutable && self.closed_value(initializer))
+                    .then_some(initializer)
             })
     }
 

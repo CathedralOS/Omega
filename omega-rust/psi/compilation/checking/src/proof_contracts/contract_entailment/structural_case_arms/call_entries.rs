@@ -29,7 +29,7 @@ pub(super) fn observe_statement<'program>(
     equations: &[(StructuralTerm, StructuralTerm)],
     citations: &[PendingStructuralCitation],
     path: &mut Vec<SymbolHandle>,
-    arrivals: &mut StructuralArrivalLog,
+    arrivals: &mut StructuralArrivalLog<'program>,
     arrival_parent: usize,
     fresh: &mut usize,
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],

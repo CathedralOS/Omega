@@ -230,9 +230,14 @@ pub(super) fn clone_single_specialized_machine(
         &machine_paths,
         &evidence_paths,
     );
+    // Private projections can prune specialization receipts while retaining
+    // their backing symbols. A receipt count therefore cannot allocate names.
+    // The next symbol slot distinguishes private bodies without changing the
+    // source template or complete application identities kept in their receipts.
     let generated_name = format!(
-        "{}$specialized${selection_report_fingerprint:016x}${ordinal}",
-        candidate.template.template_name
+        "{}$specialized${selection_report_fingerprint:016x}${ordinal}${}",
+        candidate.template.template_name,
+        program.symbols.symbols().len() + 1,
     );
     let machine_symbol = program.symbols.insert_generated_root_from(
         source_machine.symbol,

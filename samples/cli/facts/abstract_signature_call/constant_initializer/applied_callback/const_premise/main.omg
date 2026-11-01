@@ -1,0 +1,44 @@
+// A call inside an abstract signature is the premise. The signature
+// records that call's result, and the caller reads the record.
+// Place: local.
+// Expected exit: 0
+machine premise(kept: bool) -> bool {
+    true
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+// The applied callback's own premise reads its const binder. That clause is
+// the callee's evidence, not an operator authored in the initializer below.
+machine witness<const Marker: u64>(kept: bool) -> bool
+requires premise(kept)
+requires Marker == 7
+{
+    premise(kept)
+}
+
+machine apply<machine Observe>(kept: bool) -> bool
+requires machine Observe(kept: bool) -> bool
+requires premise(kept);
+requires premise(kept)
+{
+    Observe(kept)
+}
+
+const DIRECT: bool = apply<witness<7>>(true);
+
+machine main() crashes Trap {
+    let kept: bool = true;
+    let direct: bool = DIRECT;
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+}
+
+machine done() {}
+machine bad() crashes Trap { crash Trap; }

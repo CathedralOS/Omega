@@ -400,7 +400,7 @@ mod tests {
                 });
             }
             let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
-            let before = super::super::verification_workers_started();
+            let before = crate::mathematical_core::bounded_verification_entries();
             verify_mathematical_certificate(&mut arena, &certificate, &mut Budget::new(0))
                 .expect("single verification uses complete handle judgments");
             let source_nodes = arena.len();
@@ -420,9 +420,9 @@ mod tests {
                 Err(CoreError::NotASort { .. })
             ));
             assert_eq!(
-                super::super::verification_workers_started(),
+                crate::mathematical_core::bounded_verification_entries(),
                 before,
-                "raw mathematical entries never allocate a wider verification worker"
+                "raw mathematical entries do not re-enter bounded admission or denotation"
             );
         })
         .join()

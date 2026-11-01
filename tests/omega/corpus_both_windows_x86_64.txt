@@ -2014,6 +2014,8 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit built 4441ms exit:0 in
 pass/facts/abi_multi_arg_spill_through_other_state_exit built 3992ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/abi_multi_arg_spill_through_parameter_exit built 4610ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/abi_multi_arg_spill_through_target_body_exit built 5926ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/abstract_signature_call_applied_callback_computed_const_premise_exit built 7543ms exit:0 interpreter-exit:0 interpreter:agrees @d4295d67990d
+pass/facts/abstract_signature_call_applied_callback_const_premise_exit built 8416ms exit:0 interpreter-exit:0 interpreter:agrees @d4295d67990d
 pass/facts/abstract_signature_call_through_call_result_exit built 3326ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/abstract_signature_call_through_const_name_exit built 3163ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/abstract_signature_call_through_field_exit built 3006ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -3475,6 +3477,18 @@ pass/facts/named_conformance_dispatch_through_parameter_exit rejected 2437ms int
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
 pass/facts/named_conformance_dispatch_through_target_body_exit rejected 2473ms interpreter:unchecked @5f668826adf3+wt
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
+pass/facts/named_const_callable_family_cross_module_alias_exit built 8376ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_forwarded_family_exit built 9500ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_implementation_scope_exit built 10299ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_call_result_exit built 8582ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_const_name_exit built 10031ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_field_exit built 9357ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_local_exit built 9429ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_match_join_exit built 8057ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_machine_exit built 10145ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_state_exit built 9898ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_parameter_exit built 8901ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
+pass/facts/named_const_callable_family_through_target_body_exit built 7990ms exit:0 interpreter-exit:0 interpreter:agrees @75dd4e483f7a
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit built 3077ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit built 2587ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit built 2774ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -5174,15 +5188,16 @@ pass/generics/contextual_static_machine_applications_exit built 4302ms exit:0 in
 pass/generics/contextual_static_machine_captured_operand_return_exit built 4502ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_captured_operand_scope_exit built 3862ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_conformance_application_exit built 4170ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/generics/contextual_static_machine_const_scopes_exit built 2798ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/generics/contextual_static_machine_const_scopes_exit built 7704ms exit:0 interpreter-exit:0 interpreter:agrees @d4295d67990d
 pass/generics/contextual_static_machine_elided_result_region_exit built 3320ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_evidence_scopes_exit built 3385ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_explicit_lifetime_application_exit built 3407ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_lifetime_result_sources_exit built 2663ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/generics/contextual_static_machine_open_const_exit built 3450ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/generics/contextual_static_machine_open_const_exit built 9006ms exit:0 interpreter-exit:0 interpreter:agrees @d4295d67990d
 pass/generics/contextual_static_machine_returned_view_local_exit built 3139ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit built 3258ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/generics/core_slice_for_each built 3271ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/generics/cross_module_const_alias_callable_arguments_exit built 7929ms exit:0 interpreter-exit:0 interpreter:agrees @d4295d67990d
 pass/generics/declared_range_endpoint_inference built 7224ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/generics/dependent_const_array_carrier rejected 588ms @5f668826adf3+wt
 	const parameter `Selected` of `Token` has an invalid canonical value: expected carrier `array(named(name(nominal\\(package-owner\\(32:2aecf505daecdcae8a9da143290cd777a91a377bc520832f89ba090837ea2179\\)\\,path\\(Token::Value\\)\\))),const-parameter(nominal\\(package-owner\\(32:2aecf505daecdcae8a9da143290cd777a91a377bc520832f89ba090837ea2179\\)\\,path\\(Token::Extent\\)\\)))`, but the canonical value names `[u8; 2]`
@@ -5927,6 +5942,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit built 9631ms exit:42 
 pass/ownership/runtime_case_alternative_custody_exit incomplete 4041ms interpreter:unchecked @5f668826adf3+wt
 	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
 pass/ownership/runtime_complete_array_reference_store_exit built 3340ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/ownership/runtime_completed_case_claim_return_exit built 4557ms exit:0 interpreter-exit:0 interpreter:agrees @02336e3b5381+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit built 5051ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_declared_linear_local_assignment_exit built 16318ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_effectful_singleton_selector_cleanup_exit rejected 3044ms interpreter:unchecked @5f668826adf3+wt

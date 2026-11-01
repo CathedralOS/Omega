@@ -1,0 +1,24 @@
+// A selected generic store must retain the source loan installed in its destination.
+data Slot<'a> { value: &'a u64; }
+data Pointer<'a> { value: &'a u64; }
+trait Store<T, Input> { machine store(slot: &mut T, source: Input); }
+Write<'a> satisfies Store<Slot<'a>, Pointer<'a>> {
+    machine store(slot: &mut Slot<'a>, source: Pointer<'a>) { slot.value = source.value; }
+}
+machine forward<T, Input, Selected satisfies Store<T, Input>>(slot: &mut T, source: Input) {
+    Selected::store(slot, source);
+}
+machine exercise<'a>(source: &'a mut u64, old: &'a u64) -> u64 {
+    let mut slot: Slot<'a> = Slot { value: old };
+    forward<Slot<'a>, Pointer<'a>, Write<'a>>(&mut slot, Pointer { value: &source });
+    source = 9u64;
+    slot.value
+}
+machine main() crashes Trap {
+    let mut source: u64 = 43u64;
+    let old: u64 = 17u64;
+    let observed: u64 = exercise(&mut source, &old);
+    transition observed == 43u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

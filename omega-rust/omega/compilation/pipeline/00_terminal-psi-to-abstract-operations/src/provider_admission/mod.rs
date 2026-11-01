@@ -33,7 +33,7 @@ mod terminal_authority_review;
 
 pub(crate) use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
+    CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin, TerminalCompilerBuiltinProposal,
     TerminalCompilerBuiltinSettlement,
 };
 pub(crate) use compiler_builtins::{

@@ -578,8 +578,27 @@ fn captured_claims(
             }
         }
     }
-    if claims.is_empty() && matches!(observation, ClaimObservation::Consumed) {
-        claims = completed_call_claims(program, facts, consumer, operand, conditions)?;
+    if matches!(observation, ClaimObservation::Consumed)
+        && frontier
+            .iter()
+            .any(|expected| !claims.iter().any(|claim| claim.path == expected.path))
+    {
+        let completed = completed_call_claims(program, facts, consumer, operand, conditions)?;
+        if claims.is_empty() {
+            claims = completed;
+        } else {
+            // A whole result transfers only live resources. The exact call's
+            // establishment also records positively absent case payloads, which
+            // owe no Transfer event. Retain that absence without repairing any
+            // missing live transfer from the established result.
+            for claim in completed {
+                if claim.source == ReturnedClaimSource::Inactive
+                    && !claims.iter().any(|existing| existing.path == claim.path)
+                {
+                    claims.push(claim);
+                }
+            }
+        }
     }
     for expected in &frontier {
         if claims.iter().any(|claim| claim.path == expected.path) {
@@ -904,9 +923,9 @@ fn completed_call_claims(
             || event.state_symbol != operand.state_symbol
             || event.evaluation != evaluation
             || event.kind != PermissionEventKind::Establish
+            || event.multiplicity != language_semantics::Multiplicity::Linear
             || event.access != PermissionAccess::Owned
-            || !event.obligation_live
-            || event.claim_identity == PermissionClaimIdentity::Unknown
+            || (event.obligation_live && event.claim_identity == PermissionClaimIdentity::Unknown)
         {
             continue;
         }
@@ -929,7 +948,14 @@ fn completed_call_claims(
         }
         let claim = ReturnedClaim {
             path: path.to_vec(),
-            source: ReturnedClaimSource::Live(event.claim_identity),
+            // Unknown identity never supplies a live claim. An explicit
+            // obligation-free establishment is instead authenticated absence;
+            // check_frontier still rejects it for an unconditional path.
+            source: if event.obligation_live {
+                ReturnedClaimSource::Live(event.claim_identity)
+            } else {
+                ReturnedClaimSource::Inactive
+            },
             condition: conditions.always(),
         };
         crate::collections::push_unique(&mut claims, claim);

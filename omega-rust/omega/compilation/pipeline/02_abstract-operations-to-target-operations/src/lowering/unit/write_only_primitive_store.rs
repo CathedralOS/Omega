@@ -91,12 +91,14 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                     &mut BTreeMap::new(),
                     &mut BTreeSet::new(),
                 )?;
-                let expected_shape = super::super::structural_layout::internal_parameter_shape(
-                    parameter.structural_type,
-                    root_shape,
-                    parameter.access,
-                    structural_types,
-                );
+                let expected_shape =
+                    crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                        crate::lowering::structural_signature::ParameterLane::Internal,
+                        parameter.structural_type,
+                        root_shape,
+                        parameter.access,
+                        structural_types,
+                    );
                 let target_parameter = parameters_by_place
                     .get(&parameter.place)
                     .copied()

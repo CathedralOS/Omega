@@ -191,13 +191,14 @@ retired-syntax deletions to completion.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions, including `window_demo`'s
-    guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
-    60-frame bounds; preserve that sample's existing guards and operation.
-    Complete WindowDemo's ordinary package-policy review and native GUI
-    qualification; its authored message/frame bounds and guards remain the
-    acceptance. Scalar-range syntax migration and the remaining aggregate
-    handback obligations below are still open.
+    predicate handback with current storage versions. WindowDemo's guarded
+    `pumped + 1` / `frame + 1` writes now complete its native 60-frame oracle
+    after ordinary package review, retaining `pumped <= 16`, `frame <= 60`,
+    the original guards and operation. Pixel/input/close and Finder-launch
+    qualification remains pending under **MACOS-APPLICATION-PUBLICATION**,
+    as requested by the owner; Terminal comparison currently declines the
+    Objective-C adapter's additional service demands. Scalar-range syntax
+    migration and the remaining aggregate handback obligations below stay open.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -284,12 +285,6 @@ retired-syntax deletions to completion.
   dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
-    - Extend requirement-contract checking at selector calls beyond exact fact
-      correspondence to supported integer arithmetic and literal IEEE-bound
-      weakening while preserving the
-      requirement's public contract independently of stronger implementation
-      guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
-      all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
   - **Omega realization and cross-host native execution:**
@@ -429,8 +424,6 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Preserve exact cross-module const-alias selection in callable/evidence arguments.
-  - Admit open-Const callable families through their declaration-owned scopes.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving
@@ -836,7 +829,10 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
-    expression operands and captured Product/Build alias transport remain open.
+    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md)
+    and [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md) places,
+    including owner-preserving mixed-scope transport, and captured Product/Build
+    alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,
@@ -845,12 +841,12 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete remaining schema/case composition support;
-    migrate complete platform ABI records;
-    retain explicit named policies for sparse views. Darwin timestamp pairs and
-    the complete stat extent must agree with the SDK rather than inferring
-    missing fields from the current seconds-only record.
-  - Supply ordinary Representation/TryFrom contracts and reflection-specialized
+  - Complete remaining schema/case composition support and platform ABI
+    migrations; retain explicit named policies for sparse views. Complete the
+    remaining nested-machine, other-machine and selected-target places for
+    [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
+    preserving complete SDK fields, timestamp pairs and signed carriers.
+  - Supply ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
@@ -1872,6 +1868,12 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
+  - Supply Darwin `_futimens` through the existing matching-host filesystem
+    adapter with its exact OS signature, guest descriptor custody and explicit
+    metadata-mutation delegation; keep missing-delegation rejection. Complete
+    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
+    well as native execution. The private native sponsor supplies no extra
+    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
@@ -1982,13 +1984,13 @@ defines the complete product bar.
 - **BUMP-ALLOCATOR-CANARY.** (Also covers **`VEC-NATIVE-GROWTH`**.) Deliver an
   executable package allocator (`source/library/alloc/bump.omg`) and native
   growable `Vec` (`source/library/alloc/vec.omg`) over qualified `Extent` and
-  **`PLAN-LAID-VIEWS`** end to end (`Psi 04–07` and `Omega 00–09`) under
+  access views end to end (`Psi 04–07` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
   - Complete `ExtentPartition` conservation and every-retired-extent `reset`
     recomposition over real `Vacant`/`Resident` backing in
     `tests/omega/pass/memory/bump_allocator_canary`, replacing fixture-local
-    `ResidentStorage` with **`PLAN-LAID-VIEWS`** establishment, element
+    `ResidentStorage` with `Access` establishment, element
     transfer, and retirement.
   - Connect `Vec` growth/reallocation/drop to the real backing allocator so
     dynamic `Vec` growth executes natively across hosts.

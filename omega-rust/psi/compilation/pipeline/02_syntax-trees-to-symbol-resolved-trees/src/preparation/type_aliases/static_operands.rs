@@ -83,33 +83,7 @@ impl Expansion<'_, '_> {
         // Runtime pattern aliases have already become saved-subject member
         // reads in the parser. Erased arm proofs remain lexical names: retain
         // their exact guard/body scope instead of selecting a global alias.
-        let mut proof_scopes: HashMap<ExpressionHandle, Vec<String>> = HashMap::new();
-        for &expression in &expressions {
-            if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
-                for arm in syntax.expressions.match_arms(dispatch.arms) {
-                    let syntax_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
-                    else {
-                        continue;
-                    };
-                    let selectors = syntax
-                        .statements
-                        .outcome_proof_selectors(pattern.proof_selectors);
-                    if selectors.is_empty() {
-                        continue;
-                    }
-                    let mut scoped = HashSet::new();
-                    collect_expression_handles(syntax, arm.value, &mut scoped);
-                    collect_expression_handles(syntax, pattern.guard, &mut scoped);
-                    for expression in scoped {
-                        proof_scopes.entry(expression).or_default().extend(
-                            selectors
-                                .iter()
-                                .map(|selector| selector.binding.as_str(syntax).to_owned()),
-                        );
-                    }
-                }
-            }
-        }
+        let proof_scopes = proof_bindings(syntax, &expressions);
         let mut expressions = expressions.into_iter().collect::<Vec<_>>();
         expressions
             .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
@@ -425,4 +399,40 @@ fn argument_name(
         span.span.end = member_span.span.end;
     }
     Ok(Identifier::new(argument.path.joined_path_in(syntax), span))
+}
+
+/// Proof selectors own only their guard and result expression subtrees. Both
+/// alias selection and alias-formal substitution must respect that lexical scope.
+pub(super) fn proof_bindings(
+    syntax: &SyntaxTrees,
+    expressions: &HashSet<ExpressionHandle>,
+) -> HashMap<ExpressionHandle, Vec<String>> {
+    let mut proof_scopes: HashMap<ExpressionHandle, Vec<String>> = HashMap::new();
+    for &expression in expressions {
+        if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
+            for arm in syntax.expressions.match_arms(dispatch.arms) {
+                let syntax_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
+                else {
+                    continue;
+                };
+                let selectors = syntax
+                    .statements
+                    .outcome_proof_selectors(pattern.proof_selectors);
+                if selectors.is_empty() {
+                    continue;
+                }
+                let mut scoped = HashSet::new();
+                collect_expression_handles(syntax, arm.value, &mut scoped);
+                collect_expression_handles(syntax, pattern.guard, &mut scoped);
+                for expression in scoped {
+                    proof_scopes.entry(expression).or_default().extend(
+                        selectors
+                            .iter()
+                            .map(|selector| selector.binding.as_str(syntax).to_owned()),
+                    );
+                }
+            }
+        }
+    }
+    proof_scopes
 }

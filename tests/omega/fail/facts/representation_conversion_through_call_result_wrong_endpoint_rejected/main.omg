@@ -1,0 +1,66 @@
+// Fact: Explicit fallible representation conversions preserve the semantic byte across two selected formats, and malformed input never yields a destination.
+// Expected exit: 0
+use omega::language::core::conversion;
+
+data FirstFrame [copy] { tag: u8; bits: u8; }
+data SecondFrame [copy] { tag: u8; bits: u8; }
+data Failure { case Invalid; }
+
+ReadFirst satisfies TryFrom<FirstFrame, u8, Failure> {
+    machine try_from(source: FirstFrame) -> Result<u8, Failure> {
+        transition source.tag == 165u8 {
+            true -> Result::Ok { value: source.bits ^ 255u8 }
+            false -> Result::Err { error: Failure::Invalid }
+        }
+    }
+}
+WriteSecond satisfies TryFrom<u8, SecondFrame, Failure> {
+    machine try_from(source: u8) -> Result<SecondFrame, Failure> {
+        Result::Ok { value: SecondFrame { tag: 90u8, bits: source ^ 128u8 } }
+    }
+}
+ReadSecond satisfies TryFrom<SecondFrame, u8, Failure> {
+    machine try_from(source: SecondFrame) -> Result<u8, Failure> {
+        transition source.tag == 90u8 {
+            true -> Result::Ok { value: source.bits ^ 128u8 }
+            false -> Result::Err { error: Failure::Invalid }
+        }
+    }
+}
+
+machine observe<Reader satisfies TryFrom<FirstFrame, u8, Failure>>(source: FirstFrame) -> u64 {
+    transition compose<FirstFrame, u8, SecondFrame, Failure, Reader, WriteSecond>(source) {
+        Result::Err { error as failure } -> 0u64
+        Result::Ok { value as frame } -> inspect(frame)
+    }
+    machine inspect(frame: SecondFrame) -> u64 {
+        transition frame.tag == 90u8 && frame.bits == 171u8 {
+            true -> decoded(frame)
+            false -> 1u64
+        }
+    }
+    machine decoded(frame: SecondFrame) -> u64 {
+        transition convert<SecondFrame, u8, Failure, ReadSecond>(frame) {
+            Result::Err { error as failure } -> 2u64
+            Result::Ok { value as byte } -> byte as u64
+        }
+    }
+}
+
+machine frame(valid: bool) -> FirstFrame {
+    transition valid {
+        true -> FirstFrame { tag: 165u8, bits: 212u8 }
+        false -> FirstFrame { tag: 0u8, bits: 212u8 }
+    }
+}
+
+machine main() crashes Trap {
+    let observed: u64 = observe<ReadSecond>(frame(true));
+    let refused: u64 = observe<ReadFirst>(frame(false));
+    transition observed == 43u64 && refused == 0u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

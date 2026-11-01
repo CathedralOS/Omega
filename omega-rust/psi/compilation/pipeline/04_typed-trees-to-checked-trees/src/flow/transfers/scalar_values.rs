@@ -27,7 +27,7 @@ fn statement_value_source(
     statement: &StatementNode,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     Some(match statement {
-        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::LocalData(local) => local.ordinary_value_initializer()?,
         StatementNode::Assignment(assignment) => assignment.value,
         _ => return None,
     })
@@ -381,7 +381,7 @@ fn selected_statement<'plans>(
     &'plans [SymbolHandle],
 )> {
     let (source, destination) = match statement {
-        StatementNode::LocalData(local) => (local.initial_value, local.symbol),
+        StatementNode::LocalData(local) => (local.ordinary_value_initializer()?, local.symbol),
         StatementNode::Assignment(assignment) => (
             assignment.value,
             match program.expression_table.expression(assignment.target) {

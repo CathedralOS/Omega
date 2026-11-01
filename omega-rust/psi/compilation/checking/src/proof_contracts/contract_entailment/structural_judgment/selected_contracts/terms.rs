@@ -335,8 +335,10 @@ impl StructuralJudge<'_> {
             ExpressionNode::Cast(cast) => {
                 let source = crate::parameter_expression_result_type_reference(
                     program, scope, parameters, cast.value,
-                )?;
-                if !structural_terms::denotation_preserving_conversion(program, cast, source) {
+                );
+                if source.is_some_and(|source| {
+                    !structural_terms::denotation_preserving_conversion(program, cast, source)
+                }) {
                     return None;
                 }
                 let value = self.bound_contract_term(

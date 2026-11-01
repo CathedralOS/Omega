@@ -10,6 +10,13 @@
 
 use super::StructuralTerm;
 
+pub(in crate::proof_contracts::contract_entailment) fn same_static_selection_payload(
+    left: &[typed_trees::expression::StaticMachineArgument],
+    right: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
+    left == right && same_static_selection_metadata(left, right)
+}
+
 // Ordinary static-argument equality compares a literal's numeric value. A
 // resolver question additionally retains the carrier and arithmetic policy
 // that this particular literal brought to its selected application. Applied
@@ -131,7 +138,10 @@ impl StructuralTerm {
     /// Recurrence compares the complete retained resolver input. Semantic
     /// equality alone erases observation authority and float landing metadata;
     /// those payloads must not collapse two different pending questions.
-    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+    pub(in crate::proof_contracts::contract_entailment) fn same_resolution_payload(
+        &self,
+        other: &Self,
+    ) -> bool {
         if std::mem::discriminant(self) != std::mem::discriminant(other) || self != other {
             return false;
         }

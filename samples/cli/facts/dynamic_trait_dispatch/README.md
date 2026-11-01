@@ -170,3 +170,6 @@ omitting one store or writing the same element twice rejects at the ordinary
 invariant window. These preserve ordinary construction under the selector
 validity repair, rather than treating the array's zero representation as a
 selection or counting stores without their element identities.
+
+The [input-arithmetic production](input_arithmetic/README.md) verifies the public
+selector requirement from an independently formed bounded addition.

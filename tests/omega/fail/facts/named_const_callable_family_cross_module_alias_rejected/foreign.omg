@@ -1,0 +1,3 @@
+module foreign;
+
+public const SELECTED: u64 = 5;

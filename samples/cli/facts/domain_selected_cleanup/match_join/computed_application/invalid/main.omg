@@ -1,0 +1,41 @@
+// The selected cleanup application retains code == 7 and its exclusive output reference through transport, then writes 7 to the original backing exactly once.
+// Place: match_join. Computed static cleanup application.
+// Expected exit: 0
+data Counter { before: u64; value: u64; invocations: u64 in Wrapping; after: u64; }
+data Keeper { output: &mut Counter; code: u64; }
+domain<const Code: u64> Keeper::Held<Code> dropped by release_keeper<Code + 0> requires self.code == 7;
+machine release_keeper<const Code: u64>(keeper: &mut Keeper) requires keeper.code == 7 {
+    keeper.output.value = Code;
+    keeper.output.invocations = keeper.output.invocations + 1;
+}
+machine observe(keeper: &Keeper in Held<7>) {}
+machine consume(keeper: Keeper in Held<7>) {}
+machine check(output: &Counter, wanted: u64) crashes Trap {
+    transition output.before == 317 && output.after == 929 && output.value == 7 && output.invocations == wanted {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+data Selection { keeper: Keeper in Held<7>; tag: u64; }
+machine select(flag: bool, keeper: Keeper in Held<7>) -> Selection {
+    match flag { true -> Selection { keeper: keeper, tag: 11 } false -> Selection { keeper: keeper, tag: 22 } }
+}
+machine require_tag(tag: u64, wanted: u64) crashes Trap {
+    transition tag == wanted { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine exercise(output: &mut Counter, flag: bool, wanted_tag: u64) crashes Trap {
+    let selection: Selection = select(flag, Keeper { output: output, code: 6 });
+    require_tag(selection.tag, wanted_tag);
+}
+machine main() crashes Trap {
+    let mut first: Counter = Counter { before: 317, value: 93, invocations: 0, after: 929 };
+    exercise(&mut first, true, 11);
+    check(&first, 1);
+    let mut second: Counter = Counter { before: 317, value: 84, invocations: 9, after: 929 };
+    exercise(&mut second, false, 22);
+    check(&second, 10);
+}

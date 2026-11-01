@@ -24,6 +24,18 @@ A linear Token [linear] carries its exact payload across the place and retires t
 
 ## Execution and validation
 
+The [completed-case return control](controls/completed_case_return/main.omg)
+adds a composition exposed by **BUMP-ALLOCATOR-CANARY**: a helper constructs
+one case containing two linear children, another helper forwards that result,
+and the caller retires both children. The absent alternative carries no live
+claims, but its absence must come from that exact completed call. The control
+also reads nested payload fields directly, retaining the case-qualified storage
+path; both case choices have distinct runtime oracles. Its
+[reject twin](controls/completed_case_return/invalid/main.omg) consumes the first
+child twice. These are pinned under `ownership/runtime_completed_case_claim_return_exit`
+and `ownership/completed_case_claim_return_double_consume`, not a second nine-place
+row. This tests result composition, not real allocator backing or Vec growth.
+
 Each place is an application that exits 0 with native and Terminal execution agreement:
 
 ```sh

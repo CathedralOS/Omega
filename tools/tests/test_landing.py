@@ -14,7 +14,7 @@ import landing
 HEAD = "a" * 40
 PULL = dict(id="PR_example", number=1, url="https://github.com/example/repo/pull/1",
             state="OPEN", isDraft=False, baseRefName="main", headRefOid=HEAD,
-            mergeStateStatus="CLEAN", mergeQueueEntry=None, mergeCommit=None)
+            mergeStateStatus="CLEAN", mergeQueueEntry=None, mergeCommit=None, autoMergeRequest=None)
 
 
 def check_run(status="COMPLETED", conclusion="SUCCESS", name="compiler-check", started="2026-11-01T00:00:00Z"):
@@ -29,8 +29,9 @@ class FakeGitHub:
     over time. After the script runs out the state stays as it was left.
     """
 
-    def __init__(self, script=(), checks=None, **pull):
+    def __init__(self, script=(), checks=None, refuse_arming=None, **pull):
         self.pull = dict(PULL, **pull)
+        self.refuse_arming = refuse_arming
         self.checks = [check_run()] if checks is None else checks
         self.script = list(script)
         self.calls = []
@@ -44,6 +45,12 @@ class FakeGitHub:
             return ""
         assert arguments[:3] == ("gh", "api", "graphql"), arguments
         query = next(a for a in arguments if a.startswith("query="))
+        if "enablePullRequestAutoMerge" in query:
+            if self.refuse_arming:
+                raise landing.LandingError(self.refuse_arming)
+            self.pull["autoMergeRequest"] = {"enabledAt": "2026-11-01T00:00:00Z"}
+            return json.dumps(dict(data=dict(enablePullRequestAutoMerge=dict(pullRequest=dict(
+                autoMergeRequest=self.pull["autoMergeRequest"], mergeQueueEntry=None)))))
         if "enqueuePullRequest" in query:
             self.pull["mergeQueueEntry"] = {"position": 1, "state": "QUEUED"}
             return json.dumps(dict(data=dict(enqueuePullRequest=dict(mergeQueueEntry=self.pull["mergeQueueEntry"]))))
@@ -63,6 +70,14 @@ class FakeGitHub:
         return self.ran("gh", "pr", "ready")
 
     @property
+    def armed(self):
+        return [call for call in self.calls if any("enablePullRequestAutoMerge" in a for a in call)]
+
+    @property
+    def mutated(self):
+        return self.readied + self.enqueued + self.armed
+
+    @property
     def enqueued(self):
         return [call for call in self.calls if any("enqueuePullRequest" in a for a in call)]
 
@@ -71,58 +86,87 @@ def update(**change):
     return lambda fake: fake.pull.update(change)
 
 
-def run_land(test, fake, seconds=60):
+PENDING = [check_run("IN_PROGRESS", None)]
+
+
+def queued_by_github(fake):
+    """GitHub's side of an armed PR: the check passes and the queue takes it."""
+    fake.checks[:] = [check_run()]
+    fake.pull.update(autoMergeRequest=None, mergeQueueEntry={"position": 1, "state": "QUEUED"})
+
+
+def run_land(test, fake, seconds=0):
     with mock.patch.object(landing, "command", fake), mock.patch.object(landing.time, "sleep"):
         return landing.land(".", "origin", 1, HEAD, seconds)
 
 
 class LandTests(unittest.TestCase):
-    def test_draft_waits_for_green_then_readies_enqueues_and_waits_for_merge(self):
-        fake = FakeGitHub(isDraft=True, checks=[check_run("IN_PROGRESS", None)],
-                          script=[lambda fake: None,
-                                  lambda fake: fake.checks.__setitem__(0, check_run()),
-                                  lambda fake: None, lambda fake: None,
-                                  update(state="MERGED")])
+    def test_pending_draft_is_readied_then_armed_and_returns_without_waiting(self):
+        fake = FakeGitHub(isDraft=True, checks=list(PENDING))
         pull, code = run_land(self, fake)
-        self.assertEqual((code, pull["state"]), (0, "MERGED"))
-        self.assertEqual(len(fake.readied), 1)
-        self.assertEqual(len(fake.enqueued), 1)
-        self.assertLess(fake.calls.index(fake.readied[0]), fake.calls.index(fake.enqueued[0]))
+        self.assertEqual(code, 0)
+        self.assertTrue(pull["autoMergeRequest"])
+        self.assertEqual((len(fake.readied), len(fake.armed), fake.enqueued), (1, 1, []))
+        self.assertLess(fake.calls.index(fake.readied[0]), fake.calls.index(fake.armed[0]))
         self.assertEqual(fake.readied[0][3:], ("1", "--repo", "example/repo"))
+        self.assertIn("expectedHeadOid:$head", next(a for a in fake.armed[0] if a.startswith("query=")))
 
     def test_check_not_yet_started_is_pending(self):
-        fake = FakeGitHub(checks=[], script=[lambda fake: None, lambda fake: fake.checks.append(check_run()),
-                                             lambda fake: None, lambda fake: None, update(state="MERGED")])
-        self.assertEqual(run_land(self, fake)[1], 0)
-        self.assertEqual(len(fake.enqueued), 1)
+        fake = FakeGitHub(checks=[])
+        run_land(self, fake)
+        self.assertEqual((len(fake.armed), fake.enqueued), (1, []))
+
+    def test_green_check_enqueues_at_once_without_arming(self):
+        fake = FakeGitHub(isDraft=True)
+        pull, code = run_land(self, fake)
+        self.assertEqual((code, len(fake.readied), len(fake.enqueued), fake.armed), (0, 1, 1, []))
+        self.assertTrue(pull["mergeQueueEntry"])
 
     def test_other_checks_and_older_runs_do_not_decide(self):
         checks = [check_run(name="lint", conclusion="FAILURE"),
                   check_run(conclusion="FAILURE", started="2026-11-01T00:00:00Z"),
                   check_run(conclusion="SUCCESS", started="2026-11-01T01:00:00Z")]
-        fake = FakeGitHub(checks=checks, script=[lambda fake: None, lambda fake: None, update(state="MERGED")])
-        self.assertEqual(run_land(self, fake)[1], 0)
-
-    def test_ready_pull_request_is_not_marked_ready_again(self):
-        fake = FakeGitHub(script=[lambda fake: None, lambda fake: None, update(state="MERGED")])
-        self.assertEqual(run_land(self, fake)[1], 0)
-        self.assertEqual(fake.readied, [])
+        fake = FakeGitHub(checks=checks)
+        run_land(self, fake)
         self.assertEqual(len(fake.enqueued), 1)
 
-    def test_red_check_refuses_without_ready_or_enqueue(self):
+    def test_ready_pull_request_is_not_marked_ready_again(self):
+        fake = FakeGitHub(checks=list(PENDING))
+        run_land(self, fake)
+        self.assertEqual((fake.readied, len(fake.armed)), ([], 1))
+
+    def test_check_that_turns_green_before_arming_is_enqueued(self):
+        fake = FakeGitHub(checks=list(PENDING), refuse_arming="pull request is in clean status")
+        original = fake.__call__
+
+        def green_on_refusal(repository, *arguments):
+            if any("enablePullRequestAutoMerge" in a for a in arguments):
+                fake.checks[:] = [check_run()]
+            return original(repository, *arguments)
+
+        with mock.patch.object(landing, "command", green_on_refusal), mock.patch.object(landing.time, "sleep"):
+            pull, code = landing.land(".", "origin", 1, HEAD, 0)
+        self.assertEqual((code, len(fake.enqueued)), (0, 1))
+
+    def test_refused_arming_while_still_pending_is_reported(self):
+        fake = FakeGitHub(checks=list(PENDING), refuse_arming="denied")
+        with self.assertRaisesRegex(landing.LandingError, "denied"):
+            run_land(self, fake)
+        self.assertEqual(fake.enqueued, [])
+
+    def test_red_check_refuses_without_any_mutation(self):
         for conclusion in ("FAILURE", "CANCELLED", "TIMED_OUT"):
             with self.subTest(conclusion=conclusion):
                 fake = FakeGitHub(isDraft=True, checks=[check_run(conclusion=conclusion)])
                 with self.assertRaisesRegex(landing.LandingError, f"compiler-check concluded {conclusion.lower()}"):
                     run_land(self, fake)
-                self.assertEqual((fake.readied, fake.enqueued), ([], []))
+                self.assertEqual(fake.mutated, [])
 
-    def test_changed_head_refuses_while_waiting(self):
-        fake = FakeGitHub(isDraft=True, checks=[check_run("QUEUED", None)],
-                          script=[lambda fake: None, update(headRefOid="b" * 40)])
+    def test_changed_head_refuses_without_mutation(self):
+        fake = FakeGitHub(isDraft=True, checks=list(PENDING), headRefOid="b" * 40)
         with self.assertRaisesRegex(landing.LandingError, "differs from --expected-head"):
             run_land(self, fake)
-        self.assertEqual((fake.readied, fake.enqueued), ([], []))
+        self.assertEqual(fake.mutated, [])
 
     def test_merge_conflict_refuses_before_ready(self):
         for change in (dict(mergeStateStatus="DIRTY"), dict(mergeable="CONFLICTING")):
@@ -130,60 +174,79 @@ class LandTests(unittest.TestCase):
                 fake = FakeGitHub(isDraft=True, **change)
                 with self.assertRaisesRegex(landing.LandingError, "merge conflict"):
                     run_land(self, fake)
-                self.assertEqual((fake.readied, fake.enqueued), ([], []))
+                self.assertEqual(fake.mutated, [])
+
+    def test_already_merged_queued_or_armed_repeats_no_mutation(self):
+        for change in (dict(state="MERGED"), dict(mergeQueueEntry={"position": 1}),
+                       dict(autoMergeRequest={"enabledAt": "x"}, isDraft=False)):
+            with self.subTest(change=change):
+                fake = FakeGitHub(checks=list(PENDING), **change)
+                self.assertEqual(run_land(self, fake)[1], 0)
+                self.assertEqual(fake.mutated, [])
+
+    def test_closed_pull_request_refuses(self):
+        fake = FakeGitHub(state="CLOSED")
+        with self.assertRaisesRegex(landing.LandingError, "closed without merging"):
+            run_land(self, fake)
+
+    def test_waiting_follows_armed_queued_merged(self):
+        fake = FakeGitHub(isDraft=True, checks=list(PENDING),
+                          script=[lambda fake: None, lambda fake: None, lambda fake: None,
+                                  queued_by_github, update(state="MERGED")])
+        pull, code = run_land(self, fake, seconds=60)
+        self.assertEqual((code, pull["state"], fake.enqueued), (0, "MERGED", []))
+
+    def test_red_check_while_armed_is_reported_and_never_reenqueued(self):
+        fake = FakeGitHub(checks=list(PENDING),
+                          script=[lambda fake: None, lambda fake: None,
+                                  lambda fake: fake.checks.__setitem__(0, check_run(conclusion="FAILURE"))])
+        with self.assertRaisesRegex(landing.LandingError, "concluded failure.*stays armed"):
+            run_land(self, fake, seconds=60)
+        self.assertEqual(fake.enqueued, [])
 
     def test_conflict_found_by_the_queue_is_reported_as_conflict(self):
         fake = FakeGitHub(script=[lambda fake: None, lambda fake: None, update(mergeStateStatus="DIRTY")])
         with self.assertRaisesRegex(landing.LandingError, "merge conflict"):
-            run_land(self, fake)
+            run_land(self, fake, seconds=60)
 
     def test_removal_from_queue_refuses_after_one_confirming_read_and_never_reenqueues(self):
         remove = update(mergeQueueEntry=None)
         fake = FakeGitHub(script=[lambda fake: None, lambda fake: None, remove, lambda fake: None])
         with self.assertRaisesRegex(landing.LandingError, "left the merge queue"):
-            run_land(self, fake)
+            run_land(self, fake, seconds=60)
         self.assertEqual(len(fake.enqueued), 1)
 
     def test_queue_entry_that_lags_the_mutation_is_not_called_removal(self):
         lag = update(mergeQueueEntry=None)
         fake = FakeGitHub(script=[lambda fake: None, lambda fake: None, lag,
                                   update(mergeQueueEntry={"position": 1}), update(state="MERGED")])
-        self.assertEqual(run_land(self, fake)[1], 0)
+        self.assertEqual(run_land(self, fake, seconds=60)[1], 0)
 
-    def test_closed_pull_request_refuses(self):
-        for script in ([], [lambda fake: None, lambda fake: None, update(state="CLOSED", mergeQueueEntry=None)]):
-            with self.subTest(script=len(script)):
-                fake = FakeGitHub(script=script, **({} if script else dict(state="CLOSED")))
-                with self.assertRaisesRegex(landing.LandingError, "closed without merging"):
-                    run_land(self, fake)
+    def test_closed_while_waiting_refuses(self):
+        fake = FakeGitHub(script=[lambda fake: None, lambda fake: None,
+                                  update(state="CLOSED", mergeQueueEntry=None)])
+        with self.assertRaisesRegex(landing.LandingError, "closed without merging"):
+            run_land(self, fake, seconds=60)
 
-    def test_deadline_while_checking_or_queued_exits_unfinished(self):
-        fake = FakeGitHub(isDraft=True, checks=[check_run("IN_PROGRESS", None)])
-        self.assertEqual(run_land(self, fake, seconds=0)[1], 2)
-        self.assertEqual((fake.readied, fake.enqueued), ([], []))
-        queued = FakeGitHub(mergeQueueEntry={"position": 2})
-        self.assertEqual(run_land(self, queued, seconds=0)[1], 2)
-
-    def test_already_merged_or_queued_resumes_without_mutations(self):
-        merged = FakeGitHub(state="MERGED")
-        self.assertEqual(run_land(self, merged)[1], 0)
-        queued = FakeGitHub(isDraft=False, mergeQueueEntry={"position": 1}, script=[lambda fake: None, update(state="MERGED")])
-        self.assertEqual(run_land(self, queued)[1], 0)
-        for fake in (merged, queued):
-            self.assertEqual((fake.readied, fake.enqueued), ([], []))
+    def test_deadline_while_armed_or_queued_exits_unfinished(self):
+        for change in (dict(autoMergeRequest={"enabledAt": "x"}), dict(mergeQueueEntry={"position": 2})):
+            with self.subTest(change=change), mock.patch.object(landing.time, "monotonic",
+                                                                side_effect=[0.0] + [100.0] * 10):
+                fake = FakeGitHub(checks=list(PENDING), **change)
+                self.assertEqual(run_land(self, fake, seconds=1)[1], 2)
 
     def test_command_line_exit_codes_and_reasons(self):
         arguments = ["land", "1", "--expected-head", HEAD]
-        cases = [(FakeGitHub(script=[lambda fake: None, lambda fake: None, update(state="MERGED")]), 0, ""),
-                 (FakeGitHub(checks=[check_run(conclusion="FAILURE")]), 1, "compiler-check concluded failure"),
-                 (FakeGitHub(checks=[check_run("QUEUED", None)]), 2, "not merged after 0s")]
-        for fake, code, reason in cases:
+        cases = [(FakeGitHub(checks=list(PENDING)), [], 0, ""),
+                 (FakeGitHub(checks=[check_run(conclusion="FAILURE")]), [], 1, "compiler-check concluded failure"),
+                 (FakeGitHub(checks=list(PENDING)), ["--wait-seconds", "1"], 2, "not merged after 1s")]
+        for fake, extra, code, reason in cases:
             with self.subTest(code=code), mock.patch.object(landing, "command", fake), \
                     mock.patch.object(landing.time, "sleep"), \
+                    mock.patch.object(landing.time, "monotonic", side_effect=[0.0] + [100.0] * 10), \
                     mock.patch.object(sys, "stdout", new=mock.MagicMock()), \
                     mock.patch.object(sys, "stderr", new=mock.MagicMock()) as stderr:
-                options = arguments + (["--wait-seconds", "0"] if code == 2 else [])
-                self.assertEqual(landing.main(options), code)
+                self.assertEqual(landing.main(arguments + extra), code)
                 self.assertIn(reason, "".join(call.args[0] for call in stderr.write.call_args_list))
         with mock.patch.object(sys, "stderr", new=mock.MagicMock()):
             self.assertEqual(landing.main(["land", "1"]), 1)
@@ -238,6 +301,11 @@ class LandingTests(unittest.TestCase):
         cases = [(dict(state="MERGED"), 0), ({}, 1),
                  (dict(mergeStateStatus="DIRTY"), 1),
                  (dict(mergeQueueEntry={"position": 1}), 2)]
+        armed = dict(autoMergeRequest={"enabledAt": "x"})
+        for checks, expected in (([check_run("IN_PROGRESS", None)], 2), ([check_run(conclusion="FAILURE")], 1)):
+            with self.subTest(armed=expected), mock.patch.object(landing, "pull_request", return_value=dict(PULL, **armed)), \
+                    mock.patch.object(landing, "head_check", return_value=checks[0]):
+                self.assertEqual(landing.wait(".", "origin", 1, HEAD, 0)[1], expected)
         for change, expected in cases:
             with self.subTest(change=change), mock.patch.object(landing, "pull_request", return_value=dict(PULL, **change)):
                 self.assertEqual(landing.wait(".", "origin", 1, HEAD, 0)[1], expected)

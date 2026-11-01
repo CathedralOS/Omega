@@ -69,20 +69,12 @@ public boundary trait Gui {
 // the pixel wash folds through `% 256` (modulo bounds by the divisor, so the
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
-DemoGuiProvider satisfies Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window requires title[10] == 0 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_window_create(class_name, title, style, x, y, width, height) }
-    machine window_destroy(window: Window, device: u64) -> bool reaches GlobalInputObservation + NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_window_destroy(window, device) }
-    machine get_dc(window_state: &Window, window: u64) -> u64 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes WindowsGuiHost { demo_get_dc(window_state, window) }
-    machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost { demo_pump_message(window_state, message, close_requested) }
-    machine is_window(window_state: &Window, window: u64) -> u32 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost { demo_is_window(window_state, window) }
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 reaches GlobalInputObservation + NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost invokes MacosImageData invokes MacosImageObjects { demo_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info) }
-}
 
 data Main
-where
-    pumped >= 0 && pumped <= 16,
-    frame >= 0 && frame <= 60,
-    i >= 0 && i <= 4096,
+requires
+    self.pumped >= 0 && self.pumped <= 16,
+    self.frame >= 0 && self.frame <= 60,
+    self.i >= 0 && self.i <= 4096,
 {
     cls: [u8; 7];
     title: [u8; 11];
@@ -134,14 +126,14 @@ machine Main::main(main: &mut Main) reaches
     main.info[0] = 40;
     main.info[1] = 64;
     main.info[2] = 0 - 64;
-    main.info[3] = 2097153;
+    main.info[3] = 0x00200001; // packed 32-bit pixels and one color plane.
     // WS_VISIBLE | WS_OVERLAPPEDWINDOW (0x10CF0000): a real titled app window,
     // not a naked popup. Target adapters create exactly a 256x256 client area.
     // The created resource is owned by the state machine, independently of
     // its borrowed rendering context. Each transition transfers that owner.
     main.close_requested = false;
     main.hdc = 0;
-    let window: Window = Gui::window_create(main.cls, main.title, 282001408, 200, 200, 256, 256);
+    let window: Window = Gui::window_create(main.cls, main.title, 0x10CF0000, 200, 200, 256, 256);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     machine dc(main: &mut Main, window: Window) {
@@ -167,8 +159,8 @@ machine Main::main(main: &mut Main) reaches
         main.c = main.c + main.frame * 4;
         main.c = main.c % 256;
         // red ramps up the diagonal while blue ramps down: a scrolling wash.
-        main.px = main.c * 65536;
-        main.px = main.px + (255 - main.c) * 256;
+        main.px = main.c * 0x00010000;
+        main.px = main.px + (0xFF - main.c) * 256;
         main.px = main.px + 64;
         transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window) _ -> bad(main, window) }
     }

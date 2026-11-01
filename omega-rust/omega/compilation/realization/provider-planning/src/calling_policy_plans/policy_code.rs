@@ -16,7 +16,7 @@ use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_codec::CanonicalTerminalArtifact;
 
-pub struct CallingPolicyCode {
+pub struct CallingCatalog {
     /// Association only: this never keeps source alive or enters the interpreter.
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
@@ -24,7 +24,7 @@ pub struct CallingPolicyCode {
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
 }
 
-impl CallingPolicyCode {
+impl CallingCatalog {
     pub(crate) fn require_owner(
         &self,
         checked: &checked_trees::CheckedTrees,

@@ -419,6 +419,7 @@ pub fn settle_checked_providers(
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
+    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
@@ -483,6 +484,7 @@ pub fn settle_checked_providers(
         native_target: provider_selection_target,
         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
         services,
+        calling_artifact,
         opaque_representation_selections,
     };
     let mut provider_candidates = derived_provider_plans
@@ -527,6 +529,7 @@ pub fn settle_checked_providers(
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         services,
+        calling_artifact,
         opaque_representation_selections,
     )?;
     // Component-closure join. The verified components come only from the
@@ -770,10 +773,10 @@ pub fn settle_checked_providers(
     let component_calling_applications =
         crate::calling_policy_plans::component_calling_applications(
             services,
-            provider_selection_target,
+            planning_target.unwrap_or_else(target::TargetProfile::host),
+            calling_artifact,
             &component_providers,
             &boundary_calling_plan_realizations,
-            opaque_representation_selections,
         )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {

@@ -360,6 +360,10 @@ impl<'program> CurrentScalarValues<'program> {
                     };
                     values.assume(program, machine, state, guard, holds);
                 }
+                // Reserved event results are not initialized mathematical
+                // values. Their observed contents come from the event, not
+                // from the parser's storage placeholder.
+                StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {}
                 StatementNode::LocalData(local) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let actuals = values.capture_call_actuals(local.initial_value);

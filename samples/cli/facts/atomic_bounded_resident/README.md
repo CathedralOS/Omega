@@ -32,26 +32,20 @@ store evidence supplies no atomic authority; initialization has its own validity
 path. A load's declaration bound attaches to the exact completed snapshot.
 Subsequent writes cannot reinterpret it, and no cached current-resident constant
 or requested receiving predicate supplies its proof. The [composition](composition/main.omg)
-checks swap and decisive-exchange instruction-observed priors and resident bounds.
+checks swap and decisive-exchange instruction-observed priors and resident bounds,
+including a swap result transported through a checked return guarantee. A reserved
+result slot has no mathematical initializer: neither arithmetic nor return-contract
+checking may treat the parser's placeholder zero as the observed prior.
 
 Controls additionally reject [a result goal as its own premise](controls/load_result_goal_is_not_premise/main.omg),
 [a stronger receiving field](controls/load_field_goal_is_not_premise/main.omg),
 [a cached stored constant as a fresh load value](controls/load_bound_is_not_current_value/main.omg),
-[an observed prior treated as zero](controls/prior_is_not_zero/main.omg), and
+[an observed prior treated as zero](controls/prior_is_not_zero/main.omg),
+[a return guarantee derived from the reserved zero](controls/prior_guarantee_is_not_zero/main.omg), and
 [using an event result before completion](controls/prior_before_event/main.omg).
 The row, composition and controls are pinned under `tests/omega/{pass,fail}/facts/atomic_bounded_resident`.
 
-The initial validated producer rejects a sufficient bounded store. The preserved
-integration producer `bf7a6ee94d1` additionally reproduces missing direct-load
-construction and return-contract proofs with this approved spelling. The
-`ba1756dbb15` optimized producer passes all 32 row observations and all five
-soundness controls. Final qualification and independent review remain pending.
-Earlier bracket-range witness observations are historical and superseded; the
-queued PR was withdrawn before landing to correct those spellings. Legacy atomic
-bracket ranges are not an acceptance requirement or new semantics.
-
-Linux x86-64 is the available execution host; other matching-host executions are
-not claimed. Serial agreement establishes no concurrent theorem. Bounded
+Serial execution agreement establishes no concurrent theorem. Bounded
 single-attempt exchange, universal fetch preservation, non-observing exchange,
 standalone atomic locations, relation/refinement checks, and the required
 TR3–TR8 concurrent runtime witnesses remain internal work. The named shared-store

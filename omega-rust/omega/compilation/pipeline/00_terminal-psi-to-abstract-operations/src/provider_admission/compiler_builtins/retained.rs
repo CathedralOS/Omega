@@ -33,7 +33,7 @@ pub enum TerminalCompilerBuiltinSettlement {
     /// re-deriving the identity from the execution.
     Execution {
         identity: CompilerIntrinsicExecutionIdentity,
-        execution: target_operations::CompilerBuiltinExecution,
+        execution: super::SettledCompilerBuiltin,
     },
     /// The selected row's execution has no closed native catalog identity.
     NoClosedCatalogIdentity,

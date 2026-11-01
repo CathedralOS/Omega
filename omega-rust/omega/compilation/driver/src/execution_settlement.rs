@@ -421,11 +421,7 @@ fn prepare_target_provider_selection(
         &build_config.opaque_representation_selections,
         package_inputs,
     )?;
-    let code = if calling.is_empty() {
-        None
-    } else {
-        crate::terminal::retain_calling_policy_code(source, timings)?
-    };
+    let code = crate::terminal::retain_calling_catalog(source, timings)?;
     let boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         one_refusal(source.provider_inventory.origins_for(&source.program))?,
@@ -445,6 +441,7 @@ fn prepare_target_provider_selection(
         &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
+        code.as_ref().map(|code| code.artifact.as_ref()),
         &build_config.opaque_representation_selections,
         &source.program.facts.synchronous_invocations,
     )

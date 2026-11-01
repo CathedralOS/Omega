@@ -4,11 +4,32 @@
 //! pre-operation entries, and an empty normal frontier never retries execution.
 
 use super::*;
+use crate::proof_contracts::contract_entailment::structural_terms::zero_value_structural_term;
 use typed_trees::statement::StatementNode;
 
 pub(in crate::proof_contracts::contract_entailment) struct CompletedStatement<'program> {
     pub outcomes: Option<Vec<NormalReturnPath<'program>>>,
     pub observations: CompletedNormalObservations<'program>,
+}
+
+impl<'program> CompletedStatement<'program> {
+    /// Only a completed initializer supplies a binding equation. Storage-only
+    /// declarations advance control without inventing a mathematical value.
+    pub(in crate::proof_contracts::contract_entailment) fn binding_outcomes(
+        self,
+    ) -> Option<Vec<(Option<StructuralTerm>, StructuralJudge<'program>)>> {
+        self.outcomes?
+            .into_iter()
+            .map(|outcome| {
+                let value = (outcome.observation == NormalValueObservation::Observed)
+                    .then_some(outcome.value);
+                if outcome.value_requested && value.is_none() {
+                    return None;
+                }
+                Some((value, outcome.judge))
+            })
+            .collect()
+    }
 }
 
 impl<'program> StructuralJudge<'program> {
@@ -46,6 +67,12 @@ impl<'program> StructuralJudge<'program> {
         let mut successors_available = true;
         let mut arguments_completed = false;
         let outcomes = match statement {
+            StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {
+                // This is the destination reservation, not an initializer.
+                // Its synthetic zero never ran as an atomic observation. The
+                // following event owns the result and its resident bounds.
+                Some(vec![NormalReturnPath::unobserved(self.clone())])
+            }
             StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                 let completed = self.complete_expression(
                     local.initial_value,
@@ -57,6 +84,15 @@ impl<'program> StructuralJudge<'program> {
                 );
                 entries = completed.entries;
                 completed.paths
+            }
+            StatementNode::LocalData(local) => {
+                // ZII storage advances even when its type has no established
+                // mathematical zero. Do not invent a gated-domain witness.
+                let value = zero_value_structural_term(self.program, local.type_reference);
+                Some(vec![match value {
+                    Some(value) => NormalReturnPath::observed(value, self.clone()),
+                    None => NormalReturnPath::unobserved(self.clone()),
+                }])
             }
             StatementNode::Expression(expression) => {
                 let completed = self.complete_expression(

@@ -120,3 +120,7 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+[Computed static applications](local/computed_application/README.md) continue the
+same cleanup fact through an open `Code + 0` recipe in all nine places, with
+caller-visible invocation counts, neighboring canaries and code-6 twins.

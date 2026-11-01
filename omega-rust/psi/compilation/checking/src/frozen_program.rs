@@ -700,6 +700,28 @@ pub struct CheckingMemos {
             Option<typed_trees::types::TypeReferenceHandle>,
         >,
     >,
+    /// A parameter telescope's place types are a function of its owner and
+    /// each parameter's symbol and type, so equal rosters share one dense id.
+    /// Proof intake rebuilds the same roster for every observed value; without
+    /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
+    pub(crate) parameter_telescopes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                Vec<(
+                    symbols::SymbolHandle,
+                    typed_trees::types::TypeReferenceHandle,
+                )>,
+            ),
+            u32,
+        >,
+    >,
+    pub(crate) parameter_result_types: Mutex<
+        symbols::SymbolKeyMap<
+            (u32, typed_trees::expression::ExpressionHandle),
+            Option<typed_trees::types::TypeReferenceHandle>,
+        >,
+    >,
     /// Existing effective result recipes keyed by complete normalized type
     /// identity. A declaration's unapplied type is never an equivalent result
     /// merely because applying a tuple would make it agree.

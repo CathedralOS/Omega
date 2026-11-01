@@ -10,6 +10,7 @@
 use super::structural_judgment::StructuralJudgment;
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    observe_runtime_state_prefix_batched,
 };
 use symbols::SymbolKind;
 use typed_trees::ProvenTypeContext;
@@ -337,6 +338,13 @@ pub(crate) fn predicate_type_contexts(
                     (expression.arena_index(), expression.generation())
                 });
                 expressions.dedup();
+                // An expression's prefix depends on its statement and whether it
+                // sits in the transition target, not on the expression itself.
+                // Walk each such site once for all of its expressions: the walk
+                // explores every arm and admits each arm's data predicates, so
+                // one walk per expression multiplied that work by the
+                // statement's size.
+                let mut visitors = Vec::new();
                 for expression in expressions {
                     // Classifiers and type operands are semantic metadata. They
                     // are not runtime observations, so absence from the evaluator
@@ -348,16 +356,10 @@ pub(crate) fn predicate_type_contexts(
                             typed_trees::expression::ExpressionNode::Name(path)
                             if path.symbol.is_valid() && program.symbols.get(path.symbol).kind == SymbolKind::Variant);
                     if !has_predicates || metadata {
-                        equations.push(ProvenTypeContext {
-                            expression,
-                            equations: Vec::new(),
-                            reachable: true,
-                            case_value: None,
-                            admitted_cases: None,
-                        });
+                        visitors.push((None, expression));
                         continue;
                     }
-                    let mut visitor = TypeEquations {
+                    let visitor = TypeEquations {
                         site: StructuralPrefixSite {
                             state: state.symbol,
                             statement_index,
@@ -385,30 +387,59 @@ pub(crate) fn predicate_type_contexts(
                         reachable: false,
                         complete: true,
                     };
-                    let complete =
+                    visitors.push((Some((visitor, false)), expression));
+                }
+                for in_transition_target in [false, true] {
+                    let mut group = visitors
+                        .iter_mut()
+                        .filter_map(|(visitor, _)| visitor.as_mut())
+                        .filter(|(visitor, _)| {
+                            visitor.site.in_transition_target == in_transition_target
+                        })
+                        .collect::<Vec<_>>();
+                    if group.is_empty() {
+                        continue;
+                    }
+                    let walked = {
+                        let mut members = group
+                            .iter_mut()
+                            .map(|(visitor, _)| visitor as &mut dyn StructuralPrefixVisitor)
+                            .collect::<Vec<_>>();
                         phase_profile::scope("05.overloads.4a_prefix_observation", || {
-                            observe_runtime_state_prefix(program, machine, state, &mut visitor)
-                                .is_some()
-                        }) && visitor.observed
-                            && visitor.complete;
-                    if complete {
-                        equations.push(ProvenTypeContext {
-                            expression,
-                            equations: visitor.equations,
-                            reachable: visitor.reachable,
-                            case_value: visitor.case_value,
-                            admitted_cases: visitor.admitted_cases,
-                        });
-                    } else {
+                            observe_runtime_state_prefix_batched(
+                                program,
+                                machine,
+                                state,
+                                &mut members,
+                            )
+                            .is_some()
+                        })
+                    };
+                    for (_, walked_here) in group {
+                        *walked_here = walked;
+                    }
+                }
+                for (visitor, expression) in visitors {
+                    match visitor {
+                        Some((visitor, true)) if visitor.observed && visitor.complete => {
+                            equations.push(ProvenTypeContext {
+                                expression,
+                                equations: visitor.equations,
+                                reachable: visitor.reachable,
+                                case_value: visitor.case_value,
+                                admitted_cases: visitor.admitted_cases,
+                            });
+                        }
                         // A reused expression must also account for occurrences
                         // whose prefix cannot be observed. Refusal proves nothing.
-                        equations.push(ProvenTypeContext {
+                        // Metadata and predicate-free states are always reached.
+                        _ => equations.push(ProvenTypeContext {
                             expression,
                             equations: Vec::new(),
                             reachable: true,
                             case_value: None,
                             admitted_cases: None,
-                        });
+                        }),
                     }
                 }
             }

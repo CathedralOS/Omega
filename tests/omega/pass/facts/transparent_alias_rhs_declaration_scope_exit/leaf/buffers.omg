@@ -1,0 +1,3 @@
+module buffers;
+public const Bias: u64 = 1u64;
+public data Padded<const Count: u64> = [u8; Count + Bias];

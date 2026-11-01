@@ -1545,12 +1545,7 @@ crashes Trap
 
     machine spells_slice(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Slice");
-        transition matched { true -> found(BuiltinType::Slice) _ -> spells_result(sources, name) }
-    }
-
-    machine spells_result(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
-        let matched: bool = SourceSet::span_spells(sources, name, "Result");
-        transition matched { true -> found(BuiltinType::Result) _ -> spells_syscallresult(sources, name) }
+        transition matched { true -> found(BuiltinType::Slice) _ -> spells_syscallresult(sources, name) }
     }
 
     machine spells_syscallresult(sources: &SourceSet, name: SourceSpan) -> TypeBinding {

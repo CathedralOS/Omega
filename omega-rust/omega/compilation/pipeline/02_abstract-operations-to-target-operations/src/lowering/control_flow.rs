@@ -784,7 +784,7 @@ pub(super) fn lower(
         provenance,
         graph: TargetControlGraph {
             structural_types: structural_types.catalog().clone(),
-            call_plan: prepared.call_plan,
+            call_plan: prepared.call_plan.into_call_plan(),
             scalar_parameters: prepared.scalar_parameters,
             parameters: prepared.parameters,
             entry: function.entry,

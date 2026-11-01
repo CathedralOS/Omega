@@ -185,3 +185,102 @@ fn producer_alias<'facts>(
         source_type,
     ))
 }
+
+/// One read of an alternative of a completed selection: the read epoch that
+/// detached its contents and the storage place it observed.
+pub(in crate::checks::contracts) struct AlternativeRead<'facts> {
+    choice: CapturedValueChoice,
+    epoch: &'facts FlowOperandFact,
+    place: CanonicalPlace,
+}
+
+/// Record every single-choice read among these completed values. Values whose
+/// contents were not detached by a read, or that span several selections, add
+/// nothing.
+pub(in crate::checks::contracts) fn collect_alternative_reads<'facts>(
+    program: &dyn CheckingInput,
+    facts: &'facts CheckFacts,
+    values: &[CapturedValue<'facts>],
+    reads: &mut Vec<AlternativeRead<'facts>>,
+) {
+    for value in values {
+        let (Some(epoch), [choice]) = (value.producer_epoch, value.choices.as_slice()) else {
+            continue;
+        };
+        let Some(places) = crate::flow::captured_value_places(program, &facts.flow, value) else {
+            continue;
+        };
+        for place in places {
+            reads.push(AlternativeRead {
+                choice: *choice,
+                epoch: epoch.row(),
+                place: place.projected,
+            });
+        }
+    }
+}
+
+/// A binding on current storage equals, on each predecessor, the one read that
+/// predecessor reached when every path reaches a read of an alternative of one
+/// selection and preserves its contents (`fact_validity.md`: each predecessor
+/// supplies its own reaching value). The binding then has one capture per
+/// alternative under that alternative's condition; coverage decides the rest.
+/// Several reads under one alternative, or reads from different selections,
+/// leave the binding unconditional.
+pub(in crate::checks::contracts) fn retain_alternative_reads<'facts>(
+    program: &dyn CheckingInput,
+    facts: &'facts CheckFacts,
+    storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
+    bindings: &[BoundObservation],
+    reads: &[AlternativeRead<'facts>],
+    retained: &mut Vec<CapturedBinding<'facts>>,
+) {
+    for (position, binding) in bindings.iter().enumerate() {
+        let mut own = retained
+            .iter()
+            .filter(|capture| capture.position == position);
+        if own.clone().next().is_none() || own.any(|capture| !capture.choices.is_empty()) {
+            continue;
+        }
+        let candidates = reads
+            .iter()
+            .filter(|read| read.place == binding.place)
+            .collect::<Vec<_>>();
+        let Some(first) = candidates.first() else {
+            continue;
+        };
+        if candidates
+            .iter()
+            .any(|read| read.choice.selection != first.choice.selection)
+            || candidates.iter().enumerate().any(|(index, read)| {
+                candidates[..index]
+                    .iter()
+                    .any(|earlier| earlier.choice.alternative == read.choice.alternative)
+            })
+        {
+            continue;
+        }
+        let cuts = candidates
+            .iter()
+            .map(|read| read.epoch.storage_snapshot)
+            .collect::<Vec<_>>();
+        if !validation::completed_storage::contents_preserved_from(
+            program,
+            &facts.flow.control,
+            storage,
+            &binding.place,
+            &cuts,
+        ) {
+            continue;
+        }
+        retained.retain(|capture| capture.position != position);
+        retained.extend(candidates.into_iter().map(|read| CapturedBinding {
+            position,
+            choices: vec![read.choice],
+            aliases: vec![Alias {
+                place: binding.place.clone(),
+                epoch: read.epoch,
+            }],
+        }));
+    }
+}

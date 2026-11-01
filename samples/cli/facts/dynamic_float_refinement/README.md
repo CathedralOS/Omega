@@ -180,3 +180,6 @@ the same IEEE guarantee through checked aliases and public caller preconditions.
 
 The [transparent input-predicate production](input_alias/README.md) carries the
 same IEEE fact through named caller preconditions at selector calls.
+
+The [input-alternative production](input_alternatives/README.md) proves public
+IEEE bounds from every admitted prefix alternative without choosing a branch.

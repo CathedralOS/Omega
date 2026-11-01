@@ -19,6 +19,7 @@ pub(crate) fn extract_native_external_binding_rows(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     services: ServiceCatalog<'_>,
+    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
@@ -26,6 +27,7 @@ pub(crate) fn extract_native_external_binding_rows(
         native_target,
         boundary_calling_plan_realizations,
         services,
+        calling_artifact,
         opaque_representation_selections,
     };
     let mut rows = Vec::new();
@@ -51,6 +53,7 @@ pub(crate) struct ExternalBindingContext<'a> {
     pub boundary_calling_plan_realizations:
         &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     pub services: ServiceCatalog<'a>,
+    pub calling_artifact: Option<&'a terminal_codec::CanonicalTerminalArtifact>,
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
 }
@@ -107,6 +110,7 @@ impl ExternalBindingContext<'_> {
             native_target,
             boundary_calling_plan_realizations,
             services,
+            calling_artifact,
             opaque_representation_selections,
         } = *self;
         let typed = services.context().typed;
@@ -115,7 +119,7 @@ impl ExternalBindingContext<'_> {
                 "external binding lost its original provider row",
             )]
         })?;
-        let (binding, layout_target) = match &row.binding {
+        let (binding, _layout_target) = match &row.binding {
             ProviderBinding::Import { evaluated } => (
                 ExternalBindingKind::Import {
                     // The selected plan already commits the atomic evaluation
@@ -176,27 +180,31 @@ impl ExternalBindingContext<'_> {
             }
             _ => Some(CallingPolicy::native_for_target(native_target)),
         };
-        if calling_applications.is_empty() {
-            if let Some(policy) = compatibility_policy {
-                if let Some(application) = crate::calling_policy_plans::evaluate_default_calling_application(
-                    services,
-                    layout_target,
-                    trait_name_text(&plan.schema),
-                    plan.schema.declaration.trait_package_identity,
-                    &row.method,
-                    plan.identities.text(row.requirement_identity),
-                    policy,
-                    usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
-                    opaque_representation_selections,
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "cannot evaluate default native calling application for `{}::{}`: {reason}",
-                        trait_name_text(&plan.schema),
-                        row.method
-                    ))]
-                })? { calling_applications.push(application); }
-            }
+        if calling_applications.is_empty()
+            && let Some(policy) = compatibility_policy
+        {
+            let artifact = calling_artifact.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "default native calling applications have no published Product catalog",
+                )]
+            })?;
+            let profile = if plan.target.is_empty() {
+                selected_target
+            } else {
+                Some(plan.target.as_str())
+            };
+            let profile = profile
+                .map(target::TargetProfile::from_canonical_target_name)
+                .transpose()
+                .map_err(|error| vec![error])?
+                .unwrap_or_else(target::TargetProfile::host);
+            calling_applications = crate::calling_policy_plans::evaluate_default_calling_applications(
+                artifact, profile, plan.identities.text(row.requirement_identity), policy,
+                usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
+            ).map_err(|reason| vec![Diagnostic::error(format!(
+                "cannot evaluate default native calling applications for `{}::{}`: {reason}",
+                trait_name_text(&plan.schema), row.method
+            ))])?;
         }
         Ok(Some(ExternalBindingRow {
             target_name: if plan.target.is_empty() {
