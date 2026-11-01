@@ -854,8 +854,7 @@ helper that passes does not close an item.
     remaining six transport places for
     [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
     preserving complete SDK fields, timestamp pairs and signed carriers.
-  - Complete the [fallible conversion transport row](samples/cli/facts/representation_conversion/README.md),
-    ordinary Representation agreement contracts and reflection-specialized
+  - Supply ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
