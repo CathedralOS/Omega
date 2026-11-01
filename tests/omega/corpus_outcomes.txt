@@ -6334,15 +6334,15 @@ pass/facts/foreign_scalar_record_result_through_other_machine_exit checked 3916m
 pass/facts/foreign_scalar_record_result_through_other_state_exit checked 3973ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_parameter_exit checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_target_body_exit checked 3908ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_call_result_exit checked 3860ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_const_name_exit checked 3252ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_field_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_local_exit checked 3417ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_match_join_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_other_machine_exit checked 2915ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_other_state_exit checked 4402ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_parameter_exit checked 4015ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_target_body_exit checked 3659ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/four_variant_enum_payload_bound_through_call_result_exit checked 42435ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_const_name_exit checked 34494ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_field_exit checked 31426ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_local_exit checked 54833ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_match_join_exit checked 27453ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_other_machine_exit checked 29904ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_other_state_exit checked 31131ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_parameter_exit checked 38553ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_target_body_exit checked 45290ms check-target:macos_arm64 @6e5131c510b9+wt
 pass/facts/free_entry_local_state_through_call_result_exit checked 3698ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/free_entry_local_state_through_const_name_exit checked 3291ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/free_entry_local_state_through_field_exit checked 3143ms check-target:macos_arm64 @ccdb99ca2214
@@ -23034,27 +23034,25 @@ fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 2573
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 2216ms expected @ccdb99ca2214
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 2230ms unexpected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 45920ms expected @6e5131c510b9+wt
 	cannot prove ensures contract for exit from extract_payload at statement 7: result >= 40 && result <= 80
-fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 2887ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 10937ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 2999ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 18519ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 2587ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 17587ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 2914ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 16980ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 3158ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 14032ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 2901ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 9988ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 3085ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 13277ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 3229ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 12186ms expected @6e5131c510b9+wt
+	cannot prove requires contract for call verify_payload from X86TargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
+	cannot prove requires contract for call verify_payload from ArmTargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
 fail/facts/free_entry_local_state_through_call_result_unprovided rejected 3963ms expected @ccdb99ca2214
 	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
 	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
