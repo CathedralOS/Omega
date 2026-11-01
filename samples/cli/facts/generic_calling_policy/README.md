@@ -103,16 +103,23 @@ recorded separately.
 The canonical row and its pinned sources now use ordinary implementations and
 explicit target-keyed Build selections. The Width-8 and Width-4 inputs, original
 calling geometry and authored result 42 are unchanged. This migration is not yet
-accepted: the exact optimized producer `d951339b24e70f6280c4cd286e2e066a757190e8`
-passes scoped Rust Clippy and builds both validation executables, but package
-preparation refuses the inline policy with `state graph: reference result origins`.
-The smaller `controls/returned_descriptor_selected` witness reproduces loss of
-an independent returned byte descriptor across one ordinary forwarding call;
-its direct-call control runs on the fixed baseline, and a descriptor borrowing a
-callee-local array rejects. These are prerequisite observations, not completed
-canonical-row evidence. Next acceptance remains the unchanged root plus all
-nine positive places with `omega run --both`, their fact-sensitive Width-4 twins,
-and the selected/missing/nested-provider controls.
+accepted. The frozen optimized producer
+`e67b77c61f99ca9971d1d4b0640a3f8cce88d5ce` executes the root and the local,
+field, parameter, call-result, match-join and const-name places at native and
+Terminal exit 0. Its prerequisite repair carries independently issued returned
+descriptors through ordinary forwarding calls. The later exact producer
+`1da39b67596f6bb9549d72b8cef3d994f9e6fdbe` also executes a saved-local forwarding
+call and the composite descriptor fixture at native and Terminal exit 0;
+returning a descriptor borrowing a callee-local array still rejects. These
+observations retain their original producer identities.
+
+The current compiler reconciles selected-helper execution with canonical ABI
+publication from main. Fresh integrated validation remains required, including
+the remaining places, all fact-sensitive Width-4 twins and
+selected/missing/nested-provider controls. The row is still open. Package
+review also exposed a workflow defect: the private retained source graph exceeds
+its 512 MiB encoding limit, so repeated preparations cannot reuse that graph.
+Its limit and admission checks remain intact.
 
 ## Historical target-family evidence
 
