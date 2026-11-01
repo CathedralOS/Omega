@@ -261,3 +261,8 @@ places, preserving completed captures and each formal's carrier and policy.
 carry this same fact, bound and counter operation through a declared integer
 application that reads both endpoints of one nominal record. All nine places
 retain the full read roster; exact increment-zero twins reject non-descent.
+
+[Shared inputs to declared measure calls](parameter/declared_measure/computed_record/call/borrowed_input/README.md)
+continue the same production through an ordinary helper borrowing the complete
+owned entry input. The checked call retains its exact referent type and short
+shared window separately from the scalar proof reads.

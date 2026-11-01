@@ -11,9 +11,9 @@ The complete owned entry input supplies the initialized backing. Scalar proof
 reads cannot reconstruct a record, manufacture a loan, or supply a statement
 occurrence. The shared call finishes before the invocation's body effects.
 
-Every program runs the seven-step path (counter3→10) and the empty path
-(counter remains10), checking endpoint equality and canary641. The exact twin
-changes only increment1→0. The matching and fallback paths have different
+Every program runs the seven-step path (counter 3→10) and the empty path
+(counter remains 10), checking endpoint equality and canary 641. The exact twin
+changes only increment 1→0. The matching and fallback paths have different
 observable counter effects, so losing a call, taking the wrong path, or adding
 an iteration traps.
 
@@ -35,6 +35,9 @@ composition lends the same complete input twice in one ordinary call.
 independent endpoint ordering. [Borrow into owned](controls/borrow_into_owned/main.omg)
 keeps the explicit borrow while changing the helper's formal to an owned value;
 observation type equality must not manufacture copy/transfer authority.
+[Write-only input](controls/write_only/main.omg) refuses observation of both
+endpoints, and [mutation through the shared input](controls/mutating_helper/main.omg)
+refuses its attempted write. Ranking proves neither access permission.
 
 ## Requirements and evidence
 
@@ -44,6 +47,16 @@ record. Its optimized CLI (`e3c6d5bc0b1c6865555e13b7374695ce62108052f6457a64f797
 opt-level1) refuses the unchanged public `omega run --both` command at independent
 entry formation, exit200. Receipt `bf8235d4abc64a2e8676b940ee8f3bd9` has no
 input invalidations. This is a source-checking refusal, not runtime evidence.
+
+The governing rules are [independent invocation formation and exact actuals](../../../../../../../../../../wiki/spec/language/state_contracts.md),
+[joint termination measures](../../../../../../../../../../wiki/spec/language/termination.md),
+and [explicit nested-machine inputs](../../../../../../../../../../wiki/spec/language/machines.md#nested-machines-and-identity).
+The same baseline also refused the existing owned-input call after the counter's
+completed primitive conversion lost its symbolic denotation. Completed runtime
+prefixes now retain an opaque result and their effects when no conversion
+equation is available; proof-only evaluation still requires justified meaning.
+This preserves the later record snapshot without treating a reference descriptor
+as a scalar observation.
 
 - Establishment: independently form the selected helper's complete public input
   contract before consuming its result equation. The desired rank supplies no
@@ -71,7 +84,14 @@ input invalidations. This is a source-checking refusal, not runtime evidence.
 
 Pinned fixtures use `facts/nested_machine_joint_rank_borrowed_call_*` under
 `tests/omega/{pass,fail}`. Qualification and observed results are retained with
-actual producer identities in the publication record. Acceptance is pending.
+actual producer identities in the publication record. On Linux x86-64, optimized
+producer `a17219c1def10c8448ee4d0aca8cab6c0dc9eac1` executes all nine places
+and the overlapping-shared-arguments composition with native/Terminal exit 0
+agreement. The sample gate observes all thirteen intended refusals, including
+each place's nonprogress twin. An independently corrupted counter expectation
+produces native signal 4 and Terminal `Trap`, confirming that the runtime oracle
+can falsify a wrong result. The existing owned-input record call also agrees at
+exit 0. These are Linux observations, not other-host qualification.
 
 This production covers shared calls borrowing reusable owned entry inputs.
 Outer reference-bearing/noncopy inputs, exclusive/affine transfers, nonscalar
