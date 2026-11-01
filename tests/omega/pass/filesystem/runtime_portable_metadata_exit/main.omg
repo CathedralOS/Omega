@@ -1,10 +1,11 @@
 // Expected exit: 0. Linux stat has no creation timestamp; Darwin has one. Metadata
 // preserves physical field widths, descriptor/path identity and both timespecs.
+use omega::language::core::filesystem_authority;
 use omega_language_std::filesystem;
 use omega_language_std::console;
 
 data Main { filesystem: Filesystem; file: File; original: Metadata; posix: PosixMetadata; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut zero: TimestampResult;
     transition zero { TimestampResult::Error { kind } -> zero_error(main, kind) _ -> bad(10) }
     machine zero_error(main: &mut Main, kind: ErrorKind) {
@@ -109,7 +110,7 @@ macos_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }
