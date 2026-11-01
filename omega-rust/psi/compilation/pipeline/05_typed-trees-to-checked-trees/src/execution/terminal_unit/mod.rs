@@ -201,7 +201,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     let retained_records = state_graph::RetainedBorrowRecords::new(facts);
     let mut boundary_gaps = Vec::new();
     let (boundary_machines, dynamic_slots, boundary_symbols) =
-        phase_profile::scope("05.d.8_10.a.3.1.boundary_and_dynamic", || {
+        phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.boundary_and_dynamic", || {
             let mut boundary_machines = program
                 .machines()
                 .iter()
@@ -254,7 +254,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut composed_machines = Vec::new();
     let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
-    phase_profile::scope("05.d.8_10.a.3.2.candidate_bodies", || {
+    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies", || {
         for machine in program
             .machines()
             .iter()
@@ -265,12 +265,12 @@ pub(crate) fn build_checked_unit_effect_plans(
             let trace = LocalConstructionTrace::default();
             shapes.take_unselected_opaque();
             let mut attempt_calls = structural_value_calls::PreparedCalls::default();
-            let route = phase_profile::scope("05.d.8_10.a.3.2a.body_route", || {
+            let route = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route", || {
                 body_route(program, machine)
             });
             let planned = match route {
                 BodyRoute::Sequence => {
-                    phase_profile::scope("05.d.8_10.a.3.2b.sequence_body", || {
+                    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body", || {
                         build_checked_machine_residual_parts(
                             program,
                             facts,
@@ -324,7 +324,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         )
                     })
                 }
-                BodyRoute::Graph => phase_profile::scope("05.d.8_10.a.3.2c.graph_body", || {
+                BodyRoute::Graph => phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body", || {
                     state_graph::build_traced(
                         program,
                         facts,
@@ -366,7 +366,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     // contextual actions against the same immutable callable entry roster,
     // before mutating either body catalog. Entry metadata borrows the real
     // bodies; no temporary ordinary plan stands in for a state graph.
-    let _s_cleanup = phase_profile::guard("05.d.8_10.a.3.3.cleanup_selections");
+    let _s_cleanup = phase_profile::guard("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.cleanup_selections");
     let targets = candidates
         .iter()
         .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
@@ -561,7 +561,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     );
 
     drop(_s_cleanup);
-    let closure_gaps = phase_profile::scope("05.d.8_10.a.3.4.candidate_closure", || {
+    let closure_gaps = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_closure", || {
         candidate_closure::retain_available(
             program,
             facts,

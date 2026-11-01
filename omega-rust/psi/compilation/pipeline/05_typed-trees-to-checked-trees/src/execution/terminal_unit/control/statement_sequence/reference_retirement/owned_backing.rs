@@ -149,7 +149,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     completed_operations: usize,
     pending: &mut [OperationPlan],
 ) -> Option<()> {
-    let _profile = phase_profile::guard("05.unit.reference_retirement.owner_cleanups");
+    let _profile = phase_profile::guard("psi.05.unit.reference_retirement.owner_cleanups");
     let mut owners = Vec::new();
     for candidate in &candidates.owners {
         let row = facts

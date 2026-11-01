@@ -167,7 +167,7 @@ pub(super) fn check(
             let satisfied = captured_actual
                 .as_ref()
                 .and_then(|actual| {
-                    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.captures", || {
+                    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs.captures", || {
                         super::call_values::captured_values(program, facts, state, call, actual)
                     })
                 })
@@ -337,7 +337,7 @@ fn prove_declared_field_domain(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.domain", || {
+    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs.domain", || {
         if validation::field_domains::domain_requires_provenance(program, domain_symbol)
             || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
         {

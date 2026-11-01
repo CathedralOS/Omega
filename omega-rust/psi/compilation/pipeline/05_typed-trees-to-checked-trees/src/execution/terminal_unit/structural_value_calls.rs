@@ -126,7 +126,7 @@ impl PreparedCalls {
         operations: &[OperationPlan],
         boundary: usize,
     ) {
-        let _profile = phase_profile::guard("05.unit.prepare_value_calls");
+        let _profile = phase_profile::guard("psi.05.unit.prepare_value_calls");
         let order = program
             .statement_table
             .admitted_execution_order(state.statement_nodes);

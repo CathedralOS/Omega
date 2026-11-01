@@ -124,7 +124,7 @@ pub(crate) fn check_indexed_accesses(
                 let non_entry_has_indexed = state_has_indexed
                     .get(1..)
                     .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
-                let calls: Vec<_> = phase_profile::scope("05.d.7.9.a.range_call_context", || {
+                let calls: Vec<_> = phase_profile::scope("psi.05.check_checked_facts.check_indexed_accesses.range_call_context", || {
                     let states = if non_entry_has_indexed {
                         machine_states
                     } else {
@@ -145,7 +145,7 @@ pub(crate) fn check_indexed_accesses(
                         .collect()
                 });
                 let state_argument_facts = if non_entry_has_indexed {
-                    phase_profile::scope("05.d.7.9.b.state_argument_facts", || {
+                    phase_profile::scope("psi.05.check_checked_facts.check_indexed_accesses.state_argument_facts", || {
                         collect_state_argument_facts(
                             program,
                             &field_lengths,
@@ -162,7 +162,7 @@ pub(crate) fn check_indexed_accesses(
                 };
                 let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
                 let loop_invariant_facts =
-                    phase_profile::scope("05.d.7.9.c.loop_invariant_facts", || {
+                    phase_profile::scope("psi.05.check_checked_facts.check_indexed_accesses.loop_invariant_facts", || {
                         collect_loop_invariant_facts(program, machine, call_frames)
                     });
                 for ((state, calls), has_indexed) in
@@ -192,7 +192,7 @@ pub(crate) fn check_indexed_accesses(
                             None,
                         );
                     }
-                    phase_profile::scope("05.d.7.9.d.seed_state", || {
+                    phase_profile::scope("psi.05.check_checked_facts.check_indexed_accesses.seed_state", || {
                         seed_state_requires(program, &mut facts, machine, state);
                         seed_state_argument_facts(&mut facts, state, &state_argument_facts);
                         seed_dependent_param_orderings(program, &mut facts, machine, state);
@@ -211,7 +211,7 @@ pub(crate) fn check_indexed_accesses(
                             &loop_invariant_facts,
                         );
                     });
-                    let _s = phase_profile::guard("05.d.7.9.e.check_statements");
+                    let _s = phase_profile::guard("psi.05.check_checked_facts.check_indexed_accesses.check_statements");
                     for (statement_index, statement) in program
                         .statement_table
                         .admitted_execution_statements(state.statement_nodes)

@@ -108,7 +108,7 @@ pub(crate) fn check_checked_facts_recording(
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let setup_guard = phase_profile::guard("05.d.7.0.setup_guards_and_entailment");
+    let setup_guard = phase_profile::guard("psi.05.check_checked_facts.setup_guards_and_entailment");
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
     let proof_only = validation::proof_only_classification(program);
@@ -136,7 +136,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     if let Err(mut evidence_diagnostics) =
-        phase_profile::scope("05.d.7.1.bind_call_evidence_arguments", || {
+        phase_profile::scope("psi.05.check_checked_facts.bind_call_evidence_arguments", || {
             contracts::bind_call_evidence_arguments(program, facts)
         })
     {
@@ -144,7 +144,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     if let Err(mut borrow_diagnostics) =
-        phase_profile::scope("05.d.7.2.check_flow_call_borrows", || {
+        phase_profile::scope("psi.05.check_checked_facts.check_flow_call_borrows", || {
             borrows::check_flow_call_borrows(
                 program,
                 facts,
@@ -157,7 +157,7 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
-    phase_profile::scope("05.d.7.2b.runtime_indices_case_fences", || {
+    phase_profile::scope("psi.05.check_checked_facts.runtime_indices_case_fences", || {
         runtime_indices::check(program, facts, call_frames.as_ref(), &mut diagnostics);
         case_access::check(program, facts, &mut diagnostics);
         atomic_fences::check(program, facts, &mut diagnostics);
@@ -167,14 +167,14 @@ pub(crate) fn check_checked_facts_recording(
     // exit checking. Authored guarantees are obligations, not theorem roots;
     // preparing composition here makes completed-call evidence available to
     // the caller's exit without letting its own unproved clause seed a cycle.
-    phase_profile::scope("05.d.7.3a.content_composition", || {
+    phase_profile::scope("psi.05.check_checked_facts.content_composition", || {
         content::infer_identity_preserving_reshuffles(program, facts);
         content::compose_partition_wrappers(program, facts, &mut entailment);
     });
 
-    phase_profile::checkpoint("after content composition", "05.d.7.3a.content_composition");
+    phase_profile::checkpoint("after content composition", "psi.05.check_checked_facts.content_composition");
 
-    match phase_profile::scope("05.d.7.3b.check_flow_call_contracts", || {
+    match phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts", || {
         contracts::check_flow_call_contracts(
             program,
             facts,
@@ -201,7 +201,7 @@ pub(crate) fn check_checked_facts_recording(
 
     phase_profile::checkpoint(
         "after call contracts",
-        "05.d.7.3b.check_flow_call_contracts",
+        "psi.05.check_checked_facts.check_flow_call_contracts",
     );
 
     if let Err(mut store_diagnostics) =
@@ -211,7 +211,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     if let Err(mut multiplicity_diagnostics) =
-        phase_profile::scope("05.d.7.4.check_linear_obligations", || {
+        phase_profile::scope("psi.05.check_checked_facts.check_linear_obligations", || {
             multiplicity::check_linear_obligations(program, facts, incoming_guards)
         })
     {
@@ -220,10 +220,10 @@ pub(crate) fn check_checked_facts_recording(
 
     phase_profile::checkpoint(
         "after linear obligations",
-        "05.d.7.4.check_linear_obligations",
+        "psi.05.check_checked_facts.check_linear_obligations",
     );
 
-    phase_profile::scope("05.d.7.5_8.crashes_content_carry_operators", || {
+    phase_profile::scope("psi.05.check_checked_facts.crashes_content_carry_operators", || {
         if let Err(mut crash_edge_diagnostics) = crashes::check_crash_exit_edge_isolation(program) {
             diagnostics.append(&mut crash_edge_diagnostics);
         }
@@ -262,10 +262,10 @@ pub(crate) fn check_checked_facts_recording(
 
     phase_profile::checkpoint(
         "BEFORE indexed ranges",
-        "05.d.7.5_8.crashes_content_carry_operators",
+        "psi.05.check_checked_facts.crashes_content_carry_operators",
     );
 
-    match phase_profile::scope("05.d.7.9.check_indexed_accesses", || {
+    match phase_profile::scope("psi.05.check_checked_facts.check_indexed_accesses", || {
         ranges::check_indexed_accesses(
             program,
             &facts.operators,
@@ -285,7 +285,7 @@ pub(crate) fn check_checked_facts_recording(
         }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
-    phase_profile::checkpoint("AFTER indexed ranges", "05.d.7.9.check_indexed_accesses");
+    phase_profile::checkpoint("AFTER indexed ranges", "psi.05.check_checked_facts.check_indexed_accesses");
     indexed_writes::record(program, facts);
     indexed_writes::record_assignment_indexes(program, facts);
 

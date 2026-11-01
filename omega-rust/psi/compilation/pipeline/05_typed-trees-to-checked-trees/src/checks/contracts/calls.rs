@@ -58,7 +58,7 @@ pub(super) fn check_call_requires(
     // fallthrough arms -- through the flow's context threading, now that a
     // transition's branch-taken exit context is no longer leaked onto its sibling
     // fallthrough (see flow/statements.rs). No direct-context consultation needed.
-    let entry_contexts: Vec<_> = phase_profile::scope("05.d.7.3b.1a.entry_contexts", || {
+    let entry_contexts: Vec<_> = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.entry_contexts", || {
         facts
             .flow
             .state_call_entry_semantic_contexts(
@@ -70,7 +70,7 @@ pub(super) fn check_call_requires(
             )
             .collect()
     });
-    phase_profile::scope("05.d.7.3b.1b.contextual_cleanup", || {
+    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.contextual_cleanup", || {
         super::contextual_cleanup::check(
             program,
             facts,
@@ -81,7 +81,7 @@ pub(super) fn check_call_requires(
             diagnostics,
         );
     });
-    phase_profile::scope("05.d.7.3b.1b.nominal_inputs", || {
+    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs", || {
         super::nominal_inputs::check(
             program,
             facts,
@@ -98,7 +98,7 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let membership = phase_profile::scope("05.d.7.3b.1c.membership", || {
+            let membership = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.membership", || {
                 super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact)
             });
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
@@ -115,7 +115,7 @@ pub(super) fn check_call_requires(
                         whole_contract_caches.len() - 1
                     });
                 let captured_judgment =
-                    phase_profile::scope("05.d.7.3b.1d.captured_boolean", || {
+                    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean", || {
                         captured_boolean::judgment(
                             program,
                             facts,
@@ -128,7 +128,7 @@ pub(super) fn check_call_requires(
                             &mut whole_contract_caches[cache_index].answers,
                         )
                     });
-                let satisfied = phase_profile::scope("05.d.7.3b.1e.proves_core", || {
+                let satisfied = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.proves_core", || {
                     selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
                         || captured_judgment.unwrap_or_else(|| match fact.payload {
                             FactPayload::ContractBooleanExpression { expression, .. } => {
@@ -165,7 +165,7 @@ pub(super) fn check_call_requires(
                 // domain without a validating boundary call -- this is how a literal
                 // flows into a `&[u8] in Utf8` target.
                 let satisfied = satisfied
-                    || phase_profile::scope("05.d.7.3b.1f.domain_grants", || {
+                    || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.domain_grants", || {
                         (captured_judgment.is_none()
                             && proven_predicates_grant_domain(
                                 program,

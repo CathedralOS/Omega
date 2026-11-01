@@ -34,7 +34,7 @@ pub(super) struct DifferenceGraph<'relations> {
 
 impl<'relations> DifferenceGraph<'relations> {
     pub(super) fn new(relations: &'relations [Relation]) -> Self {
-        phase_profile::count("05.ordered_relations.graphs", 1);
+        phase_profile::count("psi.05.ordered_relations.graphs", 1);
         let mut operands = Vec::new();
         let mut edges = Vec::new();
         for relation in relations {
@@ -130,8 +130,8 @@ impl<'relations> DifferenceGraph<'relations> {
             }
         }
         let core_gaps = vec![None; len];
-        phase_profile::count("05.ordered_relations.vertices", operands.len() as u64);
-        phase_profile::count("05.ordered_relations.edges", edges.len() as u64);
+        phase_profile::count("psi.05.ordered_relations.vertices", operands.len() as u64);
+        phase_profile::count("psi.05.ordered_relations.edges", edges.len() as u64);
         Self {
             operands,
             edges,
@@ -189,7 +189,7 @@ impl<'relations> DifferenceGraph<'relations> {
 
     fn core_nonnegative_gap_indexed(&mut self, source: usize, destination: usize) -> bool {
         if self.core_gaps[source].is_none() {
-            phase_profile::count("05.ordered_relations.rows", 1);
+            phase_profile::count("psi.05.ordered_relations.rows", 1);
             let target_component = self.core_component[source] as usize;
             let component_edges = &self.core_component_edges[target_component];
             let mut gaps: Vec<Option<i64>> = vec![None; self.operands.len()];
@@ -248,7 +248,7 @@ impl<'relations> DifferenceGraph<'relations> {
             return self.core_nonnegative_gap_indexed(source, destination);
         }
         if self.gaps[source].is_none() {
-            phase_profile::count("05.ordered_relations.rows", 1);
+            phase_profile::count("psi.05.ordered_relations.rows", 1);
             let target_component = self.component[source];
             let mut gaps: Vec<Option<i64>> = vec![None; self.operands.len()];
             gaps[source] = Some(0);

@@ -203,7 +203,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let state_calls = phase_profile::scope("05.d.3.b.flow.state_statements", || {
+    let state_calls = phase_profile::scope("psi.05.build_check_facts.flow.state_statements", || {
         append_state_statement_flow_facts(
             program,
             borrow,

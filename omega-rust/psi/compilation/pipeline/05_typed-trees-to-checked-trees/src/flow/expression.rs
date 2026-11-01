@@ -534,11 +534,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         else {
             return CompletedInvocation::default();
         };
-        let _invoke_guard = phase_profile::guard("05.d.3.b.flow.expr.invoke");
+        let _invoke_guard = phase_profile::guard("psi.05.build_check_facts.flow.expression.invoke");
         invocation.visited = true;
         let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
-        let writes = phase_profile::scope("05.d.3.b.flow.invoke.1_storage_writes", || {
+        let writes = phase_profile::scope("psi.05.build_check_facts.flow.invoke.storage_writes", || {
             super::call_phases::call_storage_writes(
                 self.program,
                 self.borrow,
@@ -548,7 +548,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 borrowed_call,
             )
         });
-        let mut call = phase_profile::scope("05.d.3.b.flow.invoke.2_build_call", || {
+        let mut call = phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
             build_call_flow_fact(
                 self.program,
                 self.borrow,
@@ -578,7 +578,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
-        let stores = phase_profile::scope("05.d.3.b.flow.invoke.3_capture_stores", || {
+        let stores = phase_profile::scope("psi.05.build_check_facts.flow.invoke.capture_stores", || {
             self.capture_call_stores(
                 site,
                 borrowed_call,
@@ -588,7 +588,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         });
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
-        phase_profile::scope("05.d.3.b.flow.invoke.4_reference_custody", || {
+        phase_profile::scope("psi.05.build_check_facts.flow.invoke.reference_custody", || {
             super::call_phases::install_returned_reference_custody(
                 self.program,
                 self.borrow,

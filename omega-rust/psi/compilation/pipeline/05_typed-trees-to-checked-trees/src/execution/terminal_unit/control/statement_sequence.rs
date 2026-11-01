@@ -207,7 +207,7 @@ pub(in super::super) fn build(
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
     let (scalar_control, terminator_start) = phase_profile::scope(
-        "05.d.8_10.a.3.2c.3b1.scalar_control",
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.scalar_control",
         || match scalar_control(program, facts, machine, state) {
             Some((control, prefix_count)) => (Some(control), prefix_count),
             None => (None, usize::MAX),
@@ -327,7 +327,7 @@ pub(in super::super) fn build(
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
-    let erased_locals = phase_profile::scope("05.d.8_10.a.3.2c.3b2.erased_locals", || {
+    let erased_locals = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals", || {
         erased_alias_locals(program, facts, machine, state)
     });
     let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
@@ -372,7 +372,7 @@ pub(in super::super) fn build(
         };
     }
     trace.phase("statement sequence: scalar field store sequence");
-    let mut stores = phase_profile::scope("05.d.8_10.a.3.2c.3b3.stores", || {
+    let mut stores = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.stores", || {
         super::super::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
             program,
             facts,
@@ -387,7 +387,7 @@ pub(in super::super) fn build(
     })?
     .into_iter()
     .peekable();
-    let _loop_guard = phase_profile::guard("05.d.8_10.a.3.2c.3b4.statement_loop");
+    let _loop_guard = phase_profile::guard("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop");
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
@@ -711,7 +711,7 @@ pub(in super::super) fn build(
     }
     drop(_loop_guard);
     trace.statement(None);
-    phase_profile::scope("05.d.8_10.a.3.2c.3b5.completion", || {
+    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion", || {
         completion::complete(completion::Completion {
             construction: construction!(),
             owner_candidates,

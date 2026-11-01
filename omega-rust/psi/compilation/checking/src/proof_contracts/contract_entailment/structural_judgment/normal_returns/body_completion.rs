@@ -108,7 +108,7 @@ impl<'program> StructuralJudge<'program> {
         // This operation reads the selected body directly, rather than through
         // application unfolding or a returned-field correspondence query.
         captured.record_returned_field_dependency(callee.symbol);
-        let arms = phase_profile::scope("05.bc.recognize", || {
+        let arms = phase_profile::scope("psi.05.body_completion.recognize", || {
             recognize_structural_state_leaves(
                 program,
                 theorem,

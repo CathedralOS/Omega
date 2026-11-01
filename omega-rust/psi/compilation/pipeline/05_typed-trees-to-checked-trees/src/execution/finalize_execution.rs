@@ -11,7 +11,7 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
-    let erased_citations = phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
+    let erased_citations = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.rank_and_terminal_machines", || {
         crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
         facts.flow.terminal_machines =
             crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
@@ -24,7 +24,7 @@ pub(crate) fn finalize_execution(
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.
     facts.flow.terminal_structural_control_cleanups =
-        phase_profile::scope("05.d.8_10.a.2.structural_control_cleanups", || {
+        phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.structural_control_cleanups", || {
             crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
                 program, &facts,
             )
@@ -50,7 +50,7 @@ pub(crate) fn finalize_execution(
         })
         .collect::<Vec<_>>();
     let (mut terminal_unit_effects, partial_cleanups, prepared_calls) =
-        phase_profile::scope("05.d.8_10.a.3.unit_effect_plans", || {
+        phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans", || {
             crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 program,
                 &facts,
@@ -72,7 +72,7 @@ pub(crate) fn finalize_execution(
     // a planning defect, not a choice for lowering to make.
     facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
     let (nominal_cleanups, nominal_types) =
-        phase_profile::scope("05.d.8_10.a.4.nominal_affine_cleanups", || {
+        phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.nominal_affine_cleanups", || {
             crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
                 program,
                 &facts,

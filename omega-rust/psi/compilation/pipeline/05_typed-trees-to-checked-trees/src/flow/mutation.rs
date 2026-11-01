@@ -264,7 +264,7 @@ fn call_write_places(
         return Some(Vec::new());
     }
 
-    let summarized_places = phase_profile::scope("05.d.3.b.flow.mutation.1_summary", || {
+    let summarized_places = phase_profile::scope("psi.05.build_check_facts.flow.mutation.summary", || {
         instantiate_known_call_mutation_summary_places(
             program,
             caller_machine_symbol,
@@ -288,7 +288,7 @@ fn call_write_places(
             // Boundary effects retain their exact receiver and argument footprint,
             // including shared interior authority; a signature ceiling is not a
             // replacement for that separately owned contract.
-            return phase_profile::scope("05.d.3.b.flow.mutation.2_boundary", || {
+            return phase_profile::scope("psi.05.build_check_facts.flow.mutation.boundary", || {
                 shared_call_storage_regions(
                     program,
                     caller_machine_symbol,
@@ -305,7 +305,7 @@ fn call_write_places(
         // those here would retire facts those completed calls just restored.
         // The callee's declared authority bounds an unknown invocation. An
         // unrepresentable ceiling stays unknown and invalidates all contexts.
-        return phase_profile::scope("05.d.3.b.flow.mutation.3_ceiling", || {
+        return phase_profile::scope("psi.05.build_check_facts.flow.mutation.ceiling", || {
             ceiling::signature_ceiling_regions(
                 program,
                 caller_machine_symbol,

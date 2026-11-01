@@ -246,7 +246,7 @@ pub(crate) fn lower_unit_closure(
 
     // Discovery: every machine the closure emits, grouped by the route that
     // emits it.
-    let call_catalog = phase_profile::scope("05.01.a_discover_call_catalog", || {
+    let call_catalog = phase_profile::scope("psi.06.lower_selected_machine.discover_call_catalog", || {
         call_catalog::discover(
             checked,
             plans,
@@ -265,7 +265,7 @@ pub(crate) fn lower_unit_closure(
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
-    let admitted_bodies = phase_profile::scope("05.01.b_admit_bodies", || {
+    let admitted_bodies = phase_profile::scope("psi.06.lower_selected_machine.admit_bodies", || {
         admission::admit(checked, plans, &closure, &mut boundaries)
     })?;
     boundaries.sort_by_key(|(_, identity)| identity.order_key());
@@ -286,7 +286,7 @@ pub(crate) fn lower_unit_closure(
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
     let (mut structural_types, type_ids, structural_referents, native_records) =
-        phase_profile::scope("05.01.c_lower_structural_types", || {
+        phase_profile::scope("psi.06.lower_selected_machine.lower_structural_types", || {
             catalog::lower_unit_structural_types(
                 identities,
                 checked,
@@ -364,7 +364,7 @@ pub(crate) fn lower_unit_closure(
         }
     }
     let (structural_domains, domain_ids) =
-        phase_profile::scope("05.01.d_lower_domains_and_services", || {
+        phase_profile::scope("psi.06.lower_selected_machine.lower_domains_and_services", || {
             catalog::lower_unit_structural_domains(
                 identities,
                 checked,
@@ -376,7 +376,7 @@ pub(crate) fn lower_unit_closure(
             )
         })?;
     let (services, service_ids) =
-        phase_profile::scope("05.01.d_lower_domains_and_services", || {
+        phase_profile::scope("psi.06.lower_selected_machine.lower_domains_and_services", || {
             catalog::lower_unit_services(
                 identities,
                 checked,
@@ -393,7 +393,7 @@ pub(crate) fn lower_unit_closure(
         catalog::scalar_field_types(identities, checked, plans, &type_ids, &structural_types)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
-    let qualifications = phase_profile::scope("05.01.e_prepare_qualifications", || {
+    let qualifications = phase_profile::scope("psi.06.lower_selected_machine.prepare_qualifications", || {
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             identities,
             checked,
@@ -408,7 +408,7 @@ pub(crate) fn lower_unit_closure(
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
     let (boundary_machines, lowered_boundary_parameters) =
-        phase_profile::scope("05.01.f_lower_signatures", || {
+        phase_profile::scope("psi.06.lower_selected_machine.lower_signatures", || {
             boundaries::lower_declarations(
                 identities,
                 checked,
@@ -424,7 +424,7 @@ pub(crate) fn lower_unit_closure(
             )
         })?;
     let mut next_value = 1_u64;
-    let machine_signatures = phase_profile::scope("05.01.f_lower_signatures", || {
+    let machine_signatures = phase_profile::scope("psi.06.lower_selected_machine.lower_signatures", || {
         signatures::lower(
             identities,
             checked,
@@ -523,7 +523,7 @@ pub(crate) fn lower_unit_closure(
         } = admitted
         {
             let (machine, composed, mut invariants, mut coercions) =
-                phase_profile::scope("05.01.g1_emit_composed_body", || {
+                phase_profile::scope("psi.06.lower_selected_machine.emit_composed_body", || {
                     composed_control::callable::emit(
                         identities,
                         checked,
@@ -573,7 +573,7 @@ pub(crate) fn lower_unit_closure(
             continue;
         }
         let plan = body.ordinary()?;
-        let emitted = phase_profile::scope("05.01.g2_emit_ordinary_body", || {
+        let emitted = phase_profile::scope("psi.06.lower_selected_machine.emit_ordinary_body", || {
             ordinary_machine::emit(
                 identities,
                 checked,
@@ -612,7 +612,7 @@ pub(crate) fn lower_unit_closure(
         &type_ids,
         &machine_ids,
     )?;
-    let provider_candidates = phase_profile::scope("05.01.h_provider_conformances", || {
+    let provider_candidates = phase_profile::scope("psi.06.lower_selected_machine.provider_conformances", || {
         providers::conformances(
             identities,
             checked,

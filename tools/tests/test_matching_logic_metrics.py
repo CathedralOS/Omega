@@ -143,7 +143,7 @@ class EncodingRoute(unittest.TestCase):
 class ParseTimings(unittest.TestCase):
     def test_parses_stage_table_and_total(self):
         output = (
-            "     123.456 ms  Stage 01: SourceFiles -> TokenStreams\n"
+            "     123.456 ms  Stage 00: SourceFiles -> TokenStreams\n"
             "      45.000 ms  Stage 05: TypedTrees -> CheckedTrees\n"
             "     999.000 ms  total elapsed\n"
         )

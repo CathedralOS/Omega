@@ -82,7 +82,7 @@ pub(super) fn judgment(
     })();
     if proven == Some(true)
         || (proven != Some(false)
-            && phase_profile::scope("05.d.7.3b.1d.4b.captured_float", || {
+            && phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_float", || {
                 captured_float_requirement(program, facts, state, call, expression)
             }) == Some(true))
     {
@@ -91,7 +91,7 @@ pub(super) fn judgment(
     // Ordinary proof routes observe the authored actual, not its initializer.
     // A retained value-origin proof may discharge the requirement first; a
     // failed origin proof cannot weaken the original operand's epoch fence.
-    if phase_profile::scope("05.d.7.3b.1d.5.preserves_captures", || {
+    if phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.preserves_captures", || {
         source_substitution_preserves_captures(program, facts, state, call, requirement)
     }) == Some(true)
     {
@@ -201,13 +201,13 @@ fn captured_contract_proven(
             // actuals of this call. This capture-owned proof must precede the
             // source-substitution fence; repeatability of either runtime call
             // is neither necessary nor inferred.
-            let result = phase_profile::scope("05.d.7.3b.1d.1.call_guarantees", || {
+            let result = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.call_guarantees", || {
                 super::super::prover::call_guarantees::proves(
                     program, facts, state, call, contexts, *required, frames,
                 )
-            }) || phase_profile::scope("05.d.7.3b.1d.2.current_values", || {
+            }) || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.current_values", || {
                 super::super::current_values::proves_call(program, state, call, *required, frames)
-            }) || phase_profile::scope("05.d.7.3b.1d.3.structural", || {
+            }) || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.structural", || {
                 super::super::entailment::structural_call_requirement(
                     program,
                     facts,
@@ -227,7 +227,7 @@ fn captured_contract_proven(
     }
     // The retained contract and its call inputs are invariant across children.
     // Continue with expression-dependent attempts after this one fails.
-    phase_profile::scope("05.d.7.3b.1d.4.captured_expr", || {
+    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_expr", || {
         captured_expression_proven(
             program,
             facts,

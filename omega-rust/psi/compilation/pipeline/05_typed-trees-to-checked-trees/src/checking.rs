@@ -165,7 +165,7 @@ pub fn reuse_retained_check(
         retained.dependency_judgments_admitted = true;
         retained
     });
-    phase_profile::scope("05.e.declaration_authority", || {
+    phase_profile::scope("psi.05.declaration_authority", || {
         admit_declaration_authority(&checked, request)
     })?;
     Ok(CheckingOutcome {
@@ -220,7 +220,7 @@ pub fn lower_typed_trees_reusing(
         frozen_dependency_bodies,
         dependency_bodies,
     });
-    phase_profile::scope("05.e.declaration_authority", || {
+    phase_profile::scope("psi.05.declaration_authority", || {
         admit_declaration_authority(&checked, request)
     })?;
     Ok(CheckingOutcome {
@@ -284,7 +284,7 @@ fn check_program(
     )?;
     let program = program
         .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
-    let mut validated = phase_profile::scope("05.d.2.prepare_typed_program", || {
+    let mut validated = phase_profile::scope("psi.05.prepare_typed_program", || {
         prepare_typed_program(
             &program,
             &opaque_property_receipts,
@@ -294,7 +294,7 @@ fn check_program(
             record_dependency_bodies,
         )
     })?;
-    phase_profile::checkpoint("after typed preparation", "05.d.2.prepare_typed_program");
+    phase_profile::checkpoint("after typed preparation", "psi.05.prepare_typed_program");
     let deferred_entailment = validated.deferred_entailment;
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
@@ -314,7 +314,7 @@ fn check_program(
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
-    let built = phase_profile::scope("05.d.3.build_check_facts", || {
+    let built = phase_profile::scope("psi.05.build_check_facts", || {
         build_check_facts(
             &program,
             &validated.proof_plan,
@@ -339,14 +339,14 @@ fn check_program(
             );
         }
     };
-    phase_profile::checkpoint("after check-fact construction", "05.d.3.build_check_facts");
+    phase_profile::checkpoint("after check-fact construction", "psi.05.build_check_facts");
     // Contract entailment judges each checked body once, after the flow facts
     // it may read exist. The stage-04 prover reads those proved postconditions
     // at its own decision point; nobody rejudges them.
     let validation::ContractEntailment {
         proven_machine_contracts,
         dependency_body_judgments,
-    } = phase_profile::scope("05.d.3b.contract_entailment", || {
+    } = phase_profile::scope("psi.05.contract_entailment", || {
         validation::judge_contract_entailment(&program, deferred_entailment)
     })?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
@@ -355,7 +355,7 @@ fn check_program(
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch publishes exact admission facts consumed by runtime planning.
-    let mid_guard = phase_profile::guard("05.d.4_6.quotients_borrows_identities");
+    let mid_guard = phase_profile::guard("psi.05.quotients_borrows_identities");
     let quotient_operations = validation::admit_checked_quotient_requests(&program, &|machine| {
         facts
             .termination
@@ -385,7 +385,7 @@ fn check_program(
         )?;
     drop(mid_guard);
 
-    phase_profile::scope("05.d.7.check_checked_facts", || {
+    phase_profile::scope("psi.05.check_checked_facts", || {
         checks::check_checked_facts_recording(
             &program,
             &mut facts,
@@ -395,8 +395,8 @@ fn check_program(
             &expression_intervals,
         )
     })?;
-    phase_profile::checkpoint("after checked-fact checks", "05.d.7.check_checked_facts");
-    let late_guard = phase_profile::guard("05.d.8_10.finalize_execution_identities");
+    phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
+    let late_guard = phase_profile::guard("psi.05.finalize_execution_identities");
     crate::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     validation::validate_runtime_proof_citations(&program, &|machine| {
@@ -410,7 +410,7 @@ fn check_program(
         .extend(proof_recipe_obligations);
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
-    let mut facts = phase_profile::scope("05.d.8_10.a.finalize_execution", || {
+    let mut facts = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution", || {
         crate::execution::finalize_execution::finalize_execution(
             &program,
             facts,
@@ -419,10 +419,10 @@ fn check_program(
     })?;
     phase_profile::checkpoint(
         "after execution finalization",
-        "05.d.8_10.a.finalize_execution",
+        "psi.05.finalize_execution_identities.finalize_execution",
     );
     facts.flow.semantic_dependencies =
-        phase_profile::scope("05.d.8_10.b.semantic_dependencies", || {
+        phase_profile::scope("psi.05.finalize_execution_identities.semantic_dependencies", || {
             crate::flow::derive_checked_semantic_dependencies(&program, &facts)
         });
 
@@ -431,7 +431,7 @@ fn check_program(
     // not: consumers read the classification checking computed instead of
     // rerunning operational and service-reach inference for canonical bytes.
     facts.accepted_template_identities = phase_profile::scope(
-        "05.d.8_10.c.accepted_template_identities",
+        "psi.05.finalize_execution_identities.accepted_template_identities",
         || {
             checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
                 program
@@ -462,8 +462,8 @@ fn check_program(
         },
     );
     drop(late_guard);
-    let final_guard = phase_profile::guard("05.d.11_13.selections_custody_types_boundaries");
-    facts.finalized_selections = phase_profile::scope("05.d.11_13.a.finalize_selections", || {
+    let final_guard = phase_profile::guard("psi.05.selections_custody_types_boundaries");
+    facts.finalized_selections = phase_profile::scope("psi.05.selections_custody_types_boundaries.finalize_selections", || {
         crate::authored_selections::finalize_checked_authored_selections(&program, &mut facts)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
@@ -471,7 +471,7 @@ fn check_program(
     // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = program.with_authored_declaration_selections(&facts.finalized_selections);
     phase_profile::scope(
-        "05.d.11_13.b.visibility_and_cleanup_selections",
+        "psi.05.selections_custody_types_boundaries.visibility_and_cleanup_selections",
         || -> Result<(), Vec<diagnostics::Diagnostic>> {
             validation::validate_reserved_cleanup_selections(&finalized)?;
             validation::validate_declaration_visibility(&finalized)?;
@@ -485,32 +485,32 @@ fn check_program(
     // the references and specialized states those added. Nothing below
     // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
     // with the facts — so neither table can grow past this point.
-    facts.reference_custody = phase_profile::scope("05.d.11_13.c.reference_custody", || {
+    facts.reference_custody = phase_profile::scope("psi.05.selections_custody_types_boundaries.reference_custody", || {
         validation::reference_result_custody::classify_program_reference_custody(&finalized)
     });
     // Content classification rides the same placement, and for the same
     // reason. Both memos it leans on -- the data-definition index and the
     // attached-`::drop` index -- are owned by `program` and keyed by table
     // revision, so they still answer from cache here.
-    facts.content_classes = phase_profile::scope("05.d.11_13.d.content_classes", || {
+    facts.content_classes = phase_profile::scope("psi.05.selections_custody_types_boundaries.content_classes", || {
         validation::classify_program_content_classes(&finalized)
     });
     // Retain place/result decisions under final occurrence handles. Recording
     // before specialization or authored-selection finalization would miss the
     // generated bodies; lowering must not repair an incomplete table itself.
-    facts.resolved_types = phase_profile::scope("05.d.11_13.e.resolved_types", || {
+    facts.resolved_types = phase_profile::scope("psi.05.selections_custody_types_boundaries.resolved_types", || {
         crate::facts::resolved_types::resolve_program_types(&finalized)
     });
-    facts.state_locals = phase_profile::scope("05.d.11_13.f.state_locals", || {
+    facts.state_locals = phase_profile::scope("psi.05.selections_custody_types_boundaries.state_locals", || {
         crate::facts::state_locals::record_state_locals(&finalized)
     });
     facts.provider_closed_requirements =
-        phase_profile::scope("05.d.11_13.g.provider_closed_requirements", || {
+        phase_profile::scope("psi.05.selections_custody_types_boundaries.provider_closed_requirements", || {
             crate::facts::provider_closed_requirements::record_provider_closed_requirements(
                 &finalized,
             )
         });
-    facts.executable_bindings = phase_profile::scope("05.d.11_13.h.executable_bindings", || {
+    facts.executable_bindings = phase_profile::scope("psi.05.selections_custody_types_boundaries.executable_bindings", || {
         crate::facts::executable_bindings::record(&finalized)
     });
     crate::facts::executable_bindings::freeze_contract_subjects(&finalized, &mut facts.proof);
@@ -595,7 +595,7 @@ fn check_program(
     facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(typed_program, facts);
     phase_profile::scope(
-        "05.d.11_13.h.boundary_and_portable_checks",
+        "psi.05.selections_custody_types_boundaries.boundary_and_portable_checks",
         || -> Result<(), Vec<diagnostics::Diagnostic>> {
             validation::validate_boundary_calls(&checked)?;
             target_families::validate_portable_references(&checked)?;
@@ -608,7 +608,7 @@ fn check_program(
     drop(final_guard);
     phase_profile::checkpoint(
         "after final selections/custody/boundaries",
-        "05.d.11_13.selections_custody_types_boundaries",
+        "psi.05.selections_custody_types_boundaries",
     );
     crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
     checked.facts.proof_applications = crate::facts::proof_applications::retain(&checked);

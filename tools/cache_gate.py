@@ -138,7 +138,7 @@ class Gate:
         fresh, _ = self.observe(project, cold, label + "-fresh", **options)
         assert retained == fresh, f"{label}: warm/fresh disagreement: {retained} != {fresh}"
         self.comparisons.append(dict(label=label, result=retained,
-                                     retained_hits=counter(text, "05.b.retained_match.hit"),
+                                     retained_hits=counter(text, "psi.source.retained_match.hit"),
                                      loaded_graphs=counter(text, "source.graph.loaded")))
         return text
 
@@ -180,7 +180,7 @@ def source_mutations(gate, directory):
                 dependency.write_text('module result; use limit; public machine answer() -> i32 { limit::value() }\n')
             gate.observe(project, warm, name + "-seed")
             text = gate.pair(project, warm, root / "fresh-initial", name + "-unchanged", prepare=False)
-            assert counter(text, "source.graph.loaded") and counter(text, "05.b.retained_match.hit"), f"{name}: did not exercise a retained judgment"
+            assert counter(text, "source.graph.loaded") and counter(text, "psi.source.retained_match.hit"), f"{name}: did not exercise a retained judgment"
             rejection, expected = None, 0
             changed = dependency
             original = changed.read_bytes()

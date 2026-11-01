@@ -109,7 +109,7 @@ pub(super) fn check_flow_call_contracts(
     entailment: &mut ProvenExitExpressions<'_, '_>,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
-    let mut diagnostics = phase_profile::scope("05.d.7.3b.0.cleanup_requirements", || {
+    let mut diagnostics = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.cleanup_requirements", || {
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts)
     });
     let mut decided = Vec::new();
@@ -125,7 +125,7 @@ pub(super) fn check_flow_call_contracts(
     let call_frames =
         crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
 
-    phase_profile::scope("05.d.7.3b.0b.assembly_and_refutations", || {
+    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.assembly_and_refutations", || {
         assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
     });
 
@@ -206,7 +206,7 @@ pub(super) fn check_flow_call_contracts(
                             is_proof_machine(call_flow.target_symbol),
                         );
                     }
-                    let _s = phase_profile::guard("05.d.7.3b.1.calls");
+                    let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.calls");
                     exits::check_state_transfer_result_domains(
                         program,
                         state_flow,
@@ -246,7 +246,7 @@ pub(super) fn check_flow_call_contracts(
                 let state_structural_values = structural_values_by_state
                     .get(&state_flow.state_symbol)
                     .map_or(&[][..], Vec::as_slice);
-                phase_profile::scope("05.d.7.3b.3.writes", || {
+                phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.writes", || {
                     check_domain_field_writes(
                         program,
                         facts,
@@ -290,9 +290,9 @@ pub(super) fn check_flow_call_contracts(
         }
         diagnostics.extend(state_diagnostics);
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
-            let _s = phase_profile::guard("05.d.7.3b.2.exits");
+            let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.exits");
             if has_activation_claim {
-                phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
+                phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.activation_return", || {
                     return_values::check_activation_return(
                         program,
                         facts,
@@ -302,10 +302,10 @@ pub(super) fn check_flow_call_contracts(
                     )
                 });
             }
-            phase_profile::scope("05.d.7.3b.2.exits.b.boundary_refutations", || {
+            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.boundary_refutations", || {
                 boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics)
             });
-            phase_profile::scope("05.d.7.3b.2.exits.c.scalar_result_domains", || {
+            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.scalar_result_domains", || {
                 exits::check_scalar_result_domains(
                     program,
                     facts,
@@ -315,7 +315,7 @@ pub(super) fn check_flow_call_contracts(
                     &mut diagnostics,
                 )
             });
-            phase_profile::scope("05.d.7.3b.2.exits.d.exit_ensures", || {
+            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.exit_ensures", || {
                 let available_content = entailment.content_sources();
                 check_exit_ensures(
                     program,
@@ -336,7 +336,7 @@ pub(super) fn check_flow_call_contracts(
             // on the returned value itself -- enforced here so a caller may
             // consume them from the signature (flow/calls.rs).
             let exit_diagnostics = diagnostics.len();
-            phase_profile::scope("05.d.7.3b.2.exits.e.result_field_domains", || {
+            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.result_field_domains", || {
                 exits::check_result_field_domains(
                     program,
                     facts,
@@ -352,7 +352,7 @@ pub(super) fn check_flow_call_contracts(
             // A reference return into that referent names the same place
             // twice; report each exact place once per exit.
             phase_profile::scope(
-                "05.d.7.3b.2.exits.f.exclusive_referent_field_domains",
+                "psi.05.check_checked_facts.check_flow_call_contracts.exits.exclusive_referent_field_domains",
                 || {
                     exits::check_exclusive_referent_field_domains(
                         program,

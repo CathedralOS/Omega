@@ -106,7 +106,7 @@ pub(crate) fn prepare_permission_events(
     let call_frames =
         crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
 
-    let state_loop_guard = phase_profile::guard("05.d.3.b.perm.1_state_loop");
+    let state_loop_guard = phase_profile::guard("psi.05.build_check_facts.permissions.state_loop");
     let state_flows = facts
         .flow
         .control
@@ -115,7 +115,7 @@ pub(crate) fn prepare_permission_events(
         .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
     for (state_handle, state_flow) in state_flows {
-        let _setup_guard = phase_profile::guard("05.perm.a_setup");
+        let _setup_guard = phase_profile::guard("psi.05.permissions.setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -394,7 +394,7 @@ pub(crate) fn prepare_permission_events(
                     ) != Multiplicity::Unrestricted
             });
         drop(_setup_guard);
-        let _walk_guard = phase_profile::guard("05.perm.b_walk");
+        let _walk_guard = phase_profile::guard("psi.05.permissions.walk");
         super::permission_schedule::walk(
             program,
             state,
@@ -703,9 +703,9 @@ pub(crate) fn prepare_permission_events(
             .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
     }
     drop(state_loop_guard);
-    phase_profile::checkpoint("after permission state walk", "05.d.3.b.perm.1_state_loop");
+    phase_profile::checkpoint("after permission state walk", "psi.05.build_check_facts.permissions.state_loop");
 
-    phase_profile::scope("05.d.3.b.perm.2_append_borrow", || {
+    phase_profile::scope("psi.05.build_check_facts.permissions.append_borrow", || {
         append_borrow_permission_events(
             program,
             facts,
@@ -713,7 +713,7 @@ pub(crate) fn prepare_permission_events(
             &mut claim_identities,
         );
     });
-    let claim_outcome_maps = phase_profile::scope("05.d.3.b.perm.3_reconcile_origins", || {
+    let claim_outcome_maps = phase_profile::scope("psi.05.build_check_facts.permissions.reconcile_origins", || {
         reconcile_state_call_result_origins(
             program,
             &facts.borrow,
@@ -748,7 +748,7 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    let joined_receivers = phase_profile::scope("05.d.3.b.perm.4_publish_joins", || {
+    let joined_receivers = phase_profile::scope("psi.05.build_check_facts.permissions.publish_joins", || {
         publish_call_claim_joins(program, facts)
     })
     .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -759,7 +759,7 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let joined_maps = phase_profile::scope("05.d.3.b.perm.5_derive_maps", || {
+    let joined_maps = phase_profile::scope("psi.05.build_check_facts.permissions.derive_maps", || {
         derive_checked_claim_outcome_maps(
             program,
             &facts.borrow,
@@ -787,11 +787,11 @@ pub(crate) fn prepare_permission_events(
         // carrier. Select that death while source windows still distinguish
         // a live old value from an already extracted hole, before deriving
         // hook prerequisites and effects from the complete death roster.
-        phase_profile::scope("05.d.3.b.perm.6_storage_deaths", || {
+        phase_profile::scope("psi.05.build_check_facts.permissions.storage_deaths", || {
             prepare_storage_deaths(program, facts)
         })?;
         let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
-        phase_profile::scope("05.d.3.b.perm.7_bind_applications", || {
+        phase_profile::scope("psi.05.build_check_facts.permissions.bind_applications", || {
             crate::facts::contextual_cleanup::bind_applications(
                 program,
                 &facts.flow,

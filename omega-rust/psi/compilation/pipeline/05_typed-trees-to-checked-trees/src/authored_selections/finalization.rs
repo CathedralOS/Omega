@@ -50,7 +50,7 @@ pub(crate) fn finalize_checked_authored_selections(
     // One exact-owner index answers every member expression's query in a
     // single pass instead of a whole-program rescan per occurrence.
     let owner_index = {
-        let _s = phase_profile::guard("05.d.11_13.a.1.owner_index");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.owner_index");
         validation::expression_owners::OwnerEnvironmentIndex::with_call_signatures(
             program,
             &facts.proof.contract_facts,
@@ -59,7 +59,7 @@ pub(crate) fn finalize_checked_authored_selections(
     };
 
     {
-        let _s = phase_profile::guard("05.d.11_13.a.2.root_bindings");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.root_bindings");
         super::build_selections::validate(program, &owner_index)?;
     }
 
@@ -68,7 +68,7 @@ pub(crate) fn finalize_checked_authored_selections(
     let product_operands =
         validation::execution_projection::product_request_operand_occurrences(program);
     {
-        let _s = phase_profile::guard("05.d.11_13.a.3.expression_loop");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.expression_loop");
         for (expression, node) in expressions.iter_expressions() {
             let occurrences = expressions
                 .authored_selection_occurrences(expression)
@@ -162,7 +162,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     LateBinding::CheckedCall,
                     ExpressionNode::Call(call),
                 ) => {
-                    let _s = phase_profile::guard("05.d.11_13.a.3.call");
+                    let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.call");
                     program.expression_table.build_selection_request(call.build_selection)
                     .and_then(|request| match request {
                         language_semantics::declaration_selection::BuildSelectionRequest::Declaration(request) => Some(request.operation.intrinsic()),
@@ -193,14 +193,14 @@ pub(crate) fn finalize_checked_authored_selections(
                     LateBinding::CheckedMember,
                     ExpressionNode::Member(member),
                 ) => {
-                    let _s = phase_profile::guard("05.d.11_13.a.3.member");
+                    let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.member");
                     checked_member_target(program, facts, expression, member, Some(&owner_index))
                 }
                 (
                     LateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
                 ) => {
-                    let _s = phase_profile::guard("05.d.11_13.a.3.name_path");
+                    let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.name_path");
                     declaration_target(checked_name_path_segment_target(
                         program,
                         expression,
@@ -257,7 +257,7 @@ pub(crate) fn finalize_checked_authored_selections(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
-                    let _s = phase_profile::guard("05.d.11_13.a.3.operator");
+                    let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.operator");
                     checked_generic_operator_target(
                         program,
                         facts,
@@ -334,16 +334,16 @@ pub(crate) fn finalize_checked_authored_selections(
     }
 
     {
-        let _s = phase_profile::guard("05.d.11_13.a.4.statement_selections");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.statement_selections");
         collect_checked_statement_selections(program, facts, &mut resolutions)?;
     }
     {
-        let _s = phase_profile::guard("05.d.11_13.a.5.membership_selections");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.membership_selections");
         collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
     }
     let mut unoccurred_view_calls = Vec::new();
     {
-        let _s = phase_profile::guard("05.d.11_13.a.6.proof_view_calls");
+        let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.proof_view_calls");
         collect_checked_proof_view_call_selections(
             program,
             &mut resolutions,
@@ -351,7 +351,7 @@ pub(crate) fn finalize_checked_authored_selections(
         )?;
     }
 
-    let _s_apply = phase_profile::guard("05.d.11_13.a.7.apply_resolutions");
+    let _s_apply = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.apply_resolutions");
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
         let result = match resolution.target {

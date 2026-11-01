@@ -130,7 +130,7 @@ fn call_storage_mutations(
     state: &State,
     borrow_call: &BorrowCallFact,
 ) -> Option<Vec<ObservedCallMutation>> {
-    let writes = phase_profile::scope("05.d.3.b.flow.invoke.1a_mutation_writes", || {
+    let writes = phase_profile::scope("psi.05.build_check_facts.flow.invoke.mutation_writes", || {
         call_mutation_writes(
             program,
             machine.symbol,
@@ -166,7 +166,7 @@ fn call_storage_mutations(
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
         let mut observations =
-            phase_profile::scope("05.d.3.b.flow.invoke.1b_close_aliases", || {
+            phase_profile::scope("psi.05.build_check_facts.flow.invoke.close_aliases", || {
                 close_storage_places_over_aliases(
                     program,
                     machine.symbol,
@@ -189,7 +189,7 @@ fn call_storage_mutations(
         // Keep the current state's observation coordinates even when a
         // transported view proves that the physical store is content, not
         // descriptor replacement. Both namespaces must see invalidation.
-        phase_profile::scope("05.d.3.b.flow.invoke.1c_entry_origins", || {
+        phase_profile::scope("psi.05.build_check_facts.flow.invoke.entry_origins", || {
             if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region {
                 if let Some(region) = crate::flow::entry_origins::nonresident_content_region(
                     program,

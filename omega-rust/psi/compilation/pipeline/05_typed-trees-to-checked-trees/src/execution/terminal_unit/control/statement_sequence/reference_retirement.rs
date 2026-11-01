@@ -322,7 +322,7 @@ impl Retirement<'_> {
     /// candidate storage deaths: the existing ownership continuation graph
     /// selects actual births before emitting exact descriptor releases.
     pub(super) fn backing_releases(&self) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-        let _profile = phase_profile::guard("05.unit.reference_retirement.backing_releases");
+        let _profile = phase_profile::guard("psi.05.unit.reference_retirement.backing_releases");
         let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)?;
         let Some(state) = state else {
             return Some(Vec::new());
@@ -451,7 +451,7 @@ impl Retirement<'_> {
     /// reached its parent's lexical last use. Each child's own schedule obeys
     /// this same rule, so reverse production closes a chain deepest first.
     pub(super) fn children_retired(&self, parent: arena::Handle<BorrowLoanFact>) -> bool {
-        let _profile = phase_profile::guard("05.unit.reference_retirement.loan_children");
+        let _profile = phase_profile::guard("psi.05.unit.reference_retirement.loan_children");
         let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
         else {
             return false;
@@ -537,7 +537,7 @@ impl Retirement<'_> {
         &self,
         state: &checked_trees::StateBorrowFact,
     ) -> std::collections::BTreeMap<(u32, u32), Vec<&CheckedUnitEffectOperationPlan>> {
-        let _profile = phase_profile::guard("05.unit.reference_retirement.capture_producers");
+        let _profile = phase_profile::guard("psi.05.unit.reference_retirement.capture_producers");
         let mut capturing = std::collections::BTreeMap::<_, Vec<_>>::new();
         for operation in self
             .operations

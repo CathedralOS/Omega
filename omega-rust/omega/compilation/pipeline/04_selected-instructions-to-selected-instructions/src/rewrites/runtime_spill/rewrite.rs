@@ -103,7 +103,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
     budget: OptimizationWorkBudget,
     span_policy: RuntimeSpillSpanPolicy,
 ) -> Result<(ValidatedRuntimeSpill, bool), RuntimeSpillError> {
-    let admitted = phase_profile::scope("06.1.d.05.spill.derive", || {
+    let admitted = phase_profile::scope("omega.05.spill.derive", || {
         derive_runtime_spill(
             source,
             function_index,
@@ -115,7 +115,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
     })?;
     let crossed_unit_write = admitted.crossed_unit_write;
     let transformed = phase_profile::scope(
-        "06.1.d.05.spill.mutate",
+        "omega.05.spill.mutate",
         || -> Result<_, RuntimeSpillError> {
             let mut transformed = source.selected_plan().clone();
             transformed
@@ -579,7 +579,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
             Ok(transformed)
         },
     )?;
-    let sealed = phase_profile::scope("06.1.d.05.spill.seal", || {
+    let sealed = phase_profile::scope("omega.05.spill.seal", || {
         super::validation::seal_runtime_spill_with_span_policy(source, transformed)
     })?;
     Ok((sealed, crossed_unit_write))

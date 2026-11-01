@@ -257,7 +257,7 @@ fn validate<'program>(
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut formation_obligations = Vec::new();
-    let pre_machine_guard = phase_profile::guard("05.d.2.a.1.pre_machine_validators");
+    let pre_machine_guard = phase_profile::guard("psi.05.prepare_typed_program.validate.pre_machine_validators");
     let mut diagnostics = Vec::new();
     if let Err(mut errors) =
         crate::conformance_applications::validate_conformance_applications(program)
@@ -285,18 +285,18 @@ fn validate<'program>(
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     standard_declarations::validate_calling_vocabulary_uniqueness(program, &mut diagnostics);
-    let fact_plan = phase_profile::scope("05.d.2.a.1a.definition_fact_plan", || {
+    let fact_plan = phase_profile::scope("psi.05.prepare_typed_program.validate.definition_fact_plan", || {
         build_definition_fact_plan(program)
     });
 
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
     validate_proposition_definitions(program, &mut diagnostics);
-    phase_profile::scope("05.d.2.a.1a2.proposition_entailment", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.proposition_entailment", || {
         proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
     });
 
-    phase_profile::scope("05.d.2.a.1a2b.domains_and_signatures", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.domains_and_signatures", || {
         literals::validate_suffix_landings(program, &mut diagnostics);
         literals::validate_suffix_magnitudes(program, &mut diagnostics);
         // Abstract calls consume the same scoped content formation that later
@@ -345,14 +345,14 @@ fn validate<'program>(
         qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     });
     let (conformance_operational, conformance_service_reaches) =
-        phase_profile::scope("05.d.2.a.1a3.operational_and_service_reaches", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.operational_and_service_reaches", || {
             let conformance_operational = infer_operational_may(program);
             let conformance_service_reaches =
                 infer_service_reaches(program, &conformance_operational);
             (conformance_operational, conformance_service_reaches)
         });
     if effect_admission == EffectAdmission::Complete {
-        phase_profile::scope("05.d.2.a.1a4.validate_conformances", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.validate_conformances", || {
             validate_conformances(
                 program,
                 &conformance_service_reaches,
@@ -372,7 +372,7 @@ fn validate<'program>(
         quotient_formations,
         fact_call_projections,
         specification_calls,
-    ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
+    ) = phase_profile::scope("psi.05.prepare_typed_program.validate.data_and_proof_faces", || {
         crate::declarations::type_aliases::validate(
             program,
             &symbols,
@@ -437,7 +437,7 @@ fn validate<'program>(
     // admission; erased proof-only SCCs instead require strict structural descent.
     let mut self_call_descents = Vec::new();
     let proof_recursive_components =
-        phase_profile::scope("05.d.2.a.1a5.call_cycles_and_properties", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.call_cycles_and_properties", || {
             let components = call_cycles::validate_machine_call_cycles(program, &mut diagnostics);
             let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
                 OpaquePropertyValidation::Required(receipts) => (receipts, false),
@@ -451,17 +451,17 @@ fn validate<'program>(
             );
             components
         });
-    let call_frames = phase_profile::scope("05.d.2.a.1b.call_frame_resolver", || {
+    let call_frames = phase_profile::scope("psi.05.prepare_typed_program.validate.call_frame_resolver", || {
         calls::CallFrameResolver::new(program)
     });
-    phase_profile::scope("05.d.2.a.1a5b.constants_and_literals", || {
-        phase_profile::scope("05.d.2.a.1a5b.1.constants", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.constants_and_literals", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.constants_and_literals.constants", || {
             constants::validate_constants(program, &mut diagnostics);
         });
         // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
         // before membership lowering synthesizes its internal tag compares; see
         // 03_symbol-resolved-trees-to-typed-trees/src/equality.rs.
-        phase_profile::scope("05.d.2.a.1a5b.2.struct_literals", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.constants_and_literals.struct_literals", || {
             stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
                 program,
                 &mut diagnostics,
@@ -470,20 +470,20 @@ fn validate<'program>(
         });
         // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
         // law on the parse-minted `__destructure#*` marker.
-        phase_profile::scope("05.d.2.a.1a5b.3.destructure", || {
+        phase_profile::scope("psi.05.prepare_typed_program.validate.constants_and_literals.destructure", || {
             destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
         });
     });
     // R2 rung 3 slice 1: the default-domain write obligation (strict
     // store-time semantics; obligations before hypotheses).
-    phase_profile::scope("05.d.2.a.1a5c.default_domain_writes", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.default_domain_writes", || {
         default_domains::validate_default_domain_writes(
             program,
             call_frames.as_ref(),
             &mut diagnostics,
         );
     });
-    phase_profile::scope("05.d.2.a.1a5d.recasts_wire_operators", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.recasts_wire_operators", || {
         recasts::validate_recasts(program, call_frames.as_ref(), &mut diagnostics);
         wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
         operators::validate_operator_declarations(
@@ -497,7 +497,7 @@ fn validate<'program>(
         machine_parameters::PreparedStaticMachineSelections::default();
     let mut formed_static_machine_selections = Default::default();
     let formation_diagnostic_start = diagnostics.len();
-    phase_profile::scope("05.d.2.a.1a6.static_machine_selections", || {
+    phase_profile::scope("psi.05.prepare_typed_program.validate.static_machine_selections", || {
         if let Err(mut errors) = crate::static_arguments::validate_authored_static_arguments(
             program,
             &mut formation_obligations,
@@ -540,7 +540,7 @@ fn validate<'program>(
     }
 
     drop(pre_machine_guard);
-    let body_index = phase_profile::scope("05.d.2.a.2.dependency_bodies", || {
+    let body_index = phase_profile::scope("psi.05.prepare_typed_program.validate.dependency_bodies", || {
         dependency_bodies::DependencyBodyIndex::prepare(
             program,
             prior_dependency_bodies,
@@ -559,7 +559,7 @@ fn validate<'program>(
             }
         }
     }
-    let machine_loop_guard = phase_profile::guard("05.d.2.a.2.machine_loop");
+    let machine_loop_guard = phase_profile::guard("psi.05.prepare_typed_program.validate.machine_loop");
     let has_plan_laid_integer_fields = program.plan_laid_layouts.iter().any(|plan| {
         plan.geometries(program.typed_program())
             .any(|geometry| !geometry.integer_fields.is_empty())
@@ -594,11 +594,11 @@ fn validate<'program>(
                             .any(|component| component.as_os_str() == "std")
                 });
             if is_toolchain_or_std {
-                phase_profile::count("05.d.2.a.2.machines.std_or_core", 1);
-                phase_profile::guard("05.d.2.a.2.machine.std_or_core")
+                phase_profile::count("psi.05.prepare_typed_program.validate.machines.std_or_core", 1);
+                phase_profile::guard("psi.05.prepare_typed_program.validate.machine.std_or_core")
             } else {
-                phase_profile::count("05.d.2.a.2.machines.user_or_other", 1);
-                phase_profile::guard("05.d.2.a.2.machine.user_or_other")
+                phase_profile::count("psi.05.prepare_typed_program.validate.machines.user_or_other", 1);
+                phase_profile::guard("psi.05.prepare_typed_program.validate.machine.user_or_other")
             }
         });
         let machine_diagnostic_mark = diagnostics.len();
@@ -690,9 +690,9 @@ fn validate<'program>(
         let is_content_projection_machine =
             content_projections::is_content_projection_machine(program, machine);
         let is_proof_machine = proof_only.is_proof_machine(program, machine);
-        let _states_guard = phase_profile::guard("05.d.2.a.2b.state_statements");
+        let _states_guard = phase_profile::guard("psi.05.prepare_typed_program.validate.state_statements");
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            phase_profile::scope("05.d.2.a.2b.0a.ref_local_est", || {
+            phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.ref_local_est", || {
                 crate::value_custody::reference_local_establishment::validate(
                     program,
                     machine,
@@ -717,7 +717,7 @@ fn validate<'program>(
             // 100`), so bounded param arithmetic stays exact. Statements are
             // validated in order so the environment is current at each use.
             let mut value_environment =
-                phase_profile::scope("05.d.2.a.2b.0b.value_env_init", || {
+                phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.value_env_init", || {
                     if state_index == 0 {
                         arithmetic_domains::requires_value_environment(program, machine, state)
                     } else {
@@ -777,7 +777,7 @@ fn validate<'program>(
                     parameters: program.state_parameters(state),
                 };
                 let transition_values =
-                    phase_profile::scope("05.d.2.a.2b.1.transition_values", || {
+                    phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.transition_values", || {
                         transitions::TransitionValueEnvironments::collect(
                             program,
                             machine,
@@ -804,7 +804,7 @@ fn validate<'program>(
                         &mut arithmetic_decisions.integer_range_obligations,
                     );
                 }
-                phase_profile::scope("05.d.2.a.2b.2.prepare_numeric_observations", || {
+                phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.prepare_numeric_observations", || {
                     value_environment.prepare_numeric_observations(
                         program,
                         machine,
@@ -821,7 +821,7 @@ fn validate<'program>(
                 // call-free expression reports an empty frame; any unresolved
                 // call retires mutable-storage facts; copied immutable scalars
                 // retain their already established value snapshots.
-                let value_written = phase_profile::scope("05.d.2.a.2b.3.value_call_frames", || {
+                let value_written = phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.value_call_frames", || {
                     call_frames.as_ref().and_then(|frames| {
                         frames.statement_value_may_write_paths_for_symbols(
                             machine,
@@ -853,7 +853,7 @@ fn validate<'program>(
                 // crossed every nested value-call frame above, so no argument can
                 // rely on a fact an earlier or opaque call may invalidate.
                 if !is_content_projection_machine {
-                    phase_profile::scope("05.d.2.a.2b.4.value_position_calls", || {
+                    phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.value_position_calls", || {
                         validate_value_position_calls(
                             program,
                             machine,
@@ -895,7 +895,7 @@ fn validate<'program>(
                     );
                 }
                 let (direct_written, local_write_origins) =
-                    phase_profile::scope("05.d.2.a.2b.4b.direct_written", || {
+                    phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.direct_written", || {
                         let direct_written = match statement {
                             StatementNode::Call(call) => call_frames
                                 .as_ref()
@@ -921,7 +921,7 @@ fn validate<'program>(
                             };
                         (direct_written, local_write_origins)
                     });
-                phase_profile::scope("05.d.2.a.2b.5.validate_statement_node", || {
+                phase_profile::scope("psi.05.prepare_typed_program.validate.state_statements.validate_statement_node", || {
                     validate_state_statement_node(
                         program,
                         machine,
@@ -1008,7 +1008,7 @@ fn validate<'program>(
     }
     let frozen_dependency_bodies = body_index.frozen_bodies();
     drop(machine_loop_guard);
-    let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
+    let _post_machine_guard = phase_profile::guard("psi.05.prepare_typed_program.validate.post_machine_validators");
 
     let arithmetic_domains::ArithmeticDecisions {
         mut integer_range_obligations,
@@ -1146,7 +1146,7 @@ pub fn judge_contract_entailment(
     program: &dyn crate::CheckingInput,
     deferred: DeferredEntailment,
 ) -> Result<ContractEntailment, Vec<Diagnostic>> {
-    let _guard = phase_profile::guard("05.d.3b.contract_entailment");
+    let _guard = phase_profile::guard("psi.05.contract_entailment");
     let judged = judge_machines(program, &deferred.body_index);
     finish_diagnostics(judged.diagnostics)?;
     Ok(ContractEntailment {
@@ -1177,9 +1177,9 @@ fn judge_machines(
         // exit coverage; it does not grow a second summary of the body.
         let mut captured_entailment = None;
         {
-            let _entail_guard = phase_profile::guard("05.d.2.a.2a.contract_entailment");
+            let _entail_guard = phase_profile::guard("psi.05.prepare_typed_program.validate.contract_entailment");
             if let Some(proven) = body_index.reuse(program, machine, machine_index) {
-                phase_profile::count("05.d.2.a.2a.contract_entailment.reused", 1);
+                phase_profile::count("psi.05.prepare_typed_program.validate.contract_entailment.reused", 1);
                 record_dependency_entailment(true);
                 if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
                     let judged =
@@ -1194,7 +1194,7 @@ fn judge_machines(
                 }
             } else {
                 if body_index.active_observation() {
-                    phase_profile::count("05.d.2.a.2a.contract_entailment.judged", 1);
+                    phase_profile::count("psi.05.prepare_typed_program.validate.contract_entailment.judged", 1);
                     record_dependency_entailment(false);
                 }
                 let mut machine_diagnostics = Vec::new();

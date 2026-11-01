@@ -145,7 +145,7 @@ pub(crate) fn build_check_facts(
     // termination progress proofs, mutation frames, and crash-route refinement.
     // Retain failed preparation as well as success so individual statements do
     // not rebuild the same symbol tables.
-    let pre_flow_guard = phase_profile::guard("05.d.3.a.pre_flow_facts");
+    let pre_flow_guard = phase_profile::guard("psi.05.build_check_facts.pre_flow_facts");
     let program: &dyn validation::CheckingInput = program_context;
     let call_frames = validation::CallFrameResolver::new(program);
     let borrow = build_borrow_facts(program, call_frames.as_ref())?;
@@ -231,24 +231,24 @@ pub(crate) fn build_check_facts(
     };
     let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     drop(pre_flow_guard);
-    phase_profile::checkpoint("after pre-flow facts", "05.d.3.a.pre_flow_facts");
-    phase_profile::scope("05.d.3.a2.prewarm_mutation_summaries", || {
+    phase_profile::checkpoint("after pre-flow facts", "psi.05.build_check_facts.pre_flow_facts");
+    phase_profile::scope("psi.05.build_check_facts.prewarm_mutation_summaries", || {
         mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
     });
     phase_profile::checkpoint(
         "after mutation prewarm",
-        "05.d.3.a2.prewarm_mutation_summaries",
+        "psi.05.build_check_facts.prewarm_mutation_summaries",
     );
-    let flow_loop_guard = phase_profile::guard("05.d.3.b.flow_fixed_point");
+    let flow_loop_guard = phase_profile::guard("psi.05.build_check_facts.flow_fixed_point");
     loop {
-        phase_profile::count("05.d.3.b.flow_fixed_point.outer_iterations", 1);
+        phase_profile::count("psi.05.build_check_facts.flow_fixed_point.outer_iterations", 1);
         prepared.semantic.clone_from(&semantic);
         contextual_cleanup::entry_flow::seed_entry_requirements(
             program,
             &mut prepared.semantic,
             &prepared.contextual_cleanup.entry_requirements,
         )?;
-        prepared.flow = phase_profile::scope("05.d.3.b.flow_fixed_point.build_flow_facts", || {
+        prepared.flow = phase_profile::scope("psi.05.build_check_facts.flow_fixed_point.build_flow_facts", || {
             build_flow_facts(
                 program,
                 &prepared.borrow,
@@ -267,17 +267,17 @@ pub(crate) fn build_check_facts(
         });
         phase_profile::checkpoint(
             "after flow construction",
-            "05.d.3.b.flow_fixed_point.build_flow_facts",
+            "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
         );
         prepared.flow.control.seal_indexes();
-        phase_profile::scope("05.d.3.b.flow_fixed_point.bind_call_spans", || {
+        phase_profile::scope("psi.05.build_check_facts.flow_fixed_point.bind_call_spans", || {
             crate::facts::review_sources::bind_checked_body_call_source_spans(
                 program,
                 &mut prepared.flow,
             )
         })?;
         let permission_outcome = phase_profile::scope(
-            "05.d.3.b.flow_fixed_point.prepare_permission_events",
+            "psi.05.build_check_facts.flow_fixed_point.prepare_permission_events",
             || {
                 crate::checks::prepare_permission_events(
                     program,
@@ -290,13 +290,13 @@ pub(crate) fn build_check_facts(
         );
         phase_profile::checkpoint(
             "after permission events",
-            "05.d.3.b.flow_fixed_point.prepare_permission_events",
+            "psi.05.build_check_facts.flow_fixed_point.prepare_permission_events",
         );
         if permission_outcome? {
             continue;
         }
         if phase_profile::scope(
-            "05.d.3.b.flow_fixed_point.retain_selected_receiver_loans",
+            "psi.05.build_check_facts.flow_fixed_point.retain_selected_receiver_loans",
             || {
                 contextual_cleanup::retain_selected_receiver_loans(
                     program,
@@ -308,7 +308,7 @@ pub(crate) fn build_check_facts(
         ) {
             continue;
         }
-        if !phase_profile::scope("05.d.3.b.flow_fixed_point.infer_entry_requirements", || {
+        if !phase_profile::scope("psi.05.build_check_facts.flow_fixed_point.infer_entry_requirements", || {
             contextual_cleanup::infer_entry_requirements(
                 program,
                 &mut prepared,
@@ -319,16 +319,16 @@ pub(crate) fn build_check_facts(
         }
     }
     drop(flow_loop_guard);
-    phase_profile::checkpoint("after flow fixed point", "05.d.3.b.flow_fixed_point");
+    phase_profile::checkpoint("after flow fixed point", "psi.05.build_check_facts.flow_fixed_point");
     phase_profile::checkpoint(
         "flow fixed-point iterations",
-        "05.d.3.b.flow_fixed_point.outer_iterations",
+        "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
     );
     prepared.flow.ownership.seal_indexes();
     prepared.flow.control.seal_indexes();
-    let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
+    let _post_flow_guard = phase_profile::guard("psi.05.build_check_facts.post_flow_facts");
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
-    phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
+    phase_profile::scope("psi.05.build_check_facts.post_flow_facts.scalar_and_index_plans", || {
         crate::values::retain_nested_call_arguments(
             program,
             &prepared.operators,
@@ -352,7 +352,7 @@ pub(crate) fn build_check_facts(
         );
     });
     crate::execution::content_consumption::attach(program, &mut prepared)?;
-    let index_compatibility = phase_profile::scope("05.d.3.c.2.index_compatibility", || {
+    let index_compatibility = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.index_compatibility", || {
         index_compatibility::build_index_compatibility_facts(
             program,
             &prepared.operators,
@@ -362,7 +362,7 @@ pub(crate) fn build_check_facts(
         )
     })?;
     let (operational, service_reach_inference) = phase_profile::scope(
-        "05.d.3.c.3.cleanup_effects_and_reaches",
+        "psi.05.build_check_facts.post_flow_facts.cleanup_effects_and_reaches",
         || -> Result<_, Vec<diagnostics::Diagnostic>> {
             let dependencies =
                 crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
@@ -387,11 +387,11 @@ pub(crate) fn build_check_facts(
     let completed = program_context.clone_with_prepared_effect_plans(&prepared_effects);
     let program: &dyn validation::CheckingInput = &completed;
     let call_frames = validation::CallFrameResolver::new(program);
-    phase_profile::scope("05.d.3.c.4.admit_prepared_program_effects", || {
+    phase_profile::scope("psi.05.build_check_facts.post_flow_facts.admit_prepared_program_effects", || {
         validation::admit_prepared_program_effects(program, &operational, &mut validation_facts)
     })?;
     let static_machine_selections = std::mem::take(&mut validation_facts.static_machine_selections);
-    let _post_admit_guard = phase_profile::guard("05.d.3.c.5.post_admit_facts");
+    let _post_admit_guard = phase_profile::guard("psi.05.build_check_facts.post_flow_facts.post_admit_facts");
     crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
     crate::flow::attach_reach_summaries(
         program,
@@ -433,7 +433,7 @@ pub(crate) fn build_check_facts(
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
-    let mut termination = phase_profile::scope("05.d.3.c.5a.termination", || {
+    let mut termination = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.termination", || {
         build_termination_facts(
             program,
             &flow,
@@ -456,7 +456,7 @@ pub(crate) fn build_check_facts(
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
-    let mutation = phase_profile::scope("05.d.3.c.5b.mutation_and_integer_writes", || {
+    let mutation = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.mutation_and_integer_writes", || {
         let mut mutation = build_mutation_facts(program, call_frames.as_ref());
         integer_writes::retain(
             program,
@@ -472,7 +472,7 @@ pub(crate) fn build_check_facts(
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
     let (contract_plans, completed_crashes) =
-        phase_profile::scope("05.d.3.c.5c.contract_plans", || {
+        phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans", || {
             build_contract_plans(
                 program,
                 &service_reaches,
@@ -491,7 +491,7 @@ pub(crate) fn build_check_facts(
                 &values.structural_values,
             )
         })?;
-    phase_profile::checkpoint("after contract plans", "05.d.3.c.5c.contract_plans");
+    phase_profile::checkpoint("after contract plans", "psi.05.build_check_facts.post_flow_facts.contract_plans");
     static_callable_crashes::validate(
         program,
         &operators,

@@ -52,7 +52,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
         return Ok(());
     }
     let types = module.structural_types.clone();
-    let graph = phase_profile::scope("05.payload.graph", || {
+    let graph = phase_profile::scope("psi.06.payload.graph", || {
         descriptors::terminal_graph_from(
             module,
             module
@@ -94,7 +94,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                             })?,
                         );
                         if let Ok(projected_qualifications) =
-                            phase_profile::scope("05.payload.reference", || {
+                            phase_profile::scope("psi.06.payload.reference", || {
                                 reference_memberships.for_operation(machine, operation)
                             })
                             && !projected_qualifications.is_empty()
@@ -111,7 +111,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 },
                             ));
                         }
-                        if let Some(contract) = phase_profile::scope("05.payload.view", || {
+                        if let Some(contract) = phase_profile::scope("psi.06.payload.view", || {
                             view_memberships::retained(
                                 module,
                                 machine,
@@ -123,7 +123,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         }) {
                             copies.push((block_index, ordinal, contract));
                         }
-                        if let Some(contract) = phase_profile::scope("05.payload.operand", || {
+                        if let Some(contract) = phase_profile::scope("psi.06.payload.operand", || {
                             operand_memberships::retained(
                                 module,
                                 machine,
@@ -149,7 +149,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                             _ => None,
                         };
                         if let Some((source, path)) = selected_source
-                            && let Ok(root) = phase_profile::scope("05.payload.history", || {
+                            && let Ok(root) = phase_profile::scope("psi.06.payload.history", || {
                                 history.current_payload_contract_in(&mut analysis, position, source)
                             })
                             && terminal_semantics::qualification_path_carrier(

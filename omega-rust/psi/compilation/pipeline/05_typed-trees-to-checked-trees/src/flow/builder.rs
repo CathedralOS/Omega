@@ -113,9 +113,9 @@ pub(crate) fn build_flow_facts(
     };
 
     let groups = machine_groups(program, borrow);
-    phase_profile::count("05.d.3.b.flow.groups", groups.len() as u64);
+    phase_profile::count("psi.05.build_check_facts.flow.groups", groups.len() as u64);
     phase_profile::count(
-        "05.d.3.b.flow.max_group_machines",
+        "psi.05.build_check_facts.flow.max_group_machines",
         groups.iter().map(Vec::len).max().unwrap_or(0) as u64,
     );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
@@ -205,7 +205,7 @@ fn converge<'plans>(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
-        phase_profile::count("05.d.3.b.flow.inner_passes", 1);
+        phase_profile::count("psi.05.build_check_facts.flow.inner_passes", 1);
         if pass != 0 {
             build.discard_output();
             semantic.clone_from(inputs.baseline);
@@ -257,7 +257,7 @@ fn sweep<'plans>(
                 semantic.begin_page(page);
                 paged = true;
             }
-            phase_profile::count("05.d.3.b.flow.states_visited", 1);
+            phase_profile::count("psi.05.build_check_facts.flow.states_visited", 1);
             // Clear before transfer: a self/back edge may dirty this state
             // again. A later destination can still run in this same sweep.
             build

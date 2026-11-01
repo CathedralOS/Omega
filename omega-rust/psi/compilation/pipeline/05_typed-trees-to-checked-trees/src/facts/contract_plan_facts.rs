@@ -127,7 +127,7 @@ pub(crate) fn build_contract_plans(
     Vec<diagnostics::Diagnostic>,
 > {
     let content_conservation = validation::content_conservation_plans(program);
-    let trapping_index = phase_profile::scope("05.d.3.c.5c.1.trapping_index", || {
+    let trapping_index = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.trapping_index", || {
         PrecomputedTrappingSites::build(
             scalar_expressions,
             scalar_computations,
@@ -136,7 +136,7 @@ pub(crate) fn build_contract_plans(
         )
     });
     let (mut machines, mut publications) = phase_profile::scope(
-        "05.d.3.c.5c.2.per_machine_plans",
+        "psi.05.build_check_facts.post_flow_facts.contract_plans.per_machine_plans",
         || {
             use rayon::prelude::*;
             let results: Result<
@@ -292,7 +292,7 @@ pub(crate) fn build_contract_plans(
             results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
         },
     )?;
-    let operator_crashes = phase_profile::scope("05.d.3.c.5c.3.operator_crashes", || {
+    let operator_crashes = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.operator_crashes", || {
         operator_crashes::build(program, operators, flow, semantic)
     })?;
     let mut operator_crashes_by_machine = symbols::SymbolKeyMap::<
@@ -324,11 +324,11 @@ pub(crate) fn build_contract_plans(
             "selected operator crash invocation has no owning machine contract",
         )]);
     }
-    let crash_capsules = phase_profile::scope("05.d.3.c.5c.4.crash_capsules", || {
+    let crash_capsules = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.crash_capsules", || {
         build_crash_contract_capsules(program, &content_conservation, operators)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let summary_graph = phase_profile::scope("05.d.3.c.5c.5.summary_graph", || {
+    let summary_graph = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.summary_graph", || {
         crash_calls::prepare_crash_summary_graph(
             program,
             operators,
@@ -342,7 +342,7 @@ pub(crate) fn build_contract_plans(
         &mut publications,
         summary_graph.family_potential_crash_causes(),
     )?;
-    phase_profile::scope("05.d.3.c.5c.6.identities", || {
+    phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.identities", || {
         use rayon::prelude::*;
         validation::checking_thread_pool().install(|| {
             machines
@@ -355,7 +355,7 @@ pub(crate) fn build_contract_plans(
                 });
         });
     });
-    let completed_crashes = phase_profile::scope("05.d.3.c.5c.7.attach_crash_calls", || {
+    let completed_crashes = phase_profile::scope("psi.05.build_check_facts.post_flow_facts.contract_plans.attach_crash_calls", || {
         crash_calls::attach_checked_crash_calls(
             program,
             operators,

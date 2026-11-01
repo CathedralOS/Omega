@@ -113,7 +113,7 @@ pub fn lower_machine(
         TerminalMachineSelection::Declarations => None,
         machine => Some(select_terminal_machine(checked, machine)?),
     };
-    let (mut lowered, completion) = phase_profile::scope("05.lower_terminal_selection", || {
+    let (mut lowered, completion) = phase_profile::scope("psi.06.lower_terminal_selection", || {
         lower_terminal_selection(
             &mut identities,
             checked,
@@ -123,7 +123,7 @@ pub fn lower_machine(
         )
     })
     .map_err(|error| error.with_source_names(checked))?;
-    phase_profile::scope("05.boundary_applications", || {
+    phase_profile::scope("psi.06.boundary_applications", || {
         boundary_applications::retain(
             &mut identities,
             checked,
@@ -146,7 +146,7 @@ pub fn lower_machine(
             &mut lowered.semantic_module,
         )?,
     }
-    phase_profile::scope("05.callback_applications", || {
+    phase_profile::scope("psi.06.callback_applications", || {
         callback_applications::retain(
             &mut identities,
             checked,
@@ -159,10 +159,10 @@ pub fn lower_machine(
         crate::lower_task_activation_demands(checked, &mut identities)
             .map_err(LoweringError::TaskActivation)?;
     lowered.semantic_module.identities =
-        phase_profile::scope("05.identities_build", || identities.build());
+        phase_profile::scope("psi.06.identities_build", || identities.build());
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
-    if let Err(reason) = phase_profile::scope("05.validate_runtime_evidence_inputs", || {
+    if let Err(reason) = phase_profile::scope("psi.06.validate_runtime_evidence_inputs", || {
         terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
     }) {
         diagnose_runtime_evidence_case_failure(&lowered.semantic_module, reason);
@@ -172,7 +172,7 @@ pub fn lower_machine(
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's
     // earlier table prefix makes even a constant entry's companion stale.
-    lowered.debug_map = phase_profile::scope("05.debug_map", || -> Result<_, LoweringError> {
+    lowered.debug_map = phase_profile::scope("psi.06.debug_map", || -> Result<_, LoweringError> {
         if let Some(selection) = selection
             && selection.signature == CheckedTerminalSignatureEligibility::Eligible
             && completion.debug == DebugPublication::FromCheckedPlan
@@ -308,7 +308,7 @@ fn lower_terminal_selection(
         completion,
         source_machine_ids,
         source_boundary_ids,
-    } = phase_profile::scope("05.01_lower_selected_machine", || match selection {
+    } = phase_profile::scope("psi.06.lower_selected_machine", || match selection {
         Some(selection) => lower_selected_machine(
             identities,
             checked,
@@ -340,7 +340,7 @@ fn lower_terminal_selection(
         .iter()
         .map(|(source, _)| *source)
         .collect::<Vec<_>>();
-    phase_profile::scope("05.02_declarations_retain", || {
+    phase_profile::scope("psi.06.declarations_retain", || {
         declarations::retain(
             identities,
             checked,
@@ -350,10 +350,10 @@ fn lower_terminal_selection(
         )
     })
     .map_err(LoweringError::InvalidDeclarationIdentity)?;
-    phase_profile::scope("05.03_nominal_cleanup_roles", || {
+    phase_profile::scope("psi.06.nominal_cleanup_roles", || {
         retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)
     })?;
-    phase_profile::scope("05.04_closed_reach_applications", || {
+    phase_profile::scope("psi.06.closed_reach_applications", || {
         closed_reach_applications::retain_closed_reach_applications(
             identities,
             checked,
@@ -363,7 +363,7 @@ fn lower_terminal_selection(
         )
     })?;
     phase_profile::scope(
-        "05.05_reborrow_restored_call_use",
+        "psi.06.reborrow_restored_call_use",
         || -> Result<_, LoweringError> {
             for (source_machine, terminal_machine) in &source_machine_ids {
                 reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
@@ -380,7 +380,7 @@ fn lower_terminal_selection(
         },
     )?;
     phase_profile::scope(
-        "05.06_placed_and_suspension",
+        "psi.06.placed_and_suspension",
         || -> Result<_, LoweringError> {
             crate::retention::access_view_plans::retain(
                 identities,
@@ -403,7 +403,7 @@ fn lower_terminal_selection(
     // boundary call's declaration, verified through the same projection
     // sources. A crash-qualified use the closure cannot join fails closed
     // here rather than lowering crash-free.
-    phase_profile::scope("05.07_operation_crash_contracts", || {
+    phase_profile::scope("psi.06.operation_crash_contracts", || {
         operation_crash_contracts::retain_operation_crash_contracts(
             identities,
             checked,
@@ -416,7 +416,7 @@ fn lower_terminal_selection(
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
     phase_profile::scope(
-        "05.08_conformance_and_dyn",
+        "psi.06.conformance_and_dyn",
         || -> Result<_, LoweringError> {
             reject_unguarded_outcome_guarantees(
                 checked,
@@ -450,7 +450,7 @@ fn lower_terminal_selection(
             Ok(())
         },
     )?;
-    lowered.build_provider_requirements = phase_profile::scope("05.09_build_providers", || {
+    lowered.build_provider_requirements = phase_profile::scope("psi.06.build_providers", || {
         build_providers::retain(
             identities,
             checked,
@@ -464,21 +464,21 @@ fn lower_terminal_selection(
     // Retain their ordinary place declarations before publishing the module;
     // quotient adaptations keep their separate exact occurrence licenses.
     phase_profile::scope(
-        "05.10_reconcile_and_residences",
+        "psi.06.reconcile_and_residences",
         || -> Result<_, LoweringError> {
-            phase_profile::scope("05.10.a_reconcile_places", || {
+            phase_profile::scope("psi.06.reconcile_and_residences.reconcile_places", || {
                 reconcile_leaf_copy_place_declarations(&mut lowered.semantic_module);
             });
-            phase_profile::scope("05.10.b_descriptor_residences", || {
+            phase_profile::scope("psi.06.reconcile_and_residences.descriptor_residences", || {
                 crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)
             })?;
-            phase_profile::scope("05.10.c_payload_memberships", || {
+            phase_profile::scope("psi.06.reconcile_and_residences.payload_memberships", || {
                 crate::retention::payload_memberships::retain(&mut lowered.semantic_module)
             })?;
             Ok(())
         },
     )?;
-    phase_profile::scope("05.11_evidence_artifacts", || {
+    phase_profile::scope("psi.06.evidence_artifacts", || {
         lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
     })?;
     lowered.source_boundary_declarations = source_boundary_ids;

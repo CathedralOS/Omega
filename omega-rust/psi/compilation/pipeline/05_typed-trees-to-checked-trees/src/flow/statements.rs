@@ -147,7 +147,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let mut fallthrough_contexts = *active_contexts;
         let mut fallthrough_constraints = *active_constraints;
         if let Some(transition) = statement.as_transition() {
-            let writes = phase_profile::scope("05.d.3.b.flow.stmt.1_transition", || {
+            let writes = phase_profile::scope("psi.05.build_check_facts.flow.statement.transition", || {
                 append_transition_flow_facts(
                     program,
                     borrow,
@@ -176,7 +176,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             fallthrough_constraints = *active_constraints;
         }
         if !matches!(statement, StatementNode::Transition(_)) {
-            let evaluated = phase_profile::scope("05.d.3.b.flow.stmt.2_expression", || {
+            let evaluated = phase_profile::scope("psi.05.build_check_facts.flow.statement.expression", || {
                 append_statement_calls(
                     program,
                     borrow,
@@ -204,7 +204,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             retained.completed_content_writes = evaluated.writes.writes;
             retained.completed_content_unknown_write = evaluated.writes.unknown;
         }
-        let _writes_guard = phase_profile::guard("05.d.3.b.flow.stmt.3_writes_and_loans");
+        let _writes_guard = phase_profile::guard("psi.05.build_check_facts.flow.statement.writes_and_loans");
         // Prepare the completed store once, before retiring its destination.
         // Invalidation and establishment must consume the same captured
         // address, including a view's base and a pinned selector. A coarse
@@ -668,7 +668,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         }
         drop(_writes_guard);
         if !mutated_places.is_empty() {
-            let _inv_guard = phase_profile::guard("05.d.3.b.flow.stmt.4_invalidation");
+            let _inv_guard = phase_profile::guard("psi.05.build_check_facts.flow.statement.invalidation");
             extend_invocation_observations(
                 program,
                 build,
@@ -709,7 +709,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
         }
-        phase_profile::scope("05.d.3.b.flow.stmt.5_transfers", || {
+        phase_profile::scope("psi.05.build_check_facts.flow.statement.transfers", || {
             propagate_statement_transfers(
                 program,
                 borrow,

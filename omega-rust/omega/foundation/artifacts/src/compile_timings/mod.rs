@@ -27,25 +27,25 @@ impl StageMeta {
 }
 
 pub const SOURCE_FILES_TO_TOKENS: StageMeta =
-    StageMeta::new("Stage 01", "SourceFiles", "TokenStreams");
+    StageMeta::new("Stage 00", "SourceFiles", "TokenStreams");
 
 pub const TOKENS_TO_SYNTAX_TREES: StageMeta =
-    StageMeta::new("Stage 02", "TokenStreams", "SyntaxTrees");
+    StageMeta::new("Stage 01", "TokenStreams", "SyntaxTrees");
 
 pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta =
     StageMeta::new("Stage 05", "TypedTrees", "CheckedTrees");
 
 /// Build evaluation and the checked continuation it drives; this step
-/// contains Stage 01 through Stage 05 and the pre-build check, so its row is
+/// contains Stage 00 through Stage 05 and the pre-build check, so its row is
 /// their sum plus the build's own evaluation.
 pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
     "Step: build",
     "AssembledSyntax",
-    "CheckedTrees (contains Stage 01-05)",
+    "CheckedTrees (contains Stage 00-05)",
 );
 
 /// Package closure resolution and per-target source assembly, before build
-/// evaluation; contains Stage 01 through Stage 04 when they run there.
+/// evaluation; contains Stage 00 through Stage 03 when they run there.
 pub const SOURCE_ASSEMBLY: StageMeta =
     StageMeta::new("Step: assemble", "PreparedSources", "AssembledSyntax");
 

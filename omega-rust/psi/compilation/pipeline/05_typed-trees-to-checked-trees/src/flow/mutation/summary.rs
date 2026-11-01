@@ -54,7 +54,7 @@ impl StateMutationSummaryCache {
         call_frames: Option<&CallFrameResolver<'_>>,
     ) {
         let _ = self.states.get_or_init(|| {
-            phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
+            phase_profile::scope("psi.05.build_check_facts.flow.build_state_mutation_summaries", || {
                 build_state_mutation_summaries(program, borrow, call_frames)
             })
         });
@@ -223,7 +223,7 @@ fn state_mutation_summary<'cache>(
     call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
     let built = cache.states.get_or_init(|| {
-        phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
+        phase_profile::scope("psi.05.build_check_facts.flow.build_state_mutation_summaries", || {
             build_state_mutation_summaries(program, borrow, call_frames)
         })
     });
@@ -243,7 +243,7 @@ fn build_state_mutation_summaries(
             crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
 
         let (mut states, borrow_states_for_summaries): (Vec<_>, Vec<_>) =
-            phase_profile::scope("05.d.3.b.flow.summaries.1_direct", || {
+            phase_profile::scope("psi.05.build_check_facts.flow.summaries.direct", || {
                 let borrow_state_refs: Vec<_> =
                     borrow.states.iter().map(|(_, state)| state).collect();
                 borrow_state_refs
@@ -283,7 +283,7 @@ fn build_state_mutation_summaries(
             index_by_state.entry(summary.state_symbol).or_insert(index);
         }
 
-        phase_profile::scope("05.d.3.b.flow.summaries.2_propagate", || {
+        phase_profile::scope("psi.05.build_check_facts.flow.summaries.propagate", || {
             propagate_state_mutation_summaries(
                 program,
                 borrow,
@@ -344,7 +344,7 @@ fn propagate_state_mutation_summaries(
         .collect();
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
-    let mut calls: Vec<_> = phase_profile::scope("05.d.3.b.flow.summaries.2a_calls", || {
+    let mut calls: Vec<_> = phase_profile::scope("psi.05.build_check_facts.flow.summaries.calls", || {
         (0..states.len())
             .into_par_iter()
             .map(|caller_index| {
@@ -413,11 +413,11 @@ fn propagate_state_mutation_summaries(
             }
         }
     }
-    let _loop_guard = phase_profile::guard("05.d.3.b.flow.summaries.2b_loop");
+    let _loop_guard = phase_profile::guard("psi.05.build_check_facts.flow.summaries.loop");
     let mut dirty_mask = vec![true; states.len()];
     let mut has_dirty = !states.is_empty();
     while has_dirty {
-        phase_profile::count("05.d.3.b.flow.summaries.2b_rounds", 1);
+        phase_profile::count("psi.05.build_check_facts.flow.summaries.rounds", 1);
         // Publish after the round: later callers must not observe this round's
         // additions early, which would change first-discovery write ordering.
         let updates: Vec<_> = calls
