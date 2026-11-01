@@ -1,1 +1,6 @@
-{"role":"intended-invalid","rejection_any_contains":["live loan","live borrow","conflicts with"]}
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "mutates `destination[2]` while local borrow `output` is still active"
+  ]
+}

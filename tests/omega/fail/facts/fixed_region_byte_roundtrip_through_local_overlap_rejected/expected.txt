@@ -1,1 +1,1 @@
-live
+mutates `destination[2]` while local borrow `output` is still active
