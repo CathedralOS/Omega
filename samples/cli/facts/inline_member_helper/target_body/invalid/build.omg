@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "inline_member_helper_through_target_body_invalid");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::application(builder, "inline_member_helper_through_target_body");
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<BodyTag, X86Tag>(builder, windows_x86_64);
+    Build::select_provider<TargetProbe, X86Probe>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<BodyTag, X86Tag>(builder, linux_x86_64);
+    Build::select_provider<TargetProbe, X86Probe>(builder, linux_x86_64);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::select_provider<BodyTag, ArmTag>(builder, macos_arm64);
+    Build::select_provider<TargetProbe, ArmProbe>(builder, macos_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
+    Build::select_provider<BodyTag, ArmTag>(builder, linux_arm64);
+    Build::select_provider<TargetProbe, ArmProbe>(builder, linux_arm64);
 }
