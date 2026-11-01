@@ -125,9 +125,11 @@ mod machine_declarations;
 pub mod declaration_index;
 mod declaration_tables;
 mod spelled_declarations;
+mod type_parameters;
 pub use data_definitions::DataDefinitionTable;
 pub use machine_declarations::MachineDeclarationTable;
 pub use spelled_declarations::SpelledDeclarationTable;
+pub use type_parameters::TypeParameterTable;
 mod access_views;
 pub mod declarations;
 pub mod evidence;
@@ -432,7 +434,7 @@ pub struct TypedTreeTables {
     /// Their definitions live in the declaration arena but not the authored
     /// root roster: substitution creates no new nominal or field identity.
     pub data_application_definitions: Arena<DataApplicationView>,
-    pub data_type_parameters: Arena<data::TypeParameter>,
+    pub data_type_parameters: TypeParameterTable,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
     pub static_type_contexts: crate::typed_trees::type_system::type_predicates::StaticTypeContexts,
     pub data_members: Arena<data::DataMember>,
