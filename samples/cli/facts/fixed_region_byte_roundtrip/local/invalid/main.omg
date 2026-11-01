@@ -1,0 +1,18 @@
+// Fact: A fixed interior typed region can be copied through byte views without changing its values or either neighboring word.
+// Expected exit: 0
+machine copy_bytes(source: &[u8; 40], destination: &mut [u8; 40]) {
+    destination = source;
+}
+machine main() crashes Trap {
+    let source: [u64; 7] = [17u64, 23u64, 42u64, 9u64, 50u64, 61u64, 53u64];
+    let mut destination: [u64; 7] = [29u64, 0u64, 0u64, 0u64, 0u64, 0u64, 71u64];
+    let bytes: &[u8; 40] = &source[1..5] as &[u8; 40];
+    let output: &mut [u8; 40] = &mut destination[1..6] as &mut [u8; 40];
+    copy_bytes(bytes, output);
+    transition source[0] == 17u64 && source[1] == 23u64 && source[2] == 42u64 && source[3] == 9u64 && source[4] == 50u64 && source[5] == 61u64 && source[6] == 53u64 && destination[0] == 29u64 && destination[1] == 23u64 && destination[2] == 42u64 && destination[3] == 9u64 && destination[4] == 50u64 && destination[5] == 61u64 && destination[6] == 71u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
