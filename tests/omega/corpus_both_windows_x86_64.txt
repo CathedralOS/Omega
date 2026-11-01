@@ -5927,6 +5927,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit built 9631ms exit:42 
 pass/ownership/runtime_case_alternative_custody_exit incomplete 4041ms interpreter:unchecked @5f668826adf3+wt
 	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
 pass/ownership/runtime_complete_array_reference_store_exit built 3340ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/ownership/runtime_completed_case_claim_return_exit built 4557ms exit:0 interpreter-exit:0 interpreter:agrees @02336e3b5381+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit built 5051ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_declared_linear_local_assignment_exit built 16318ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_effectful_singleton_selector_cleanup_exit rejected 3044ms interpreter:unchecked @5f668826adf3+wt
