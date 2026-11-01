@@ -355,8 +355,18 @@ impl ExitScalars<'_, '_> {
             if bound_carrier != primitive {
                 return None;
             }
-            stage = "return stability";
-            if !self.return_expression_is_stable(exit_return_expression(self.program, self.exit)) {
+            // The exact completed return owns its evaluated value, including
+            // target-dependent observations. The occurrence recipe below reads
+            // that ordered evaluation, not the source expression at exit.
+            // A projected constructor child still goes through result_projection's
+            // replay-stability check before result_bound_operand selects it.
+            stage = "completed return or replay stability";
+            let completed = completed_return_operand(self.program, self.facts, self.exit)
+                .is_some_and(|operand| operand.expression == returned);
+            if !completed
+                && !self
+                    .return_expression_is_stable(exit_return_expression(self.program, self.exit))
+            {
                 return None;
             }
             // The return may await target closure even when its comparison endpoint
