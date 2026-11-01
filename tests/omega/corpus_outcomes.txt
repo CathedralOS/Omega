@@ -73,6 +73,8 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
+	machine `pause_once` publishes service reach `<none>` but its checked body reaches undeclared service `Wait`
 fail/facts/abstract_signature_call_applied_callback_computed_const_premise_rejected rejected 847ms expected @d4295d67990d
 	constant initializer: demanded premise closure checking failed: machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
 fail/facts/abstract_signature_call_applied_callback_const_premise_rejected rejected 894ms expected @d4295d67990d
@@ -1783,6 +1785,8 @@ fail/ownership/completed_case_claim_return_double_consume rejected 2699ms expect
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/parse/retired_standalone_boundary_requirement rejected 28ms @409a3e82132d+wt
+	tests/omega/fail/parse/retired_standalone_boundary_requirement/main.omg:6:10: standalone `boundary requirement Owner::operation(...);` declarations are retired; declare the operation as a member of a boundary trait (`boundary trait Owner { machine operation(...) reaches ...; }`), using a one-member trait when it needs independent provider selection
 fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
 	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
@@ -4223,6 +4227,7 @@ pass/effects/graphics_provider_declares_filesystem_write checked 3417ms @ccdb99c
 pass/effects/gui_semantic_services checked 19747ms @ccdb99ca2214
 pass/effects/nominal_callback_const_reach checked 3143ms @ccdb99ca2214
 pass/effects/nominal_callback_dependency checked 3928ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/opaque_leaf_inherits_requirement_contract checked 2328ms @409a3e82132d+wt
 pass/effects/optional_reach_declared_slack_exit checked 3184ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/optional_reach_empty_exit checked 3144ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/optional_reach_generic_narrow_exit checked 3648ms check-target:macos_arm64 @ccdb99ca2214

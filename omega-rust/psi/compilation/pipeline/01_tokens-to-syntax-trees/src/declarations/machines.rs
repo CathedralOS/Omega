@@ -136,7 +136,6 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             target: None,
             authored_target: None,
             boundary: false,
-            is_top_level_boundary_requirement: false,
             bodyless,
             lifetime_parameters,
             type_parameters,

@@ -15,25 +15,28 @@ use console;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
-data WindowsConsoleIo { }
+// The providers below call the exact `WindowsConsoleImports` leaves, not the
+// trait members: a trait-member call is a synchronous invocation edge that the
+// portable `Console` requirements do not publish.
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console;
 
-boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-reaches Console;
+    // A console read waits for host input, so the import publishes `blocks`.
+    machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console
+    blocks;
 
-// A console read waits for host input, so the import publishes `blocks`.
-boundary requirement WindowsConsoleIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-reaches Console
-blocks;
-
-// MSVCRT descriptors open in text mode, which translates CR LF pairs to a
-// single LF on reads, maps LF to CR LF on writes, and ends input at Ctrl+Z.
-// The console contract moves the authored bytes themselves, so read_byte and
-// write_byte put their descriptor in binary mode (`_O_BINARY`, 0x8000) before
-// moving data. `_setmode` is idempotent; calling it per operation keeps the
-// guarantee local to this provider with no separate descriptor-init hook.
-//   `int _setmode(int fd, int mode)`
-boundary requirement WindowsConsoleIo::set_mode(descriptor: i32, mode: i32) -> i32
-reaches Console;
+    // MSVCRT descriptors open in text mode, which translates CR LF pairs to a
+    // single LF on reads, maps LF to CR LF on writes, and ends input at Ctrl+Z.
+    // The console contract moves the authored bytes themselves, so read_byte and
+    // write_byte put their descriptor in binary mode (`_O_BINARY`, 0x8000) before
+    // moving data. `_setmode` is idempotent; calling it per operation keeps the
+    // guarantee local to this provider with no separate descriptor-init hook.
+    //   `int _setmode(int fd, int mode)`
+    machine set_mode(descriptor: i32, mode: i32) -> i32
+    reaches Console;
+}
 
 data WindowsConsoleImports { }
 
@@ -86,8 +89,8 @@ blocks
 crashes Trap
 {
     let mut cell: i32 = 0;
-    let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
-    let count: i32 = block WindowsConsoleIo::read(0, &mut cell, 1);
+    let mode: i32 = WindowsConsoleImports::set_mode(0, 32768);
+    let count: i32 = block WindowsConsoleImports::read(0, &mut cell, 1);
     transition count {
         1 -> byte(cell)
         0 -> end()
@@ -113,8 +116,8 @@ windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
 reaches Console
 {
     let mut cell: i32 = byte;
-    let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
-    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+    let mode: i32 = WindowsConsoleImports::set_mode(1, 32768);
+    let written: i32 = WindowsConsoleImports::write(1, &mut cell, 1);
 }
 
 windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {

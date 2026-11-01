@@ -1120,7 +1120,6 @@ fn machine_from_signature(
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: false,
         generic_data_template: Default::default(),
         where_facts: signature.where_facts,
         lifetime_parameters: signature.lifetime_parameters.clone(),

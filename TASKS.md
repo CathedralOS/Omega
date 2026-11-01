@@ -394,30 +394,26 @@ retired-syntax deletions to completion.
   affected realization; no `via` compatibility path or mandatory per-symbol
   forwarding declaration remains.
 
-- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Retire standalone `boundary requirement
-  Owner::name(...);` declarations and automatic containing-trait reach across
-  `source/library/`, `samples/`, `tests/omega/`, `omega-rust/`, and
-  `source/{psi,omega}/` under the
+- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish the retirement of standalone
+  `boundary requirement Owner::name(...);` declarations under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 66 std raw platform rows
-    (`std/posix_filesystem_adapter.omg`,
-    `std/targets/{linux_x86_64,macos_arm64}/posix_filesystem_impl.omg`,
-    `std/targets/windows_x86_64/{console_impl,windows_gui_impl}.omg`) to
-    boundary traits. A trait slot is selected whole, so the per-member
-    `select_provider<Owner::member, ...>` rows collapse to one trait row or
-    callers call the leaf satisfier directly (the `*ByteViews` precedent); a
-    call to a trait member adds that trait to the caller's `invokes` edges, so
-    the public portable requirements must not silently gain platform edges.
-  - Preserve source-selected trait tokens
-    (`samples/cli/probes/operator_requires_effects`).
-  - Delete the standalone declaration kind from parsing, AST/IR representations,
-    checking, Terminal codec, provider planning, and both compilers, keeping one
-    parser fail fixture for the retired spelling.
-  Acceptance: no accepted source or IR contains standalone `boundary requirement`
-  declarations; migrated customers execute through `omega run --both` under
-  boundary-trait selection; and unselected, ambiguous, or reach-exceeding
-  providers reject.
+  The parser refuses the spelling (`fail/parse/retired_standalone_boundary_requirement`)
+  and every std row is a boundary-trait member.
+  - Run the migrated POSIX filesystem customers (`tests/omega/pass/filesystem/`
+    native and `runtime_posix_*` fixtures over `PosixFilesystemLinux`,
+    `PosixFilesystemDarwin` and `PosixCanonicalLibc`) through
+    `omega run --both` on linux_x86_64, linux_arm64 and macos_arm64 hosts.
+  - Run the Windows GUI customers (`tests/omega/pass/host/runtime_gui_*`,
+    `runtime_windows_*`, `samples/gui/window_demo`) through `omega run --both`
+    on windows_x86_64. Native runs exit 70 as authored; the Terminal leg stops
+    at the private native sponsor for `WindowsGuiImports::create_window`
+    (**TERMINAL-RUNTIME-DRIVERS**).
+  - Add a fail control for ambiguous whole-trait provider supply of a migrated
+    raw trait.
+  Acceptance: migrated customers execute through `omega run --both` under
+  boundary-trait selection on their matching hosts; unselected, ambiguous, or
+  reach-exceeding providers reject.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run calls to declared operations and their
   premises end to end (`Psi 00–07` and `Omega 00–09`) under
