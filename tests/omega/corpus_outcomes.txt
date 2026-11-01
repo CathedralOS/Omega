@@ -176,6 +176,12 @@ fail/facts/c_layout_nested_representation_local_rejected rejected 2407ms expecte
 	policy `CAbiPolicy::plan$specialized$94b277e20c3601b3$0` produced an invalid plan: entry_count 65 is outside 0..=64
 fail/facts/c_layout_nested_representation_parameter_rejected rejected 2895ms expected @b78ea1d59bc7
 	policy `CAbiPolicy::plan$specialized$c8d59cfc79975312$0` produced an invalid plan: entry_count 65 is outside 0..=64
+fail/facts/c_layout_nested_representation_through_call_result_default_child_rejected rejected 1747ms expected @0ca75b7285b2
+	policy `CAbiPolicy::plan$specialized$fa1fe331e24fe2f4$0` produced an invalid plan: entry_count 65 is outside 0..=64
+fail/facts/c_layout_nested_representation_through_const_name_default_child_rejected rejected 4007ms expected @0ca75b7285b2
+	policy `CAbiPolicy::plan$specialized$a0cbe9f724726182$0` produced an invalid plan: entry_count 65 is outside 0..=64
+fail/facts/c_layout_nested_representation_through_match_join_default_child_rejected rejected 1825ms expected @0ca75b7285b2
+	policy `CAbiPolicy::plan$specialized$32609fda5dc5cada$0` produced an invalid plan: entry_count 65 is outside 0..=64
 fail/facts/c_layout_scalar_record_through_call_result_wrong_policy_rejected rejected 4945ms expected @cb12b89db565
 	machine `make` state `entry` return value expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
 	argument `value` for state `entry` expects `LayoutStorage<Record, CAbiPolicy<Record>>`, got `call expression`
@@ -4399,6 +4405,9 @@ pass/facts/build_target_provider_through_target_body_exit checked 7404ms check-t
 pass/facts/c_layout_nested_representation_field_exit checked 15064ms check-target:macos_arm64 @b78ea1d59bc7
 pass/facts/c_layout_nested_representation_local_exit checked 14463ms check-target:macos_arm64 @b78ea1d59bc7
 pass/facts/c_layout_nested_representation_parameter_exit checked 11690ms check-target:macos_arm64 @b78ea1d59bc7
+pass/facts/c_layout_nested_representation_through_call_result_exit checked 15772ms check-target:macos_arm64 @0ca75b7285b2
+pass/facts/c_layout_nested_representation_through_const_name_exit checked 17171ms check-target:macos_arm64 @0ca75b7285b2
+pass/facts/c_layout_nested_representation_through_match_join_exit checked 12948ms check-target:macos_arm64 @0ca75b7285b2
 pass/facts/c_layout_scalar_record_through_call_result_exit checked 14436ms check-target:macos_arm64 @cb12b89db565
 pass/facts/c_layout_scalar_record_through_const_name_exit checked 14247ms check-target:macos_arm64 @cb12b89db565
 pass/facts/c_layout_scalar_record_through_match_join_exit checked 12814ms check-target:macos_arm64 @cb12b89db565

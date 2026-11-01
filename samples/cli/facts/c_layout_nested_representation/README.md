@@ -71,6 +71,25 @@ its default-child twin and its noncopy-child control in
 Preparation took 683.172s and the three projects took 24.497s. Earlier passing
 observations remain bound to their actual b78 producer: the private property-walk
 repair changes nested representation descent, while direct child checks, scalar
-arrays, policy geometry, ABI replay and their inputs are unchanged. Call result, match join, const name, nested machine,
-other machine and selected target remain open. The full parent also retains
+arrays, policy geometry, ABI replay and their inputs are unchanged. Nested machine, other machine and selected target remain open. The full parent also retains
 other-host execution, complete SDK ABI records, conversions and Product parity.
+
+## Transport evidence
+
+Call-result, match-join and named-constant places pass Linux x86_64 native and
+Terminal execution with exit 0 in [pilot 41311782126](https://github.com/CathedralOS/Omega/actions/runs/41311782126).
+Their three default-child twins reject with the authored `entry_count 65 is
+outside 0..=64` diagnostic. The six exact corpus mirrors independently pass
+checking; all three positives also execute in both engines. The match case
+supplies the expected record and a first=18 decoy in opposite orders for its
+two calls: both actual arms retain the same values, but wrong-arm selection traps.
+
+Optimized source `0ca75b7285b2f2fced8ec253492d0e6e3a29d090`, CLI image
+`31721e29736b827dcb3db55b34e697de54d7789265211c4c87c3fd5bf285d5b6`, verified
+`opt_level=1`, took 1075.633s to prepare and 1.816s to authenticate. Corpus
+checking took 30.733s, corpus native/Terminal 27.348s, and sample projects
+46.812s. Canonical checking rows preserve actual raw diagnostics, timings and
+the default `macos_arm64` check target under that source stamp; native execution
+remains Linux x86_64 evidence. Raw reports and exportable source evidence are
+retained with the pilot. This batch changes no compiler or library mechanism.
+The three remaining machine places and broader parent acceptance remain open.
