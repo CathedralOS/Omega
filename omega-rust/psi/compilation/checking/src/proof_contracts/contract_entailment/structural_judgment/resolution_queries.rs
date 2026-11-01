@@ -637,6 +637,120 @@ mod tests {
         assert!(entered.resolving_application(&second, 0).is_some());
     }
 
+    fn static_selection_questions(
+        landed_type: numerics::literals::LandedIntegerType,
+        nested: bool,
+    ) -> [StructuralTerm; 2] {
+        let literal = typed_trees::expression::StaticMachineArgument {
+            const_literal: Some(
+                numerics::literals::IntegerLiteral::from_value(7).with_landing(
+                    numerics::literals::IntegerLanding {
+                        landed_type,
+                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                    },
+                ),
+            ),
+            ..Default::default()
+        };
+        let selected = if nested {
+            typed_trees::expression::StaticMachineArgument {
+                application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
+                    lifetime_arguments: Box::new([]),
+                    arguments: vec![literal].into_boxed_slice(),
+                })),
+                ..Default::default()
+            }
+        } else {
+            literal
+        };
+        [
+            StructuralTerm::Application {
+                result_type: TypeReferenceHandle::from_arena_index(1),
+                target: symbols::SymbolHandle::from_arena_index(2),
+                selections: vec![selected.clone()],
+                machine: "selected".to_owned(),
+                arguments: Vec::new(),
+            },
+            StructuralTerm::CallProjection {
+                result_type: TypeReferenceHandle::from_arena_index(1),
+                target: symbols::SymbolHandle::from_arena_index(2),
+                selections: vec![selected],
+                machine: "selected".to_owned(),
+                field: symbols::SymbolHandle::from_arena_index(3),
+                field_name: "value".to_owned(),
+                arguments: Vec::new(),
+            },
+        ]
+    }
+
+    fn selected_landing(term: &StructuralTerm) -> Option<numerics::literals::IntegerLanding> {
+        let selections = match term {
+            StructuralTerm::Application { selections, .. }
+            | StructuralTerm::CallProjection { selections, .. } => selections,
+            _ => panic!("expected selected application"),
+        };
+        let mut selected = &selections[0];
+        while let Some(application) = &selected.application {
+            selected = &application.arguments[0];
+        }
+        selected.const_literal.as_ref().unwrap().landing()
+    }
+
+    #[test]
+    fn static_selection_landings_survive_completed_query_reuse() {
+        use numerics::literals::LandedIntegerType;
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        for nested in [false, true] {
+            for (first, requested) in static_selection_questions(LandedIntegerType::U8, nested)
+                .into_iter()
+                .zip(static_selection_questions(LandedIntegerType::U64, nested))
+            {
+                assert_eq!(first, requested, "semantic literal equality is unchanged");
+                assert_eq!(fingerprint(&first), fingerprint(&requested));
+                let old_debug_bucket = |value: &StructuralTerm| {
+                    let mut hash = DefaultHasher::new();
+                    hash.write(format!("{value:?}").as_bytes());
+                    hash.finish()
+                };
+                assert_ne!(old_debug_bucket(&first), old_debug_bucket(&requested));
+                judge.completed_resolution(first, 0, |_, value| value);
+                let returned = judge.completed_resolution(requested.clone(), 0, |_, value| value);
+                assert_eq!(selected_landing(&returned), selected_landing(&requested));
+            }
+        }
+    }
+
+    #[test]
+    fn static_selection_landings_remain_distinct_recurrence_inputs() {
+        use numerics::literals::LandedIntegerType;
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        for nested in [false, true] {
+            for (first, requested) in static_selection_questions(LandedIntegerType::U8, nested)
+                .into_iter()
+                .zip(static_selection_questions(LandedIntegerType::U64, nested))
+            {
+                let entered = judge.resolving_application(&first, 0).unwrap();
+                assert!(entered.resolving_application(&requested, 0).is_some());
+                assert!(entered.resolving_application(&first, 0).is_none());
+            }
+        }
+    }
+
     #[test]
     fn recurrence_reads_allow_unrelated_frames_but_reject_changed_cycle_answers() {
         let program = typed_trees::TypedTrees::default();
