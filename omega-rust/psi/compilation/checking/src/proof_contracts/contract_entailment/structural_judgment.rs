@@ -33,6 +33,7 @@ mod invocation_entry;
 mod licenses;
 mod mathematical_predicates;
 pub(super) mod normal_returns;
+mod resolution_inputs;
 mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;

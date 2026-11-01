@@ -10,6 +10,7 @@
 //! enclosing query. Changed immutable inputs or dependency observers decline
 //! memoization; no partial read set can authorize reuse.
 
+use super::resolution_inputs::{InputOwner, ResolutionInputs};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -64,7 +65,9 @@ struct CompletedResolution<'program> {
     fingerprint: u64,
     kind: StructuralQueryKind,
     term: StructuralTerm,
-    context: StructuralJudge<'program>,
+    inputs: ResolutionInputs<'program>,
+    specification_terms: bool,
+    returned_field_trace: Option<InputOwner<'program>>,
     reads: Vec<ApplicationRead>,
     depth: usize,
     resolution_depth: usize,
@@ -160,9 +163,10 @@ impl<'program> CompletedResolutions<'program> {
                 entry.kind == kind
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
-                    && entry.context.specification_terms == judge.specification_terms
-                    && entry.context.same_returned_field_trace(judge)
-                    && entry.context.same_resolution_inputs(judge)
+                    && entry.specification_terms == judge.specification_terms
+                    && entry.returned_field_trace
+                        == judge.returned_field_trace.as_ref().map(InputOwner::new)
+                    && entry.inputs.same_inputs(&judge.resolution_inputs())
                     && entry.term.same_resolution_payload(term)
                     && entry.reads.iter().all(|read| {
                         judge.application_is_active_in_mode(
@@ -337,7 +341,9 @@ impl<'program> StructuralJudge<'program> {
                     fingerprint,
                     kind,
                     term: input,
-                    context,
+                    inputs: self.resolution_inputs(),
+                    specification_terms: self.specification_terms,
+                    returned_field_trace: self.returned_field_trace.as_ref().map(InputOwner::new),
                     reads,
                     depth,
                     resolution_depth: self.application_resolution_depth(),
