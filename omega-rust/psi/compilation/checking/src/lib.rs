@@ -96,8 +96,8 @@ pub use machine_calls::structural_call_custody::{
     zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
-    closed_interval_from_comparison, declared_domain_predicate_bounds,
-    exact_declared_domain_carrier_interval, exact_declared_domain_interval,
+    declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
+    exact_declared_domain_interval,
 };
 pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;

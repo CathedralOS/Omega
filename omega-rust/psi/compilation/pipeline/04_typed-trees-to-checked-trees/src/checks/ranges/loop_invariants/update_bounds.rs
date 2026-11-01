@@ -281,27 +281,11 @@ fn guard_bounds(
             _ => return Interval::UNBOUNDED,
         };
     }
-    match operator {
-        BinaryOperator::Less => Interval {
-            low: None,
-            high: literal.checked_sub(1),
-        },
-        BinaryOperator::LessOrEqual => Interval {
-            low: None,
-            high: Some(literal),
-        },
-        BinaryOperator::Greater => Interval {
-            low: literal.checked_add(1),
-            high: None,
-        },
-        BinaryOperator::GreaterOrEqual => Interval {
-            low: Some(literal),
-            high: None,
-        },
-        BinaryOperator::Equal => Interval {
-            low: Some(literal),
-            high: Some(literal),
-        },
-        _ => Interval::UNBOUNDED,
-    }
+    validation::BigIntInterval::from_comparison(
+        operator,
+        true,
+        numerics::bignum::BigInt::from_i64(literal),
+    )
+    .and_then(|interval| interval.to_interval())
+    .unwrap_or(Interval::UNBOUNDED)
 }
