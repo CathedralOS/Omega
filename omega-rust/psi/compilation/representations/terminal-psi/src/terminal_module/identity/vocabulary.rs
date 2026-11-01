@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Scalar applications remain explicit until exact target admission.
-        131
+        // Callback applications retain their exact inbound declaration.
+        132
     }
 }

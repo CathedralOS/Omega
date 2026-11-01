@@ -200,12 +200,14 @@ fn validate_method(
     // entry settlement admitted for the plan above — never against the plan's own
     // `contract_report_fingerprint`/`contract_commitment_digest`, which could
     // only match a fabricated schema row.
-    if schema
-        .calling_plan(method.requirement_identity)
-        .map(|plan| plan.report_fingerprint)
-        != Some(semantic_application.report_fingerprint())
+    if semantic_application.abi().requirement_identity
+        != schema.identity_text(method.requirement_identity)
         || schema
-            .calling_plan(method.requirement_identity)
+            .calling_application(semantic_application.abi())
+            .map(|plan| plan.report_fingerprint)
+            != Some(semantic_application.report_fingerprint())
+        || schema
+            .calling_application(semantic_application.abi())
             .map(|plan| plan.commitment)
             != Some(semantic_application.commitment())
     {

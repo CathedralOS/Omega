@@ -3,7 +3,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ServiceCallingPlan;
+use effects::provider_plan::ServiceSchema;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
@@ -12,8 +12,28 @@ pub(super) fn project(
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
-    calling: Option<&ServiceCallingPlan>,
+    service_schema: &ServiceSchema,
 ) -> Result<Option<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
+    // Service-method review describes this exact prepared declaration. Closed
+    // local applications are reviewed individually in the calling-policy roster.
+    let census = compilation.typed.boundary_signatures();
+    let abi = census
+        .abi_for_boundary(requirement)
+        .and_then(|coordinate| coordinate.as_ref().ok())
+        .and_then(|coordinate| {
+            census
+                .abi_signatures()
+                .iter()
+                .find(|row| row.id == *coordinate)
+        })
+        .map(|row| semantic_vocabulary::CallingAbiIdentity {
+            requirement_identity: row.requirement_identity.clone(),
+            declaring_application: row.declaring_application.clone(),
+            operands: row.operands.clone(),
+        });
+    let calling = abi
+        .as_ref()
+        .and_then(|abi| service_schema.calling_application(abi));
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
         return if calling.map(|plan| plan.report_fingerprint).is_none()
             && calling.map(|plan| plan.commitment).is_none()
@@ -34,6 +54,7 @@ pub(super) fn project(
         .iter()
         .filter(|candidate| {
             candidate.boundary_trait == schema_symbol
+                && abi.as_ref() == Some(candidate.materialized_signature().abi())
                 && candidate.requirement_machine == requirement
                 && candidate.boundary_arguments == arguments
                 && candidate.argument_owner() == argument_owner

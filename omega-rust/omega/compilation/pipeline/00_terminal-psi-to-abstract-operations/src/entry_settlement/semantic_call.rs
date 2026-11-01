@@ -134,6 +134,7 @@ impl SelectedProgramEntryCall {
             || entry.source().target_slot().schema
                 != target::ProgramEntrySchema::ProgramStorageApplication
             || application.requirement_identity != requirement
+            || module.calling_abi_identity(boundary_id)? != application.abi
             || !boundary.scalar_parameters.is_empty()
             || boundary.structural_parameters.len() != 2
             || boundary.result != terminal_psi::BoundaryMachineResult::Unit

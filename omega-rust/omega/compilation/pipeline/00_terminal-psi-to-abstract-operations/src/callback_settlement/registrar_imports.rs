@@ -92,11 +92,12 @@ pub(crate) fn settle_callback_registrar_imports(
         // Only the retained plan-scoped correspondence supplies that address;
         // callback materialization still supplies the complete exact plan.
         let selected_requirement = selected.selected_requirement_identity(requirement);
+        let abi = terminal_module.calling_abi_identity(*boundary)?;
 
         let matching_realizations = calling_applications
             .iter()
             .filter(|realization| {
-                realization.requirement_identity == selected_requirement
+                realization.abi == abi
                     && realization.callback_context_closed
                     && realization.plan.plan() == &materialization.registrar_boundary_entry_plan
             })

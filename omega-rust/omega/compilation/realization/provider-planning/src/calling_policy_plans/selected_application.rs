@@ -105,16 +105,37 @@ pub(crate) fn selected_source_calling_application(
         prepared.schema,
         crate::ProviderSchemaDeclaration::BoundaryTrait(_)
     ) {
-        return match plan.schema.calling_plan(method.requirement_identity) {
-            None => Ok(None),
-            Some(_) => Err(Diagnostic::error(
+        return if plan
+            .schema
+            .calling_for_requirement(method.requirement_identity)
+            .is_empty()
+        {
+            Ok(None)
+        } else {
+            Err(Diagnostic::error(
                 "selected source non-trait boundary retains a trait calling-plan fingerprint",
-            )),
+            ))
         };
     }
     source.require_calling_owner()?;
 
-    let Some(calling) = plan.schema.calling_plan(method.requirement_identity) else {
+    let census = services.signatures();
+    let abi_id = *census
+        .abi_for_boundary(source.source.symbol)
+        .ok_or_else(|| Diagnostic::error("selected boundary lost its exact declaration ABI"))?
+        .as_ref()
+        .map_err(|reason| Diagnostic::error(reason.clone()))?;
+    let abi_row = census
+        .abi_signatures()
+        .iter()
+        .find(|row| row.id == abi_id)
+        .ok_or_else(|| Diagnostic::error("selected boundary lost its complete ABI key"))?;
+    let abi = semantic_vocabulary::CallingAbiIdentity {
+        requirement_identity: abi_row.requirement_identity.clone(),
+        declaring_application: abi_row.declaring_application.clone(),
+        operands: abi_row.operands.clone(),
+    };
+    let Some(calling) = plan.schema.calling_application(&abi) else {
         return Ok(None);
     };
     let fingerprint = calling.report_fingerprint;
@@ -129,6 +150,7 @@ pub(crate) fn selected_source_calling_application(
         .iter()
         .filter(|realization| {
             realization.report_fingerprint == fingerprint
+                && realization.materialized_signature().abi == abi
                 && realization.commitment == commitment
                 && realization.boundary_trait == prepared.schema.symbol()
                 && realization.requirement_machine == source.source.symbol
@@ -231,8 +253,7 @@ pub fn component_calling_applications(
                 );
             }
             if let Some(previous) = applications.iter().find(|previous| {
-                previous.requirement_identity == application.requirement_identity
-                    && previous.target == application.target
+                previous.abi == application.abi && previous.target == application.target
             }) {
                 if previous != &application {
                     return Err(vec![Diagnostic::error(

@@ -403,15 +403,18 @@ fn authenticate_callback_application(
         return Err("callback selected provider method is ambiguous".to_owned());
     }
     let application = &callback.registrar_application;
-    if !selected.selected_row_matches_requirement(
-        requirement,
-        &application.requirement_identity,
-        plan.report_fingerprint(),
-    ) || plan
-        .schema
-        .calling_plan(method.requirement_identity)
-        .map(|plan| plan.report_fingerprint)
-        != Some(application.report_fingerprint)
+    if application.abi.requirement_identity
+        != plan.schema.identity_text(method.requirement_identity)
+        || !selected.selected_row_matches_requirement(
+            requirement,
+            &application.requirement_identity,
+            plan.report_fingerprint(),
+        )
+        || plan
+            .schema
+            .calling_application(&application.abi)
+            .map(|plan| plan.report_fingerprint)
+            != Some(application.report_fingerprint)
         || callback.registrar_application_commitment != application.commitment
         || callback.registrar_boundary_entry_plan != *application.plan.plan()
     {
@@ -421,7 +424,7 @@ fn authenticate_callback_application(
     }
     let expected = plan
         .schema
-        .calling_plan(method.requirement_identity)
+        .calling_application(&application.abi)
         .map(|plan| plan.commitment)
         .ok_or("callback selected method has no admitted calling application")?
         .as_bytes();

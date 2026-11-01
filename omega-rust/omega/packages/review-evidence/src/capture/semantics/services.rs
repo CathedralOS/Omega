@@ -105,14 +105,9 @@ fn project_inner(
     let calling = if generic_declaration {
         // A declaration publishes its open telescope. It has no supplying
         // conformance and cannot borrow a concrete application's calling plan.
-        if service_schema
-            .calling_plan(method.requirement_identity)
-            .map(|plan| plan.report_fingerprint)
-            .is_some()
-            || service_schema
-                .calling_plan(method.requirement_identity)
-                .map(|plan| plan.commitment)
-                .is_some()
+        if !service_schema
+            .calling_for_requirement(method.requirement_identity)
+            .is_empty()
         {
             return Err(rejected(
                 "uninstantiated generic service carries a closed calling application",
@@ -125,7 +120,7 @@ fn project_inner(
             schema,
             provider_type,
             requirement,
-            service_schema.calling_plan(method.requirement_identity),
+            service_schema,
         )?
     };
     let signature = if declaration_mode {

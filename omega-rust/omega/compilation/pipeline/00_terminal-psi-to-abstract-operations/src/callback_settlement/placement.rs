@@ -64,17 +64,11 @@ pub fn settle_native_callback_placements(
                     .into(),
             );
         }
-        let inbound = calling_application(calling, &application.requirement)?;
-        let registrar =
-            calling_application(calling, selected.selected_requirement_identity(requirement))?;
-        let mut interfaces = module.boundary_machines.iter().filter(|declaration| {
-            module.identities.text(declaration.identity) == Some(application.requirement.as_str())
-        });
-        let (Some(interface), None) = (interfaces.next(), interfaces.next()) else {
-            return Err("callback has no unique exact Terminal requirement declaration".into());
-        };
+        let inbound =
+            calling_application(calling, &module.calling_abi_identity(application.boundary)?)?;
+        let registrar = calling_application(calling, &module.calling_abi_identity(boundary)?)?;
         let inbound_telescope =
-            TerminalCallingTelescope::for_application(module, interface.id, inbound)?;
+            TerminalCallingTelescope::for_application(module, application.boundary, inbound)?;
         let registrar_telescope =
             TerminalCallingTelescope::for_application(module, boundary, registrar)?;
         let entry_parameters = inbound_telescope
@@ -106,11 +100,10 @@ pub fn settle_native_callback_placements(
 
 fn calling_application<'plans>(
     calling: &'plans [BoundaryCallingApplication],
-    requirement: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<&'plans BoundaryCallingApplication, String> {
-    let mut matching = calling
-        .iter()
-        .filter(|application| application.requirement_identity == requirement);
+    let mut matching = calling.iter().filter(|application| &application.abi == abi);
+    let requirement = &abi.requirement_identity;
     match (matching.next(), matching.next()) {
         (Some(application), None) => Ok(application),
         _ => Err(format!(

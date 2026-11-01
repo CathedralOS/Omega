@@ -48,6 +48,16 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         "callback applications",
     )?;
     for application in &module.callback_applications {
+        if module
+            .boundary_machine(application.boundary)
+            .is_none_or(|boundary| {
+                module.identities.text(boundary.identity) != Some(application.requirement.as_str())
+            })
+        {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "callback application lost its exact inbound requirement",
+            ));
+        }
         if application.requirement.is_empty()
             || application.published_contract == [0; 32]
             || application.body.contract == [0; 32]

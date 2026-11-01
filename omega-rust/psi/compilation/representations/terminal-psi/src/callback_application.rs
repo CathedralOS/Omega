@@ -9,6 +9,8 @@ pub struct TerminalCallbackApplication {
     pub registrar: semantic_vocabulary::OperationId,
     pub static_machine_ordinal: u32,
     pub requirement: String,
+    /// Exact inbound declaration, not an inverse lookup by overload spelling.
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub published_contract: [u8; 32],
     /// Psi admitted the requirement's callback entry contract. An emitted
     /// boundary use without one is retained so a foreign realization refuses.

@@ -10,6 +10,7 @@ wire_record! {
         registrar: Id,
         static_machine_ordinal: U32,
         requirement: Text,
+        boundary: Id,
         published_contract: Digest,
         entry_admitted: Flag,
         body: MachineDeclaration,
@@ -30,6 +31,7 @@ mod tests {
             registrar: OperationId::new(42).expect("nonzero operation"),
             static_machine_ordinal: 2,
             requirement: "Hooks::call(u64)".to_owned(),
+            boundary: semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
             published_contract: [3; 32],
             entry_admitted: true,
             body: terminal_psi::CheckedMachineDeclaration {

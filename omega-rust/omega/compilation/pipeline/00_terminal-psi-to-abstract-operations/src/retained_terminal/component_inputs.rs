@@ -111,8 +111,8 @@ impl<'input> ComponentNativeInputs<'input> {
                     .boundary_machines
                     .iter()
                     .filter(|boundary| {
-                        receiver.module().identities.text(boundary.identity)
-                            == Some(requirement.as_str())
+                        receiver.module().calling_abi_identity(boundary.id).as_ref()
+                            == Ok(&export.calling_application.abi)
                     });
                 let boundary = receiving.next().ok_or_else(|| {
                     format!(
@@ -230,13 +230,15 @@ impl RetainedComponentNativeInputs {
                 .identities
                 .text(candidate.requirement_identity)
                 .ok_or("component export has no canonical requirement identity")?;
+            let abi = component
+                .module()
+                .calling_abi_identity(candidate.boundary)?;
             let (producer_position, producer) = one_application(
                 &proposal.boundary_applications().calling,
-                requirement,
+                &abi,
                 "component export",
             )?;
-            let (_, receiver) =
-                one_application(receiving_applications, requirement, "component import")?;
+            let (_, receiver) = one_application(receiving_applications, &abi, "component import")?;
             for application in [producer, receiver] {
                 if application.recomputed_commitment()? != application.commitment {
                     return Err(format!(
@@ -262,13 +264,14 @@ impl RetainedComponentNativeInputs {
 
 fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
-    requirement: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
     role: &str,
 ) -> Result<(usize, &'input BoundaryCallingApplication), String> {
     let mut matching = applications
         .iter()
         .enumerate()
-        .filter(|(_, row)| row.requirement_identity == requirement);
+        .filter(|(_, row)| &row.abi == abi);
+    let requirement = &abi.requirement_identity;
     let application = matching
         .next()
         .ok_or_else(|| format!("{role} `{requirement}` has no complete calling application",))?;

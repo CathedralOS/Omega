@@ -320,11 +320,23 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
         &self,
         exported: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
-        let mut applications = self
+        let explicit_applications = self
             .boundary_calling_plan_realizations
             .iter()
             .map(BoundaryCallingPlanRealization::native_application)
             .collect::<Result<Vec<_>, _>>()?;
+        let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
+        for application in explicit_applications {
+            if let Some(existing) = applications.iter().find(|existing| {
+                existing.abi == application.abi && existing.target == application.target
+            }) {
+                if existing != &application {
+                    return Err("explicit native policies disagree on one exact declaration ABI application".into());
+                }
+            } else {
+                applications.push(application);
+            }
+        }
         let explicit_count = applications.len();
         for application in self
             .external_binding_rows
@@ -336,8 +348,7 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
             // registrar settlement transfers that same completed application
             // to the physical import before native admission.
             if let Some(index) = applications.iter().position(|retained| {
-                retained.requirement_identity == application.requirement_identity
-                    && retained.target == application.target
+                retained.abi == application.abi && retained.target == application.target
             }) {
                 if index >= explicit_count && applications[index] != *application {
                     return Err(
@@ -351,8 +362,7 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
         }
         for application in self.component_calling_applications.iter().chain(exported) {
             if let Some(existing) = applications.iter().find(|existing| {
-                existing.requirement_identity == application.requirement_identity
-                    && existing.target == application.target
+                existing.abi == application.abi && existing.target == application.target
             }) {
                 if existing != application {
                     return Err(
@@ -397,12 +407,20 @@ fn demanded_provider_plans(
         .cloned()
         .collect();
     if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-        eprintln!("[prov] uses={} candidates={} demanded={}", uses.len(), candidates.len(), demanded.len());
+        eprintln!(
+            "[prov] uses={} candidates={} demanded={}",
+            uses.len(),
+            candidates.len(),
+            demanded.len()
+        );
         for candidate in candidates {
             eprintln!(
                 "[prov] candidate plan={} schema_trait={}",
                 candidate.plan.name,
-                candidate.plan.schema.identity_text(candidate.plan.schema.declaration.trait_name),
+                candidate
+                    .plan
+                    .schema
+                    .identity_text(candidate.plan.schema.declaration.trait_name),
             );
         }
         for choice in &choices {
