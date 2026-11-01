@@ -381,7 +381,11 @@ fn resolve_steps(
         let suffix = place_suffix(&leaf.local_path, &origin.path).unwrap_or("");
         // Captured lifetime debts survive projection as a whole. Appending
         // output selectors would invent geometry inside an unrelated input.
-        for dependency in &leaf.lifetime_dependencies {
+        let Some(dependencies) = leaf.lifetime_dependencies.as_ref() else {
+            sources.push(None);
+            continue;
+        };
+        for dependency in dependencies {
             if !sources.iter().any(|step: &Option<ReferenceStep>| {
                 step.as_ref().is_some_and(|step| step.source == *dependency)
             }) {
@@ -393,7 +397,7 @@ fn resolve_steps(
             }
         }
         let Some(mut captured) = leaf.origin.clone() else {
-            if leaf.lifetime_dependencies.is_empty() && !sources.iter().any(Option::is_none) {
+            if dependencies.is_empty() && !sources.iter().any(Option::is_none) {
                 sources.push(None);
             }
             continue;

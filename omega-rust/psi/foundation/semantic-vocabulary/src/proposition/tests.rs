@@ -1537,3 +1537,167 @@ fn byte_predicate_observations_retain_exact_subject_without_asserting_truth() {
         assert_eq!(changed.boolean_value(), None);
     }
 }
+
+#[test]
+fn deep_logical_clone_and_exact_equality_use_default_stack() {
+    std::thread::spawn(|| {
+        fn nested(last: Proposition) -> Proposition {
+            let mut value = last;
+            for depth in 0..8192 {
+                value = match depth % 3 {
+                    0 => Proposition::Conjunction(vec![Proposition::Truth, value]),
+                    1 => Proposition::Disjunction(vec![Proposition::Falsehood, value]),
+                    _ => Proposition::Implication {
+                        premise: Box::new(Proposition::Truth),
+                        conclusion: Box::new(value),
+                    },
+                };
+            }
+            value
+        }
+        let original = nested(Proposition::Truth);
+        let copied = original.clone();
+        assert!(
+            copied == original,
+            "owned copy retains every constructor and ordered member"
+        );
+        assert!(original == copied, "exact equality remains symmetric");
+        let changed = nested(Proposition::Falsehood);
+        assert!(
+            original != changed,
+            "the deepest leaf remains part of exact equality"
+        );
+        assert!(changed != copied);
+        use std::hash::{Hash, Hasher};
+        let mut original_hash = std::collections::hash_map::DefaultHasher::new();
+        let mut copy_hash = std::collections::hash_map::DefaultHasher::new();
+        original.hash(&mut original_hash);
+        copied.hash(&mut copy_hash);
+        assert_eq!(
+            original_hash.finish(),
+            copy_hash.finish(),
+            "deep exact equality retains the complete hash contract"
+        );
+    })
+    .join()
+    .expect("logical clone/equality and ordinary teardown use the default stack");
+}
+
+#[test]
+fn logical_value_copy_keeps_invalid_shapes_order_and_exact_subjects() {
+    use std::hash::{Hash, Hasher};
+    fn fingerprint(value: &Proposition) -> u64 {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut state);
+        state.finish()
+    }
+    let (zero, one) = predicate_exchange_alternatives();
+    let cases = vec![
+        Proposition::Truth,
+        Proposition::Falsehood,
+        zero.clone(),
+        one.clone(),
+        Proposition::Atom(crate::PropositionId::new(1).unwrap()),
+        Proposition::Atom(crate::PropositionId::new(2).unwrap()),
+        Proposition::Conjunction(Vec::new()),
+        Proposition::Disjunction(vec![zero.clone()]),
+        Proposition::Conjunction(vec![zero.clone(), one.clone()]),
+        Proposition::Conjunction(vec![one.clone(), zero.clone()]),
+        Proposition::Disjunction(vec![zero.clone(), one.clone()]),
+        Proposition::Implication {
+            premise: Box::new(zero.clone()),
+            conclusion: Box::new(one.clone()),
+        },
+        Proposition::Implication {
+            premise: Box::new(one.clone()),
+            conclusion: Box::new(zero.clone()),
+        },
+    ];
+    for (index, value) in cases.iter().enumerate() {
+        let copied = value.clone();
+        assert!(
+            copied == *value,
+            "copy keeps even malformed logical values for the validator"
+        );
+        assert_eq!(
+            fingerprint(&copied),
+            fingerprint(value),
+            "unchanged derived hash sees exactly the same fields"
+        );
+        assert_eq!(copied.cmp(value), std::cmp::Ordering::Equal);
+        for (other_index, other) in cases.iter().enumerate() {
+            assert_eq!(
+                copied == *other,
+                index == other_index,
+                "constructor, arity, member order and subject identity remain exact"
+            );
+        }
+    }
+}
+
+#[test]
+fn logical_hash_keeps_the_derived_ordered_field_protocol() {
+    use std::hash::{Hash, Hasher};
+    #[derive(Default)]
+    struct Trace(Vec<(u8, Vec<u8>)>);
+    impl Hasher for Trace {
+        fn finish(&self) -> u64 {
+            0
+        }
+        fn write(&mut self, bytes: &[u8]) {
+            self.0.push((0, bytes.to_vec()));
+        }
+        fn write_usize(&mut self, value: usize) {
+            self.0.push((1, value.to_ne_bytes().to_vec()));
+        }
+        fn write_isize(&mut self, value: isize) {
+            self.0.push((2, value.to_ne_bytes().to_vec()));
+        }
+    }
+    // Derive emits the enum discriminant then hashes fields in declaration
+    // order. Deriving this view delegates collection prefixes and field order
+    // to Rust itself, independently of the iterative proposition driver.
+    #[derive(Hash)]
+    struct DerivedFields<T>(std::mem::Discriminant<Proposition>, T);
+    let (zero, one) = predicate_exchange_alternatives();
+    let values = vec![
+        Proposition::Truth,
+        Proposition::Falsehood,
+        Proposition::Atom(crate::PropositionId::new(1).unwrap()),
+        zero.clone(),
+        one.clone(),
+        Proposition::Conjunction(Vec::new()),
+        Proposition::Disjunction(vec![zero.clone()]),
+        Proposition::Conjunction(vec![zero.clone(), one.clone()]),
+        Proposition::Disjunction(vec![one.clone(), zero.clone(), one.clone()]),
+        Proposition::Implication {
+            premise: Box::new(Proposition::Conjunction(vec![zero.clone(), one.clone()])),
+            conclusion: Box::new(Proposition::Disjunction(vec![one, zero])),
+        },
+    ];
+    for value in values {
+        let tag = std::mem::discriminant(&value);
+        let mut derived = Trace::default();
+        match &value {
+            Proposition::Truth | Proposition::Falsehood => {
+                DerivedFields(tag, ()).hash(&mut derived)
+            }
+            Proposition::Atom(identity) => DerivedFields(tag, identity).hash(&mut derived),
+            Proposition::Equal(left, right) => DerivedFields(tag, (left, right)).hash(&mut derived),
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                DerivedFields(tag, children).hash(&mut derived)
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => DerivedFields(tag, (premise, conclusion)).hash(&mut derived),
+            _ => unreachable!("the fixtures cover exact atoms and every logical field shape"),
+        }
+        let mut actual = Trace::default();
+        value.hash(&mut actual);
+        assert_eq!(
+            actual.0, derived.0,
+            "tag, length-prefix hook and ordered field writes match derive without a hardcoded nonportable hash"
+        );
+    }
+}

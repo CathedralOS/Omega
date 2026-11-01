@@ -263,6 +263,7 @@ fn collect_provider_selections<'a>(
             };
             ProviderSelectionIdentity {
                 application: Default::default(),
+                applied: argument.application.is_some(),
                 application_identity: None,
                 symbol,
                 package: typed.symbols.symbol_package_identity(symbol),

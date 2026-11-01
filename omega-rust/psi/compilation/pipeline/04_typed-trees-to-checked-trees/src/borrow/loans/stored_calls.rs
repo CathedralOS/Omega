@@ -123,6 +123,9 @@ pub(in crate::borrow) fn from_effects(
             }
         }
         for source in &effect.sources {
+            let Some(source_access) = source.lifetime_access.or(effect.reference_access()) else {
+                continue;
+            };
             let backing = &source.backing;
             if let Some(identity) = backing.invocation_output {
                 // Both a supplied pointer and an already captured output
@@ -130,7 +133,7 @@ pub(in crate::borrow) fn from_effects(
                 // A debt does not become the current descriptor slot's address
                 // or acquire a supplied permission. All other input debts and
                 // alternatives remain independent rows of the complete relation.
-                let access = source.lifetime_access.unwrap_or(effect.access);
+                let access = source_access;
                 let supplied = (identity.is_valid()
                     && !backing.is_image_storage
                     && backing.recasts.is_empty()
@@ -296,11 +299,7 @@ pub(in crate::borrow) fn from_effects(
                     },
                     kind: supplier
                         .and_then(|source| source.lifetime_access.clone())
-                        .unwrap_or_else(|| {
-                            checked_trees::BorrowAccessKind::from(
-                                source.lifetime_access.unwrap_or(effect.access),
-                            )
-                        }),
+                        .unwrap_or_else(|| checked_trees::BorrowAccessKind::from(source_access)),
                     call_result: true,
                 });
             }

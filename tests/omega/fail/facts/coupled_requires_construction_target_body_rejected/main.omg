@@ -1,0 +1,29 @@
+// Entry facts left > 0 and value + left == 60 establish Counter value <= 60 for the constructed value + 1, making value + 195 exact in u8.
+// Expected: rejected -- Counter default domain is not established at construction
+data Counter [copy] requires self.value <= 60 { value: u8; }
+boundary trait Advance {
+    machine next(value: u8, left: u8) -> Counter
+        requires left > 0 && left <= 60 && value <= 60 && value + left == 60
+        reaches;
+}
+X86Advance satisfies Advance {
+    machine next(value: u8, left: u8) -> Counter
+        requires left >= 0 && left <= 60 && value <= 60 && value + left == 60
+    { Counter { value: value + 1 } }
+}
+ArmAdvance satisfies Advance {
+    machine next(value: u8, left: u8) -> Counter
+        requires left >= 0 && left <= 60 && value <= 60 && value + left == 60
+    { Counter { value: value + 1 } }
+}
+machine total(counter: Counter) -> u8 { counter.value + 195 }
+machine main() reaches Advance crashes Trap {
+    let low: Counter = Advance::next(0, 60);
+    let high: Counter = Advance::next(59, 1);
+    transition total(low) == 196 && total(high) == 255 && low.value == 1 && high.value == 60 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

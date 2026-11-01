@@ -1107,3 +1107,44 @@ fn recorded_premise(index: usize, proposition: &Proposition) -> AcceptedPremise 
         proposition: proposition.clone(),
     }
 }
+
+#[test]
+fn deep_logical_assumption_admission_uses_default_stack_and_exact_premise() {
+    std::thread::spawn(|| {
+        fn nested(last: Proposition) -> Proposition {
+            let mut proposition = last;
+            for depth in 0..8192 {
+                proposition = match depth % 3 {
+                    0 => Proposition::Implication { premise: Box::new(Proposition::Truth), conclusion: Box::new(proposition) },
+                    1 => Proposition::Conjunction(vec![Proposition::Truth, proposition]),
+                    _ => Proposition::Disjunction(vec![Proposition::Falsehood, proposition]),
+                };
+            }
+            proposition
+        }
+        for valid in [true, false] {
+            let goal = nested(Proposition::Truth);
+            let assumptions = [nested(Proposition::Truth)];
+            let proof = ProofNode { conclusion: nested(if valid { Proposition::Truth } else { Proposition::Falsehood }), rule: ProofRule::Assumption { index: 0 } };
+            let context = PropositionContext::default();
+            context.validate(&goal).expect("the whole source goal is admitted");
+            eprintln!("8192-node assumption prepared; begin complete current-thread admission valid={valid}");
+            let before = verification_workers_started();
+            let result = super::accept_certificate_on_current_thread(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
+            if valid {
+                let accepted = result.expect("exact logical assumption is independently kernel judged");
+                assert_eq!(accepted.assumptions.len(), 1);
+                assert_eq!(accepted.assumptions[0].index, 0);
+                assert!(accepted.assumptions[0].proposition == goal, "the exact source premise remains in the receipt");
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else { panic!("bounded rule labels cannot substitute for the kernel judgment"); };
+                assert_eq!(receipt.context_depth, 1);
+                assert_eq!(receipt.declarations, 0);
+                assert_eq!(receipt.assumption_closure, 0);
+            } else {
+                assert!(matches!(result, Err(ProofError::AssumptionConclusionMismatch(0))), "a changed leaf cannot cite the old complete premise");
+            }
+            assert_eq!(verification_workers_started(), before, "the complete current-thread route creates no wide worker");
+            eprintln!("complete current-thread admission returned valid={valid}");
+        }
+    }).join().expect("complete logical admission and owned receipts stay on a default stack");
+}

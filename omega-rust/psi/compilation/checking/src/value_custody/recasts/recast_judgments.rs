@@ -514,15 +514,13 @@ fn judge_scalar_recast_alternative(
             mutable_scalar_representation_facts(program, representation_carrier(type_reference))
         })
         .map(|mut facts| {
-            // A field's `where` clauses narrow what the place stores just as a
-            // type-attached range would; fold them in so equivalence does not
-            // depend on which spelling declared the fact.
-            if let Some(interval) = crate::proof_contracts::default_domains::where_fact_interval(
-                program,
-                machine,
-                Some(state),
-                source,
-            ) {
+            // Representation requirements describe what every store enforces,
+            // not a mixed parent predicate that may need restoration.
+            if let Some(interval) =
+                crate::proof_contracts::default_domains::stored_field_where_interval(
+                    program, machine, state, source,
+                )
+            {
                 narrow_to_integer_interval(
                     &mut facts,
                     source_primitive,
