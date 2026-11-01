@@ -515,6 +515,24 @@ fail/facts/inline_member_helper_through_parameter_rejected rejected 5259ms expec
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/inline_member_helper_through_target_body_rejected rejected 6205ms expected @12a8c9de0dff
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_call_result_rejected rejected 1476ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: supplied >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_const_name_rejected rejected 1496ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_field_rejected rejected 1385ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: note.value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_local_rejected rejected 1409ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_match_join_rejected rejected 1421ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: selected >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_other_machine_rejected rejected 1431ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_other_state_rejected rejected 1414ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_parameter_rejected rejected 1391ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/invariant_window_snapshot_through_target_body_rejected rejected 1304ms expected @116224fd5359
+	cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
@@ -6473,6 +6491,15 @@ pass/facts/integer_width_truncation_mask_bound_through_other_machine_exit checke
 pass/facts/integer_width_truncation_mask_bound_through_other_state_exit checked 3605ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_parameter_exit checked 3399ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/integer_width_truncation_mask_bound_through_target_body_exit checked 4886ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/invariant_window_snapshot_through_call_result_exit checked 2472ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_const_name_exit checked 2472ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_field_exit checked 2523ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_local_exit checked 2523ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_match_join_exit checked 2471ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_other_machine_exit checked 2469ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_other_state_exit checked 2388ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_parameter_exit checked 2384ms check-target:macos_arm64 @116224fd5359
+pass/facts/invariant_window_snapshot_through_target_body_exit checked 2447ms check-target:macos_arm64 @116224fd5359
 pass/facts/length_through_call_result_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/length_through_const_name_exit checked 3491ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/length_through_field_exit checked 4332ms check-target:macos_arm64 @ccdb99ca2214
