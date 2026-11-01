@@ -1,0 +1,2076 @@
+diff --git a/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs b/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs
+index f714281ec8e..ad103a3565b 100644
+--- a/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs
++++ b/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs
+@@ -86,11 +86,12 @@ impl TerminalRuntimeHostProvisions {
+     pub fn capture_native_admission(
+         installation: Option<&terminal_installation::AdmittedProviderSelections>,
+         host: Vec<TerminalRuntimeHostProvision>,
+-        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
++        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+         selected: &effects::SelectedProviderPlanFacts,
+-        module: &terminal_psi::TerminalModule,
+         external_bindings: &[calling_conventions::ExternalBindingRow],
+     ) -> Result<Self, &'static str> {
++        let boundaries = &input.plan().boundary_machines;
++        let module = input.module();
+         let identities = &module.identities;
+         let mut host_requirements = Vec::new();
+         for provision in &host {
+@@ -135,8 +136,9 @@ impl TerminalRuntimeHostProvisions {
+             if rows.next().is_some() {
+                 return Err("runtime foreign calling application is ambiguous");
+             }
+-            let abi = module
+-                .calling_abi_identity(boundary.id)
++            let abi = input
++                .optimization_input()
++                .selected_calling_abi_identity(provision.boundary)
+                 .map_err(|_| "runtime host provision lost its exact declaration ABI")?;
+             let calling_application = row
+                 .and_then(|row| row.calling_application(&abi))
+@@ -544,7 +546,6 @@ impl TerminalRuntimeProvisions {
+         input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+         installation: Option<&terminal_installation::AdmittedProviderSelections>,
+         host: Vec<TerminalRuntimeHostProvision>,
+-        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+         selected: &effects::SelectedProviderPlanFacts,
+         external_bindings: &[calling_conventions::ExternalBindingRow],
+     ) -> Result<Self, &'static str> {
+@@ -572,9 +573,8 @@ impl TerminalRuntimeProvisions {
+         let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
+             installation,
+             host,
+-            boundaries,
++            input,
+             selected,
+-            input.module(),
+             external_bindings,
+         )?;
+         Ok(Self {
+diff --git a/omega-rust/omega/compilation/driver/src/checked/checking/source_checking.rs b/omega-rust/omega/compilation/driver/src/checked/checking/source_checking.rs
+index 4657fe7fc65..300796ab8ad 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/checking/source_checking.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/checking/source_checking.rs
+@@ -140,7 +140,7 @@ pub(crate) fn check_product_source(
+         program,
+         provider_inventory,
+         terminal_publication,
+-        calling_policy_code: Arc::default(),
++        calling_catalog: Arc::default(),
+         external_declarations: Arc::default(),
+         provider_defaults: provider_defaults.into(),
+         computed_build_config,
+diff --git a/omega-rust/omega/compilation/driver/src/execution_settlement.rs b/omega-rust/omega/compilation/driver/src/execution_settlement.rs
+index 3365bd749a8..f11868b5acb 100644
+--- a/omega-rust/omega/compilation/driver/src/execution_settlement.rs
++++ b/omega-rust/omega/compilation/driver/src/execution_settlement.rs
+@@ -421,11 +421,7 @@ fn prepare_target_provider_selection(
+         &build_config.opaque_representation_selections,
+         package_inputs,
+     )?;
+-    let code = if calling.is_empty() {
+-        None
+-    } else {
+-        crate::terminal::retain_calling_policy_code(source, timings)?
+-    };
++    let code = crate::terminal::retain_calling_catalog(source, timings)?;
+     let boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
+     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
+         one_refusal(source.provider_inventory.origins_for(&source.program))?,
+@@ -445,6 +441,7 @@ fn prepare_target_provider_selection(
+         &build_config.assumed_bindings,
+         &build_config.accepted_component_assumption_digests(),
+         boundary_calling_plan_realizations,
++        code.as_ref().map(|code| code.artifact.as_ref()),
+         &build_config.opaque_representation_selections,
+         &source.program.facts.synchronous_invocations,
+     )
+diff --git a/omega-rust/omega/compilation/driver/src/product_boundary.rs b/omega-rust/omega/compilation/driver/src/product_boundary.rs
+index 5c23a6db46e..097f18362e1 100644
+--- a/omega-rust/omega/compilation/driver/src/product_boundary.rs
++++ b/omega-rust/omega/compilation/driver/src/product_boundary.rs
+@@ -408,47 +408,6 @@ fn component_handoff_retains_the_producing_join() {
+     );
+ }
+ 
+-#[test]
+-fn calling_materialization_consumes_prepared_psi_telescopes() {
+-    let signatures = include_str!(
+-        "../../realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs"
+-    );
+-    let materialization = signatures
+-        .split("pub(crate) fn materialize_prepared_signature(")
+-        .nth(1)
+-        .unwrap()
+-        .split("pub(crate) fn exact_boundary_layout_root_symbol(")
+-        .next()
+-        .unwrap();
+-    assert_absent(
+-        &[materialization],
+-        "calling materialization rebuilds source telescope",
+-        &[
+-            "state_signature_parameters",
+-            "state_signature_type_parameters",
+-            "MachineParameterContract",
+-            "native_callback_parameters",
+-            "nominal_callback_native_parameter_id",
+-            "callback_nominal_report_fingerprint",
+-        ],
+-    );
+-    let computation = include_str!(
+-        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+-    );
+-    let defaults = computation
+-        .split("pub(crate) fn evaluate_default_calling_application(")
+-        .nth(1)
+-        .unwrap()
+-        .split("pub fn prepare_boundary_calling_plans<")
+-        .next()
+-        .unwrap();
+-    assert_absent(
+-        &[defaults],
+-        "default calling selection rescans source",
+-        &[".traits()", ".machines()", "trait_machine_signatures"],
+-    );
+-}
+-
+ #[test]
+ fn terminal_calling_activation_uses_only_canonical_geometry() {
+     let execution = include_str!(
+@@ -479,55 +438,6 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
+     );
+ }
+ 
+-#[test]
+-fn calling_policy_selection_consumes_prepared_psi_applications() {
+-    let computation = include_str!(
+-        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+-    );
+-    assert_absent(
+-        &[computation],
+-        "target calling policy selection reopens source relationships",
+-        &[
+-            "standard_calling_vocabularies",
+-            "trait_requirements",
+-            "AppliedTraitScope",
+-            "trait_implementation_applications",
+-            "captured_machine_applications",
+-            "evaluate_machine_symbol_for_invocation_measured(",
+-        ],
+-    );
+-    // Calling policies borrow the Product publication; there is no policy-only
+-    // producer or decoder and no copied artifact at this boundary.
+-    let code = include_str!("terminal/calling_policy_code.rs");
+-    assert_absent(
+-        &[code],
+-        "policy entry preparation compiles or reloads code:",
+-        &[
+-            "TerminalProductionRequest",
+-            ".produce(",
+-            "CanonicalTerminalArtifact::from_bytes",
+-        ],
+-    );
+-    assert!(code.contains("code.publish("));
+-    assert!(code.contains("Arc::clone(program.artifact())"));
+-    let product = include_str!("terminal/product_code.rs");
+-    assert_eq!(
+-        product
+-            .matches("psi_compiler::TerminalProductionRequest {")
+-            .count(),
+-        1
+-    );
+-    assert!(product.contains("self.publication.retain("));
+-    assert!(product.contains("machines.extend(self.calling_policy_roots()?);"));
+-    let execution =
+-        include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
+-    assert_absent(
+-        &[execution],
+-        "planner requests Terminal production:",
+-        &["TerminalProductionRequest"],
+-    );
+-}
+-
+ #[test]
+ fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
+     let source = include_str!(
+diff --git a/omega-rust/omega/compilation/driver/src/product_execution/component.rs b/omega-rust/omega/compilation/driver/src/product_execution/component.rs
+index a8769193110..c94038e6c9b 100644
+--- a/omega-rust/omega/compilation/driver/src/product_execution/component.rs
++++ b/omega-rust/omega/compilation/driver/src/product_execution/component.rs
+@@ -35,38 +35,9 @@ impl ComponentPublication {
+         }
+         let selections = optimization_core::OptimizationRollback::default()
+             .settle(&checked.build().config.settings.optimizations);
+-        // Export ABI planning belongs to this source-owned preparation, not
+-        // the native handoff after Terminal publication. Ordinary entry calls
+-        // do not enumerate every exported component requirement.
+-        let providers = checked
+-            .execution()
+-            .selected_provider_provenance
+-            .iter()
+-            .collect::<Vec<_>>();
+-        let exported_calling_applications = if providers.is_empty() {
+-            Vec::new()
+-        } else {
+-            let target = checked
+-                .execution()
+-                .selected_native_target()
+-                .ok_or_else(|| {
+-                    vec![Diagnostic::error(
+-                        "component native publication requires an exact selected target",
+-                    )]
+-                })?;
+-            provider_planning::calling_policy_plans::component_calling_applications(
+-                checked
+-                    .execution()
+-                    .provider_source
+-                    .inventory()
+-                    .services_for(checked.execution().provider_source.program())
+-                    .map_err(|error| vec![error])?,
+-                target,
+-                &providers,
+-                &checked.providers().boundary_calling_plan_realizations,
+-                &checked.build().config.opaque_representation_selections,
+-            )?
+-        };
++        // Export ABI applications are derived from this same Product's
++        // canonical declaration catalog after portable publication.
++        let exported_calling_applications = Vec::new();
+         let timings = std::mem::take(checked.timings_mut());
+         Ok(Self {
+             checked,
+@@ -86,7 +57,7 @@ impl ComponentPublication {
+     }
+ 
+     pub(crate) fn finish(
+-        self,
++        mut self,
+         produced: TerminalApplication,
+     ) -> Result<IndependentComponentProduct, CompilationProductError> {
+         let mut accounting = self.checked.source_completion_accounting().clone();
+@@ -101,6 +72,12 @@ impl ComponentPublication {
+                 accounting,
+             });
+         }
++        self.exported_calling_applications = self
++            .prepare_exported_calling_applications(&produced)
++            .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
++                diagnostics,
++                accounting: accounting.clone(),
++            })?;
+         match self.publish(produced) {
+             Ok(product) => Ok(product),
+             Err(diagnostics) => Err(CompilationProductError::ProductionAttempt {
+@@ -110,6 +87,42 @@ impl ComponentPublication {
+         }
+     }
+ 
++    fn prepare_exported_calling_applications(
++        &self,
++        produced: &TerminalApplication,
++    ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
++        let providers = self
++            .checked
++            .execution()
++            .selected_provider_provenance
++            .iter()
++            .collect::<Vec<_>>();
++        if providers.is_empty() {
++            return Ok(Vec::new());
++        }
++        let target = self
++            .checked
++            .execution()
++            .selected_target_profile
++            .ok_or_else(|| {
++                vec![Diagnostic::error(
++                    "component native publication requires an exact selected target",
++                )]
++            })?;
++        provider_planning::calling_policy_plans::component_calling_applications(
++            self.checked
++                .execution()
++                .provider_source
++                .inventory()
++                .services_for(self.checked.execution().provider_source.program())
++                .map_err(|error| vec![error])?,
++            target,
++            Some(produced.artifact.as_ref()),
++            &providers,
++            &self.checked.providers().boundary_calling_plan_realizations,
++        )
++    }
++
+     fn complete_conditions(
+         &self,
+         produced: &TerminalApplication,
+diff --git a/omega-rust/omega/compilation/driver/src/terminal/calling_policy_code.rs b/omega-rust/omega/compilation/driver/src/terminal/calling_catalog.rs
+similarity index 84%
+rename from omega-rust/omega/compilation/driver/src/terminal/calling_policy_code.rs
+rename to omega-rust/omega/compilation/driver/src/terminal/calling_catalog.rs
+index f3a0b155a0f..473fb04c8b3 100644
+--- a/omega-rust/omega/compilation/driver/src/terminal/calling_policy_code.rs
++++ b/omega-rust/omega/compilation/driver/src/terminal/calling_catalog.rs
+@@ -7,15 +7,15 @@
+ 
+ use compilation_products::CheckedProductSource;
+ use diagnostics::Diagnostic;
+-use provider_planning::calling_policy_plans::CallingPolicyCode;
++use provider_planning::calling_policy_plans::CallingCatalog;
+ use std::sync::Arc;
+ 
+-pub(crate) fn retain_calling_policy_code(
++pub(crate) fn retain_calling_catalog(
+     source: &CheckedProductSource,
+     timings: &mut artifacts::compile_timings::CompileTimings,
+-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
++) -> Result<Option<Arc<CallingCatalog>>, Vec<Diagnostic>> {
+     source
+-        .calling_policy_code
++        .calling_catalog
+         .get_or_init(|| prepare(source, timings))
+         .clone()
+ }
+@@ -23,10 +23,17 @@ pub(crate) fn retain_calling_policy_code(
+ fn prepare(
+     source: &CheckedProductSource,
+     timings: &mut artifacts::compile_timings::CompileTimings,
+-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
++) -> Result<Option<Arc<CallingCatalog>>, Vec<Diagnostic>> {
+     let code = super::product_code::ProductCodeSource::checked(source);
+     let machines = code.calling_policy_roots()?;
+-    if machines.is_empty() {
++    if machines.is_empty()
++        && source
++            .program
++            .typed
++            .boundary_signatures()
++            .abi_signatures()
++            .is_empty()
++    {
+         return Ok(None);
+     }
+     let applications = machines
+@@ -63,7 +70,7 @@ fn prepare(
+             (machine, entry)
+         })
+         .collect();
+-    Ok(Some(Arc::new(CallingPolicyCode {
++    Ok(Some(Arc::new(CallingCatalog {
+         source_owner: Arc::downgrade(&source.program),
+         artifact: Arc::clone(program.artifact()),
+         entries,
+diff --git a/omega-rust/omega/compilation/driver/src/terminal/mod.rs b/omega-rust/omega/compilation/driver/src/terminal/mod.rs
+index d9e2a0e8ce1..c67febf46b4 100644
+--- a/omega-rust/omega/compilation/driver/src/terminal/mod.rs
++++ b/omega-rust/omega/compilation/driver/src/terminal/mod.rs
+@@ -10,10 +10,10 @@
+ //! attaches those retained proposals; it never reopens typed provider selection.
+ 
+ mod behavior_exclusions;
+-mod calling_policy_code;
++mod calling_catalog;
+ mod product_code;
+ mod terminal_artifact;
+-pub(crate) use calling_policy_code::retain_calling_policy_code;
++pub(crate) use calling_catalog::retain_calling_catalog;
+ 
+ pub(crate) use terminal_artifact::{
+     ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
+diff --git a/omega-rust/omega/compilation/driver/tests/support/callback_telescope_controls.rs b/omega-rust/omega/compilation/driver/tests/support/callback_telescope_controls.rs
+index f2a2a3df8e8..a343c43bd67 100644
+--- a/omega-rust/omega/compilation/driver/tests/support/callback_telescope_controls.rs
++++ b/omega-rust/omega/compilation/driver/tests/support/callback_telescope_controls.rs
+@@ -53,6 +53,7 @@ pub(super) fn inspect(
+         .map_err(|error| format!("callback telescope transport: {error:?}"))?;
+     let baseline = settle_native_callback_placements(
+         retained.artifact().semantic_module(),
++        None,
+         selected,
+         calling,
+     )?;
+@@ -87,7 +88,7 @@ pub(super) fn inspect(
+             &calling[registrar],
+         )?;
+         let settle = |calling: &[_]| {
+-            settle_native_callback_placements(artifact.semantic_module(), selected, calling)
++            settle_native_callback_placements(artifact.semantic_module(), None, selected, calling)
+         };
+         if settle(calling)? != baseline {
+             return Err("decoded Terminal callback placement changed".into());
+@@ -146,7 +147,7 @@ pub(super) fn inspect(
+             .ok_or("mixed telescope has no direct callback")?;
+         callback.native_ordinal = semantic.native_ordinal;
+         require_refusal(
+-            settle_native_callback_placements(&declaration, selected, calling),
++            settle_native_callback_placements(&declaration, None, selected, calling),
+             "native parameter telescope has position",
+         )?;
+         let mut changed = calling.clone();
+diff --git a/omega-rust/omega/compilation/native-production/src/realization.rs b/omega-rust/omega/compilation/native-production/src/realization.rs
+index a37b4ec296e..a4192017f8a 100644
+--- a/omega-rust/omega/compilation/native-production/src/realization.rs
++++ b/omega-rust/omega/compilation/native-production/src/realization.rs
+@@ -79,7 +79,6 @@ pub(crate) fn realize_native_artifact(
+                             realization: settlement.realization.clone(),
+                         })
+                         .collect(),
+-                    &input.plan().boundary_machines,
+                     request.admission.providers.selected_provider_plans,
+                     request.admission.providers.external_binding_rows,
+                 )
+diff --git a/omega-rust/omega/compilation/native-production/src/realization/callable_objects.rs b/omega-rust/omega/compilation/native-production/src/realization/callable_objects.rs
+index 31ed8bff9e4..1c5db226bf3 100644
+--- a/omega-rust/omega/compilation/native-production/src/realization/callable_objects.rs
++++ b/omega-rust/omega/compilation/native-production/src/realization/callable_objects.rs
+@@ -43,9 +43,8 @@ pub(super) fn emit_callable_object(
+                 realization: settlement.realization.clone(),
+             })
+             .collect(),
+-        &admitted.input.plan().boundary_machines,
++        &admitted.input,
+         admission.providers.selected_provider_plans,
+-        artifact.semantic_module(),
+         admission.providers.external_binding_rows,
+     )
+     .map_err(|reason| realization_error("callable runtime companions", reason))?;
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs
+index 998724b65d2..98a9cca48c6 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs
+@@ -19,6 +19,7 @@ use terminal_psi::{TerminalCallbackApplication, TerminalModule};
+ /// on decoded artifacts; unselected candidates create no placement demand.
+ pub fn settle_native_callback_placements(
+     module: &TerminalModule,
++    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+     selected: &effects::SelectedProviderPlanFacts,
+     calling: &[BoundaryCallingApplication],
+ ) -> Result<Vec<NativeCallbackPlacement>, String> {
+@@ -67,12 +68,18 @@ pub fn settle_native_callback_placements(
+         let inbound_boundary = application
+             .boundary
+             .ok_or("admitted callback lost its exact inbound declaration")?;
++        let inbound_boundary =
++            crate::optimization::selected_calling_boundary(module, targets, inbound_boundary)?;
+         let inbound = calling_application(
+             calling,
+             &module.calling_abi_identity(inbound_boundary)?,
+             None,
+         )?;
+-        let registrar_abi = module.calling_abi_identity(boundary)?;
++        // Selection and occurrence custody retain the portable head above;
++        // only ABI and telescope formation use its admitted physical member.
++        let registrar_boundary =
++            crate::optimization::selected_calling_boundary(module, targets, boundary)?;
++        let registrar_abi = module.calling_abi_identity(registrar_boundary)?;
+         let selected_calling = selected_plan
+             .schema
+             .calling_application(&registrar_abi)
+@@ -83,7 +90,7 @@ pub fn settle_native_callback_placements(
+         let inbound_telescope =
+             TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
+         let registrar_telescope =
+-            TerminalCallingTelescope::for_application(module, boundary, registrar)?;
++            TerminalCallingTelescope::for_application(module, registrar_boundary, registrar)?;
+         let entry_parameters = inbound_telescope
+             .parameters
+             .iter()
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/registrar_imports.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/registrar_imports.rs
+index 07430925b84..341c3bd8b35 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/registrar_imports.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/registrar_imports.rs
+@@ -33,6 +33,7 @@ pub(crate) struct CallbackRegistrarOccurrence {
+ /// This closure does not grant native publication or registration authority.
+ pub(crate) fn settle_callback_registrar_imports(
+     terminal_module: &TerminalModule,
++    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+     selected: &effects::SelectedProviderPlanFacts,
+     callback_placements: &[NativeCallbackPlacement],
+     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
+@@ -92,7 +93,11 @@ pub(crate) fn settle_callback_registrar_imports(
+         // Only the retained plan-scoped correspondence supplies that address;
+         // callback materialization still supplies the complete exact plan.
+         let selected_requirement = selected.selected_requirement_identity(requirement);
+-        let abi = terminal_module.calling_abi_identity(*boundary)?;
++        // Keep the operation's portable requirement for the selected-row join;
++        // its admitted physical member owns the complete calling declaration.
++        let calling_boundary =
++            crate::optimization::selected_calling_boundary(terminal_module, targets, *boundary)?;
++        let abi = terminal_module.calling_abi_identity(calling_boundary)?;
+ 
+         let matching_realizations = calling_applications
+             .iter()
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs
+index 0a3e2ada913..51f9cc4ae67 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs
+@@ -314,6 +314,21 @@ impl VerifiedPsiOptimizationInput {
+         self.target_layout_selections.as_ref()
+     }
+ 
++    /// The physical calling declaration selected for one unchanged portable
++    /// boundary occurrence. Family selection supplies only the exact canonical
++    /// member coordinate; the declaration still owns every ABI operand.
++    pub fn selected_calling_abi_identity(
++        &self,
++        boundary: semantic_vocabulary::BoundaryMachineId,
++    ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
++        let declaration = selected_calling_boundary(
++            self.context.module(),
++            self.target_machine_selections(),
++            boundary,
++        )?;
++        self.context.module().calling_abi_identity(declaration)
++    }
++
+     /// Resolve a portable family head to its exact execution coordinate. A missing
+     /// selected member refuses only when reached; retained, unused families
+     /// impose no deployment requirement. Opaque members still require their
+@@ -332,6 +347,22 @@ impl VerifiedPsiOptimizationInput {
+ 
+ pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
+ 
++/// Family membership is admitted independently of native planning. Proposal
++/// construction and later native admission use this same declaration join.
++pub(crate) fn selected_calling_boundary(
++    module: &terminal_psi::TerminalModule,
++    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
++    boundary: semantic_vocabulary::BoundaryMachineId,
++) -> Result<semantic_vocabulary::BoundaryMachineId, String> {
++    match target_family_member(module, targets, boundary)? {
++        Some(terminal_psi::TargetMachineCallable::Boundary(member)) => Ok(member),
++        Some(terminal_psi::TargetMachineCallable::Machine(_)) => {
++            Err("checked target-family member has no external calling declaration".into())
++        }
++        None => Ok(boundary),
++    }
++}
++
+ /// Verifier-owned proof context retained beside the reconstructible Omega plan.
+ /// The complete immutable Terminal module remains for proof-question and cycle
+ /// admission until those independent replay paths are deleted.
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/boundary.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/boundary.rs
+index b865e96c167..b3e58936495 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/boundary.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/boundary.rs
+@@ -90,7 +90,7 @@ pub(super) fn settle_boundary<'request>(
+         }
+     }) };
+     let matching_boundaries = input
+-        .plan()
++        .module()
+         .boundary_machines
+         .iter()
+         .filter(|boundary| {
+@@ -99,7 +99,7 @@ pub(super) fn settle_boundary<'request>(
+                 .selected_provider_plans
+                 .selected_row_matches_requirement(
+                     input
+-                        .plan()
++                        .module()
+                         .identities
+                         .text(boundary.identity)
+                         .unwrap_or_default(),
+@@ -115,17 +115,6 @@ pub(super) fn settle_boundary<'request>(
+     }
+     let mut admitted = Vec::with_capacity(matching_boundaries.len());
+     for boundary in matching_boundaries {
+-        let realization = match settlement.realization {
+-            NativeBoundaryRealization::Builtin(realization) => {
+-                target_operations::BoundarySettlementRealization::Builtin(realization)
+-            }
+-            _ => realize(
+-                &input
+-                    .module()
+-                    .calling_abi_identity(boundary.id)
+-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+-            )?,
+-        };
+         if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+             boundary,
+             selected_plan,
+@@ -135,6 +124,28 @@ pub(super) fn settle_boundary<'request>(
+                 "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
+             ))]);
+         }
++        // A shared selected-evidence catalog can describe dormant members.
++        // Validate their declaration contract above; only this entry's selected
++        // boundaries demand a physical calling application and execution.
++        if input.plan().boundary_machine(boundary.id).is_none() {
++            continue;
++        }
++        let realization = match settlement.realization {
++            NativeBoundaryRealization::Builtin(realization) => {
++                target_operations::BoundarySettlementRealization::Builtin(realization)
++            }
++            _ => realize(
++                &input
++                    .optimization_input()
++                    .selected_calling_abi_identity(boundary.id)
++                    .map_err(|reason| {
++                        vec![Diagnostic::error(format!(
++                            "provider settlement for `{requirement}` at {:?}: {reason}",
++                            boundary.id
++                        ))]
++                    })?,
++            )?,
++        };
+         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
+             let completion = match builtin {
+                 target_operations::BoundaryRealization::AccessLifecycle { .. } => {
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/mod.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/mod.rs
+index cac41fbd143..2fee996ea21 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/mod.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/mod.rs
+@@ -33,8 +33,7 @@ pub(crate) fn settle_provider_executions<'request>(
+     Vec<Diagnostic>,
+ > {
+     let (mechanisms, cohort_rows) = derive_source_evaluated_mechanisms(
+-        input.plan(),
+-        input.module(),
++        input,
+         request.selected_provider_plans,
+         request.external_binding_rows,
+         request.native_callbacks,
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs
+index 25de846b69b..09d8df84322 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs
+@@ -13,7 +13,7 @@ use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolic
+ 
+ struct ImportCoverageRows<'input> {
+     boundary: BoundaryMachineId,
+-    boundary_count: usize,
++    requirement: &'input str,
+     selected_count: usize,
+     selected_external: Option<(&'input ProviderPlan, &'input ProviderPlanRow)>,
+     external: Option<&'input calling_conventions::ExternalBindingRow>,
+@@ -31,8 +31,7 @@ struct ImportCoverageRows<'input> {
+ /// Each leaf must still resolve to one selected row, one Terminal boundary
+ /// and, for an import, one external implementation contract to derive from.
+ pub(super) fn derive_source_evaluated_mechanisms(
+-    plan: &abstract_operations::AbstractOperationPlan,
+-    module: &terminal_psi::TerminalModule,
++    input: &crate::VerifiedNativeArtifactInput,
+     selected_plans: &effects::SelectedProviderPlanFacts,
+     external_binding_rows: &[calling_conventions::ExternalBindingRow],
+     native_callbacks: &[crate::NativeCallbackArgumentProposal],
+@@ -43,6 +42,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
+     ),
+     Vec<Diagnostic>,
+ > {
++    let plan = input.plan();
+     let demanded = join_import_coverage_rows(
+         plan,
+         selected_plans,
+@@ -54,25 +54,26 @@ pub(super) fn derive_source_evaluated_mechanisms(
+     // classify beside the supplied receiving policy rather than requiring
+     // the receiver to spell them.
+     let mut cohort_rows: Vec<TerminalAuthorityPolicyRow> = Vec::new();
+-    for (requirement, rows) in demanded {
++    for rows in demanded.into_values() {
++        let requirement = rows.requirement;
+         let Some((provider_plan, row)) = rows.selected_external else {
+             continue;
+         };
+-        let abi = module
+-            .calling_abi_identity(rows.boundary)
+-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
++        let abi = input
++            .optimization_input()
++            .selected_calling_abi_identity(rows.boundary)
++            .map_err(|reason| {
++                vec![Diagnostic::error(format!(
++                    "source import settlement for `{requirement}` at {:?}: {reason}",
++                    rows.boundary
++                ))]
++            })?;
+         if rows.selected_count > 1 {
+             return Err(vec![Diagnostic::error(format!(
+                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
+                 rows.selected_count,
+             ))]);
+         }
+-        if rows.boundary_count != 1 {
+-            return Err(vec![Diagnostic::error(format!(
+-                "demanded external binding `{requirement}` resolves to {} Terminal boundaries",
+-                rows.boundary_count,
+-            ))]);
+-        }
+         let mechanism = match &row.binding {
+             ProviderBinding::VtableField { .. } | ProviderBinding::TableFunction { .. } => {
+                 let external = rows
+@@ -218,24 +219,31 @@ fn settled_host_cohort_row(
+     )
+ }
+ 
+-/// Join only demanded requirements; counts retain malformed duplicate evidence
+-/// without collecting temporary match vectors or changing diagnostic order.
++/// Keep each reached boundary occurrence beside its exact declaration. Counts
++/// retain competing selected providers and external contracts without allowing
++/// another same-named declaration to replace the call's ABI application.
+ fn join_import_coverage_rows<'input>(
+     plan: &'input abstract_operations::AbstractOperationPlan,
+     selected_plans: &'input effects::SelectedProviderPlanFacts,
+     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
+     native_callbacks: &'input [NativeCallbackArgumentProposal],
+-) -> Result<BTreeMap<&'input str, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
+-    let boundary_identities = plan
+-        .boundary_machines
+-        .iter()
+-        .map(|boundary| {
+-            (
+-                boundary.id,
+-                plan.identities.text(boundary.identity).unwrap_or_default(),
+-            )
+-        })
+-        .collect::<std::collections::BTreeMap<_, _>>();
++) -> Result<BTreeMap<BoundaryMachineId, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
++    let mut boundary_identities = BTreeMap::new();
++    for boundary in &plan.boundary_machines {
++        let requirement = plan.identities.text(boundary.identity).ok_or_else(|| {
++            vec![Diagnostic::error(
++                "external-binding boundary lost its exact requirement identity",
++            )]
++        })?;
++        if boundary_identities
++            .insert(boundary.id, requirement)
++            .is_some()
++        {
++            return Err(vec![Diagnostic::error(
++                "external-binding plan repeats a boundary declaration identity",
++            )]);
++        }
++    }
+     let mut demanded = BTreeMap::new();
+     // Only callbacks requested by this invocation need an occurrence join.
+     let mut callback_boundaries = native_callbacks
+@@ -268,10 +276,10 @@ fn join_import_coverage_rows<'input>(
+             ))]);
+         };
+         demanded
+-            .entry(*requirement)
++            .entry(*boundary)
+             .or_insert_with(|| ImportCoverageRows {
+                 boundary: *boundary,
+-                boundary_count: 0,
++                requirement: *requirement,
+                 selected_count: 0,
+                 selected_external: None,
+                 external: None,
+@@ -296,7 +304,8 @@ fn join_import_coverage_rows<'input>(
+         for row in &provider_plan.rows {
+             // Calls retain their original contract identity. The selected
+             // closure relates each family or specialization to this exact row.
+-            for (requirement, rows) in &mut demanded {
++            for rows in demanded.values_mut() {
++                let requirement = rows.requirement;
+                 if selected_plans.selected_row_matches_requirement(
+                     requirement,
+                     provider_plan.identities.text(row.requirement_identity),
+@@ -318,16 +327,11 @@ fn join_import_coverage_rows<'input>(
+         }
+     }
+     if has_external_demand {
+-        // Preserve the original last-declaration-wins boundary-ID association and
+-        // count every distinct ID, including declarations without a call.
+-        for (boundary, requirement) in &boundary_identities {
+-            if let Some(rows) = demanded.get_mut(requirement) {
+-                rows.boundary = *boundary;
+-                rows.boundary_count += 1;
+-            }
+-        }
++        // Each demand keeps the boundary from its executable occurrence.
++        // An unused family/interface declaration cannot replace that owner.
+         for external in external_binding_rows {
+-            for (requirement, rows) in &mut demanded {
++            for rows in demanded.values_mut() {
++                let requirement = rows.requirement;
+                 let Some((provider_plan, _)) = rows.selected_external else {
+                     continue;
+                 };
+@@ -363,7 +367,7 @@ fn join_import_coverage_rows<'input>(
+                 boundary,
+             ))]
+         })?;
+-        let rows = demanded.get_mut(requirement).ok_or_else(|| {
++        let rows = demanded.get_mut(&boundary).ok_or_else(|| {
+             vec![Diagnostic::error(
+                 "native callback has no demanded selected registrar",
+             )]
+diff --git a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs
+index 590b3919dcc..70d97eb8005 100644
+--- a/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs
++++ b/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs
+@@ -38,16 +38,12 @@ pub struct TerminalNativeProposalRequest<'input> {
+ 
+ fn close_family_realizations(
+     artifact: &terminal_codec::CanonicalTerminalArtifact,
+-    profile: target::TargetProfile,
++    selections: &terminal_installation::AdmittedTargetMachineSelections,
+     selected: &effects::SelectedProviderPlanFacts,
+     sources: &[SelectedFamilyRealizationSource],
+ ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+     use terminal_psi::TargetMachineCallable;
+     let error = |message: String| vec![Diagnostic::error(message)];
+-    let selections = terminal_installation::admit_target_machine_selections(
+-        artifact.view(),
+-        profile.target_name(),
+-    );
+     let module = artifact.semantic_module();
+     let mut rows = Vec::new();
+     // The requirement text is provider-side and absent from the module table,
+@@ -173,18 +169,18 @@ fn project_terminal_native_body(
+     request: &TerminalNativeProposalRequest<'_>,
+ ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
+     let terminal_module = artifact.semantic_module();
++    let targets = terminal_installation::admit_target_machine_selections(
++        artifact.view(),
++        target_profile.target_name(),
++    );
+     let selected = backend_plan::close_checked_provider_specializations(
+         request.boundaries.selected_provider_plans.clone(),
+         request.provider_declarations,
+         terminal_module,
+     )
+     .map_err(|message| vec![Diagnostic::error(message)])?;
+-    let selected = close_family_realizations(
+-        artifact,
+-        target_profile,
+-        &selected,
+-        request.family_realizations,
+-    )?;
++    let selected =
++        close_family_realizations(artifact, &targets, &selected, request.family_realizations)?;
+     // This closes static activation obligations, not executor installation.
+     // The proposal is process-local: loaded code takes this same join once.
+     task_plans::realize_task_activations(
+@@ -254,6 +250,7 @@ fn project_terminal_native_body(
+         .unzip();
+     let callback_placements = crate::settle_native_callback_placements(
+         terminal_module,
++        Some(&targets),
+         &selected,
+         &request.boundaries.calling_applications,
+     )
+@@ -276,6 +273,7 @@ fn project_terminal_native_body(
+     )?;
+     let external_binding_rows = crate::settle_callback_registrar_imports(
+         terminal_module,
++        Some(&targets),
+         &selected,
+         &callback_placements,
+         callback_occurrences
+diff --git a/omega-rust/omega/compilation/products/src/prepared_build.rs b/omega-rust/omega/compilation/products/src/prepared_build.rs
+index 8b05fc18199..cd3c0c96609 100644
+--- a/omega-rust/omega/compilation/products/src/prepared_build.rs
++++ b/omega-rust/omega/compilation/products/src/prepared_build.rs
+@@ -106,10 +106,10 @@ pub struct CheckedProductSource {
+     /// Product applications. The holder carries no source or target selection.
+     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
+     /// Exact policy-entry associations into that same Product artifact.
+-    pub calling_policy_code: Arc<
++    pub calling_catalog: Arc<
+         std::sync::OnceLock<
+             Result<
+-                Option<Arc<provider_planning::calling_policy_plans::CallingPolicyCode>>,
++                Option<Arc<provider_planning::calling_policy_plans::CallingCatalog>>,
+                 Vec<diagnostics::Diagnostic>,
+             >,
+         >,
+@@ -163,7 +163,7 @@ impl CheckedProductSource {
+     pub fn adopt_derived_code(&mut self, canonical: &Self) {
+         debug_assert!(canonical.shares_terminal_publication(self));
+         self.terminal_publication = Arc::clone(&canonical.terminal_publication);
+-        self.calling_policy_code = Arc::clone(&canonical.calling_policy_code);
++        self.calling_catalog = Arc::clone(&canonical.calling_catalog);
+         self.external_declarations = Arc::clone(&canonical.external_declarations);
+     }
+ }
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/boundary_value_recipes.rs b/omega-rust/omega/compilation/realization/provider-planning/src/boundary_value_recipes.rs
+index 7c9bf2517b3..29e3d4f166e 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/boundary_value_recipes.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/boundary_value_recipes.rs
+@@ -5,7 +5,6 @@
+ //! the same explicit Build selection roster for package review and publication.
+ //! A geometry report grants no representation or boundary authority.
+ 
+-use crate::calling_policy_plans::BoundaryOpaqueRepresentationUse;
+ use representation_planning::OpaqueRepresentationSelection;
+ 
+ pub(crate) fn representation_types(
+@@ -21,121 +20,3 @@ pub(crate) fn representation_types(
+         )
+         .collect()
+ }
+-
+-pub(crate) fn representation_uses(
+-    selections: &[OpaqueRepresentationSelection],
+-    occurrences: &[layout::BoundaryOpaqueOccurrence],
+-) -> Result<Vec<BoundaryOpaqueRepresentationUse>, String> {
+-    occurrences
+-        .iter()
+-        .map(|occurrence| {
+-            let selection = selections
+-                .get(occurrence.selection_ordinal)
+-                .ok_or("boundary opaque recipe has no corresponding selected representation")?;
+-            let application = selection.application();
+-            Ok(BoundaryOpaqueRepresentationUse {
+-                opaque: selection.opaque(),
+-                conformance: application.declaration,
+-                carrier: selection.carrier(),
+-                shape_root: occurrence.shape_root,
+-                application_report_fingerprint: application.report_fingerprint,
+-                conformance_application_commitment: application.commitment.as_bytes(),
+-                representation_schema_version: selection.schema_version(),
+-                origin: selection.origin(),
+-                lifecycle: selection.lifecycle(),
+-                copy_disposition: selection.copy_disposition(),
+-                selected_application_commitment: selection.selected_application_commitment(),
+-            })
+-        })
+-        .collect()
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use representation_planning::{
+-        OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
+-        OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection,
+-    };
+-
+-    #[test]
+-    fn occurrence_join_keeps_exact_selection_and_distinct_native_roots() {
+-        // These are descriptive join inputs, not source-admission evidence.
+-        let selection = |report, digest, copy| {
+-            OpaqueRepresentationSelection::from_validated_application(
+-                symbols::SymbolHandle::invalid(),
+-                symbols::SymbolHandle::invalid(),
+-                checked_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+-                checked_trees::typed_trees::typed_trees::ClosedConformanceApplication {
+-                    report_fingerprint: report,
+-                    commitment: checked_trees::typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest([digest; 32]),
+-                    ..Default::default()
+-                },
+-                OpaqueRepresentationLifecycleDisposition::Inert, copy,
+-                OpaqueRepresentationApplicationOrigin::NamedConformance,
+-                symbols::SymbolHandle::invalid(), source::SourceSpan::default(),
+-            )
+-        };
+-        let selections = [
+-            selection(11, 1, OpaqueRepresentationCopyDisposition::PlacementOnly),
+-            selection(
+-                22,
+-                2,
+-                OpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
+-            ),
+-        ];
+-        let occurrences = [
+-            layout::BoundaryOpaqueOccurrence {
+-                selection_ordinal: 1,
+-                shape_root: 7,
+-            },
+-            layout::BoundaryOpaqueOccurrence {
+-                selection_ordinal: 0,
+-                shape_root: 2,
+-            },
+-            layout::BoundaryOpaqueOccurrence {
+-                selection_ordinal: 1,
+-                shape_root: 9,
+-            },
+-        ];
+-        let uses =
+-            super::representation_uses(&selections, &occurrences).expect("exact roster join");
+-        for (use_, occurrence) in uses.iter().zip(&occurrences) {
+-            let selected = &selections[occurrence.selection_ordinal];
+-            assert_eq!(use_.shape_root(), occurrence.shape_root);
+-            assert_eq!(
+-                use_.application_report_fingerprint(),
+-                selected.application().report_fingerprint
+-            );
+-            assert_eq!(
+-                use_.conformance_application_commitment(),
+-                selected.application().commitment.as_bytes()
+-            );
+-            assert_eq!(
+-                use_.selected_application_commitment(),
+-                selected.selected_application_commitment()
+-            );
+-            assert_eq!(use_.copy_disposition(), selected.copy_disposition());
+-            assert_eq!(
+-                use_.selected_application_commitment(),
+-                use_.rederived_selected_application_commitment()
+-            );
+-        }
+-        assert_ne!(uses[0].shape_root(), uses[2].shape_root());
+-    }
+-
+-    #[test]
+-    fn native_occurrence_without_its_source_selection_cannot_publish_custody() {
+-        let error = super::representation_uses(
+-            &[],
+-            &[layout::BoundaryOpaqueOccurrence {
+-                selection_ordinal: 41,
+-                shape_root: 3,
+-            }],
+-        )
+-        .expect_err("geometry is not a selected representation");
+-        assert_eq!(
+-            error,
+-            "boundary opaque recipe has no corresponding selected representation"
+-        );
+-    }
+-}
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs
+index 02b5c99e104..1e36e671a4d 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs
+@@ -7,17 +7,13 @@ use crate::calling_policy_plans::opaque_representations::{
+     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
+     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
+ };
+-use calling_conventions::validate_fresh_native_parameter_identity;
+ pub use calling_conventions::{
+     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
+ };
+ use calling_conventions::{
+-    BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
+-    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
++    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, StaticMachineBinderId,
++    ValidatedBoundaryEntryPlan,
+ };
+-use checked_trees::typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
+-use layout::BoundaryValueLayout;
+-use representation_planning::OpaqueRepresentationSelection;
+ use target::NativeTarget;
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+@@ -63,14 +59,6 @@ impl MaterializedBoundarySignature {
+         &self.opaque_representations
+     }
+ 
+-    /// Source-free public shape input for the backend's ABI classifier.
+-    pub(crate) fn value_graph(&self) -> BoundaryValueGraph<'_> {
+-        BoundaryValueGraph {
+-            shapes: &self.shapes,
+-            fields: &self.fields,
+-        }
+-    }
+-
+     pub fn shapes(&self) -> &[BoundaryValueShape] {
+         &self.shapes
+     }
+@@ -275,173 +263,3 @@ pub struct BoundaryCallbackBinder {
+     pub requirement_identity: String,
+     pub invokes_synchronously: bool,
+ }
+-
+-pub(crate) fn exact_compatibility_overload_index<'identity>(
+-    trait_name: &str,
+-    method_name: &str,
+-    requirement_identity: &str,
+-    candidate_identities: impl IntoIterator<Item = &'identity str>,
+-) -> Result<Option<usize>, String> {
+-    if requirement_identity.is_empty() {
+-        return Err(format!(
+-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` has no exact requirement overload identity"
+-        ));
+-    }
+-    let mut matches = candidate_identities
+-        .into_iter()
+-        .enumerate()
+-        .filter(|(_, identity)| *identity == requirement_identity);
+-    let Some((candidate_index, _)) = matches.next() else {
+-        return Ok(None);
+-    };
+-    let duplicate_count = matches.count();
+-    if duplicate_count != 0 {
+-        return Err(format!(
+-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` matches {} exact requirement overload rows for identity `{requirement_identity}`",
+-            duplicate_count + 1,
+-        ));
+-    }
+-    Ok(Some(candidate_index))
+-}
+-
+-pub(crate) fn compatibility_call_signature(
+-    materialized: &MaterializedBoundarySignature,
+-    policy: CallingPolicy,
+-    dispatch_only_parameter_count: usize,
+-) -> Result<CallSignature, String> {
+-    if dispatch_only_parameter_count > materialized.parameters.len() {
+-        return Err(format!(
+-            "compatibility calling plan removes {dispatch_only_parameter_count} dispatch-only parameter(s) from a signature with only {} parameter(s)",
+-            materialized.parameters.len()
+-        ));
+-    }
+-    // Register capacity is not the source value's width or class. The old
+-    // syscall shortcut replaced every root with integer(8, 8), so an i32
+-    // formal no longer matched native transport and floats/large aggregates
+-    // bypassed the syscall evaluator's normal rejection. Classify every root
+-    // through the same checked graph; the ABI evaluator decides placement.
+-    Ok(CallSignature {
+-        parameters: materialized
+-            .parameters
+-            .iter()
+-            .skip(dispatch_only_parameter_count)
+-            .copied()
+-            .map(|root| materialized.value_graph().classify(root, policy))
+-            .collect::<Result<Vec<_>, _>>()?,
+-        result: materialized
+-            .result
+-            .map(|root| materialized.value_graph().classify(root, policy))
+-            .transpose()?,
+-    })
+-}
+-
+-/// Materialize the source owner's already-prepared declaration. Type recipes
+-/// remain per-parameter work so a refused value stops before later values; the
+-/// declaration telescope itself is shared across target requests.
+-pub(crate) fn materialize_prepared_signature(
+-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+-    declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
+-    declaration_abi: Option<semantic_vocabulary::CallingSignatureId>,
+-    bindings: &[BoundaryTypeBinding],
+-    layout_target: layout::LayoutTarget,
+-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+-) -> Result<MaterializedBoundarySignature, String> {
+-    let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
+-    let census = services.signatures();
+-    let coordinate = match declaration_abi {
+-        Some(coordinate) => coordinate,
+-        None => *census
+-            .abi_for_boundary(declaration.symbol)
+-            .ok_or("boundary signature lost its exact declaration ABI association")?
+-            .as_ref()
+-            .map_err(Clone::clone)?,
+-    };
+-    let declaration_abi = census
+-        .abi_signatures()
+-        .iter()
+-        .find(|row| row.id == coordinate)
+-        .ok_or("boundary signature lost its complete declaration ABI key")?;
+-    let abi = semantic_vocabulary::CallingAbiIdentity {
+-        requirement_identity: declaration_abi.requirement_identity.clone(),
+-        declaring_application: declaration_abi.declaring_application.clone(),
+-        operands: declaration_abi.operands.clone(),
+-    };
+-    abi.validate()?;
+-    if abi.id() != coordinate {
+-        return Err("boundary declaration ABI key differs from its coordinate".into());
+-    }
+-    let typed = services.context().typed;
+-    let telescope = &prepared.telescope;
+-    let callback_binders = telescope
+-        .binders
+-        .iter()
+-        .zip(&prepared.callback_sources)
+-        .map(|(binder, source)| BoundaryCallbackBinder {
+-            binder: binder.binder,
+-            requirement: binder.requirement,
+-            static_machine_ordinal: binder.static_machine_ordinal,
+-            parameter_symbol: source.parameter_symbol,
+-            requirement_trait: source.requirement_trait,
+-            requirement_machine: source.requirement_machine,
+-            requirement_identity: binder.requirement_identity.clone(),
+-            invokes_synchronously: binder.invokes_synchronously,
+-        })
+-        .collect();
+-    let representation_types =
+-        crate::boundary_value_recipes::representation_types(opaque_representation_selections);
+-    let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
+-    let mut values = BoundaryValueLayout::new(layout_target);
+-    let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
+-    let mut native_parameters =
+-        Vec::<BoundaryNativeParameter>::with_capacity(prepared.parameter_types.len());
+-    for (formal_ordinal, (type_reference, formal)) in prepared
+-        .parameter_types
+-        .iter()
+-        .copied()
+-        .zip(&telescope.parameters)
+-        .enumerate()
+-    {
+-        let recipe = preparation.value_type(type_reference);
+-        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
+-        parameters.push(root);
+-        let formal_ordinal = u32::try_from(formal_ordinal)
+-            .map_err(|_| "boundary signature has too many runtime parameters")?;
+-        validate_fresh_native_parameter_identity(
+-            native_parameters.iter().map(|parameter| parameter.identity),
+-            formal.identity,
+-            formal.native_ordinal,
+-        )?;
+-        native_parameters.push(BoundaryNativeParameter {
+-            identity: formal.identity,
+-            native_ordinal: formal.native_ordinal,
+-            shape: BoundaryNativeParameterShape::Semantic(root),
+-            origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
+-        });
+-    }
+-    let result = if prepared.return_type.is_valid() {
+-        let recipe = preparation.value_type(prepared.return_type);
+-        Some(values.value_type(preparation.recipes(), recipe)?.1)
+-    } else {
+-        None
+-    };
+-    let (shapes, fields, occurrences) = values.into_parts();
+-    let opaque_representations = crate::boundary_value_recipes::representation_uses(
+-        opaque_representation_selections,
+-        &occurrences,
+-    )?;
+-    Ok(MaterializedBoundarySignature {
+-        abi,
+-        owner_requirement_identity: declaration.requirement_identity.clone(),
+-        native_target: layout_target.native_target(),
+-        opaque_representations,
+-        shapes,
+-        fields,
+-        parameters,
+-        callback_binders,
+-        callback_demands: Vec::new(),
+-        callback_layout_catalog: Vec::new(),
+-        native_parameters,
+-        direct_callback_parameters: telescope.direct_callbacks.clone(),
+-        result,
+-    })
+-}
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/default_applications.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/default_applications.rs
+new file mode 100644
+index 00000000000..7423194499d
+--- /dev/null
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/default_applications.rs
+@@ -0,0 +1,137 @@
++//! Default native policies consume the same complete Product ABI catalog as
++//! authored policies. A declaration may have several closed applications with
++//! identical physical shape; each keeps its own semantic key and custody.
++
++use super::CanonicalCallingSignature;
++use calling_conventions::{
++    BoundaryCallingApplication, BoundaryNativeParameterShape, BoundaryValueGraph, CallSignature,
++    CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
++};
++use evaluation_accounting::{
++    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
++    TerminalStorageScheduleIdentity,
++};
++use terminal_codec::CanonicalTerminalArtifact;
++
++pub(crate) fn evaluate_default_calling_applications(
++    artifact: &CanonicalTerminalArtifact,
++    target: target::TargetProfile,
++    requirement: &str,
++    policy: CallingPolicy,
++    dispatch_only_parameters: usize,
++) -> Result<Vec<BoundaryCallingApplication>, String> {
++    if requirement.is_empty() {
++        return Err("default calling request has no exact requirement identity".into());
++    }
++    let module = artifact.semantic_module();
++    let declarations = module.calling_abi_signatures.iter().filter(|declaration| {
++        declaration.default_eligible
++            && module.identities.text(declaration.requirement_identity) == Some(requirement)
++            && declaration.storage.is_ok()
++    });
++    let mut applications = Vec::new();
++    for declaration in declarations {
++        let requested = CanonicalCallingSignature::extent_demands(module, declaration.id, target)?;
++        let completed = if requested.is_empty() {
++            None
++        } else {
++            let measurement = EvaluationMeasurementIdentity::TerminalPsi {
++                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
++                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
++            };
++            let limits = BuildEvaluationSponsorLimits::new(
++                100_000, 1, 1, 1, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
++            )
++            .ok_or("invalid default calling scalar limits")?;
++            let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, measurement)
++                .map_err(|error| error.to_string())?;
++            let account = sponsor
++                .begin_invocation(measurement, limits.maximum_fuel_units())
++                .map_err(|error| error.to_string())?;
++            let mut meter = terminal_fuel::TerminalFuelMeter::with_invocation(account, None)
++                .map_err(|error| error.to_string())?;
++            let providers =
++                terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
++                    .map_err(|error| format!("default ABI scalar providers: {error:?}"))?;
++            Some(
++                super::scalar_completion::complete_declaration_scalar_inputs(
++                    artifact, target, &requested, &providers, &mut meter,
++                )?,
++            )
++        };
++        let canonical = CanonicalCallingSignature::materialize(
++            module,
++            declaration.id,
++            target,
++            &|application| {
++                let value = completed
++                    .as_ref()
++                    .and_then(|values| values.values().value(application));
++                let integer = match value {
++                    Some(terminal_installation::TerminalScalarValue::Integer {
++                        value: semantic_vocabulary::IntegerValue::Unsigned(value),
++                        ..
++                    }) => u64::try_from(value).ok(),
++                    Some(terminal_installation::TerminalScalarValue::Integer {
++                        value: semantic_vocabulary::IntegerValue::Signed(value),
++                        ..
++                    }) => u64::try_from(value).ok(),
++                    _ => None,
++                };
++                integer.ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
++                    application,
++                ))
++            },
++        )?;
++        let classified = compatibility_signature(&canonical, policy, dispatch_only_parameters)?;
++        let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
++            .map_err(|error| error.to_string())?;
++        if dispatch_only_parameters == 0 {
++            super::policy_signature::validate_calling_policy_result(
++                calling_conventions::BoundaryPlanResult::Accepted(validated.plan().clone()),
++                &canonical.policy,
++            )?;
++        } else if !canonical.policy.callbacks.binders.is_empty()
++            || !canonical.policy.callbacks.demands.is_empty()
++        {
++            return Err("dispatch-only default ABI cannot discard callback obligations".into());
++        }
++        applications.push(canonical.native_application(&validated)?);
++    }
++    Ok(applications)
++}
++
++fn compatibility_signature(
++    signature: &CanonicalCallingSignature,
++    policy: CallingPolicy,
++    dispatch_only_parameters: usize,
++) -> Result<CallSignature, String> {
++    let parameters = signature.policy.native_parameters()?;
++    if dispatch_only_parameters > parameters.len() {
++        return Err(
++            "default ABI removes more dispatch parameters than its complete native roster".into(),
++        );
++    }
++    let geometry = &signature.policy.geometry;
++    let graph = BoundaryValueGraph {
++        shapes: &geometry.shapes,
++        fields: &geometry.fields,
++    };
++    Ok(CallSignature {
++        parameters: parameters
++            .iter()
++            .skip(dispatch_only_parameters)
++            .map(|parameter| match parameter.shape {
++                BoundaryNativeParameterShape::Semantic(root) => graph.classify(root, policy),
++                BoundaryNativeParameterShape::TargetFunctionPointer {
++                    byte_size,
++                    alignment,
++                } => Ok(ValueShape::integer(u32::from(byte_size), alignment)),
++            })
++            .collect::<Result<_, String>>()?,
++        result: geometry
++            .result
++            .map(|root| graph.classify(root, policy))
++            .transpose()?,
++    })
++}
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/mod.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/mod.rs
+index fcfb1a94482..710875d14a0 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/mod.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/mod.rs
+@@ -4,13 +4,14 @@
+ //! module is the compiler-owned decoder that keeps that open policy surface
+ //! behind the closed normalized-plan validator.
+ //!
+-//! `boundary_signatures.rs` materializes Psi's prepared signatures,
++//! `boundary_signatures.rs` retains geometry with review correspondence,
+ //! `plan_computation.rs` retains admission and signature inputs, then evaluates
+ //! policies from the compiler's shared code catalog. `policy_code.rs` owns the
+ //! exact source-entry association and finite invocation accounting;
+ //! `terminal_execution.rs` runs the canonical code without source,
+ //! `policy_signature.rs` encodes canonical ABI input and validates the result,
+-//! `terminal_signature.rs` constructs that input from the canonical catalog,
++//! `terminal_signature.rs` constructs that input from the canonical catalog;
++//! `default_applications.rs` realizes every closed ABI under the native policy,
+ //! Psi's service catalog retains the exact named map and inherited signatures,
+ //! `callback_bindings.rs` binds and closes callbacks; backend `layout` constructs
+ //! their native value graphs and `build_time_decoding.rs` decodes build-time
+@@ -22,6 +23,7 @@ mod boundary_signatures;
+ mod build_time_decoding;
+ mod callback_bindings;
+ mod callback_layout_catalog;
++mod default_applications;
+ mod native_parameters;
+ mod opaque_representations;
+ mod plan_computation;
+@@ -33,7 +35,7 @@ mod signature_source;
+ mod terminal_execution;
+ mod terminal_signature;
+ mod terminal_values;
+-pub use policy_code::CallingPolicyCode;
++pub use policy_code::CallingCatalog;
+ pub use policy_signature::CallingPolicySignature;
+ pub use selected_application::component_calling_applications;
+ pub(crate) use selected_application::selected_source_calling_applications;
+@@ -50,9 +52,9 @@ pub use callback_layout_catalog::{
+     BoundaryCallbackLayoutEntry, CallbackFieldReviewSource, CallbackLayoutReviewSource,
+     CallbackRecordReviewSource, CallbackSlotReviewSource,
+ };
++pub(crate) use default_applications::evaluate_default_calling_applications;
+ pub use opaque_representations::{
+     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
+     BoundaryOpaqueRepresentationUse,
+ };
+-pub(crate) use plan_computation::evaluate_default_calling_application;
+ pub use plan_computation::{PreparedBoundaryCallingPlans, prepare_boundary_calling_plans};
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs
+index d84af90dff9..6f911c241c7 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs
+@@ -2,73 +2,14 @@
+ //! materializing the boundary signature from the ABI result, and validating
+ //! the plan the policy produced.
+ 
+-use crate::calling_policy_plans::boundary_signatures::{
+-    compatibility_call_signature, exact_compatibility_overload_index,
+-    materialize_prepared_signature,
+-};
+ use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
+ use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
+ use build_time_evaluation::BuildTimeProgram;
++use calling_conventions::ValidatedBoundaryEntryPlan;
+ use calling_conventions::callback_nominal_report_fingerprint;
+-use calling_conventions::{
+-    CallingPolicy, ValidatedBoundaryEntryPlan, evaluate_ordinary_boundary_entry_plan,
+-};
+ use diagnostics::Diagnostic;
+ use representation_planning::OpaqueRepresentationSelection;
+ 
+-pub(crate) fn evaluate_default_calling_application(
+-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+-    layout_target: layout::LayoutTarget,
+-    trait_name: &str,
+-    trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+-    method_name: &str,
+-    requirement_identity: &str,
+-    policy: CallingPolicy,
+-    dispatch_only_parameter_count: usize,
+-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+-) -> Result<Option<calling_conventions::BoundaryCallingApplication>, String> {
+-    let candidates = services
+-        .signatures()
+-        .declarations()
+-        .filter(|declaration| {
+-            declaration.default_eligible
+-                && declaration.path == trait_name
+-                && declaration.package == trait_package_identity
+-                && declaration.method == method_name
+-        })
+-        .collect::<Vec<_>>();
+-    let Some(candidate_index) = exact_compatibility_overload_index(
+-        trait_name,
+-        method_name,
+-        requirement_identity,
+-        candidates
+-            .iter()
+-            .map(|declaration| declaration.requirement_identity.as_str()),
+-    )?
+-    else {
+-        return Ok(None);
+-    };
+-    let declaration = candidates.get(candidate_index).ok_or_else(|| {
+-        "compatibility boundary selection index is outside its exact candidate catalog".to_owned()
+-    })?;
+-    let materialized = materialize_prepared_signature(
+-        services,
+-        declaration,
+-        None,
+-        &[],
+-        layout_target,
+-        opaque_representation_selections,
+-    )?;
+-    let classified =
+-        compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
+-    let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
+-        .map_err(|diagnostic| diagnostic.to_string())?;
+-    for representation in materialized.opaque_representation_uses() {
+-        materialized.opaque_representation_movement(representation, &validated)?;
+-    }
+-    publish_materialized_application(&materialized, &validated).map(Some)
+-}
+-
+ /// Prepare Source invocation admission and exact review coordinates only.
+ /// Canonical publication owns declaration storage; target activation reads it.
+ pub fn prepare_boundary_calling_plans<'checked>(
+@@ -219,7 +160,7 @@ impl PreparedBoundaryCallingPlans<'_> {
+ 
+     pub fn evaluate(
+         self,
+-        code: Option<&super::CallingPolicyCode>,
++        code: Option<&super::CallingCatalog>,
+     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+         let mut evaluated = Vec::with_capacity(self.pending.len());
+         for policy in self.pending {
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/policy_code.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/policy_code.rs
+index 8c0b5d38dce..13941d4287b 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/policy_code.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/policy_code.rs
+@@ -16,7 +16,7 @@ use semantic_vocabulary::MachineId;
+ use symbols::SymbolHandle;
+ use terminal_codec::CanonicalTerminalArtifact;
+ 
+-pub struct CallingPolicyCode {
++pub struct CallingCatalog {
+     /// Association only: this never keeps source alive or enters the interpreter.
+     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
+     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
+@@ -24,7 +24,7 @@ pub struct CallingPolicyCode {
+     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+ }
+ 
+-impl CallingPolicyCode {
++impl CallingCatalog {
+     pub(crate) fn require_owner(
+         &self,
+         checked: &checked_trees::CheckedTrees,
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/scalar_completion.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/scalar_completion.rs
+index 514aef25bdd..087ebd1fa30 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/scalar_completion.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/scalar_completion.rs
+@@ -1,4 +1,4 @@
+-//! Complete retained policy debts before ordinary activation, without source.
++//! Complete retained declaration or invocation debts without source.
+ 
+ use semantic_vocabulary::ScalarApplicationId;
+ use terminal_codec::CanonicalTerminalArtifact;
+@@ -8,6 +8,30 @@ use terminal_installation::{
+     ScalarApplicationClosure, ScalarApplicationObservations,
+ };
+ 
++enum ScalarCompletionScope {
++    DeclarationFormation,
++    Invocation(terminal_psi::ProofDeclarationId),
++}
++
++/// Default ABI geometry owes the Product's retained declaration conditions,
++/// even when its declaration has no calling-policy entry to invoke.
++pub(super) fn complete_declaration_scalar_inputs(
++    artifact: &CanonicalTerminalArtifact,
++    target: target::TargetProfile,
++    requested: &[ScalarApplicationId],
++    providers: &AdmittedProviderSelections,
++    meter: &mut TerminalFuelMeter,
++) -> Result<AdmittedScalarApplications, String> {
++    complete_scalar_inputs(
++        artifact,
++        target,
++        requested,
++        providers,
++        meter,
++        ScalarCompletionScope::DeclarationFormation,
++    )
++}
++
+ /// All work uses the invocation's existing meter. Neither a selected entry nor
+ /// a target layout supplies the retained predicates that must be re-decided.
+ /// Policies have the exact empty provider selection used by their activation;
+@@ -27,8 +51,42 @@ pub(super) fn complete_policy_scalar_inputs(
+         .proof_scope
+         .callable_declaration(entry)
+         .ok_or("calling policy entry has no exact checked proof declaration")?;
+-    let mut closure =
+-        ScalarApplicationClosure::for_invocation(artifact.view(), primary.target_name(), &[root]);
++    complete_scalar_inputs(
++        artifact,
++        primary,
++        requested,
++        providers,
++        meter,
++        ScalarCompletionScope::Invocation(root),
++    )
++}
++
++/// Scope selection governs both coverage and observations. An empty invocation
++/// cannot stand in for declaration formation or discharge its retained debt.
++fn complete_scalar_inputs(
++    artifact: &CanonicalTerminalArtifact,
++    primary: target::TargetProfile,
++    requested: &[ScalarApplicationId],
++    providers: &AdmittedProviderSelections,
++    meter: &mut TerminalFuelMeter,
++    completion_scope: ScalarCompletionScope,
++) -> Result<AdmittedScalarApplications, String> {
++    let (mut closure, invocation_roots, context) = match completion_scope {
++        ScalarCompletionScope::DeclarationFormation => (
++            ScalarApplicationClosure::new(artifact.view(), primary.target_name()),
++            None,
++            "calling declaration",
++        ),
++        ScalarCompletionScope::Invocation(root) => (
++            ScalarApplicationClosure::for_invocation(
++                artifact.view(),
++                primary.target_name(),
++                &[root],
++            ),
++            Some([root]),
++            "calling policy",
++        ),
++    };
+     let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
+     for scope in scopes {
+         let profile = target::TargetProfile::from_canonical_target_name(&scope)
+@@ -37,15 +95,17 @@ pub(super) fn complete_policy_scalar_inputs(
+             terminal_installation::admit_target_machine_selections(artifact.view(), &scope);
+         let facts = profile
+             .layout_target_facts()
+-            .ok_or("calling policy scalar target has no immutable layout catalogue")?;
++            .ok_or_else(|| format!("{context} scalar target has no immutable layout catalogue"))?;
+         let mut observations =
+             ScalarApplicationObservations::new(artifact.view(), &selected, providers, &facts)?
+                 .with_target_carriers(
+                     profile
+                         .native_realization()
+                         .map(runtime_abi::target_carrier_layout),
+-                )
+-                .with_invocation_roots(&[root])?;
++                );
++        if let Some(roots) = &invocation_roots {
++            observations = observations.with_invocation_roots(roots)?;
++        }
+         let demand = if scope == primary.target_name() {
+             requested
+         } else {
+@@ -57,7 +117,7 @@ pub(super) fn complete_policy_scalar_inputs(
+             demand,
+             meter,
+         )
+-        .map_err(|error| format!("calling policy scalar conditions: {error}"))?;
++        .map_err(|error| format!("{context} scalar conditions: {error}"))?;
+         let address_model =
+             target::TargetSemantics::close_address_model(profile).map(|model| ScalarAddressModel {
+                 target: scope,
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs
+index 7dba410b224..4d50dfd37cc 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs
+@@ -193,11 +193,16 @@ pub(crate) fn selected_source_calling_applications(
+ /// Fused internal calls need no compatibility ABI and never enter this route.
+ pub fn component_calling_applications(
+     services: ServiceCatalog<'_>,
+-    native_target: target::NativeTarget,
++    target: target::TargetProfile,
++    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
+     providers: &[&crate::SelectedProviderReviewProvenance],
+     explicit: &[super::BoundaryCallingPlanRealization],
+-    representations: &[representation_planning::OpaqueRepresentationSelection],
+ ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
++    let native_target = target.native_realization().ok_or_else(|| {
++        vec![Diagnostic::error(
++            "component calling application target has no native realization",
++        )]
++    })?;
+     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
+     for provider in providers {
+         let plan = &provider.plan;
+@@ -236,13 +241,17 @@ pub fn component_calling_applications(
+             )
+             .map_err(|error| vec![error])?;
+             if selected_applications.is_empty() {
+-                selected_applications.push(super::plan_computation::evaluate_default_calling_application(
+-                    services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
+-                    &row.method, requirement,
+-                    calling_conventions::CallingPolicy::native_for_target(native_target),
+-                    0, representations,
+-                ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?
+-                    .ok_or_else(|| vec![Diagnostic::error(format!("component boundary `{requirement}` has no exact materializable source signature"))])?);
++                let artifact = calling_artifact.ok_or_else(|| {
++                    vec![Diagnostic::error(
++                        "component calling applications have no published Product catalog",
++                    )]
++                })?;
++                selected_applications = super::evaluate_default_calling_applications(
++                    artifact, target, requirement,
++                    calling_conventions::CallingPolicy::native_for_target(native_target), 0,
++                ).map_err(|reason| vec![Diagnostic::error(format!(
++                    "cannot materialize component calling applications for `{trait_name}::{}`: {reason}", row.method
++                ))])?;
+             }
+             for application in selected_applications {
+                 if std::env::var_os("OMEGA_TRACE_COMPONENT_CALLING").is_some() {
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/terminal_signature.rs b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/terminal_signature.rs
+index 74ce9a09d4b..115e9f99fd8 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/terminal_signature.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/terminal_signature.rs
+@@ -7,8 +7,11 @@
+ use super::CallingPolicySignature;
+ use calling_conventions::validate_fresh_native_parameter_identity;
+ use calling_conventions::{
+-    BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
++    BoundaryCallingApplication, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
++    BoundaryNativeParameterShape, BoundaryOpaqueApplication, ValidatedBoundaryEntryPlan,
++    callback_nominal_report_fingerprint,
+ };
++use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
+ use layout::BoundaryValueLayout;
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+@@ -28,6 +31,57 @@ pub struct CanonicalOpaqueUse {
+ }
+ 
+ impl CanonicalCallingSignature {
++    /// Publish the canonical geometry and its validated plan without attaching
++    /// Source correspondence. Callback custody is retained, not admitted here.
++    pub fn native_application(
++        self,
++        validated: &ValidatedBoundaryEntryPlan,
++    ) -> Result<BoundaryCallingApplication, String> {
++        let CallingPolicySignature {
++            target,
++            geometry,
++            callbacks,
++        } = self.policy;
++        let mut application = BoundaryCallingApplication {
++            abi: self.abi,
++            requirement_identity: self.requirement_identity,
++            target,
++            report_fingerprint: 0,
++            commitment: [0; 32],
++            plan: validated.clone(),
++            signature: geometry,
++            opaque_applications: self
++                .opaque_uses
++                .into_iter()
++                .map(|occurrence| BoundaryOpaqueApplication {
++                    shape_root: occurrence.shape_root,
++                    application_report_fingerprint: occurrence
++                        .application
++                        .application_report_fingerprint,
++                    selected_application_commitment: occurrence
++                        .application
++                        .selected_application_commitment,
++                    conformance_application_commitment: occurrence
++                        .application
++                        .conformance_application_commitment,
++                    representation_schema_version: occurrence.application.schema_version,
++                    checked_semantic_copy: matches!(
++                        occurrence.application.copy_disposition,
++                        OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
++                    ),
++                })
++                .collect(),
++            callback_context: callbacks,
++            callback_context_closed: false,
++        };
++        application.commitment = application.recomputed_commitment()?;
++        application.report_fingerprint = callback_nominal_report_fingerprint(
++            b"omega.boundary-plan-application-report.v3",
++            &[&application.commitment],
++        );
++        Ok(application)
++    }
++
+     /// Only values carried inline and actual callback-containing backings
+     /// demand extents. A pointer alone cannot require its referent's layout.
+     pub(crate) fn extent_demands(
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/external_binding_rows.rs b/omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/external_binding_rows.rs
+index 4e1f3bf0838..1035c2e2de6 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/external_binding_rows.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/external_binding_rows.rs
+@@ -19,6 +19,7 @@ pub(crate) fn extract_native_external_binding_rows(
+         crate::calling_policy_plans::BoundaryCallingPlanRealization
+     ],
+     services: ServiceCatalog<'_>,
++    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
+     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+ ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
+     let context = ExternalBindingContext {
+@@ -26,6 +27,7 @@ pub(crate) fn extract_native_external_binding_rows(
+         native_target,
+         boundary_calling_plan_realizations,
+         services,
++        calling_artifact,
+         opaque_representation_selections,
+     };
+     let mut rows = Vec::new();
+@@ -51,6 +53,7 @@ pub(crate) struct ExternalBindingContext<'a> {
+     pub boundary_calling_plan_realizations:
+         &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
+     pub services: ServiceCatalog<'a>,
++    pub calling_artifact: Option<&'a terminal_codec::CanonicalTerminalArtifact>,
+     pub opaque_representation_selections:
+         &'a [representation_planning::OpaqueRepresentationSelection],
+ }
+@@ -107,6 +110,7 @@ impl ExternalBindingContext<'_> {
+             native_target,
+             boundary_calling_plan_realizations,
+             services,
++            calling_artifact,
+             opaque_representation_selections,
+         } = *self;
+         let typed = services.context().typed;
+@@ -115,7 +119,7 @@ impl ExternalBindingContext<'_> {
+                 "external binding lost its original provider row",
+             )]
+         })?;
+-        let (binding, layout_target) = match &row.binding {
++        let (binding, _layout_target) = match &row.binding {
+             ProviderBinding::Import { evaluated } => (
+                 ExternalBindingKind::Import {
+                     // The selected plan already commits the atomic evaluation
+@@ -176,27 +180,31 @@ impl ExternalBindingContext<'_> {
+             }
+             _ => Some(CallingPolicy::native_for_target(native_target)),
+         };
+-        if calling_applications.is_empty() {
+-            if let Some(policy) = compatibility_policy {
+-                if let Some(application) = crate::calling_policy_plans::evaluate_default_calling_application(
+-                    services,
+-                    layout_target,
+-                    trait_name_text(&plan.schema),
+-                    plan.schema.declaration.trait_package_identity,
+-                    &row.method,
+-                    plan.identities.text(row.requirement_identity),
+-                    policy,
+-                    usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
+-                    opaque_representation_selections,
+-                )
+-                .map_err(|reason| {
+-                    vec![Diagnostic::error(format!(
+-                        "cannot evaluate default native calling application for `{}::{}`: {reason}",
+-                        trait_name_text(&plan.schema),
+-                        row.method
+-                    ))]
+-                })? { calling_applications.push(application); }
+-            }
++        if calling_applications.is_empty()
++            && let Some(policy) = compatibility_policy
++        {
++            let artifact = calling_artifact.ok_or_else(|| {
++                vec![Diagnostic::error(
++                    "default native calling applications have no published Product catalog",
++                )]
++            })?;
++            let profile = if plan.target.is_empty() {
++                selected_target
++            } else {
++                Some(plan.target.as_str())
++            };
++            let profile = profile
++                .map(target::TargetProfile::from_canonical_target_name)
++                .transpose()
++                .map_err(|error| vec![error])?
++                .unwrap_or_else(target::TargetProfile::host);
++            calling_applications = crate::calling_policy_plans::evaluate_default_calling_applications(
++                artifact, profile, plan.identities.text(row.requirement_identity), policy,
++                usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
++            ).map_err(|reason| vec![Diagnostic::error(format!(
++                "cannot evaluate default native calling applications for `{}::{}`: {reason}",
++                trait_name_text(&plan.schema), row.method
++            ))])?;
+         }
+         Ok(Some(ExternalBindingRow {
+             target_name: if plan.target.is_empty() {
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs b/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
+index 25ff90c89c4..ec0ff0f7f0f 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
+@@ -419,6 +419,7 @@ pub fn settle_checked_providers(
+     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
+     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
+     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
++    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
+     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
+ ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
+@@ -483,6 +484,7 @@ pub fn settle_checked_providers(
+         native_target: provider_selection_target,
+         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
+         services,
++        calling_artifact,
+         opaque_representation_selections,
+     };
+     let mut provider_candidates = derived_provider_plans
+@@ -527,6 +529,7 @@ pub fn settle_checked_providers(
+             .collect::<Vec<_>>(),
+         &boundary_calling_plan_realizations,
+         services,
++        calling_artifact,
+         opaque_representation_selections,
+     )?;
+     // Component-closure join. The verified components come only from the
+@@ -770,10 +773,10 @@ pub fn settle_checked_providers(
+     let component_calling_applications =
+         crate::calling_policy_plans::component_calling_applications(
+             services,
+-            provider_selection_target,
++            planning_target.unwrap_or_else(target::TargetProfile::host),
++            calling_artifact,
+             &component_providers,
+             &boundary_calling_plan_realizations,
+-            opaque_representation_selections,
+         )?;
+     Ok(CheckedProviderSelection {
+         settlement: ProviderSettlement {
+diff --git a/omega-rust/psi/compilation/driver/terminal-production/src/calling_signatures.rs b/omega-rust/psi/compilation/driver/terminal-production/src/calling_signatures.rs
+index 26156514053..f6b303d59e6 100644
+--- a/omega-rust/psi/compilation/driver/terminal-production/src/calling_signatures.rs
++++ b/omega-rust/psi/compilation/driver/terminal-production/src/calling_signatures.rs
+@@ -24,14 +24,14 @@ pub(crate) fn capture(
+     let services = inventory.services_for(checked)?;
+     let signatures = services.signatures();
+     for &(source, boundary) in boundaries {
+-        let Some(application) = signatures.abi_for_boundary(source) else {
++        let Some(application) = boundary_application(checked, signatures, source) else {
+             // Synthetic/runtime family interfaces are not authored ABI rows.
+             // Their absence is not a default contract or permission to invoke.
+             continue;
+         };
+         module.calling_signatures.push(CallingSignatureDeclaration {
+             boundary,
+-            application: application.clone(),
++            application,
+         });
+     }
+     module.calling_signatures.sort_by_key(|row| row.boundary);
+@@ -123,3 +123,137 @@ pub(crate) fn capture(
+     module.identities = identities.build();
+     Ok(())
+ }
++
++/// Direct calls to an external satisfier cross the public requirement's ABI.
++/// Keep that checked Source association here; native consumers receive the
++/// same exact declaration key whether the call names the requirement or leaf.
++fn boundary_application(
++    checked: &CheckedTrees,
++    signatures: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
++    source: SymbolHandle,
++) -> Option<Result<semantic_vocabulary::CallingSignatureId, String>> {
++    if let Some(application) = signatures.abi_for_boundary(source) {
++        return Some(application.clone());
++    }
++    let typed = &checked.typed;
++    let machine = typed.machine_by_symbol(source)?;
++    if !matches!(
++        machine.supply_mode,
++        language_semantics::MachineSupplyMode::ExternalRealization { .. }
++    ) {
++        return None;
++    }
++    let mut applications = Vec::new();
++    for edge in typed.machine_trait_conformances(machine) {
++        let mut edge_applications = Vec::new();
++        let scope = typed
++            .trait_machine_signature(edge.requirement_symbol)
++            .map(|(owner, _)| {
++                typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
++                    typed, machine, edge,
++                )
++                .and_then(|scope| scope.declaring_scope(typed, owner.symbol))
++                .ok_or_else(|| {
++                    "external satisfier lost its complete declaring application".to_owned()
++                })
++            })
++            .transpose();
++        let scope = match scope {
++            Ok(scope) => scope,
++            Err(reason) => return Some(Err(reason)),
++        };
++        // The direct satisfaction owns its closed tuples. A shared realization
++        // must not borrow a named implementation's selecting declaration.
++        for association in checked
++            .facts
++            .provider_closed_requirements
++            .iter()
++            .filter(|association| {
++                association.provider == source
++                    && association.selecting_declaration == source
++                    && association.template == edge.requirement_symbol
++            })
++        {
++            let receiving_matches = match &scope {
++                Some(scope) => typed
++                    .closed_requirement_application(association.closed_requirement)
++                    .is_some_and(|application| {
++                        application.template == association.template
++                            && application.trait_application_identity
++                                == association.receiving_application
++                            && typed.requirement_application_matches_scope(
++                                association.closed_requirement,
++                                scope,
++                            )
++                    }),
++                None => association.receiving_application == Default::default(),
++            };
++            if !receiving_matches {
++                return Some(Err(
++                    "external satisfier changed its checked receiving application".into(),
++                ));
++            }
++            edge_applications.push(
++                signatures
++                    .abi_for_boundary(association.closed_requirement)
++                    .cloned()
++                    .unwrap_or_else(|| {
++                        Err("external satisfier lost its checked closed declaration ABI".into())
++                    }),
++            );
++        }
++        match scope {
++            Some(scope) => {
++                let Some(outer) = scope
++                    .portable_application_identity(typed)
++                    .and_then(|identity| typed.type_identity_text(identity))
++                else {
++                    return Some(Err(
++                        "external satisfier lost its portable declaring application".into(),
++                    ));
++                };
++                // Empty local operands use the declaration application itself.
++                // Every closed local tuple instead keeps its checked fact above.
++                edge_applications.extend(
++                    signatures
++                        .abi_signatures()
++                        .iter()
++                        .filter(|declaration| {
++                            declaration.template == edge.requirement_symbol
++                                && declaration.declaring_application == outer
++                                && declaration.operands.is_empty()
++                                && declaration
++                                    .formals
++                                    .iter()
++                                    .all(|formal| formal.callback.is_some())
++                        })
++                        .map(|declaration| Ok(declaration.id)),
++                );
++            }
++            None => {
++                if let Some(application) = signatures.abi_for_boundary(edge.requirement_symbol) {
++                    edge_applications.push(application.clone());
++                }
++            }
++        }
++        if edge_applications.is_empty() {
++            return Some(Err(
++                "external satisfaction edge has no exact checked declaration ABI application"
++                    .into(),
++            ));
++        }
++        for application in edge_applications {
++            if let Err(reason) = &application {
++                return Some(Err(reason.clone()));
++            }
++            if !applications.contains(&application) {
++                applications.push(application);
++            }
++        }
++    }
++    Some(match applications.as_slice() {
++        [application] => application.clone(),
++        [] => Err("external satisfier has no exact checked declaration ABI application".into()),
++        _ => Err("external satisfier has competing checked declaration ABI applications".into()),
++    })
++}

@@ -1,0 +1,12 @@
+   Compiling native-artifact v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/backend/artifacts/native-artifact)
+   Compiling compiler v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/driver)
+   Compiling compilation-products v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/products)
+   Compiling native-production v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/native-production)
+   Compiling build-evaluation v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/build-evaluation)
+   Compiling package-evidence v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/packages/review-evidence)
+   Compiling native-provider-runtime v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/application/native-provider-runtime)
+   Compiling terminal-runtime v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/application/terminal-runtime)
+   Compiling package-manager v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/packages/package-manager)
+   Compiling omega-build v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/application/build)
+   Compiling omega v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/application/cli)
+    Finished `dev` profile [optimized] target(s) in 54.53s

@@ -1,0 +1,113 @@
+{
+  "accepted_applicability": true,
+  "candidate": "5d01339880be66cb512a1ae26e21889a36644569",
+  "reviewer": "Codex independent semantic reviewer",
+  "baseline": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "prerequisite": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+  "rationale": "Independently read both git revisions: default application selection and compatibility classifier are identical. Complete materializer difference is exactly the two unused Source correspondence calculations and layout_data_symbol output field removed in the supplied diff. ABI extraction/selection is preserved. This supports causal applicability of the frozen default closed-application counterexamples across the prerequisite; it does not assert an actual prerequisite-producer run or equivalence of every compiler path.",
+  "comparisons": [
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs",
+      "function": "evaluate_default_calling_application",
+      "identities": [
+        {
+          "revision": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+          "git_blob": "b80318841caab01af87daee50655419fb25717f3",
+          "independent_complete_function_sha256": "14cced0a9e5064ea4aded69b4a8ae9fdf89f4909a99b52522bdfa4469407456b",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        },
+        {
+          "revision": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+          "git_blob": "d84af90dff9dd4409c70c00d62e7649ec0792707",
+          "independent_complete_function_sha256": "14cced0a9e5064ea4aded69b4a8ae9fdf89f4909a99b52522bdfa4469407456b",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        }
+      ],
+      "exact_function_equal": true
+    },
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs",
+      "function": "materialize_prepared_signature",
+      "identities": [
+        {
+          "revision": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+          "git_blob": "4cf224129e836420e5814baf582af3bcaa0b1a39",
+          "independent_complete_function_sha256": "51089e5b806c8404dc4142df0a839945c7199c272d408f20be41b0efeb02c628",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        },
+        {
+          "revision": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+          "git_blob": "02b5c99e104e47f9d8b7f5d3139de15e13080dc9",
+          "independent_complete_function_sha256": "4260169454bd13ec4e729b92838ad65363c7845cd1d04a17579be9fc7ed7539c",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        }
+      ],
+      "exact_function_equal": false
+    },
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs",
+      "function": "compatibility_call_signature",
+      "identities": [
+        {
+          "revision": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+          "git_blob": "4cf224129e836420e5814baf582af3bcaa0b1a39",
+          "independent_complete_function_sha256": "f044d2f38a988ad3bf34083d4307b621dc66376d49a5eab9cef81beb5d1384fd",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        },
+        {
+          "revision": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+          "git_blob": "02b5c99e104e47f9d8b7f5d3139de15e13080dc9",
+          "independent_complete_function_sha256": "f044d2f38a988ad3bf34083d4307b621dc66376d49a5eab9cef81beb5d1384fd",
+          "ledger_function_hash_extraction_matches": [
+            {
+              "start_relative_to_fn": 0,
+              "end_relative_to_closing_brace": 0
+            }
+          ]
+        }
+      ],
+      "exact_function_equal": true
+    }
+  ],
+  "ledger": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-default-route-applicability.json",
+    "sha256": "777c097ad8b7a715860d2f97293441c6edbc11026477a9ed29a5c1202641bc72"
+  },
+  "materializer_diff": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-materializer-prerequisite.diff",
+    "sha256": "2232687c6c5bb2411e00a6afc289c439f01fca9f509b72a3d35f79326ae63385"
+  },
+  "final_review_unchanged": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/independent-canonical-default-final-review.json",
+    "sha256": "47485a00fe56cae8aed352021d5ae02df19be8f4cfdc418b175f8a4505c6732c"
+  },
+  "limitations": [
+    "Frozen failures retain source40f9 producer identity; no fresh3a4683 execution is claimed.",
+    "General GUI/other-host limitations in the final review remain unchanged."
+  ]
+}

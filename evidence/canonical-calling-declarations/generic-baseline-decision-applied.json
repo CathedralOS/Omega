@@ -1,0 +1,7 @@
+{
+  "decision_id": "87d45816f5bf80c148ff8579403e4f6a21218e308d2dc220ee97a733147a8e57",
+  "decision": "accept",
+  "basis": "generic-terminated-array-local-binding-review-r1/recommendation.json",
+  "before": "853a2ceed2af5942b5f047dafb34c09ccf9bb4dbceca8b2df5bc8c2d86d331c4",
+  "after": "782d0e903e14863532475c48523ef5fcffc4324cf96244b5f54279c3cd3206d9"
+}

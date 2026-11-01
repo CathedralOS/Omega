@@ -1,0 +1,102 @@
+{
+  "schema": "omega-independent-provisional-source-review-v1",
+  "candidate": "f126dee3c2dea8c316574bae99ce4db20363278a",
+  "fixed_base": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "accepted_source": true,
+  "final_acceptance": false,
+  "reviewer": "OpenAI Codex independent read-only reviewer",
+  "blocking_findings": [],
+  "source_identities": [
+    {
+      "path": "samples/gui/window_demo/README.md",
+      "git_blob": "ddb35cd798131b2826b30aa468aad3c944133224",
+      "sha256": "ca59719c541f5c19a1637a3812b720bb792c5b5cf1cc4931460313c883faa168"
+    },
+    {
+      "path": "samples/gui/window_demo/build.omg",
+      "git_blob": "5c1471b6dea5784467c232c2b0d7ec6ebe7c9569",
+      "sha256": "61a230dcc2aa9b24b55412dacdc51cd409d0361492fe58c7483cc33c921d0801"
+    },
+    {
+      "path": "samples/gui/window_demo/main.omg",
+      "git_blob": "b3dd96d571ba94185befc0c29a727c00999edc90",
+      "sha256": "f46dfc4a8ad617c37586532b1ea942514a4cb7d656f4d9516f1bde7cdedd6d0a"
+    },
+    {
+      "path": "samples/gui/window_demo/providers.omg",
+      "git_blob": "55decf3e1f6eea7e2b763177752d969657b3fad5",
+      "sha256": "76182f61f922ccf74673d47c6c5f937a1e8c9ce46eda3451a41fc8f467fc1444"
+    }
+  ],
+  "semantic_assessment": {
+    "provider_migration": "Twelve target-prefixed bodies are now twelve members of two ordinary named implementations. Every member body is equivalent after removing whitespace/comments and substituting only the reviewed equal numeric spellings. Six union facade wrappers are removed. Native callee selection, argument order, return types and borrowing/value modes remain the same.",
+    "contracts": "Inline members preserve the applicable service reaches and invokes. macOS window_create retains title[10]==0 and nested creation carries positive signed-representable dimensions. Windows imposes no additional input restriction; ordinary Gui call sites still owe the trait title requirement. Source formation and conformance checks have completed for both supplied implementations.",
+    "bounds_and_operations": "Main where predicates become requires self predicates with exactly pumped0..16,frame0..60,i0..4096. Initializations, dominating increment guards, index guard and all operation order are unchanged. Main::main and entry_start bodies compare equal after exact numeric-spelling normalization. max<i32>()=2147483647; conversion to i64/u32 is exact and preserves each prior guard. Hex values0x00200001,0x10CF0000,0x00010000,0xFF,0x00CC0020 equal prior integers.",
+    "selection": "ProgramEntry remains Windows x86_64 and macOS ARM64. Their selections name corresponding ordinary implementations. Removed selections had no corresponding application ProgramEntry or target provider bodies, so this diff removes unsupported configuration rather than narrowing a previously executable customer route. No other-host execution is claimed.",
+    "resources_and_oracle": "Application-owned Window is transported through the same paths. Windows DC release, window destruction and liveness check are retained; macOS calls the same SDK destruction routine. Full60frame success, copied==64 scanline check, failure cleanup and exact PASS/FAIL outputs remain. This source comparison does not independently prove native object lifetime or visible close.",
+    "README": "Prose describes current source architecture and runtime acceptance observations to obtain; it no longer asserts rerun Windows/macOS results."
+  },
+  "evidence": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main40-r1-producer.json",
+      "sha256": "9ae31750d19b5df27b95a0543711268725105a7027f269b4e8a91b23f90ddf83"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update.json",
+      "sha256": "618b6502a0717cce65b394ca4dc73aecc4a2c4e07ffef6968dffeddc2e767509"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update.stdout",
+      "sha256": "9ceb8c49354f1949f330cf1907742b656cb372a87365cc90488c6113c32e82ce"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "producer": {
+    "source": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 378.87609104200004,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main40-r1-omega",
+      "sha256": "f4c43412e6781bf572a94a9210199ba147ade5857cb984e14ccc391b1130855b",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "observed_update": {
+    "exit": 3,
+    "seconds": 82.761990208,
+    "source_packages_checked": 2,
+    "sample_input_hashes_verified": 3,
+    "meaning": "Normal policy review pending; no policy acceptance, native publication, Terminal agreement or GUI observation inferred."
+  },
+  "pending_acceptance": [
+    "Exact regenerated package-policy comparison and ordinary acceptance/resume.",
+    "Actual native and Terminal status with precise distinctions for unsupported native-provider admission.",
+    "Visible client dimensions, changing pixels, finite60-frame outcome and normal window closure."
+  ],
+  "limitations": [
+    "No source changes, builds, compiler invocations or policy mutations by reviewer.",
+    "Source-only acceptance; full GUI and parent CANONICALIZE closure remain unqualified.",
+    "Windows execution and other-host behavior unverified.",
+    "Eight-binding SDK meaning review is separate and does not substitute for exact final package policy or native runtime observations."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "terminal_behavior_exclusions",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 3.987262583,
+  "patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361",
+  "executable": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-rust-controls-test",
+  "sha256": "2be3cbf78c0bba8ccfff40c9e0e3d6264e3edeea2f7d67911320428c32e03739",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "profile_evidence": "Actual Cargo library/executable profiles and effective Rust fingerprints; libtest is consumed through nextest binaries metadata."
+}

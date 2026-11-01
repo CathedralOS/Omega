@@ -1,0 +1,318 @@
+{
+  "schema": "omega-independent-fact-source-review-v1",
+  "reviewer": "OpenAI Codex independent read-only reviewer",
+  "observed_workspace_head": "f6820d721ece1c5c23b390a1609a530088aad78f",
+  "accepted_source": true,
+  "blocking_findings": [],
+  "scope": "Existing generic_terminated_array nine-place source/runtime counterfactual review; no fresh R7 execution claim.",
+  "findings": {
+    "fact_transport": "Text carrying the same last-byte predicate travels through all nine places. Explicit Count4 and inferred Count calls borrow the complete bytes field. Field/parameter/results/const/nested and selected implementation paths all invoke the same verifier.",
+    "runtime_lengths": "First array must yield3; early-NUL second array must yield1. Returning Count4 fails. Returning Count-1 or ignoring the early NUL fails the second oracle. Each explicit and inferred result is independently compared with the supplied expected value.",
+    "match": "Both matching and wildcard paths execute and have distinguishable length3/1 results; swapping or collapsing arms traps.",
+    "canaries": "The verifier checks Text prefix0xa5 and suffix0x5a alongside both lengths. Starting at prefix gives length4/2; starting one byte late gives2/0, rather than3/1. These are concrete discriminating errors, not proof against all possible layout bugs or nonmutating overreads.",
+    "twins": "All nine positive/negative source diffs are exactly first array final byte0->1. Build files are unchanged. Actual intended refusal is Text literal default-domain violation; this tests construction enforcement, not a malformed value successfully reaching the CText call.",
+    "formation_and_guards": "Count>0 precedes formation of text[Count-1]. Both boundary calls occur before the result/canary transition. Caller expected values are runtime oracles and cannot establish the earlier terminator premise.",
+    "pins": "All18 positive/negative main and Build files byte-match their corresponding corpus pins.",
+    "targets": "Four hosted native strlen bindings and ProgramEntry rows are present; target_body selects ordinary named implementations. Binding presence is not four-host execution evidence."
+  },
+  "source_identities": [
+    {
+      "path": "samples/cli/facts/generic_terminated_array/local/main.omg",
+      "sha256": "da27b4a938f388ec35f6dc1aa6b1ee42f85f34d1ffe4af37465b4f49fe988cdc"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_local_exit/main.omg",
+      "sha256": "da27b4a938f388ec35f6dc1aa6b1ee42f85f34d1ffe4af37465b4f49fe988cdc"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/local/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_local_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/local/invalid/main.omg",
+      "sha256": "1e109b8f950929cc1573c32ab5b77b31953411fcdf0f0658d6462ebcf4f2f4b2"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_local/main.omg",
+      "sha256": "1e109b8f950929cc1573c32ab5b77b31953411fcdf0f0658d6462ebcf4f2f4b2"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/local/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_local/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/field/main.omg",
+      "sha256": "8b8cba7c29bcb2e92b3658aa99ecec38aba72c4328ddae728d73b10c5a46b59a"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_field_exit/main.omg",
+      "sha256": "8b8cba7c29bcb2e92b3658aa99ecec38aba72c4328ddae728d73b10c5a46b59a"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/field/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_field_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/field/invalid/main.omg",
+      "sha256": "934dbd445f87053f8d328b146895731268a892b347b9458ff41633051f35f563"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_field/main.omg",
+      "sha256": "934dbd445f87053f8d328b146895731268a892b347b9458ff41633051f35f563"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/field/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_field/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/parameter/main.omg",
+      "sha256": "656e009ecdc3e7ccf5ab75e5dccfeb9b2886d0754a808e70af32d751158989cb"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_parameter_exit/main.omg",
+      "sha256": "656e009ecdc3e7ccf5ab75e5dccfeb9b2886d0754a808e70af32d751158989cb"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/parameter/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_parameter_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/parameter/invalid/main.omg",
+      "sha256": "35fa805cbe29ade4efcb3f3779c3c053efa3bd1f4f920d22c692d6ca764367ad"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_parameter/main.omg",
+      "sha256": "35fa805cbe29ade4efcb3f3779c3c053efa3bd1f4f920d22c692d6ca764367ad"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/parameter/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_parameter/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/call_result/main.omg",
+      "sha256": "03d23714d6ee7d113443f09c6cb5f6d995545b66f7b9d7d56596e58bfb18b512"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_call_result_exit/main.omg",
+      "sha256": "03d23714d6ee7d113443f09c6cb5f6d995545b66f7b9d7d56596e58bfb18b512"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/call_result/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_call_result_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/call_result/invalid/main.omg",
+      "sha256": "49a02f6f0119883770d605f286f9a373f082852c6f8914bdf4ac73cbc3d81939"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_call_result/main.omg",
+      "sha256": "49a02f6f0119883770d605f286f9a373f082852c6f8914bdf4ac73cbc3d81939"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/call_result/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_call_result/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/match_join/main.omg",
+      "sha256": "431b56e5081394b6683506548f8a93b6a062545c7215707c9fcd2b2d5f013fc4"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_match_join_exit/main.omg",
+      "sha256": "431b56e5081394b6683506548f8a93b6a062545c7215707c9fcd2b2d5f013fc4"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/match_join/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_match_join_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/match_join/invalid/main.omg",
+      "sha256": "11cbff832384665387fa20cb7d1eb68bb714d94df89c83c61c0ae1e2147f0eab"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_match_join/main.omg",
+      "sha256": "11cbff832384665387fa20cb7d1eb68bb714d94df89c83c61c0ae1e2147f0eab"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/match_join/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_match_join/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/const_name/main.omg",
+      "sha256": "38d5204de1d89fbbc573aee9f4c6bce685f4d919bd01a71281b9fdc26dcc3d8c"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_const_name_exit/main.omg",
+      "sha256": "38d5204de1d89fbbc573aee9f4c6bce685f4d919bd01a71281b9fdc26dcc3d8c"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/const_name/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_const_name_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/const_name/invalid/main.omg",
+      "sha256": "b0d522bc877c007c589cedfe28670c50709003deefbfc0f145d035fabdb94f12"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_const_name/main.omg",
+      "sha256": "b0d522bc877c007c589cedfe28670c50709003deefbfc0f145d035fabdb94f12"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/const_name/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_const_name/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_state/main.omg",
+      "sha256": "15bd521a4c62c3e5f4b634000eb56daa001b4ef1993826cb3661a5c595f91f0e"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_other_state_exit/main.omg",
+      "sha256": "15bd521a4c62c3e5f4b634000eb56daa001b4ef1993826cb3661a5c595f91f0e"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_state/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_other_state_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_state/invalid/main.omg",
+      "sha256": "8860dff74587c4f3dac1d34e185aea4e3c1a7c2edac73863d37e41f7dd9cd741"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_other_state/main.omg",
+      "sha256": "8860dff74587c4f3dac1d34e185aea4e3c1a7c2edac73863d37e41f7dd9cd741"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_state/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_other_state/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_machine/main.omg",
+      "sha256": "7457cdcc873e78263c6e73932b7cf036fdc2a5a025f33abb3d957fbfb596183f"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_other_machine_exit/main.omg",
+      "sha256": "7457cdcc873e78263c6e73932b7cf036fdc2a5a025f33abb3d957fbfb596183f"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_machine/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_other_machine_exit/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_machine/invalid/main.omg",
+      "sha256": "e900cc2e10819b4a7ee182ed084d8e1ae8f019b473dbc3db792025e07a6b3e3d"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_other_machine/main.omg",
+      "sha256": "e900cc2e10819b4a7ee182ed084d8e1ae8f019b473dbc3db792025e07a6b3e3d"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/other_machine/invalid/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_other_machine/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/target_body/main.omg",
+      "sha256": "06a2b2b7c11f5a5afce6b79d7b366394f573b8b34f64a9edf5696f362f20d2d5"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_target_body_exit/main.omg",
+      "sha256": "06a2b2b7c11f5a5afce6b79d7b366394f573b8b34f64a9edf5696f362f20d2d5"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/target_body/build.omg",
+      "sha256": "d25378d60cd10de6a002a79ac2fa2c89a68c8af88067d06da3288a1af5a72f90"
+    },
+    {
+      "path": "tests/omega/pass/facts/generic_terminated_array_through_target_body_exit/build.omg",
+      "sha256": "d25378d60cd10de6a002a79ac2fa2c89a68c8af88067d06da3288a1af5a72f90"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/target_body/invalid/main.omg",
+      "sha256": "3644dcbd92f8248b4f571217b9c2e8a0da7599458b330b554c09b6c3ea617c6b"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_target_body/main.omg",
+      "sha256": "3644dcbd92f8248b4f571217b9c2e8a0da7599458b330b554c09b6c3ea617c6b"
+    },
+    {
+      "path": "samples/cli/facts/generic_terminated_array/target_body/invalid/build.omg",
+      "sha256": "d25378d60cd10de6a002a79ac2fa2c89a68c8af88067d06da3288a1af5a72f90"
+    },
+    {
+      "path": "tests/omega/fail/facts/generic_terminated_array_through_target_body/build.omg",
+      "sha256": "d25378d60cd10de6a002a79ac2fa2c89a68c8af88067d06da3288a1af5a72f90"
+    }
+  ],
+  "readme": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/README.md",
+    "sha256": "9fd23a13dad8dffe0dc986b6275610a18ac51bed39c26dd06beb88dc07e5b725"
+  },
+  "limitations": [
+    "Fresh R7 observations and lock preparation remain parent-owned; none executed by reviewer.",
+    "All row calls use Count4. This does not independently prove distinct const ABI key transport, which the actual WindowDemo closure also challenges.",
+    "Nonempty/reordered-requirement formation uses separate existing controls; the nine twins specifically falsify construction.",
+    "No edits, builds, replays or lock mutations performed."
+  ]
+}

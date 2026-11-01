@@ -1,0 +1,355 @@
+{
+  "schema": "omega-bounded-native-binding-meaning-review-v1",
+  "decision": "accept",
+  "reviewer": "OpenAI Codex independent read-only reviewer",
+  "source_revision": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "scope": "Eight newly surfaced native requirement meanings only; not all612 rows, not the forthcoming regenerated policy packet, and not GUI acceptance.",
+  "binding_reviews": [
+    {
+      "operation": "MacosImageObjects::create",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "c98bbe9da2d969477a6630fade1d0523e9321eec0cb789b67c2b1fc2d0f163ec",
+      "historical_candidate_payload_sha256": "c6ed0e428203d06ac6761823f9ed080dc7799cfa3ced32dfe2fcc7f2e007c0c4",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "symbol": "_CGImageCreate"
+      },
+      "calling_signature": "CGImageCreate(size_t,size_t,size_t,size_t,size_t,CGColorSpaceRef,CGBitmapInfo,CGDataProviderRef,const CGFloat*,bool,CGColorRenderingIntent)->CGImageRef. x0..x7 hold the first8 scalars; stack[0..7]=decode, stack[8]=Bool, stack[12..15]=intent; outgoing stack16-byte aligned.",
+      "rationale": "Factory supplies width/height1..8192, components8,bits32,rowbytes4*width, bitmap0x2006 (32-bit little-endian/skip-first alpha), owned provider, decode0,false,intent0. Complete CFData extent equals4*width*height. Color-space handle comes from existing CoreGraphics RGB creator. Apple documents image retention of both provider and color space, permitting release of the local provider after creation. Null image is returned as failure; native temporary references are still released.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageObjects"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/coregraphics/cgimage/init(width:height:bitspercomponent:bitsperpixel:bytesperrow:space:bitmapinfo:provider:decode:shouldinterpolate:intent:)",
+        "https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms"
+      ]
+    },
+    {
+      "operation": "MacosImageObjects::release_provider",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "dfcb5b0d2f91f7f53e23ba3f5bdbe34218993d55bd0cdd7d481d16059445fead",
+      "historical_candidate_payload_sha256": "4462335a6a232f971fa2cc436450604416660eae4adf5bf2c1cc23ea8189270a",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "symbol": "_CGDataProviderRelease"
+      },
+      "calling_signature": "CGDataProviderRelease(CGDataProviderRef)->void; one pointer-sized lane, Unit result.",
+      "rationale": "Called only with nonzero successfully created provider after image attempt. The successful image retains the provider; on failure the temporary provider is released and then CFData is released. Header permits null but caller uses the stronger nonnull precondition.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageObjects"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/coregraphics/cgdataprovider/init(data:)",
+        "https://developer.apple.com/documentation/coregraphics/cgimage/init(width:height:bitspercomponent:bitsperpixel:bytesperrow:space:bitmapinfo:provider:decode:shouldinterpolate:intent:)"
+      ]
+    },
+    {
+      "operation": "DarwinTimeRead::clock_nanoseconds",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "0d27eac49830c29fdb136c0c9381c6e331fce1a67f68ec238d7cfc0fd2c25250",
+      "historical_candidate_payload_sha256": "5f61e350c30c00146c9d2185aced5b4eff52406cd13f733d071be0af140961e3",
+      "locator": {
+        "install_name": "/usr/lib/libSystem.B.dylib",
+        "symbol": "_clock_gettime_nsec_np"
+      },
+      "calling_signature": "clock_gettime_nsec_np(clockid_t)->uint64_t, 32-bit clock selector and64-bit result; same bit-compatible integer lanes for the actual selectors.",
+      "rationale": "Actual calls use0(CLOCK_REALTIME) and8(CLOCK_UPTIME_RAW), confirmed in SDK headers. TimeHost retains explicit clock reach. Uptime uses mach_absolute_time scaled to nanoseconds and excludes suspend; it is not wall time. Wall-clock units1e9 and epoch offset0 match Apple implementation. No sleep/progress or permission grant is inferred from reading the clock.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 2/item/path": [
+          "DarwinTimeRead",
+          "TimeHost"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://github.com/apple-oss-distributions/Libc/blob/main/gen/clock_gettime.c"
+      ]
+    },
+    {
+      "operation": "MacosImageData::copy",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "42b8f3c4d95d8e839f822bb1c724b47465540cabd74226b0e2685192c371dc9f",
+      "historical_candidate_payload_sha256": "56d1a1fc35e4efb1935db01f17fa36df8186f8e41022f4b3ba0a215ef10d7787",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "symbol": "_CFDataCreate"
+      },
+      "calling_signature": "CFDataCreate(CFAllocatorRef,const UInt8*,CFIndex)->CFDataRef; u64 allocator in x0, complete shared byte-view pointer in x1 and count in x2; pointer result x0. Signed CFIndex count bound is explicit.",
+      "rationale": "Allocator is 0/default; formed pixels length equals width*height, each dimension1..8192, full i32-to-u8 footprint is at most268435456 bytes, well within signed64. CFDataCreate copies before return, so the Omega pixel loan need not outlive the call. Null allocation returns0; no later release of null CFData.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageData"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/corefoundation/cfdatacreate(_:_:_:)",
+        "https://developer.apple.com/documentation/corefoundation/cfdata"
+      ]
+    },
+    {
+      "operation": "MacosImageObjects::provider",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "e13364a5f544964304b76d58e2b51ea5d06a588c91879a3268f7e19f2f32dc76",
+      "historical_candidate_payload_sha256": "8cdb3680752618d8a4a0e1da6613b3b85c1b4e60f01272c8e92d2aecb09382b2",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "symbol": "_CGDataProviderCreateWithCFData"
+      },
+      "calling_signature": "CGDataProviderCreateWithCFData(CFDataRef)->CGDataProviderRef, one pointer-sized integer lane and pointer result.",
+      "rationale": "Only a nonzero newly created CFData reaches the call. The provider is an owned Create-rule object. The factory retains its own CFData reference until after CGImageCreate and releases it on every later path. Standard provider/backing ownership is the admitted native promise; this review does not independently reconstruct its retain implementation.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageObjects"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/coregraphics/cgdataprovider/init(data:)"
+      ]
+    },
+    {
+      "operation": "DarwinTimeRead::poll",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "ed2a7220cdf951b1172fdc1dddcfc4285296b70d9f78bbaf3c19f43896963a51",
+      "historical_candidate_payload_sha256": "d8d43c0858ec3cfe8f417aea4d98a2bf3fac9d2f2401ff515b725b254838676b",
+      "locator": {
+        "install_name": "/usr/lib/libSystem.B.dylib",
+        "symbol": "_poll"
+      },
+      "calling_signature": "poll(struct pollfd*,nfds_t,int)->int, pointer/u32/i32 arguments and i32 return; nfds_t is unsigned int in the SDK.",
+      "rationale": "Only descriptors0,count0 are used, so no caller buffer is observed or mutated. Positive waits split full u32 milliseconds into nonnegative i32-representable parts; no accidental -1 infinite timeout. Poll is explicitly blocks/reaches TimeHost. Zero is completed timeout; nonzero/error is retried, so interruptions do not report early completion, though repeated host errors may prevent progress and retries can oversleep.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 2/item/path": [
+          "DarwinTimeRead",
+          "TimeHost"
+        ]
+      },
+      "may_block": [
+        "bool true"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/poll.2.html"
+      ]
+    },
+    {
+      "operation": "MacosImageObjects::release_data",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "8e867645156753f5e5cb6de8dc9be454cd31121df650a749b210d37ba21c5668",
+      "historical_candidate_payload_sha256": "6061045a9e81d5b53b06645c45acde0bce74e319e31407ab3fc94cb3289ba3ce",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "symbol": "_CFRelease"
+      },
+      "calling_signature": "CFRelease(CFTypeRef)->void; one pointer-sized lane, Unit result.",
+      "rationale": "Every factory call is guarded data!=0 and releases exactly the local CFData Create reference: provider-failure path or after image attempt. It is not a release of the original Omega pixels. Retained provider/image ownership is not discarded by releasing this local reference.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageObjects"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/corefoundation/cfdatacreate(_:_:_:)",
+        "https://developer.apple.com/documentation/coregraphics/cgdataprovider/init(data:)",
+        "https://developer.apple.com/documentation/coregraphics/cgimage/init(width:height:bitspercomponent:bitsperpixel:bytesperrow:space:bitmapinfo:provider:decode:shouldinterpolate:intent:)"
+      ]
+    },
+    {
+      "operation": "MacosImageObjects::release_image",
+      "decision": "accept",
+      "recommendation_scope": "Inspected exact foreign-binding meaning for macos_arm64 customer closure; final regenerated policy identity must be compared before approval.",
+      "historical_row_id": "ecd2309c4cab3c6dd365d45749636435726fb9e01765213176327974bf5164c7",
+      "historical_candidate_payload_sha256": "158942b5f04d6efeed6fa6d3829c3bc39f37f9e60faeb85180ba147bac5370c6",
+      "locator": {
+        "install_name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "symbol": "_CGImageRelease"
+      },
+      "calling_signature": "CGImageRelease(CGImageRef)->void; one pointer-sized lane, Unit result.",
+      "rationale": "Apple explicitly permits NULL, matching the unconstrained image scalar. Existing macos_gui consumer releases the created CGImage on both NSImage failure and success after handoff; that Objective-C handoff remains a separate API/lifetime seam outside these eight bindings. Invalid nonzero handles or duplicate releases are not licensed by this signature.",
+      "service_reach": {
+        "value/requirement/authority/service_reach/sequence 1/item/path": [
+          "MacosImageObjects"
+        ]
+      },
+      "may_block": [
+        "bool false"
+      ],
+      "primary_references": [
+        "https://developer.apple.com/documentation/CoreGraphics/CGImageRelease",
+        "https://developer.apple.com/documentation/coregraphics/cgimage/init(width:height:bitspercomponent:bitsperpixel:bytesperrow:space:bitmapinfo:provider:decode:shouldinterpolate:intent:)"
+      ]
+    }
+  ],
+  "blocking_findings": [],
+  "calling_plan_assessment": {
+    "CFDataCreate": "Semantic allocator + shared byte descriptor expands to three native scalar lanes, not a one-byte &u8 exposure. The source explicitly opts into DarwinArm64ByteViewCalling.",
+    "CGImageCreate": "DarwinArm64ScalarCalling independently places each tail at natural size/alignment: decode8@0, Bool1@8, intent4@12, total16. Narrow-register arguments are not involved; bitmap_info is32bits in register7. This is a source calling-policy audit, not fresh machine-code inspection.",
+    "TimeRead": "Default three-or-fewer integer argument calling lanes agree with Darwin signatures for these actual uses. No cross-host approval is inferred.",
+    "new_SystemV_path": "40f9 adds SystemVByteViewCalling to posix_byte_view_calling; Darwin path still initializes darwin_arm64_entry, uses AArch64 argument/result registers and pointer/count lanes. The added SystemV path is not an authorization or runtime observation for these macOS bindings."
+  },
+  "lifetime_and_cleanup": {
+    "copy": "CFDataCreate copies all supplied bytes into native-owned storage. No returned object borrows the Omega framebuffer.",
+    "provider": "The factory keeps the original CFData reference through provider and image creation. The native promise includes independent provider ownership of its CFData backing; modern fetched provider documentation describes the CFData source but does not explicitly spell out its retain operation. This detail remains admitted vendor behavior, not a new source theorem or independently observed runtime result.",
+    "image": "Apple image documentation explicitly states retention of provider and color space. Thus dropping the factory temporary references after creation preserves the image backing.",
+    "failure_paths": "Failed CFData =>0; failed provider =>release_data then0; image attempt =>release_provider and release_data regardless of result. Returned nonzero image is caller-owned and must be released.",
+    "opaque_handles": "Nonzero u64 is not a proof of a valid CF object, RGB color-space identity or balanced release ownership. Acceptance trusts the audited creator-to-user path and native promise; arbitrary forged handles are outside that justified path."
+  },
+  "capability_assessment": "These are explicit foreign-code trust relationships. Image requirements carry MacosImageData/MacosImageObjects; time requirements carry DarwinTimeRead/TimeHost, poll blocks. Empty additional reach is not proof of purity: image construction allocates native objects and raw bindings execute native code. No filesystem, network, desktop-observation or event-injection grant is added by this report. Actual runtime authority and exact final package policy remain independently required.",
+  "source_identities": [
+    {
+      "path": "source/library/std/macos_image.omg",
+      "git_blob": "50edadb3c8aefabf8a2616b271972af3d3091f6b",
+      "sha256": "9cb6895722b14b7d0f27b0098cc481aa345cbcb76446f4550ca915a6b35ae0ab"
+    },
+    {
+      "path": "source/library/std/darwin_calling.omg",
+      "git_blob": "3a3a7be70bee9d86dd2f152cf1ac7d3e8b5e64f1",
+      "sha256": "8ded2adfff396de7a438b010e52ce4345f73627d7f9f1920d4c0477a7c033c70"
+    },
+    {
+      "path": "source/library/std/posix_byte_view_calling.omg",
+      "git_blob": "793295ec2fc6cd739917299b5bcaa8fd600483b7",
+      "sha256": "caa24610e5c164cad4b4fe7f6918d4a95d35e542e520092774b89d2a9f20cad1"
+    },
+    {
+      "path": "source/library/std/targets/macos_arm64/time_host_impl.omg",
+      "git_blob": "581881b46ed5837c5abcf57d43d11e214d0b8654",
+      "sha256": "46e7c58a857ab304f5c476059596663e2407547f9c5edd85d789f05b3a5991c7"
+    },
+    {
+      "path": "source/library/std/time_host.omg",
+      "git_blob": "3febf9572944aa9768f300ec173a84b1df2782bc",
+      "sha256": "1274706e9a0fc615ed6a20e918f32630db89bcac1d90f42bdd58b1968112175d"
+    },
+    {
+      "path": "source/library/std/macos_gui.omg",
+      "git_blob": "7fc083e9654331408d9ba2971c9b76900c73bf7b",
+      "sha256": "9169a8c63a1093f7c62feb407d73daf6833405071866b96733f86b1e6414c53d"
+    },
+    {
+      "path": "source/library/std/build.omg",
+      "git_blob": "ecb8829b82bf5e3d7a9b45bab2c8e6396a22d4cb",
+      "sha256": "aeccb2267214dc5b526477364d44c0a768a38a89e3bfe0fe5046430200af1e38"
+    },
+    {
+      "path": "wiki/spec/packages/acceptance.md",
+      "git_blob": "4d88cdc08bf439c15c5d6dd62708e2d5de22c010",
+      "sha256": "25680356e52d97ca317a3106f9ba73db1d6761a511d864114e171a9d630d4495"
+    },
+    {
+      "path": "wiki/spec/packages/review.md",
+      "git_blob": "28098eb9ea6d3fab96053bc5fad82059969bb8a3",
+      "sha256": "d9e7d6412ecb8dd69fd7b3876ece8c205d3207443a17a70b9f7f1447b03a7c16"
+    },
+    {
+      "path": "wiki/spec/build/foreign_bindings.md",
+      "git_blob": "a11ce0779dea20de496ed953f3d693622dce2d57",
+      "sha256": "8b537a92730b44e7937b702c080024e6d7ee0ba92feea806d1c8b98239c510c5"
+    },
+    {
+      "path": "AGENTS.md",
+      "git_blob": "978da3cd1e6985c172a13659aefcdbb3cbe2ccb6",
+      "sha256": "d8e819f28c1f1586c2ab8ec3609e70375c94b15c36a5c0c5f39d6f41aad1de77"
+    }
+  ],
+  "sdk_headers": [
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreFoundation.framework/Headers/CFData.h",
+      "sha256": "400a9d8197f01ad66a28b778485ac9846a2a7dc2dad2f27733c7ba6850e2faf5"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreFoundation.framework/Headers/CFBase.h",
+      "sha256": "50a5bc5fe032894368dc101d436984b6c4fa4b37e24b18dcc4445e15231ff929"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreGraphics.framework/Headers/CGDataProvider.h",
+      "sha256": "a38f2c335ade4e6f9c530269310cd5f6e0e08d428058830f44f175803bf6484c"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreGraphics.framework/Headers/CGImage.h",
+      "sha256": "349d22821f08fafd0f2ffe1806aef383991bf585da67ef943d41eb27908aaade"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_time.h",
+      "sha256": "a3dceadf2c95133018af363187829ca072d85a93d69f9682a2e4fb993902f28d"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/poll.h",
+      "sha256": "809417bb85e700534f8f1a426b4e70f4b0bce0747199ba9f2e7d93b071aaeac9"
+    }
+  ],
+  "review_inputs": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/new-native-bindings.json",
+      "sha256": "b80a5ee8e52154b25a858fe3d209cca711e367c3d23fe627f12ad5bbb6b348c7"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/rows.json",
+      "sha256": "664b114688740289e67610faa5510574ef3a1015f261b790ce33a5576e4d626e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/review-macos_arm64.txt",
+      "sha256": "c52d08ea7078715aa1e40d0f7af8f1f709800f14520d9f8524b246393ad754ec"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/r2-review-applicability.json",
+      "sha256": "a4e63142e26b3017468f034d2b8102c14ecc83133cfbd9b4d7d6a435f5773ab6"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-native-sdk-preparation.json",
+      "sha256": "b7cb0134d5302faea2e64a31cb20eac21a8f217f601f66fa316b2b5aff93ca41"
+    }
+  ],
+  "retained_primary_documents": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/foreign-binding-primary-docs/image.md",
+      "sha256": "60186b828011b79b45acf1bd0d2422977c8f292e60f7e4fbb10ce51f6b623dd0"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/foreign-binding-primary-docs/provider.md",
+      "sha256": "1c8ac08552a9a2cd6fbfb0ae8bd535c37715e62689497884d4de7dd31da6028b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/foreign-binding-primary-docs/cfdata.md",
+      "sha256": "4f7dba27e52f1e41c66114b1b1a60ec9a2648f6ca37903a5d661fbadd749ff05"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/foreign-binding-primary-docs/arm64.md",
+      "sha256": "ad64e1b6def4bc447d35e6d4bebc726fe3225e55fd594f864d39d745d92cddc8"
+    }
+  ],
+  "limitations": [
+    "No source, decisions, locks, compiler or package commands were changed or executed.",
+    "Customer main/providers/build are concurrently changing and are deliberately not accepted by this source-only SDK review.",
+    "Historical pending IDs are navigation/binding references only; parent must match exact regenerated meaning before applying decisions.",
+    "Fresh native plans, pixel preservation after source mutation/scope exit, image display and normal GUI close remain execution acceptance, not claims from this review.",
+    "NSImage and setImage ownership, GUI permissions and prior612-row policy reuse are outside this eight-binding audit.",
+    "Poll retry termination depends on host behavior; no bounded wall-time guarantee is asserted."
+  ]
+}

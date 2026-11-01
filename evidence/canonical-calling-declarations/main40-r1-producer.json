@@ -1,0 +1,27 @@
+{
+  "source": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 378.87609104200004,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main40-r1-omega",
+    "sha256": "f4c43412e6781bf572a94a9210199ba147ade5857cb984e14ccc391b1130855b",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

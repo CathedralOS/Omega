@@ -1,0 +1,27 @@
+{
+  "source": "f6820d721ece1c5c23b390a1609a530088aad78f",
+  "patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 10.240541334,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-callback-runner-omega",
+    "sha256": "5a182bcdc7f5cb182d0da59b90d604585de374dcd6f8288df331beee11553fea",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

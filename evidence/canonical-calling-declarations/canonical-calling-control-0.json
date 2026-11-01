@@ -1,0 +1,15 @@
+{
+  "command": [
+    "cargo",
+    "nextest",
+    "run",
+    "--locked",
+    "-p",
+    "calling-conventions",
+    "-E",
+    "test(phantom_local_application_cannot_borrow_equal_geometry)"
+  ],
+  "exit": 0,
+  "seconds": 10.325843333,
+  "patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361"
+}

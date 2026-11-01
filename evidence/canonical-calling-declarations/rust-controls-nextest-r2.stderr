@@ -1,0 +1,9 @@
+────────────
+ Nextest run ID 6c3f826d-a488-41bb-9df5-ecac83fbf10e with nextest profile: default
+    Starting 3 tests across 1 binary (3 tests skipped)
+        PASS [   5.638s] (1/3) compiler::terminal_behavior_exclusions late_application_attachment_outlives_source_and_preserves_recovered_attribution
+        PASS [   5.843s] (2/3) compiler::terminal_behavior_exclusions executed_crash_selection_rejects_only_the_trapping_target
+        SLOW [> 60.000s] (───) compiler::terminal_behavior_exclusions calling_policies_share_product_code_across_targets_and_single_target_outputs
+        PASS [  73.549s] (3/3) compiler::terminal_behavior_exclusions calling_policies_share_product_code_across_targets_and_single_target_outputs
+────────────
+     Summary [  73.551s] 3 tests run: 3 passed (1 slow), 3 skipped

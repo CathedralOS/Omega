@@ -1,0 +1,30 @@
+{
+  "baseline": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "prerequisite": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+  "reason": "Failures remain observations of the frozen baseline compiler; no result is relabeled as a newer-producer run. Default application selection and compatibility classification are byte-identical across the explicit-policy prerequisite. The materializer differs only by removal of unused Source layout-data correspondence; its exact declaration ABI extraction prefix is identical. The same missing closed const operand therefore remains relevant to the frozen default-ABI counterexamples, whose Source inputs were unchanged.",
+  "comparisons": [
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/plan_computation.rs",
+      "function": "evaluate_default_calling_application",
+      "exact_function_text_equal": true,
+      "baseline_sha256": "8c130a3d5ec0d1a924810ff164cdd258b91fdec1d365fc748561a71bab76ffe9",
+      "prerequisite_sha256": "8c130a3d5ec0d1a924810ff164cdd258b91fdec1d365fc748561a71bab76ffe9"
+    },
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs",
+      "function": "materialize_prepared_signature",
+      "exact_function_text_equal": false,
+      "baseline_sha256": "f4f4a8746163c03a86d5d6e186b81a1e753919add6e7d26835a74d54c29a9c02",
+      "prerequisite_sha256": "cea511fc35741b54b475a65f7338b62cfb413d80cfc3b95499f860f3edf36465"
+    },
+    {
+      "path": "omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs",
+      "function": "compatibility_call_signature",
+      "exact_function_text_equal": true,
+      "baseline_sha256": "3fdd3d30fbc25861c3aeccf3d55fd4868c8b7a89c3a41c437bb648a9fec966b8",
+      "prerequisite_sha256": "3fdd3d30fbc25861c3aeccf3d55fd4868c8b7a89c3a41c437bb648a9fec966b8"
+    }
+  ],
+  "materializer_abi_extraction_prefix_equal": true,
+  "materializer_only_removed_source_layout_correspondence": true
+}

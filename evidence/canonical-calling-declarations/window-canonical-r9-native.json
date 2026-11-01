@@ -1,0 +1,331 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-omega",
+    "run",
+    "--both",
+    "--keep",
+    "samples/gui/window_demo/main.omg"
+  ],
+  "pid": 58388,
+  "exit": 0,
+  "seconds": 26.326891832999998,
+  "observations": [
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": -1260.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 24.59780825,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.449635417,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.500215875,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.550914582999997,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.592811583,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.643384708,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.694073292,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.735062292,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.785477042,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.826476707999998,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.869634417,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.918704166999998,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 25.969906833,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 26.020709583,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 26.071785457999997,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 26.126573542,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    },
+    {
+      "pid": 58406,
+      "window": 806,
+      "layer": 0,
+      "title": null,
+      "bounds": {
+        "x": 1152.0,
+        "y": 199.0,
+        "width": 256.0,
+        "height": 284.0
+      },
+      "seconds": 26.182029874999998,
+      "identity": {
+        "parent": 58388,
+        "executable": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-58388-0/window_demo.app/Contents/MacOS/window_demo"
+      }
+    }
+  ],
+  "captures": [
+    {
+      "seconds": 24.59780825,
+      "window": 806,
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native-frame-0.png",
+      "exit": 1,
+      "stderr": "could not create image from window\n",
+      "sha256": null
+    }
+  ],
+  "remaining_owned_windows": [],
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native.stderr",
+  "utc": "2026-11-01T20:42:07.086727+00:00",
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-omega",
+    "sha256": "0be24151593ae0eb1948a5f7bc932562bf1ee8c69d75bda49c990523412c084a",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build.omg": "61a230dcc2aa9b24b55412dacdc51cd409d0361492fe58c7483cc33c921d0801",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/main.omg": "f46dfc4a8ad617c37586532b1ea942514a4cb7d656f4d9516f1bde7cdedd6d0a",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/providers.omg": "76182f61f922ccf74673d47c6c5f937a1e8c9ce46eda3451a41fc8f467fc1444"
+  },
+  "lock_sha256": "20317dbc3787ae06fe90a62b52e59ab520fae2c807da236d78621d20d9145748"
+}

@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-omega",
+    "--check",
+    "samples/cli/facts/generic_terminated_array/other_state/invalid/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-omega",
+    "sha256": "0be24151593ae0eb1948a5f7bc932562bf1ee8c69d75bda49c990523412c084a",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/other_state/build.omg": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/other_state/main.omg": "15bd521a4c62c3e5f4b634000eb56daa001b4ef1993826cb3661a5c595f91f0e"
+  },
+  "utc": "2026-11-01T20:43:52.643326+00:00",
+  "exit": 1,
+  "seconds": 0.735172709,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-reject.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-reject.stderr"
+}

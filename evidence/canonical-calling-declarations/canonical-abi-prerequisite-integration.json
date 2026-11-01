@@ -1,0 +1,8 @@
+{
+  "utc": "2026-11-01T19:10:09.597885+00:00",
+  "previous_base": "40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb",
+  "prerequisite_base": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+  "source": "f6820d721ece1c5c23b390a1609a530088aad78f",
+  "reason": "Reuse published PR1254 canonical signature activation/source association instead of adding another source-based default ABI reconstruction path. Defaultclosedconst12 ABI failure is preserved on frozen40producer.",
+  "all_customer_inputs_unchanged": true
+}

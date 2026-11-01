@@ -1,0 +1,53 @@
+{
+  "rust-build-meta": {
+    "target-directory": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current",
+    "build-directory": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current",
+    "base-output-directories": [
+      "debug"
+    ],
+    "non-test-binaries": {},
+    "build-script-out-dirs": {
+      "path+file:///Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/driver#compiler@0.1.0": "debug/build/compiler/c3dff271c8d579fe/out"
+    },
+    "build-script-info": {
+      "path+file:///Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/driver#compiler@0.1.0": {
+        "envs": {
+          "OMEGA_COMPILER_OPT_LEVEL": "1"
+        }
+      }
+    },
+    "linked-paths": [
+      "debug/build/libmimalloc-sys/3259474b5f89f6c4/out"
+    ],
+    "platforms": {
+      "host": {
+        "platform": {
+          "triple": "aarch64-apple-darwin",
+          "target-features": "unknown"
+        },
+        "libdir": {
+          "status": "available",
+          "path": "/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib"
+        }
+      },
+      "targets": []
+    },
+    "target-platforms": [
+      {
+        "triple": "aarch64-apple-darwin",
+        "target-features": "unknown"
+      }
+    ],
+    "target-platform": null
+  },
+  "rust-binaries": {
+    "compiler::terminal_behavior_exclusions": {
+      "binary-id": "compiler::terminal_behavior_exclusions",
+      "binary-name": "terminal_behavior_exclusions",
+      "package-id": "path+file:///Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/driver#compiler@0.1.0",
+      "kind": "test",
+      "binary-path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-rust-controls-test",
+      "build-platform": "target"
+    }
+  }
+}

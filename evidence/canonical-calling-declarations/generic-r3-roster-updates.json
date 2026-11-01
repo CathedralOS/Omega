@@ -1,0 +1,42 @@
+[
+  {
+    "place": "field",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-field-update-review.txt"
+  },
+  {
+    "place": "parameter",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-parameter-update-review.txt"
+  },
+  {
+    "place": "call_result",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-call_result-update-review.txt"
+  },
+  {
+    "place": "match_join",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-match_join-update-review.txt"
+  },
+  {
+    "place": "const_name",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-const_name-update-review.txt"
+  },
+  {
+    "place": "other_state",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-other_state-update-review.txt"
+  },
+  {
+    "place": "other_machine",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-other_machine-update-review.txt"
+  },
+  {
+    "place": "target_body",
+    "exit": 3,
+    "review": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-r3-target_body-update-review.txt"
+  }
+]

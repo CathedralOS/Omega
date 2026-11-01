@@ -1,0 +1,19 @@
+--- 40f9e1d2d4e2f352667aaa9a21010ada1ad8fabb
++++ 3a4683b059c134bec55b05b7f2abbfe4e5122d9b
+@@ -64,8 +64,6 @@
+         let recipe = preparation.value_type(type_reference);
+         let (_, root) = values.value_type(preparation.recipes(), recipe)?;
+         parameters.push(root);
+-        let applied_type = substitute_boundary_type_reference(typed, type_reference, bindings);
+-        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
+         let formal_ordinal = u32::try_from(formal_ordinal)
+             .map_err(|_| "boundary signature has too many runtime parameters")?;
+         validate_fresh_native_parameter_identity(
+@@ -78,7 +76,6 @@
+             native_ordinal: formal.native_ordinal,
+             shape: BoundaryNativeParameterShape::Semantic(root),
+             origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
+-            layout_data_symbol,
+         });
+     }
+     let result = if prepared.return_type.is_valid() {

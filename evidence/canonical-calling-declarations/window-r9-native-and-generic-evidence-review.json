@@ -1,0 +1,626 @@
+{
+  "reviewer": "Codex independent semantic reviewer",
+  "status": "bounded R9 native and generic-row evidence authenticated; final candidate qualification pending remaining controls",
+  "source_revision": "f6820d721ece1c5c23b390a1609a530088aad78f",
+  "source_patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361",
+  "producer_sha256": "0be24151593ae0eb1948a5f7bc932562bf1ee8c69d75bda49c990523412c084a",
+  "blocking_findings": [],
+  "native_window_outcome": {
+    "native_exit": 0,
+    "stdout": "PASS: 60 frames blitted (exit 0)\n",
+    "authenticated_child_window_observations": 17,
+    "observed_outer_bounds": "256x284",
+    "remaining_observed_owned_windows": 0,
+    "terminal": "DECLINED; not an engine agreement",
+    "additional_services_enumerated_in_raw": [
+      "ServiceId(31)(toolchain::ClockObservation)",
+      "ServiceId(32)(toolchain::DirectoryEnumeration)",
+      "ServiceId(33)(toolchain::ExecutionDelay)",
+      "ServiceId(34)(toolchain::FilesystemContentRead)",
+      "ServiceId(35)(toolchain::FilesystemContentWrite)",
+      "ServiceId(36)(toolchain::FilesystemMetadataMutation)",
+      "ServiceId(37)(toolchain::FilesystemMetadataQuery)",
+      "ServiceId(38)(toolchain::FilesystemNamespaceMutation)",
+      "ServiceId(39)(toolchain::GlobalInputObservation)",
+      "ServiceId(40)(toolchain::NativeCodeExecution)",
+      "ServiceId(41)(toolchain::ProcessExit)",
+      "ServiceId(42)(toolchain::ProcessInput)",
+      "ServiceId(43)(toolchain::ProcessOutput)",
+      "ServiceId(46)(toolchain::SurfacePresentation)",
+      "ServiceId(47)(toolchain::WindowEventDispatch)",
+      "ServiceId(48)(toolchain::WindowEventObservation)",
+      "ServiceId(49)(toolchain::WindowManagement)"
+    ],
+    "additional_services_enumerated_count": 17,
+    "screenshot": "failed: could not create image from window; no captured pixels"
+  },
+  "generic_row": {
+    "native_terminal_agreements": 9,
+    "intended_source_rejects": 9,
+    "normal_updates": 9,
+    "all_27_raw_outcomes_and_input_hashes_verified": true,
+    "stages": [
+      {
+        "place": "local",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "local",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "local",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "field",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "field",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "field",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "parameter",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "parameter",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "parameter",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "call_result",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "call_result",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "call_result",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "match_join",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "match_join",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "match_join",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "const_name",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "const_name",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "const_name",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_state",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_state",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_state",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_machine",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_machine",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "other_machine",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "target_body",
+        "stage": "update",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "target_body",
+        "stage": "native",
+        "exit": 0,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      },
+      {
+        "place": "target_body",
+        "stage": "reject",
+        "exit": 1,
+        "raw_outcome_verified": true,
+        "input_hashes_verified": true
+      }
+    ]
+  },
+  "semantic_assessment": "Existing exact-ABI selected-member query is consumed through the same VerifiedNativeArtifactInput by runtime capture; no additional blocker identified in the reviewed final 30-file patch. Removed R7 logical-reachability filtering is not part of this candidate. Prior scoped source reviews remain source judgments, not additional execution claims.",
+  "limitations": [
+    "Window existence, process identity, guest 60-frame completion and disappearance are demonstrated; actual pixel contents and animation are not independently observed.",
+    "Screen-capture preflight is false, capture failed, and window title was unavailable; screenshot failure alone does not establish a specific failure cause.",
+    "PostEvent and AX preflights are false; interactive input, drag/close behavior and user-requested close cleanup remain unverified. Automatic normal completion is a separate observed path.",
+    "WindowDemo Terminal execution declined at ObjectiveC::send because the private sponsor lacks the declared additional service capabilities; native exit0 is not comparison agreement. Raw list enumerates 17 additional services, rather than 19 reported in earlier commentary.",
+    "The 256x284 window-system bounds are outer-window geometry; this does not independently verify the 256x256 client pixel surface.",
+    "Only macos_arm64 native customer execution is covered; other hosted targets remain unverified.",
+    "Generic row covers Count4 and fact-sensitive Text terminator rejection with 3/1 runtime discrimination and canaries; it does not establish arbitrary counts or GUI rendering.",
+    "Rust/admission/callback control completion and final committed candidate binding remain pending; no full GUI or parent acceptance is issued.",
+    "Post-exit observation establishes absence of the tracked window, not exhaustive release or leak auditing of every native object."
+  ],
+  "artifacts": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-source.patch",
+      "sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-producer.json",
+      "sha256": "5a9173815c246e55901f027f5c0384cdf93d7b76c244b9e52deb9b7d4294f9ad"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-build.json",
+      "sha256": "797f2d9ba65bb0d0b6c510dbccc0269aeb6ffcb308ffbf08414e96ed1c2a11e2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/canonical-default-r9-runtime-omega.compiler-profile.json",
+      "sha256": "e8c7cb7cbcc21c19a43bf61e5c6499cfc2e1db90a6aa72c76995b51378458083"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native.json",
+      "sha256": "485bba61378a972b1e86706d30dbc7607f456c798e78674731a0ab82b8200044"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native.stdout",
+      "sha256": "71a1db5f6f13ed66c575a2d171566661dfd2a49db1424c94173dae651ca0acdb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-native.stderr",
+      "sha256": "4bfe4d494a14a46303b2f10907017cd80edb4577e84b6ee162b15b1613cf8fc9"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-update.json",
+      "sha256": "5fe55d7551d5fe000892817867697d7d0d0ea58949132eafa0d5029b0b3e1774"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-update.stdout",
+      "sha256": "cee998bf8e1aeba365bd4c99c8a84b353cf1142c09c4fff6d19eeff6d0ba06f2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/observe_native_window.py",
+      "sha256": "8ef26092cf6e12ba81dd8a4455c2610637a24610de252ebd2a557e8d2aeb994c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/desktop-qualification-access-r1.json",
+      "sha256": "b9608474c2587c96b0b67981b24e2778a5152ce818f24011fccbcd2f04386bfd"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-row.json",
+      "sha256": "c0d719cda8a722d51bcfb290714ddc33e0339e7ab79ee905a938a906f78e077a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-update.json",
+      "sha256": "425a13693e4c9764f9ae49a801ea4d6f1336dc6bce428f04725771c667b5a359"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-update.stdout",
+      "sha256": "3019e68b77404ee4c420cef5d87745a23421641aae3fbb23565549a4343876eb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-native.json",
+      "sha256": "cdb07e883c11594f7a24796d72eab30cfe6092a25287f78a43539a3b1e3e899d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-reject.json",
+      "sha256": "12d67b026d1f5ec454356b7b9cb90967ba56a97badf59bea4799e50312b06b63"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-local-reject.stderr",
+      "sha256": "d645ee65d825e5ec89dd13f02c360e6b83888f2303b5b5d36e0dae94bac6f29b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-update.json",
+      "sha256": "42e1e6d1886440f33925ed898e424773c05a1c158d37f90d66cc67600081d32c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-update.stdout",
+      "sha256": "d5856dac57334a87145aad474fb4df5f1c54fb6d3bb3f2eaeb1294a7141ee953"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-native.json",
+      "sha256": "ad74c961fd323369a1153c66940ae8b44a8c4c3cf5a08c77cf481d6198b92035"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-reject.json",
+      "sha256": "5195565b1657876ad535e0639007b2a90d75640781bd7c6032593bbce4e444e6"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-field-reject.stderr",
+      "sha256": "f265cdc379d42f7752adeeba3499bc938a9b5c78d27d4f22aff796b8f56e127a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-update.json",
+      "sha256": "e6f315dfe3a0bb534cbc0d2ed00384a0ed20ebaa23894067eceb7c30720f3df3"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-update.stdout",
+      "sha256": "5ceaa72b4fcfc2db11b42931a3f1e1c564ac1f1c1255ed53cc8c619183f7fb2b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-native.json",
+      "sha256": "bb94ffe2adac721c46700d0db56117648184cc36bfa4d5f127b7f79a4f3a2b44"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-reject.json",
+      "sha256": "a2dbb1dcd96031d9c8f927e7cb9a7ae03634cc296d05379c2327773dc1e2a38c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-parameter-reject.stderr",
+      "sha256": "ed07b5764561639e1bb39dd27cdcfdc5112c64abae141a2fdbe09c1f12b43c44"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-update.json",
+      "sha256": "2b6a10d811931dbce254b4a1aec066a94488a2c65a4e2b0aeb2518d03f15fbc8"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-update.stdout",
+      "sha256": "8b2b229cac938e6579fb911bb5c78208bf2cec183f1dbc5a2e091658b6a2bbda"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-native.json",
+      "sha256": "ef9dce39dd82b9eee6ee60e811cf1268213c506d2ed911c880e91f3ed0f567f2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-reject.json",
+      "sha256": "c500561526238629b070752769bd3e41bc1360c8067e598b337a31dc1ec9c558"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-call_result-reject.stderr",
+      "sha256": "3afcbb8c7bcc3880490893c7f347ad51d139d971acf708ec70f03110a98af5b9"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-update.json",
+      "sha256": "470d3f6b0b6165430a47d2a3ae91247317a601d0da77563c2e05ebe23e0fdc4c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-update.stdout",
+      "sha256": "edfeacfd7af9f2698f0a2d4c26676eadf38c91c1b052afb49cb6518b6b1c787d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-native.json",
+      "sha256": "45ae43677f34004a695bd8a1e3c3c1dbbd3b1abe8609c2abab6c21746ae99393"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-reject.json",
+      "sha256": "2340cc33100c1db38da7135a10051c2cf092e40999b605b3ab8aaae7bba5333c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-match_join-reject.stderr",
+      "sha256": "80928059af4b333c399e8e35e1c3c94801bb99c0a9d13b13169a89aade58efb2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-update.json",
+      "sha256": "65201904a445c30cb9a2118bd0855f4fd3f8c9292ddccfb6ad7e253f5e25502c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-update.stdout",
+      "sha256": "62966e1c72f60b10ac0296421328d9dc3186fb5019a2cb475bf1e6087228b09b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-native.json",
+      "sha256": "be978ce9eb3f8cd57e79962bdf1aef99f5d653bee0ccc7d35b9553c2cdb1009e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-reject.json",
+      "sha256": "32f563e87cbb8632785bd9d9d44a9fdb4b84fcf224ee0c040df79d88bf5f2ee3"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-const_name-reject.stderr",
+      "sha256": "a878e66c61fb3e949cae699fd15016554e53920ac0b4994689fca409418c8e3f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-update.json",
+      "sha256": "e6d74d38c45c2ba58e21f4fd035142e56fe9a04d2e9b8fb710e05d92064dfe0f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-update.stdout",
+      "sha256": "aabb45d15079b9cb13c06b02a5478a8fe412f60e4a47d8cc8360c2a654925f0a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-native.json",
+      "sha256": "03e6f480e1b04683420006b9e8705a8f7f1f02e770a76310878f3e7456e7f195"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-reject.json",
+      "sha256": "065976de3797fa5e93eccb7a1fd50c2e6488339182dc906fc55f37c20c9dc0f9"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_state-reject.stderr",
+      "sha256": "c40a896cb66eb2e95fe090deee5eccad017b8c9a64903e7642685cb731b66694"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-update.json",
+      "sha256": "7668fe05c5a1f61a5d5ec08dd81145d4870034fa795da46bbbb10e3fc72dbd30"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-update.stdout",
+      "sha256": "1c7f41ddb535846676ba4bb04902b097826a46ca95a5d4e4b098f2a1a27b3a87"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-native.json",
+      "sha256": "903c7a45ee1682a374ceb006b163d3820dd6ce424b852d7b17149380d3767356"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-reject.json",
+      "sha256": "0f2dbc040aa5d3a04c546886f3390586e6910e8ebd455998dc20344b69e6d346"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-other_machine-reject.stderr",
+      "sha256": "2372db35dcfc655ad6e874ec25cd0b14ae78c4b1d4d8ac24fdf2daacf883f13e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-update.json",
+      "sha256": "290e2d6281b0c94b5d1fb471d236c412ecf2a32afb7a5502cb69c1bfb5eca57a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-update.stdout",
+      "sha256": "5f14ad992b02ca8d95478b733b20bfb6dfaf5c35b5f19f4341f77f9533aaa461"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-native.json",
+      "sha256": "cb93f9d31bda733a8d4e78482360ca6cd9a42467bf3269085df2538730a09429"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-reject.json",
+      "sha256": "cc3fcb1b0b2334f6e731bc995f370dd1c7ac7dfa80eeb2575752a1dff0e3cc15"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/generic-canonical-default-r9-runtime-target_body-reject.stderr",
+      "sha256": "36ebb47f311cdf588dd0f00ab814d8ace9a7cfd4314f6e266fb2d533ebf08ebf"
+    }
+  ],
+  "executions_launched_by_reviewer": false,
+  "source_mutations_by_reviewer": false
+}

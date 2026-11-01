@@ -1,0 +1,26 @@
+{
+  "review-macos_arm64.txt": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build/package-manager/review-macos_arm64.txt",
+    "sha256": "40e91680ca4559acfd46d54416649473dc92b7f477bca82a2d2c74c83f769dcd"
+  },
+  "source-diff.txt": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build/package-manager/source-diff.txt",
+    "sha256": "a99b39cbf71631ce732042ef613b1984d140fd5da664f0189ce32d85b38af15c"
+  },
+  "proposal": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build/package-manager/proposal",
+    "sha256": "e55c5d3de4340b1f50864d5a73e67cdf78a1bfabfadb00ac11f84f8a04c1bd3c"
+  },
+  "update.json": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update.json",
+    "sha256": "618b6502a0717cce65b394ca4dc73aecc4a2c4e07ffef6968dffeddc2e767509"
+  },
+  "retained.omega.lock": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update-input.omega.lock",
+    "sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079"
+  },
+  "output.omega.lock": {
+    "source": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-migrated-r2-update-output.omega.lock",
+    "sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079"
+  }
+}

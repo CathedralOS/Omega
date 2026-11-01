@@ -1,0 +1,17 @@
+{
+  "command": [
+    "cargo",
+    "nextest",
+    "run",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "terminal_behavior_exclusions",
+    "-E",
+    "test(calling_policies_share_product_code_across_targets_and_single_target_outputs) | test(late_application_attachment_outlives_source_and_preserves_recovered_attribution) | test(executed_crash_selection_rejects_only_the_trapping_target)"
+  ],
+  "exit": 104,
+  "seconds": 62.40931608300001,
+  "patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361"
+}

@@ -1,0 +1,99 @@
+{
+  "artifacts": {
+    "review": {
+      "r1": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/review-macos_arm64.txt",
+      "r2": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-review-macos_arm64.txt",
+      "r1_sha256": "c52d08ea7078715aa1e40d0f7af8f1f709800f14520d9f8524b246393ad754ec",
+      "r2_sha256": "c52d08ea7078715aa1e40d0f7af8f1f709800f14520d9f8524b246393ad754ec",
+      "byte_identical": true
+    },
+    "source_diff": {
+      "r1": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/source-diff.txt",
+      "r2": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-source-diff.txt",
+      "r1_sha256": "c5dfc6ca2c56f29e5e3df722dd5e07817ea252c778353ead8cb1ff9e4715d444",
+      "r2_sha256": "c5dfc6ca2c56f29e5e3df722dd5e07817ea252c778353ead8cb1ff9e4715d444",
+      "byte_identical": true
+    },
+    "old_lock_vs_r2_input": {
+      "r1": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/retained.omega.lock",
+      "r2": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update-input.omega.lock",
+      "r1_sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079",
+      "r2_sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079",
+      "byte_identical": true
+    },
+    "old_lock_vs_r2_output": {
+      "r1": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/policy-triage-r1/retained.omega.lock",
+      "r2": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update-output.omega.lock",
+      "r1_sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079",
+      "r2_sha256": "3f58bdc50e91436aa4620fd2f14de9fbbb5f0733351d8e34f6625b631e3f0079",
+      "byte_identical": true
+    }
+  },
+  "row_counts": {
+    "r1": 612,
+    "r2": 612
+  },
+  "added_ids": [],
+  "removed_ids": [],
+  "changed_complete_blocks": [],
+  "sample_input_source_hashes_identical": true,
+  "r1_producer": {
+    "source": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+    "patch_sha256": "2fdbb89418ae847517f4d6752167394f50be1dcf6f73253f62edbda258a66231",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 220.038263833,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r1-omega",
+      "sha256": "41977c3852aac44be6be3f7d3227995073d7d3d930686c97c290ca482972d865",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "r2_producer": {
+    "source": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+    "patch_sha256": "4ad8f5c2a351cf5469a38b41b4bf3cba4f8e399a1ea2b7367dc29506a821e49b",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 215.33143379199998,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+      "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "r2_update_exit": 3,
+  "committed_source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+  "committed_compiler_diff_sha256": "4ad8f5c2a351cf5469a38b41b4bf3cba4f8e399a1ea2b7367dc29506a821e49b",
+  "committed_compiler_diff_matches_r2_patch": true,
+  "authorization": "No decisions or locks changed; no compiler invocation or new native API audit."
+}

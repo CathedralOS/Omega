@@ -1,0 +1,10 @@
+{
+  "candidate": "5d01339880be66cb512a1ae26e21889a36644569",
+  "pr_base": "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+  "producer_source": "f6820d721ece1c5c23b390a1609a530088aad78f",
+  "compiler_patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361",
+  "candidate_patch_exactly_matches_producer": true,
+  "customer_sources_unchanged_since_producer": true,
+  "utc": "2026-11-01T21:00:25.935823+00:00",
+  "qualification_scope": "Canonical calling declarations through native execution and WindowDemo counter/provider/limit migration. GUI pixel/input/close and Finder qualification explicitly kept pending by owner. GUI Terminal comparison declined additional service capabilities; no agreement claimed."
+}

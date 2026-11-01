@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `generic_terminated_array` with 1 diagnostic(s)
+  error: data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+    in package `generic_terminated_array`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/target_body/invalid/main.omg:38:23

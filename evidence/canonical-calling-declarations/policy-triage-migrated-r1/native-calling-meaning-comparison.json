@@ -1,0 +1,461 @@
+[
+  {
+    "operation": "MacosImageObjects::create",
+    "fresh_id": "866c8023c416f7593615e6a8d580ec002e2e74f47fff6a3063cc7d30a996684a",
+    "historical_id": "c98bbe9da2d969477a6630fade1d0523e9321eec0cb789b67c2b1fc2d0f163ec",
+    "historical_full_sha256": "c6ed0e428203d06ac6761823f9ed080dc7799cfa3ced32dfe2fcc7f2e007c0c4",
+    "fresh_full_sha256": "929db3db2026054e1031db8c5fe79389557f28babf74ec508574bbc3bcb46f67",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 15884494734585183244"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects::create\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u32\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(bool\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u32\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_byte_string",
+    "fresh_id": "6873a33adcd7aad10d97734ba50d73ca6d1e46fc8f0fb4ef4c2ff547e0cd9fed",
+    "historical_id": "8e2321971b0f84556418552591e03bc47e69cc020555ebe2ee913f66b255da95",
+    "historical_full_sha256": "223789323ac527cbd3f7009ac776da4c1fe35f2a219bf9db5d75f9430e2d518b",
+    "fresh_full_sha256": "20f73ad07041a97b8481b04728582399aea13aba2423d3f19b3bd2785069ade4",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "MacosImageObjects::release_provider",
+    "fresh_id": "7bc26dcf06ad65a636fc07c89522bd117b079b2df460a5a81f35847194cda002",
+    "historical_id": "dfcb5b0d2f91f7f53e23ba3f5bdbe34218993d55bd0cdd7d481d16059445fead",
+    "historical_full_sha256": "4462335a6a232f971fa2cc436450604416660eae4adf5bf2c1cc23ea8189270a",
+    "fresh_full_sha256": "1b3550e45b4d1b74c1a065aca107c6927aca5b5d7efb784c4bbfbab9e4f843f1",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 3766997296749089486"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects::release_provider\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::register_selector",
+    "fresh_id": "c35a005602252c1723315bc88a803cbc58c7e188e6259632aaacfcc63da9e57a",
+    "historical_id": "8981031ffcc5efe27bbad756b487c5587f60e76f33db8553598b0be9dbe0d433",
+    "historical_full_sha256": "8125fd387ae65afc9eaaf050ba2fc0af2b916e67812aec984bc95287f714197e",
+    "fresh_full_sha256": "2dff1d447bd798e665ef77c6615ad65f9ffb0ca2fb590ee05502012b4ec41097",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_string",
+    "fresh_id": "09ad9f72a75b2e6a61dd9bda5074094d9f8c1398e169d8d51f0c0e1e6a2e0ced",
+    "historical_id": "8cd042192fd8d7c4e26dd1df2fcea5de28b53a1bb1f3f06a5adb02a9176bccb9",
+    "historical_full_sha256": "cf184d49374e670f4663a3a8c4ac49071f47a065bc2dc210e11bec44afeab367",
+    "fresh_full_sha256": "c10fcd63e97181aa084b61cf7ab9401cabebc08f1d3d3c377ffd44005895c128",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "DarwinTimeRead::clock_nanoseconds",
+    "fresh_id": "1d21c82cd69cfee902e0aa9eb44dd98fc3ffcaa11ca88cbc43481752a26bc905",
+    "historical_id": "0d27eac49830c29fdb136c0c9381c6e331fce1a67f68ec238d7cfc0fd2c25250",
+    "historical_full_sha256": "5f61e350c30c00146c9d2185aced5b4eff52406cd13f733d071be0af140961e3",
+    "fresh_full_sha256": "f8a68c1903dbf9107157e2e4d3f9a158923196300660bbe378e5bb8961101a94",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send",
+    "fresh_id": "90be90b05750e9fc9fdfa25fabd0b8c124bd2dcb1f8f0df9b0c7d0396809e388",
+    "historical_id": "8c6b021f61826e22284b461b7e5cb74924b36ea7604ae69f56440b89902abe2b",
+    "historical_full_sha256": "9e560acb92da1c19b8fa8cd095ba54a9381eeba3b3ef879456a08fc8c1b51a50",
+    "fresh_full_sha256": "c976bc15c9fad8aafa61128583213935ec949353865c8809bc80b0ec8dc3169c",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "MacosImageData::copy",
+    "fresh_id": "7a3fbcda7a153b5bce1d3a778f17a198993986ed61fefebf58efb8dcb1164855",
+    "historical_id": "42b8f3c4d95d8e839f822bb1c724b47465540cabd74226b0e2685192c371dc9f",
+    "historical_full_sha256": "56d1a1fc35e4efb1935db01f17fa36df8186f8e41022f4b3ba0a215ef10d7787",
+    "fresh_full_sha256": "367f89824972e3b9646036359ce1effc1be8551a832e1f9048462def43507baf",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 10307311592518125966"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageData::copy\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,ref\\\\(slice\\\\(named\\\\(name\\\\(u8\\\\)\\\\)\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageData\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_rect",
+    "fresh_id": "7086491ad76091f6cb109a20b4f344c758512fcf2ef4735a4f44002c285311a4",
+    "historical_id": "812eba3e371cc875734f92b8778b550414942d6ce600b5eace25e873d2c0d7f7",
+    "historical_full_sha256": "9fcb20f222d63ccf612916eb29992bec928d79f12c8ab25c9c646175c1cc22d3",
+    "fresh_full_sha256": "484e52a4f43506e992b30d78a1c81c0742f471623e81a7d02d623ee73e95f9bf",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_scalar4",
+    "fresh_id": "499672c7f9c904bb28aa1aea2d3c6ef39c438be311b08adbc454a4f393942678",
+    "historical_id": "a37d10dfdf361db54b578af3b953c06529d30d5aac7faa129044021fa43ff9e3",
+    "historical_full_sha256": "191a6f9f68ca71dd3133a7966d0f5ff1fabd672782c6bec6433ef785292f801e",
+    "fresh_full_sha256": "7a180f48a79476cea3e9cc0f83f47190a998419a5648484ebb1839747c3f1d32",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_image_size",
+    "fresh_id": "8c93538343fdd433b05996907c23092a2712153a3d1ef4da398e82869973bed4",
+    "historical_id": "8916154202a9729e20357f426358b7ce9b0a4f16fb5154bd7d0a1759adf27c7a",
+    "historical_full_sha256": "5130e5767e05dade199341ed5833955bb3c7e7a925c863cf8276f0c2043cf21e",
+    "fresh_full_sha256": "f165afb21ec2a2b37a0df2db899e25cb16b4a44c802a91a66881a6c25ada73c2",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "MacosImageObjects::provider",
+    "fresh_id": "28a5a6aebcce07aabafbc0ad322e5370580797e8195f1563256919c7b3c91342",
+    "historical_id": "e13364a5f544964304b76d58e2b51ea5d06a588c91879a3268f7e19f2f32dc76",
+    "historical_full_sha256": "8cdb3680752618d8a4a0e1da6613b3b85c1b4e60f01272c8e92d2aecb09382b2",
+    "fresh_full_sha256": "f377c13ec592beb81fe162b34fa50dc7b198717376fa8473787612545ce8fe3e",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 10516062916488603156"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects::provider\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "DarwinTimeRead::poll",
+    "fresh_id": "cca522c34a7befb6315a920b04682afa3092d2f633df739870ae13161377cf4c",
+    "historical_id": "ed2a7220cdf951b1172fdc1dddcfc4285296b70d9f78bbaf3c19f43896963a51",
+    "historical_full_sha256": "d8d43c0858ec3cfe8f417aea4d98a2bf3fac9d2f2401ff515b725b254838676b",
+    "fresh_full_sha256": "a0d0f8a2433c05c770dd9543578efe25026102a13797c3601bbab3f762ea5fa1",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_delayed",
+    "fresh_id": "ae23a22f93a734ed826fe4f2c1af24a27192534fb997e0665e0e09211c85cc5d",
+    "historical_id": "ba4e400f5ed169d803267cf55f9074278f52bdbf8fef18215d90c32705e92cc4",
+    "historical_full_sha256": "6d0bc8959005649134cfdcc7f1f66a778c949b6ce187c3ecc95f207c20f5ed81",
+    "fresh_full_sha256": "590c92cec67d23214b7d9d851f6011a4c5efd612d8130e5c41e306f09e396c98",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "DarwinClockWait::poll",
+    "fresh_id": "f898cc5900b7e48848e71af4bc6e32985d168c599184b62e86f1cdf58a4126c4",
+    "historical_id": "1d6f46e2c8bbf6c829462ebf1fdfeb97ac95507588aeb593085e8ee285e216ca",
+    "historical_full_sha256": "39b87485bbecadd6b65d79037dd3cbbada02326a6b1fb1cfa4f7e604eb0f1752",
+    "fresh_full_sha256": "36d7ceec278b57518dfea3ae11274f0dd3392aa7f4e19d0d7793bc8f63d61765",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "MacosImageObjects::release_data",
+    "fresh_id": "ad4aa5273b7da2e5d9c1267cdd4659be35c0abb37b490c5773b751d52c373e3e",
+    "historical_id": "8e867645156753f5e5cb6de8dc9be454cd31121df650a749b210d37ba21c5668",
+    "historical_full_sha256": "6061045a9e81d5b53b06645c45acde0bce74e319e31407ab3fc94cb3289ba3ce",
+    "fresh_full_sha256": "216daecece2289a6b9de80624b31a620b65501530a3c21cb02dc379f41022acc",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 9680027881121705875"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects::release_data\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::pool_push",
+    "fresh_id": "5a495e9b8ee202531aef3ff94c51dc62ed452c2ec750767dec481f2b36768da4",
+    "historical_id": "4a9d5cbb9889f5ce9256fb23fe6fbbc268b1f606a842487d2a45c14aff025626",
+    "historical_full_sha256": "f7e26444f541fca83d7b47ae28701c7d4ca530e2307ca0847bb8ef8eb94afc28",
+    "fresh_full_sha256": "5e14dd8ff0d378e5f10754fd57a5feff77b2e9c6df4ecb41a269b83af31a219a",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "MacosImageObjects::release_image",
+    "fresh_id": "913c93ea2bb0ae5b6f5071aefeea69363608a6336385a56b0a8d7989e5dea05a",
+    "historical_id": "ecd2309c4cab3c6dd365d45749636435726fb9e01765213176327974bf5164c7",
+    "historical_full_sha256": "158942b5f04d6efeed6fa6d3829c3bc39f37f9e60faeb85180ba147bac5370c6",
+    "fresh_full_sha256": "a1319cc631025b5cd9fbd783a9e39c46ffbecd3025fc225468a11b8013b1fc0a",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 1,
+    "new_declaration_abi": [
+      "field declaration_abi",
+      [
+        [
+          "field coordinate",
+          [
+            "u64 1409921468046850655"
+          ]
+        ],
+        [
+          "field requirement",
+          [
+            "string \"named-callable(path(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects::release_image\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())\""
+          ]
+        ],
+        [
+          "field declaring_application",
+          [
+            "string \"trait-application(declaration(nominal\\\\(package-owner\\\\(32:9c13e800e9452674a5e5476c10abaede9f291d07e28e5b0c7d5e03cb7fe27459\\\\)\\\\,path\\\\(MacosImageObjects\\\\)\\\\)),arguments(),lifetimes())\""
+          ]
+        ],
+        [
+          "field operands",
+          [
+            [
+              "sequence 0",
+              []
+            ]
+          ]
+        ]
+      ]
+    ],
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::get_class",
+    "fresh_id": "222473c89c2eaccd5e4d259b121ad6e9286c5012d599d441f60428f622a5d474",
+    "historical_id": "9178b1e8c7f45bde1d6248247077b40e233efbf26bfd5f5e88c656550725a0b5",
+    "historical_full_sha256": "93a367ff98c665c6ad50c4427a8fe396cde7b75fee741e290524c5ca187153f8",
+    "fresh_full_sha256": "09f10a4c1e775812c83c27b0ea680e21f80e994eaff77720dcea2db539ead46c",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::send_scalar",
+    "fresh_id": "4da3036eb2e330cf1d4c1f545b43320f15ff85e41815d9986caef4ed1b288d7a",
+    "historical_id": "d407d3f1426c58e8b0b7a0a41a2d7ee4957259858d9e13968781d492b98cc68b",
+    "historical_full_sha256": "e4b15452582057ed08d06c998cf03ef249b0bef67a3d689c1d4de9befbcdcb9f",
+    "fresh_full_sha256": "e629c3cd1508c6da59457c49e875d3ec8e57802e274f3bafb7b6daf05b51228a",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  },
+  {
+    "operation": "ObjectiveC::pool_pop",
+    "fresh_id": "523104d349dead1e81364131761842e887cc7997ba5f19961bad1418ef491fb2",
+    "historical_id": "c3743923e67367fd0baaf359b81dad70a65ca9ae8dee2720a7c976b19cb2fb10",
+    "historical_full_sha256": "c571aaa8ed26c951c15f784c4985cb1a7ab9dff161b9e0c4bb3be8235fe362c5",
+    "fresh_full_sha256": "105d66977b2e70d4a3289f10f61ef785d3d88b9a716dab22d7f3e925dc8f348d",
+    "full_meaning_identical": false,
+    "only_schema_and_calling_roster_custody_changed": true,
+    "legacy_calling_plan_exactly_equal": true,
+    "calling_applications": 0,
+    "new_declaration_abi": null,
+    "fresh_recommendation": "accept: explicitly reviewed schema/roster/custody delta; no changed native locator/signature/authority/physical plan"
+  }
+]

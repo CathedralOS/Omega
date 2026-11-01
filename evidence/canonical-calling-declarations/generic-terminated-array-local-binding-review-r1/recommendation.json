@@ -1,0 +1,87 @@
+{
+  "schema": "omega-bounded-native-binding-meaning-review-v1",
+  "role": "implementation-sidecar read-only policy triage; not independent final review",
+  "comparison": "f1966d103e1bbf3a9e54f25504da2a31c647d0bc8160f21d076011dec9571bfe",
+  "row_id": "87d45816f5bf80c148ff8579403e4f6a21218e308d2dc220ee97a733147a8e57",
+  "recommendation": "accept",
+  "actual_policy_decision": "pending",
+  "review_sha256": "853a2ceed2af5942b5f047dafb34c09ccf9bb4dbceca8b2df5bc8c2d86d331c4",
+  "baseline_lock_match": {
+    "kind": "native_binding",
+    "key": "5df1004e4639163822e0182c26eab7c378a941cd0f337921275e08e3bd49d404"
+  },
+  "full_old_payload_sha256": "8d22605d7f8c62d6c991dc5d957e438c86b4effa942e1fbd403f4e4d2e8afe0f",
+  "full_new_payload_sha256": "34dc47054d68152f0a7ac0cec60249edbfd2f6d4f1ac9f8a9d054d591046f77f",
+  "source_and_occurrences_unchanged": true,
+  "exact_differences": [
+    {
+      "field": "baseline_schema",
+      "old": "u16 18",
+      "new": "u16 19"
+    },
+    {
+      "field": "value.requirement.calling",
+      "old": "option none",
+      "new": "sequence 0"
+    }
+  ],
+  "all_other_canonical_text_exactly_equal": true,
+  "operation": "CText::length<const Count: u64>",
+  "native_locator": {
+    "target": "macos_arm64",
+    "install_name": "/usr/lib/libSystem.B.dylib",
+    "symbol": "_strlen"
+  },
+  "meaning": "One borrowed fixed-array reference argument and u64 result; static Count is erased. The unchanged SDK contract is size_t strlen(const char *): return bytes before the first NUL, excluding it. This schema/empty-roster change adds no native calling application or foreign authority.",
+  "source_obligations": "Count > 0 and text[Count - 1] == 0; live shared backing. Actual calls explicitly/inferred Count=4 and return expectations 3 for abc\\0 and 1 for a\\0c\\0, with neighboring 0xA5/0x5A canaries. Entry/result claim sequences in this policy row are empty and unchanged; formation safety is established by the authored Source contracts, not invented policy claims.",
+  "scope_limits": [
+    "No compilation, native execution, or acceptance performed.",
+    "The SDK header/manpage establish the external contract; no emitted machine-code or runtime result was observed.",
+    "The pending packet has no explicit calling application before or after; a future populated default-ABI roster requires its own exact meaning comparison.",
+    "Other hosted locators are authored but not executed or approved by this macos_arm64 row.",
+    "No new allocation, mutation, retention, callback or lifecycle permission is introduced."
+  ],
+  "blocking_findings": [],
+  "inputs": {
+    "review-macos_arm64.txt": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/build/package-manager/review-macos_arm64.txt",
+      "sha256": "853a2ceed2af5942b5f047dafb34c09ccf9bb4dbceca8b2df5bc8c2d86d331c4",
+      "bytes": 14909
+    },
+    "source-diff.txt": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/build/package-manager/source-diff.txt",
+      "sha256": "f29e4f21b491b30f398863aecda88d55d45c9b47f18b3ffbb720cefec1c372e5",
+      "bytes": 727
+    },
+    "retained.omega.lock": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/omega.lock",
+      "sha256": "73d1bb1a40813b605c938234a61c014bd1c074b23b4b3606ca2e888ab249ef02",
+      "bytes": 8338
+    },
+    "main.omg": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/main.omg",
+      "sha256": "da27b4a938f388ec35f6dc1aa6b1ee42f85f34d1ffe4af37465b4f49fe988cdc",
+      "bytes": 1075
+    },
+    "build.omg": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/build.omg",
+      "sha256": "2579371e3603e27a86fc3bd8e528c2579d3f23f4627d9de8a4be6291c70eb2b7",
+      "bytes": 1146
+    },
+    "invalid-main.omg": {
+      "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/local/invalid/main.omg",
+      "sha256": "1e109b8f950929cc1573c32ab5b77b31953411fcdf0f0658d6462ebcf4f2f4b2",
+      "bytes": 1075
+    },
+    "sdk-strlen.3": {
+      "source": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/share/man/man3/strlen.3",
+      "sha256": "ddaa5ad0e731c8359d9c303e2b50408b1632d284bd4aecac3c850cd360366a6a",
+      "bytes": 2778
+    },
+    "sdk-string-header.h": {
+      "source": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_string.h",
+      "sha256": "f9ff67a1e82c3ce2f15d0a8bb3031b6d49ceaac149829cb9b769a9476391c63e",
+      "bytes": 9281
+    }
+  }
+}

@@ -1,0 +1,6 @@
+corpus_gate: clean — 1 fixtures ({'built': 1}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 1 (exit codes {'0': 1}), 0 with stdout differing from expected
+corpus_gate: golden provenance: 1 rows stamped, 0 legacy (unstamped), 1 revision distance(s) unavailable
+corpus_gate: measured at jobs=runner default, golden jobs=3
+corpus_gate: 18 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (2 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions
+corpus_gate: wrote 0 moved fixture(s) to /Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/callback-gate-moves.txt

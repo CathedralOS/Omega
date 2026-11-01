@@ -1,0 +1,36 @@
+   Compiling optimization-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/foundation/optimization-core)
+   Compiling language-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/language-core)
+   Compiling semantic-vocabulary v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling source v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/source)
+   Compiling layout-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/layout-plans)
+   Compiling diagnostics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/diagnostics)
+   Compiling symbols v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/symbols)
+   Compiling build-time-values v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/build-time-values)
+   Compiling language-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/language-semantics)
+   Compiling target v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/backend/target)
+   Compiling access-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/access-plans)
+   Compiling runtime-abi v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/backend/runtime/runtime-abi)
+warning: function `classful_internet_address` is never used
+  --> omega-rust/omega/compilation/backend/runtime/runtime-abi/src/network_address.rs:62:15
+   |
+62 | pub(super) fn classful_internet_address(network: u32, host: u32) -> u32 {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `classful_local_address` is never used
+  --> omega-rust/omega/compilation/backend/runtime/runtime-abi/src/network_address.rs:78:15
+   |
+78 | pub(super) fn classful_local_address(stored: u32) -> u32 {
+   |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `runtime-abi` (lib) generated 2 warnings
+   Compiling terminal-psi v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling calling-conventions v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/omega/compilation/backend/calling-conventions)
+    Finished `test` profile [optimized] target(s) in 9.91s
+────────────
+ Nextest run ID 37266214-f708-46bc-939d-d6a213843a84 with nextest profile: default
+    Starting 1 test across 1 binary (58 tests skipped)
+        PASS [   0.006s] (1/1) calling-conventions boundary_application::terminal_telescope::tests::phantom_local_application_cannot_borrow_equal_geometry
+────────────
+     Summary [   0.009s] 1 test run: 1 passed, 58 skipped

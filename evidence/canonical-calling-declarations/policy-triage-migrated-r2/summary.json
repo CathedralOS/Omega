@@ -1,0 +1,33 @@
+{
+  "schema": "omega-bounded-policy-disposition-recommendations-v1",
+  "comparison": "3cf73928f129aa00b70c55977a9d14d5c5782eefa3ed7617fbf009ccfc2f7274",
+  "review_sha256": "40e91680ca4559acfd46d54416649473dc92b7f477bca82a2d2c74c83f769dcd",
+  "update_utc": "2026-11-01T18:55:19.180231+00:00",
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main40-r1-omega",
+    "sha256": "f4c43412e6781bf572a94a9210199ba147ade5857cb984e14ccc391b1130855b",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "all_631_complete_meanings_and_contexts_identical_to_migrated_r1": true,
+  "same_decision_ids": 0,
+  "old_lock_identical": true,
+  "sample_input_hashes_identical": true,
+  "recommendations": {
+    "accept": 631
+  },
+  "actual_decisions": {
+    "pending": 631
+  },
+  "classifications": {
+    "exact-historical-removal-meaning": 360,
+    "fresh-schema19-candidate-review": 231,
+    "schema-only-critical-capability": 10,
+    "fresh-calling-roster-custody-review": 21,
+    "root-export-summary-removal": 9
+  },
+  "remaining_policy_blockers": [],
+  "scope": "Recommendations for this exact snapshot only; not an applied decision, whole-std audit, runtime qualification, or exact reuse of the historical schema18 Hilbert recommendation. Schema19 native-custody deltas were freshly compared in migrated-r1/native-calling-meaning-comparison.json; all full schema19 meanings now match migrated-r2 exactly."
+}

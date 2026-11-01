@@ -1,0 +1,312 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1086
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/target_body" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "generic_terminated_array"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/target_body"
+resolution external-local "424bc62cf2dc15b5750feee7c815907df57edb4a57e2efc76085e7259bcd126e"
+packages 1
+package
+source
+name "generic_terminated_array"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/generic_terminated_array/target_body"
+resolution external-local "424bc62cf2dc15b5750feee7c815907df57edb4a57e2efc76085e7259bcd126e"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 6321
+acceptance_schema 7
+rows 1
+row native_binding
+key 382cd01638cd4a65afe26ce031e518e8e58aa39dfed9ef8198d0ea5f63228a08
+meaning 6178
+omega_package_policy_row_text 1
+field binary_format {
+  fixed "OMEGA-PACKAGE-POLICY-ROW\x00"
+}
+field row_schema {
+  u16 7
+}
+field baseline_schema {
+  u16 19
+}
+field package {
+  digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+}
+field target {
+  string "omega.target-profile.v1:macos_arm64"
+}
+field kind {
+  tag native_binding 25
+}
+field initial_requires_decision {
+  bool true
+}
+field update_requires_decision {
+  bool true
+}
+field audit_recommended_when_present {
+  bool true
+}
+field audit_recommended_on_change {
+  bool true
+}
+field value {
+  field requirement {
+    field name {
+      string "length"
+    }
+    field requirement_owner {
+      field owner {
+        tag package 0
+        field package {
+          digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+        }
+      }
+      field path {
+        string "CText"
+      }
+    }
+    field requirement {
+      field owner {
+        tag package 0
+        field package {
+          digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+        }
+      }
+      field path {
+        string "named-callable(path(nominal\\(package-owner\\(32:2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0\\)\\,path\\(CText::length\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(array\\(named\\(name\\(u8\\)\\)\\,const-parameter\\($T0\\)\\)\\)\\)),result-dispatch())"
+      }
+    }
+    field signature {
+      field schema_arguments {
+        sequence 0 {
+        }
+      }
+      field schema_lifetime_parameter_count {
+        u32 0
+      }
+      field schema_lifetime_arguments {
+        sequence 0 {
+        }
+      }
+      field application_lifetime_parameter_count {
+        u32 0
+      }
+      field requirement_arguments {
+        sequence 0 {
+        }
+      }
+      field requirement_lifetime_arguments {
+        sequence 0 {
+        }
+      }
+      field requirement_lifetime_parameter_count {
+        u32 0
+      }
+      field static_parameters {
+        sequence 1 {
+          item {
+            field kind {
+              tag const 1
+              field type_identity {
+                field canonical {
+                  string "14:signature-type41:named(name(compiler-type\\(atom\\(u64\\)\\)))5:named"
+                }
+              }
+            }
+            field bounds {
+              field multiplicity {
+                tag affine 1
+              }
+              field carry {
+                tag none 0
+              }
+            }
+          }
+        }
+      }
+      field parameters {
+        sequence 1 {
+          item {
+            field name {
+              string "text"
+            }
+            field type_identity {
+              field canonical {
+                string "14:signature-type86:ref(array(named(name(compiler-type\\(atom\\(u8\\)\\))),const-parameter(type-parameter:0)))36:9:reference6:elided14:5:array5:named"
+              }
+            }
+            field is_const {
+              bool false
+            }
+            field is_mutable {
+              bool false
+            }
+          }
+        }
+      }
+      field result {
+        option some {
+          field canonical {
+            string "14:signature-type41:named(name(compiler-type\\(atom\\(u64\\)\\)))5:named"
+          }
+        }
+      }
+    }
+    field authority {
+      field service_reach {
+        sequence 1 {
+          item {
+            field owner {
+              tag package 0
+              field package {
+                digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+              }
+            }
+            field path {
+              string "CText"
+            }
+          }
+        }
+      }
+      field synchronous_invocations {
+        sequence 0 {
+        }
+      }
+      field progress_premises {
+        sequence 0 {
+        }
+      }
+    }
+    field parameter_count {
+      u64 1
+    }
+    field parameter_type_identities {
+      sequence 1 {
+        item {
+          field value {
+            string "ref(array(named(name(u8)),const-parameter(nominal\\(package-owner\\(32:2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0\\)\\,path\\(CText::length::Count\\)\\))))"
+          }
+        }
+      }
+    }
+    field entry_claims {
+      sequence 0 {
+      }
+    }
+    field completion {
+      tag normal_return 0
+    }
+    field has_result {
+      bool true
+    }
+    field result_type_identity {
+      option some {
+        field value {
+          string "named(name(u64))"
+        }
+      }
+    }
+    field result_claims {
+      sequence 0 {
+      }
+    }
+    field service_reach {
+      sequence 1 {
+        item {
+          field value {
+            string "CText"
+          }
+        }
+      }
+    }
+    field synchronous_invocations {
+      sequence 0 {
+      }
+    }
+    field may_suspend {
+      bool false
+    }
+    field may_block {
+      bool false
+    }
+    field terminates_guarantee {
+      bool false
+    }
+    field termination_premises {
+      sequence 0 {
+      }
+    }
+    field calling {
+      sequence 0 {
+      }
+    }
+  }
+  field binding {
+    tag import 7
+    field target {
+      string "omega.target-profile.v1:macos_arm64"
+    }
+    field locator {
+      tag macho_dylib_symbol 3
+      field install_name {
+        bytes "/usr/lib/libSystem.B.dylib"
+      }
+      field symbol {
+        bytes "_strlen"
+      }
+    }
+    field producer {
+      field declaration {
+        field owner {
+          tag package 0
+          field package {
+            digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+          }
+        }
+        field path {
+          string "build"
+        }
+      }
+      field package {
+        option some {
+          digest 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+        }
+      }
+      field callable_identity {
+        string "named-callable(path(nominal\\(package-owner\\(32:2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0\\)\\,path\\(build\\)\\)),parameters(parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Build\\\\\\)\\\\\\)\\)\\)\\)\\)),result-dispatch())"
+      }
+    }
+  }
+}
+end_acceptance
+compilation 279
+compiler ac4e564994286e0b7de84bfef5c65ae515fbc29d463330d6f43cfe62f0d0a45f
+package 2cbccf92a4f0e6f95d28d0d92ab78069cb6e91a0083a7bc4e1c07b1c07542eb0
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 348
+omega-policy-decisions 2
+source debd5fdaa8cfee7e3e0128bdd1b15aba0b02cd44a003621a6d650e4049ad49c4
+baseline debd5fdaa8cfee7e3e0128bdd1b15aba0b02cd44a003621a6d650e4049ad49c4
+comparison ae9eed2bcb08b63c1a3449ec18d33580f375571551bb867219d151f99558106b
+decisions 1
+decision row c4645912075d2ebaebbcf8b6074ed569375f87650afc989eb65e0751b10d31fa accept
+end
+end_target
+end
