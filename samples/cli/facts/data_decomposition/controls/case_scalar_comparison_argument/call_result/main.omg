@@ -1,0 +1,23 @@
+// A case payload comparison remains available to a selected scalar argument.
+// Expected exit: 0
+data Mode [copy] { case Linear; case Affine; }
+data Counter { value: u64 in Wrapping; }
+machine classify(counter: &mut Counter, value: u64) -> Mode
+requires value < 2
+{
+    counter.value = counter.value + 1;
+    match value == 0 { true -> Mode::Linear false -> Mode::Affine }
+}
+machine choose(counter: &mut Counter, value: u64) -> bool
+requires value < 2
+{
+    transition { _ -> answer(classify(counter, value) == Mode::Linear) }
+    machine answer(selected: bool) -> bool { selected }
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0 };
+    let first: bool = choose(&mut counter, 0);
+    let second: bool = choose(&mut counter, 1);
+    transition first && !second && counter.value == 2 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
