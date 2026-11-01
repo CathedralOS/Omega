@@ -2,10 +2,10 @@
 
 Fact: matching a 4-variant tagged enum payload Packet { Alpha(u64), Beta(u64), Gamma(u64), Delta(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Owning Task: `REQUIRES-UNIFICATION` (`TASKS.md`) — retiring case `where` onto the data `requires` must not change any migrated row's result or refusal obligation.
 Obligation Class: Tagged case payload layout plans and variant discriminant tags (`wiki/spec/layouts/plans.md`) — 4-variant enum tagged case payload preserving payload interval bounds `40u64 <= payload <= 80u64` to discharge exact subtractions `80u64 - payload` and `payload - 40u64`.
 
-Every positive place and reject twin tests a 4-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`Alpha(v: u64)`, `Beta(v: u64)`, `Gamma(v: u64)`, and `Delta(v: u64)` where `v >= 40u64 && v <= 80u64`).
+Every positive place and reject twin tests a 4-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`Alpha(v: u64)`, `Beta(v: u64)`, `Gamma(v: u64)`, and `Delta(v: u64)`), whose default domain `requires` each case's `self.v >= 40u64 && self.v <= 80u64`.
 Matching or extracting the active variant payload yields an exact result `res: u64` statically guaranteed to lie in `[40, 80]`.
 Casting or transporting `res` across places preserves `40u64 <= res <= 80u64`.
 Subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64` inside `verify_payload` are proved underflow-free and non-negative, evaluating to `20u64 + 20u64 = 40u64` for `v == 60u64` and terminating with exit 0.
@@ -49,7 +49,7 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 ### The oracle discriminates
 
 In each positive place, evaluating `probe(Packet::Gamma { v: 60u64 })` extracts `res = 60u64`.
-Because all four variant arms enforce `v >= 40u64 && v <= 80u64`, the exhaustive match statically establishes `res in [40, 80]`.
+Because the default domain requires `40u64 <= self.v <= 80u64` under every case, each arm's `v` carries that bound and the exhaustive match statically establishes `res in [40, 80]`.
 Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u64` and `margin = res - 40u64 = 20u64`) evaluate to `20u64 + 20u64 = 40u64`.
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
@@ -126,3 +126,25 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Requirements and evidence
+
+- **Establishment.** The bound is the data default domain's requirement on the
+  selected case. A match arm that selects `Packet::Case` receives that case's
+  conjuncts from the `requires` disjunction; no `ensures` restates them. Root
+  and `call_result` additionally state `ensures result >= 40 && result <= 80`
+  on the extractor; the other eight places call an extractor with no contract,
+  so the caller's bound comes from the callee's arms.
+- **Composition.** Every place transports the same arm-joined interval
+  `[40, 80]` into `verify_payload`, `choose`, `consume` or `forward_payload`.
+- **Reject twins.** Each twin weakens only Gamma's lower bound to `39u64`. The
+  joined interval becomes `[39, 80]` and the consuming call's `requires` (or,
+  in `call_result`, the extractor's `ensures` at Gamma's arm, statement 7) is
+  refused.
+- **Regression history.** From #958 until this repair the eight uncontracted
+  places were refused: the case-guard premise read only the case's own fact
+  span, which #958 left empty. The repair projects the data `requires` onto the
+  selected case once (`default_domains::selected_case_requirements`) for every
+  guard-narrowing consumer.
+- **Open.** Payload interval readers for representation and borrowed write-back
+  (`case_where_field_intervals`) still read the case span only.
