@@ -127,7 +127,10 @@ artifact includes `samples.json` beside the corpus reports.
 Select `linux_arm64`, `windows_x86_64` or `macos_arm64` for a separate
 matching-host run. Linux ARM64 uses `ubuntu-24.04-arm`; macOS ARM64 uses
 `macos-15`, matching the existing post-merge runners. These execute on the native
-host, without cross-compilation or emulation. Host-specific caches,
+host, without cross-compilation or emulation. GitHub lists `macos-15` as a
+[standard ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+The retired macOS 14 image can cancel jobs before their first step during its
+[scheduled brownouts](https://github.com/actions/runner-images/issues/13518). Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
