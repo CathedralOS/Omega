@@ -849,11 +849,11 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete remaining schema/case composition support;
-    migrate complete platform ABI records;
-    retain explicit named policies for sparse views. Darwin timestamp pairs and
-    the complete stat extent must agree with the SDK rather than inferring
-    missing fields from the current seconds-only record.
+  - Complete remaining schema/case composition support and platform ABI
+    migrations; retain explicit named policies for sparse views. Complete the
+    remaining six transport places for
+    [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
+    preserving complete SDK fields, timestamp pairs and signed carriers.
   - Supply ordinary Representation/TryFrom contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
