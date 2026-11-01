@@ -1,6 +1,6 @@
 //! Raw IEEE register transport. These instructions neither evaluate floats nor touch control state.
 use super::{
-    MachineAlternativeKey, MachineEncodedEffects, RegisterViewId, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, RegisterViewId, SelectedInstructionKind as Kind,
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
@@ -11,7 +11,7 @@ type Encoding = ValidatedX86_64SelectedFormEncoding;
 
 fn operands(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     values: &[RegisterViewId],
 ) -> Result<(u8, u8, bool, bool), Error> {
@@ -49,7 +49,7 @@ fn operands(
 }
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     values: &[RegisterViewId],
 ) -> Result<Encoding, Error> {
@@ -68,7 +68,7 @@ pub(super) fn encode(
 }
 pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     values: &[RegisterViewId],
     bytes: &[u8],
@@ -111,10 +111,10 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::{
-        MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind, encode,
-        float_bit_transfer_properties, validate,
+        Kind, MachineAlternativeKey, MachineEncodedEffects, encode, float_bit_transfer_properties,
+        validate,
     };
-    use selected_instructions::MachineAlternativeFamily;
+    use selected_instructions::MachineAlternativeFamily as Family;
     #[test]
     fn raw_transfers_decode_exact_width_direction_and_registers() {
         let physical = register_model::validate_physical_register_model(
@@ -122,22 +122,10 @@ mod tests {
         )
         .unwrap();
         for (kind, family) in [
-            (
-                SelectedInstructionKind::Float32ToBits,
-                MachineAlternativeFamily::Float32ToBits,
-            ),
-            (
-                SelectedInstructionKind::Float64ToBits,
-                MachineAlternativeFamily::Float64ToBits,
-            ),
-            (
-                SelectedInstructionKind::BitsToFloat32,
-                MachineAlternativeFamily::BitsToFloat32,
-            ),
-            (
-                SelectedInstructionKind::BitsToFloat64,
-                MachineAlternativeFamily::BitsToFloat64,
-            ),
+            (Kind::Float32ToBits, Family::Float32ToBits),
+            (Kind::Float64ToBits, Family::Float64ToBits),
+            (Kind::BitsToFloat32, Family::BitsToFloat32),
+            (Kind::BitsToFloat64, Family::BitsToFloat64),
         ] {
             for float_name in ["xmm0", "xmm15"] {
                 for bits_name in ["rax", "r15"] {

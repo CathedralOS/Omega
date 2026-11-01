@@ -5,6 +5,7 @@
 //! observation point, and refuses cyclic or unsupported bounds.
 
 use crate::frozen_program::expression_table;
+use typed_trees::data::DataMember;
 use typed_trees::data::{DataDefinition, DataField, DataVariant};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -247,8 +248,8 @@ fn declared_data_fields<'a>(
         .data_members(definition)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
         })
         .collect()
 }
@@ -437,8 +438,7 @@ pub(crate) struct FieldLiteralBound {
 pub(crate) enum FieldRepresentationBound {
     Integer {
         field: symbols::SymbolHandle,
-        minimum: Option<i64>,
-        maximum: Option<i64>,
+        interval: Interval,
     },
     FloatLiteral(FieldLiteralBound),
 }
@@ -506,11 +506,7 @@ pub(crate) fn data_where_field_representation_bounds(
             {
                 return None;
             }
-            normalized.push(FieldRepresentationBound::Integer {
-                field,
-                minimum: interval.low,
-                maximum: interval.high,
-            });
+            normalized.push(FieldRepresentationBound::Integer { field, interval });
         }
     }
     Some(normalized)
@@ -639,9 +635,7 @@ pub(crate) fn stored_field_where_interval(
         .data_members(definition)
         .iter()
         .find_map(|candidate| match candidate {
-            typed_trees::data::DataMember::Field(field) if field.name == member.member => {
-                Some(field)
-            }
+            DataMember::Field(field) if field.name == member.member => Some(field),
             _ => None,
         })?;
     data_where_field_intervals(program, definition)?
@@ -707,7 +701,7 @@ fn field_is_unsigned(
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(data_field)
+            DataMember::Field(data_field)
                 if data_field.symbol.is_valid() && data_field.symbol == field =>
             {
                 program.primitive_type_reference(data_field.type_reference)

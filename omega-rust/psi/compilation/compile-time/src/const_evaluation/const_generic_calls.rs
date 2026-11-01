@@ -23,8 +23,9 @@
 //! while calls it cannot close keep their authored expression for ordinary
 //! post-typing admission.
 
-use crate::build_time_evaluation::expression_table;
-use crate::build_time_evaluation::type_references;
+use crate::build_time_evaluation::{expression_table, type_references};
+use crate::const_evaluation::const_initializers::CheckedInitializers;
+use crate::{BuildTimeAdmissionPlan, PreparedBuildMachineProgram};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -32,6 +33,9 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    closed_array_extent_expressions, resolve_deferred_initializer_probe,
+};
 
 mod dependencies;
 mod extent_entries;
@@ -84,10 +88,7 @@ fn evaluate_application_group(
             context.declaration_syntax,
         )?,
     );
-    let extent_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_array_extent_expressions(
-            &mut syntax,
-        );
+    let extent_arguments = closed_array_extent_expressions(&mut syntax);
     let extent_uses = extent_arguments
         .iter()
         .map(|(use_handle, ..)| *use_handle)
@@ -197,16 +198,17 @@ fn evaluate_application_group(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
         &declarations,
     )?;
     let endpoint_references = endpoint_leaves
         .iter()
         .map(|(_, source)| *source)
         .collect::<Vec<_>>();
-    let frontier =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            context.resolution_request(probe),
-        )?;
+    let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;
     let owner_symbols = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
@@ -254,11 +256,9 @@ fn evaluate_application_group(
         // is admitted here; independent calls still require checked bodies,
         // and deferred calls retain their ordinary typed continuation.
         let ready_domain = preparation.domain_for_roots(&probe_symbols);
-        let prepared =
-            crate::PreparedBuildMachineProgram::prepare_in(&preparation.typed, &ready_domain)?;
+        let prepared = PreparedBuildMachineProgram::prepare_in(&preparation.typed, &ready_domain)?;
         let execution = prepared.typed();
-        let admission =
-            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+        let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
         let operators = validation::derive_pre_flow_operator_selections(execution);
         let independent = probe_symbols
             .iter()
@@ -271,10 +271,8 @@ fn evaluate_application_group(
         // A dependent application remains authored until its prerequisite is
         // settled under the later selected-provider continuation.
         let independent_domain = preparation.domain_for_roots(&independent);
-        let independent_program = crate::PreparedBuildMachineProgram::prepare_in(
-            &preparation.typed,
-            &independent_domain,
-        )?;
+        let independent_program =
+            PreparedBuildMachineProgram::prepare_in(&preparation.typed, &independent_domain)?;
         let mut checked_program = None;
         for ordinal in &layer.arguments {
             let (argument, expression, _, public) = &application_destinations[*ordinal];
@@ -302,15 +300,13 @@ fn evaluate_application_group(
             }
             let checked = match checked_program {
                 Some(ref checked) => checked,
-                None => checked_program.insert(
-                    crate::const_evaluation::const_initializers::CheckedInitializers::prepare(
-                        &independent_program,
-                        selection_authority.clone(),
-                        &independent,
-                        &independent_domain.accounting,
-                        &[],
-                    )?,
-                ),
+                None => checked_program.insert(CheckedInitializers::prepare(
+                    &independent_program,
+                    selection_authority.clone(),
+                    &independent,
+                    &independent_domain.accounting,
+                    &[],
+                )?),
             };
             let invocation = checked.calls_for_symbol(machine.symbol).map_err(&failure)?;
             let evaluated = invocation

@@ -10,52 +10,63 @@ machine distinct(indices: &Indices) -> bool {
         false -> false
     }
 }
-windows_x86_64 machine replace(values: &mut [Cell], indices: &Indices)
-requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
-    distinct(indices) == true
-{
-    let first: &mut Cell = &mut values[indices.positions[indices.first]];
-    let second: &mut Cell = &mut values[indices.positions[indices.second]];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine replace(values: &mut [Cell], indices: &Indices)
-requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
-    distinct(indices) == true
-{
-    let first: &mut Cell = &mut values[indices.positions[indices.first]];
-    let second: &mut Cell = &mut values[indices.positions[indices.second]];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine replace(values: &mut [Cell], indices: &Indices)
-requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
-    distinct(indices) == true
-{
-    let first: &mut Cell = &mut values[indices.positions[indices.first]];
-    let second: &mut Cell = &mut values[indices.positions[indices.second]];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine replace(values: &mut [Cell], indices: &Indices)
-requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
-    distinct(indices) == true
-{
-    let first: &mut Cell = &mut values[indices.positions[indices.first]];
-    let second: &mut Cell = &mut values[indices.positions[indices.second]];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+boundary trait SelectedReplace {
+    machine replace(values: &mut [Cell], indices: &Indices)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len, distinct(indices) == true;
 }
+
+X86Replace satisfies SelectedReplace {
+    machine replace(values: &mut [Cell], indices: &Indices)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len, distinct(indices) == true
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let first: &mut Cell = &mut values[indices.positions[indices.first]];
+        let second: &mut Cell = &mut values[indices.positions[indices.second]];
+        first = Cell { value: 17 };
+        second = Cell { value: 53 };
+    }
+}
+
+ArmReplace satisfies SelectedReplace {
+    machine replace(values: &mut [Cell], indices: &Indices)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len, distinct(indices) == true
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let first: &mut Cell = &mut values[indices.positions[indices.first]];
+        let second: &mut Cell = &mut values[indices.positions[indices.second]];
+        first = Cell { value: 17 };
+        second = Cell { value: 53 };
+    }
+}
+
+
 machine main() crashes Trap {
     let mut forward: Storage = Storage { before: 101, values: [Cell { value: 1 }, Cell { value: 2 }], after: 109 };
     let mut reverse: Storage = Storage { before: 127, values: [Cell { value: 3 }, Cell { value: 4 }], after: 137 };
     let forward_indices: Indices = Indices { positions: [0u64, 1u64], first: 0, second: 1 };
     let reverse_indices: Indices = Indices { positions: [1u64, 0u64], first: 0, second: 1 };
-    replace(&mut forward.values[..], &forward_indices);
-    replace(&mut reverse.values[..], &reverse_indices);
+    SelectedReplace::replace(&mut forward.values[..], &forward_indices);
+    SelectedReplace::replace(&mut reverse.values[..], &reverse_indices);
     let equal_indices: Indices = Indices { positions: [0u64, 0u64], first: 0, second: 1 };
     let outside_indices: Indices = Indices { positions: [0u64, 1u64], first: 2, second: 1 };
     let accepts_forward: bool = distinct(&forward_indices);
@@ -72,4 +83,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

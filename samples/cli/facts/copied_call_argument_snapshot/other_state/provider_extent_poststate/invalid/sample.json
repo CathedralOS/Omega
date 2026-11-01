@@ -1,1 +1,5 @@
-{"rejection_contains":"runtime index subject equality"}
+{
+  "rejection_contains": [
+    "runtime index subject equality"
+  ]
+}

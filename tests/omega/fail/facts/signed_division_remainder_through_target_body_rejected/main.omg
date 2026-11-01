@@ -2,47 +2,36 @@
 // Invalid: divisor is 5i64, so rem can be 4, exceeding array length 4. Place: another target body.
 // Expected exit: 0
 
-linux_x86_64 machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64
-{
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
+boundary trait SelectedComputation {
+    machine compute_target(dividend: i64, divisor: i64) -> u8 reaches
+        requires dividend >= 0i64 && divisor == 5i64;
 }
 
-linux_arm64 machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64
-{
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
+X86Computation satisfies SelectedComputation {
+    machine compute_target(dividend: i64, divisor: i64) -> u8
+        requires dividend >= 0i64 && divisor == 5i64 {
+        let rem: i64 = dividend % divisor;
+        let idx: u64 = rem as u64;
+        let arr: [u8; 4] = [10, 20, 30, 40];
+        arr[idx]
+    }
 }
 
-macos_arm64 machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64
-{
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
+ArmComputation satisfies SelectedComputation {
+    machine compute_target(dividend: i64, divisor: i64) -> u8
+        requires dividend >= 0i64 && divisor == 5i64 {
+        let rem: i64 = dividend % divisor;
+        let idx: u64 = rem as u64;
+        let arr: [u8; 4] = [10, 20, 30, 40];
+        arr[idx]
+    }
 }
 
-windows_x86_64 machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64
-{
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
+machine probe() -> u8 reaches SelectedComputation {
+    SelectedComputation::compute_target(14i64, 5i64)
 }
 
-machine probe() -> u8 {
-    compute_target(14i64, 5i64)
-}
-
-machine main() crashes Trap {
+machine main() reaches SelectedComputation crashes Trap {
     transition probe() == 30 {
         true -> done()
         _ -> bad()

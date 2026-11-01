@@ -4,6 +4,9 @@
 
 use super::{Diagnostic, SymbolHandle, TypedTrees};
 use typed_trees::data::TypeParameterKind;
+use typed_trees::domain::has_generic_carrier;
+use typed_trees::domain::indexed_domain_instance_name;
+use typed_trees::references::DeclarationSelection;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -47,9 +50,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             let Some(domain) = program.domain_definition(symbol).cloned() else {
                 continue;
             };
-            if domain.type_parameters.is_empty()
-                || typed_trees::domain::has_generic_carrier(program, &domain)
-            {
+            if domain.type_parameters.is_empty() || has_generic_carrier(program, &domain) {
                 continue;
             }
             let parameters = program.domain_type_parameters(&domain).to_vec();
@@ -124,13 +125,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             if !canonical {
                 continue;
             }
-            let identity = typed_trees::domain::indexed_domain_instance_name(
-                program,
-                &domain,
-                &parameters,
-                &arguments,
-            )
-            .map_err(|error| vec![error])?;
+            let identity = indexed_domain_instance_name(program, &domain, &parameters, &arguments)
+                .map_err(|error| vec![error])?;
             let identity = program.semantic_domains.intern(&identity);
             changed |= program
                 .prepare_closed_domain_application(symbol, &arguments, &closed_arguments, identity)
@@ -142,10 +138,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
         // Facts copied by the shared application operation retain their exact
         // argument packs; publish their instance identities by the ordinary
         // reference-driven normalizer before walking inherited requests.
-        super::finalize_domain_instance_identities(
-            program,
-            &typed_trees::references::DeclarationSelection::all(),
-        )
-        .map_err(|error| vec![error])?;
+        super::finalize_domain_instance_identities(program, &DeclarationSelection::all())
+            .map_err(|error| vec![error])?;
     }
 }

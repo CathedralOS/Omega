@@ -90,3 +90,15 @@ python tools/corpus_gate.py --filter facts/unsigned_16bit_division_quotient_boun
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** ([machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md), [executable installation](../../../../wiki/spec/build/executable_installation.md), [calling plans](../../../../wiki/spec/build/calling_plans.md)): Target ISA instructions and transition displacements encode into machine bytes, basic blocks relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
 - **What remains open:** Dynamic non-zero divisor branch assertions for unconstrained dynamic divisors, signed 16-bit division with negative quotients and remainder symmetry, and SIMD vector integer division.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

@@ -25,7 +25,6 @@
 use super::{DecreaseMeasure, RankArrivalAdmission, nat, patterns};
 use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::checks::termination::order::RankingOrder;
-use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::machine::Machine;
@@ -73,7 +72,7 @@ fn scalar_rank(
     program: &dyn ::validation::CheckingInput,
     state: &State,
     measure: DecreaseMeasure,
-) -> Option<CheckedStateNaturalRank> {
+) -> Option<nat::StateRank> {
     let rank = nat::state_rank(program, state, measure)?;
     let exact = |position: u32| {
         program
@@ -84,15 +83,7 @@ fn scalar_rank(
                     == ArithmeticDomain::Exact
             })
     };
-    let scalar = match rank.measure {
-        CheckedNaturalRankMeasure::IntegerValue { .. }
-        | CheckedNaturalRankMeasure::BoundedDistance { .. } => exact(rank.parameter_position),
-        // Declared views retain their body's formation and descent authority;
-        // the primitive-formal judgment cannot stand in for that application.
-        CheckedNaturalRankMeasure::DeclaredMeasure { .. }
-        | CheckedNaturalRankMeasure::SequenceLength { .. } => false,
-    };
-    scalar.then_some(rank)
+    exact(rank.parameter_position).then_some(rank)
 }
 
 fn prove_edge(
@@ -100,8 +91,8 @@ fn prove_edge(
     machine: &Machine,
     source: &State,
     order: &RankingOrder,
-    source_rank: &CheckedStateNaturalRank,
-    target_rank: &CheckedStateNaturalRank,
+    source_rank: &nat::StateRank,
+    target_rank: &nat::StateRank,
     edge: &patterns::GuardedEdge<'_>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
@@ -153,17 +144,8 @@ fn prove_edge(
         |value: u64| ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(value));
     // A distance's bound: its current value at the source and its arriving
     // value at the target.
-    let bound = match (source_rank.measure, target_rank.measure) {
-        (
-            CheckedNaturalRankMeasure::BoundedDistance {
-                upper: source_upper,
-                ..
-            },
-            CheckedNaturalRankMeasure::BoundedDistance {
-                upper: target_upper,
-                ..
-            },
-        ) => Some((
+    let bound = match (source_rank.upper, target_rank.upper) {
+        (Some(source_upper), Some(target_upper)) => Some((
             ScopedArithmeticValue::Term(values.initial(source_upper)?),
             ScopedArithmeticValue::Term(values.bind_call_parameters(
                 machine,
@@ -177,20 +159,30 @@ fn prove_edge(
         _ => None,
     };
     if let Some((current_bound, arriving_bound)) = bound {
-        return Some(
-            relation(BinaryOperator::Less, &previous, &current_bound)
-                && relation(BinaryOperator::Greater, &next, &previous)
-                && relation(BinaryOperator::Equal, &arriving_bound, &current_bound)
-                // BoundedDistance must remain a natural subtraction. The
-                // distinct IncreasingTo view clamps an overshoot to zero.
-                && (matches!(order, RankingOrder::IncreasingTo(_))
-                    || relation(BinaryOperator::LessOrEqual, &next, &arriving_bound)),
-        );
+        if matches!(order, RankingOrder::IncreasingTo(_)) {
+            return Some(
+                relation(BinaryOperator::Less, &previous, &current_bound)
+                    && relation(BinaryOperator::Greater, &next, &previous)
+                    && relation(BinaryOperator::Equal, &arriving_bound, &current_bound),
+            );
+        }
+        if !relation(BinaryOperator::LessOrEqual, &previous, &current_bound)
+            || !relation(BinaryOperator::LessOrEqual, &next, &arriving_bound)
+        {
+            return Some(false);
+        }
+        let difference = |upper, lower| ScopedArithmeticValue::IntegerOperation {
+            operator: BinaryOperator::Subtract,
+            left: Box::new(upper),
+            right: Box::new(lower),
+        };
+        return Some(relation(
+            BinaryOperator::Less,
+            &difference(arriving_bound, next),
+            &difference(current_bound, previous),
+        ));
     }
-    if !matches!(
-        source_rank.measure,
-        CheckedNaturalRankMeasure::IntegerValue { .. }
-    ) {
+    if source_rank.upper.is_some() {
         return None;
     }
     let zero = constant(0);

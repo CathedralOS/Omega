@@ -12,6 +12,7 @@ use semantic_vocabulary::PropositionContext;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
+use std::slice::from_ref;
 
 #[test]
 fn direct_literal_remainder_maps_and_certifies_without_invented_definitions() {
@@ -40,7 +41,7 @@ fn direct_literal_remainder_maps_and_certifies_without_invented_definitions() {
             witness,
         },
     };
-    check_certificate(&context, &goal, std::slice::from_ref(&premise), &[], &proof)
+    check_certificate(&context, &goal, from_ref(&premise), &[], &proof)
         .expect("the direct expression bound independently checks");
     let false_goal = Proposition::LessOrEqual(target, unsigned_literal(integer_type, 56));
     let false_proof = ProofNode {
@@ -152,14 +153,8 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
                 witness: witness.clone(),
             },
         };
-        check_certificate(
-            &context,
-            &goal,
-            std::slice::from_ref(&premise),
-            &axioms,
-            &proof,
-        )
-        .expect("unsigned wrapping remainder bounds retain the checked literal landing");
+        check_certificate(&context, &goal, from_ref(&premise), &axioms, &proof)
+            .expect("unsigned wrapping remainder bounds retain the checked literal landing");
         if expected > 0 {
             let false_goal = Proposition::LessOrEqual(
                 target.clone(),
@@ -218,7 +213,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
     check_certificate(
         &signed_context,
         &goal,
-        std::slice::from_ref(&premise),
+        from_ref(&premise),
         &signed_axioms,
         &proof,
     )
@@ -437,7 +432,7 @@ fn rejects_reordered_stale_and_non_affine_definitions() {
         definition_axioms,
     };
     assert_eq!(
-        check_integer_affine_witness(&context, std::slice::from_ref(&axiom), &witness(vec![1])),
+        check_integer_affine_witness(&context, from_ref(&axiom), &witness(vec![1])),
         Err(IntegerAffineWitnessError::UnknownSemanticAxiom(1)),
     );
     assert_eq!(

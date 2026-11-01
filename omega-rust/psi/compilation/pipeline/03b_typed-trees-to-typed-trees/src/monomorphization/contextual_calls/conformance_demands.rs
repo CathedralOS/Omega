@@ -5,6 +5,7 @@
 //! separate retained applications. Preparation grants no callable admission.
 use super::super::{Diagnostic, TypedTrees};
 use crate::tables::{expressions_of, expressions_of_mut};
+use symbols::SymbolKind;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::static_applications::{
     StaticMachineBinding, StaticMachineBindingValue, StaticMachineLifetimeBinding,
@@ -84,8 +85,11 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 argument: typed_trees::name::Identifier::generated(argument),
             })
             .collect::<Vec<_>>();
-        expressions_of_mut(program)
-            .set_static_machine_application_lifetimes(invocation, &lifetimes);
+        expressions_of_mut(program).set_static_machine_application_lifetimes(
+            invocation,
+            declaration.symbol,
+            &lifetimes,
+        );
         let mut selected = Vec::new();
         for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
             let TypeParameterKind::Machine { contract } = &parameter.kind else {
@@ -109,9 +113,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             if let Some(entry) = closed {
                 executable.symbol = entry;
                 executable.application = None;
-            } else if program.symbols.get(argument.symbol).kind
-                == symbols::SymbolKind::MachineParameter
-            {
+            } else if program.symbols.get(argument.symbol).kind == SymbolKind::MachineParameter {
                 let provider = expressions_of_mut(program).retain_static_machine_application(
                     argument.symbol,
                     typed_trees::name::Identifier::generated(argument.display_name()),

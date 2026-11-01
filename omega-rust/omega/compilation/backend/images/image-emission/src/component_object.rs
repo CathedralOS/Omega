@@ -5,6 +5,7 @@
 //! helper/recursion calling conventions or linking the body into a consumer.
 //! This is image input only; no mapping or installed entry authority is created.
 
+use crate::callable_entry_transport::native_entry_request;
 use diagnostics::Diagnostic;
 use image::{
     FinalImage, FinalImageInput, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
@@ -67,12 +68,8 @@ pub fn prepare_component_function_image(
                 .iter()
                 .map(|(_, parameter)| parameter.inbound_ordinal)
                 .collect::<Vec<_>>();
-            let expected = crate::callable_entry_transport::native_entry_request(
-                &body,
-                &bridge.request().inbound,
-                &ordinals,
-            )
-            .map_err(|error| invalid(&error.to_string()))?;
+            let expected = native_entry_request(&body, &bridge.request().inbound, &ordinals)
+                .map_err(|error| invalid(&error.to_string()))?;
             if expected != *bridge.request() {
                 return Err(invalid(
                     "entry bridge belongs to a different ordinary body ABI",

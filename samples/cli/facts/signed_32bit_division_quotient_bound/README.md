@@ -86,3 +86,15 @@ with their corpus golden rows recorded through `python3 tools/corpus_gate.py --r
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: On x86_64 the backend selects 32-bit signed division `idiv r32` (with the sign-extension of `eax` into `edx:eax`); on arm64 it selects 32-bit signed division `sdiv w0, w0, w1`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct PE/ELF/Mach-O image emission resolves all displacements and emits valid native machine code; native execution exit 0 agrees with Terminal Psi simulation across the hosted targets, and the guard-corruption probe above shows both engines report the Trap outcome (`native signal 5` / `interp crash: Trap`) rather than a false success.
 - **Remaining Open**: None for this fact row; all nine places and nine reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection, and the eighteen fixtures are pinned with recorded corpus rows.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

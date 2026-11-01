@@ -8,6 +8,10 @@
 use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
+use numerics::arithmetic::ArithmeticDomain;
+use numerics::bignum::BigInt;
+use numerics::float_semantics_catalog::FloatSemanticKernel;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -21,10 +25,7 @@ pub(crate) enum CarrierFit {
     Proven,
     Refuted,
     Unknown,
-    Pending {
-        low: numerics::bignum::BigInt,
-        high: numerics::bignum::BigInt,
-    },
+    Pending { interval: BigIntInterval },
 }
 
 impl CarrierFit {
@@ -33,15 +34,8 @@ impl CarrierFit {
             (Self::Refuted, _) | (_, Self::Refuted) => Self::Refuted,
             (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
             (Self::Proven, other) | (other, Self::Proven) => other,
-            (
-                Self::Pending { low, high },
-                Self::Pending {
-                    low: other_low,
-                    high: other_high,
-                },
-            ) => Self::Pending {
-                low: low.min(other_low),
-                high: high.max(other_high),
+            (Self::Pending { interval }, Self::Pending { interval: other }) => Self::Pending {
+                interval: interval.union(&other),
             },
         }
     }
@@ -55,10 +49,13 @@ impl CarrierFit {
     ) -> bool {
         match self {
             Self::Proven => true,
-            Self::Pending { low, high } => {
+            Self::Pending { interval } => {
                 if !owner.is_valid() || !expression.is_valid() {
                     return false;
                 }
+                let (Some(low), Some(high)) = (interval.low, interval.high) else {
+                    return false;
+                };
                 let obligation = checked_trees::IntegerRangeObligation::retain_address_fit(
                     expression,
                     owner,
@@ -121,11 +118,9 @@ pub(crate) fn float_integer_conversion_fits_at_occurrence(
     else {
         return false;
     };
-    if !matches!(
-        semantic.kernel(),
-        numerics::float_semantics_catalog::FloatSemanticKernel::ToIntegerExact
-    ) || program.arithmetic_domain_for_type_reference(operator.return_type)
-        != numerics::arithmetic::ArithmeticDomain::Exact
+    if !matches!(semantic.kernel(), FloatSemanticKernel::ToIntegerExact)
+        || program.arithmetic_domain_for_type_reference(operator.return_type)
+            != ArithmeticDomain::Exact
     {
         return false;
     }
@@ -203,17 +198,19 @@ pub(crate) struct CompletedIntegerFormation {
     pub(crate) recipe: Option<checked_trees::IntegerRangeRecipe>,
 }
 
-pub(crate) fn exact_binary_formation_at_occurrence(
+/// The operand-fit demand one exact binary formation carries, or `None` when
+/// the expression cannot select a builtin integer operation. Both operands
+/// have completed while this operation has not; their carriers and live
+/// observations must prove the result without donating a premise.
+fn exact_binary_fit_request(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-) -> CompletedIntegerFormation {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return CompletedIntegerFormation::default();
-    };
+) -> Option<OperandFitRequest> {
+    let binary = program.expression_table.binary_node(expression)?;
     if !crate::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) {
-        return CompletedIntegerFormation::default();
+        return None;
     }
     let mut references = [binary.left, binary.right]
         .map(|operand| crate::expression_result_type_reference(program, machine, state, operand));
@@ -227,13 +224,13 @@ pub(crate) fn exact_binary_formation_at_occurrence(
         }
         let operand = [binary.left, binary.right][position];
         if !crate::value_custody::literals::has_anonymous_numeric_results(program, operand) {
-            return CompletedIntegerFormation::default();
+            return None;
         }
         let Some(peer) = references[1 - position].and_then(|reference| {
             crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
                 .map(|(primitive, _)| primitive)
         }) else {
-            return CompletedIntegerFormation::default();
+            return None;
         };
         let carrier = typed_trees::operator::integer_peer_operand_carrier(
             binary.operator,
@@ -244,43 +241,48 @@ pub(crate) fn exact_binary_formation_at_occurrence(
             .landed_landing()
             .map(typed_trees::types::builtin_type_atom)
         else {
-            return CompletedIntegerFormation::default();
+            return None;
         };
         references[position] =
             crate::proof_contracts::bound_expression_meaning::builtin_type_reference(program, atom);
     }
     let [Some(left), Some(right)] = references else {
-        return CompletedIntegerFormation::default();
+        return None;
     };
     let primitives = [left, right].map(|reference| {
         crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
             .map(|(primitive, _)| primitive)
     });
     let [Some(left_primitive), Some(right_primitive)] = primitives else {
-        return CompletedIntegerFormation::default();
+        return None;
     };
-    let Some(target) = typed_trees::operator::builtin_integer_result_carrier(
+    let target = typed_trees::operator::builtin_integer_result_carrier(
         binary.operator,
         [left_primitive, right_primitive],
-    ) else {
+    )?;
+    Some(OperandFitRequest {
+        expression,
+        position: 0,
+        source: OperandSource::CompletedOperation {
+            operator: binary.operator,
+            references: [left, right],
+            established_carriers,
+        },
+        target,
+        context_reference: left,
+    })
+}
+
+pub(crate) fn exact_binary_formation_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> CompletedIntegerFormation {
+    let Some(request) = exact_binary_fit_request(program, machine, state, expression) else {
         return CompletedIntegerFormation::default();
     };
-    let Some(observed) = observe_operand_fit_at_occurrence(
-        program,
-        machine,
-        state,
-        OperandFitRequest {
-            expression,
-            position: 0,
-            source: OperandSource::CompletedOperation {
-                operator: binary.operator,
-                references: [left, right],
-                established_carriers,
-            },
-            target,
-            context_reference: left,
-        },
-    ) else {
+    let Some(observed) = observe_operand_fit_at_occurrence(program, machine, state, request) else {
         return CompletedIntegerFormation::default();
     };
     CompletedIntegerFormation {
@@ -442,12 +444,286 @@ fn operand_fits_at_occurrence(
         .unwrap_or(CarrierFit::Unknown)
 }
 
+/// The recorded answer for one exact binary-fit expression: either the
+/// visitor's surviving fields (`Some`) or the fact that no observation
+/// delivered (`None`, retained so a later query does not walk again). All
+/// fields are owned; `CheckingMemos` stores no `'program` borrows.
+#[derive(Clone)]
+pub(crate) struct OperandFitOutcome {
+    seen: bool,
+    judgment: Option<CarrierFit>,
+    range_recipe: Option<checked_trees::IntegerRangeRecipe>,
+    range_complete: bool,
+}
+
+// A population walk can itself consult this same query for another
+// expression or machine. Track the machines already populating on this
+// thread; a nested request for one of them keeps the ordinary
+// per-occurrence path, never a provisional verdict from an unfinished
+// population.
+std::thread_local! {
+    static ACTIVE_OPERAND_FIT_POPULATIONS: std::cell::RefCell<Vec<symbols::SymbolHandle>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+struct OperandFitPopulation;
+
+impl OperandFitPopulation {
+    fn enter(machine: symbols::SymbolHandle) -> Option<Self> {
+        ACTIVE_OPERAND_FIT_POPULATIONS.with(|active| {
+            let mut active = active.borrow_mut();
+            if active.contains(&machine) {
+                return None;
+            }
+            active.push(machine);
+            Some(Self)
+        })
+    }
+}
+
+impl Drop for OperandFitPopulation {
+    fn drop(&mut self) {
+        ACTIVE_OPERAND_FIT_POPULATIONS.with(|active| {
+            active.borrow_mut().pop();
+        });
+    }
+}
+
+/// Rebuild the solo-path visitor from a recorded outcome. The statement
+/// coordinate is recomputed exactly as the solo path computes it, so a
+/// stored verdict can never outlive the occurrence check it came from.
+fn replay_operand_fit(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    request: OperandFitRequest,
+    outcome: OperandFitOutcome,
+) -> Option<OperandFit> {
+    let statement_index =
+        super::completed_values::expression_statement_index(program, state, request.expression)?;
+    Some(OperandFit {
+        site: StructuralPrefixSite {
+            state: state.symbol,
+            statement_index,
+            in_transition_target: super::structural_prefix::expression_is_transition_target(
+                program,
+                state,
+                statement_index,
+                request.expression,
+            ),
+        },
+        request,
+        seen: outcome.seen,
+        judgment: outcome.judgment,
+        range_recipe: outcome.range_recipe,
+        range_complete: outcome.range_complete,
+    })
+}
+
+/// Every exact-formation binary expression in `machine`'s states is an
+/// operand-fit demand site. One prefix pass per state and one shared
+/// private-arrivals pass answer them all; each verdict (and each
+/// no-verdict) is recorded by expression so later occurrences replay
+/// without walking again. Transition-target occurrences stay on the
+/// per-occurrence walk: the batched forward pass evaluates statement-entry
+/// sites only, and rerouting them to the arrivals frontier would change
+/// which premises their judgment observes.
+fn populate_machine_operand_fits(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    memos: &crate::frozen_program::CheckingMemos,
+) {
+    let mut grouped: Vec<(&State, Vec<OperandFit>)> = Vec::new();
+    for state in program.machine_states(machine) {
+        let mut expressions = Vec::new();
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            crate::expression_traversal::collect_statement_expression_trees(
+                program,
+                statement,
+                &mut expressions,
+            );
+        }
+        let mut fits = Vec::new();
+        for expression in expressions {
+            let Some(request) = exact_binary_fit_request(program, machine, state, expression)
+            else {
+                continue;
+            };
+            let Some(statement_index) =
+                super::completed_values::expression_statement_index(program, state, expression)
+            else {
+                continue;
+            };
+            if super::structural_prefix::expression_is_transition_target(
+                program,
+                state,
+                statement_index,
+                expression,
+            ) {
+                continue;
+            }
+            fits.push(OperandFit {
+                site: StructuralPrefixSite {
+                    state: state.symbol,
+                    statement_index,
+                    in_transition_target: false,
+                },
+                request,
+                seen: false,
+                judgment: None,
+                range_recipe: None,
+                range_complete: true,
+            });
+        }
+        if !fits.is_empty() {
+            grouped.push((state, fits));
+        }
+    }
+    let accepted = observe_operand_fits_batch(program, machine, &mut grouped);
+    if let Ok(mut outcomes) = memos.operand_fit_outcomes.lock() {
+        for ((_, fits), flags) in grouped.iter().zip(accepted) {
+            for (fit, accepted) in fits.iter().zip(flags) {
+                outcomes.insert(
+                    (machine.symbol, fit.request.expression),
+                    accepted.then(|| OperandFitOutcome {
+                        seen: fit.seen,
+                        judgment: fit.judgment.clone(),
+                        range_recipe: fit.range_recipe.clone(),
+                        range_complete: fit.range_complete,
+                    }),
+                );
+            }
+        }
+    }
+    if let Ok(mut populated) = memos.operand_fit_populated.lock() {
+        populated.insert(machine.symbol, ());
+    }
+}
+
+/// One state-prefix pass per state and one shared private-arrivals pass
+/// for every still-undecided request. Each visitor keeps the verdict its
+/// solo walk would have produced; the returned flags parallel `grouped`
+/// and name which visitors survived either pass.
+fn observe_operand_fits_batch(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    grouped: &mut [(&State, Vec<OperandFit>)],
+) -> Vec<Vec<bool>> {
+    let mut accepted: Vec<Vec<bool>> = grouped
+        .iter()
+        .map(|(_, fits)| vec![false; fits.len()])
+        .collect();
+    for (group_index, (state, fits)) in grouped.iter_mut().enumerate() {
+        let recognized = {
+            let mut visitors: Vec<&mut dyn StructuralPrefixVisitor> = fits
+                .iter_mut()
+                .map(|fit| fit as &mut dyn StructuralPrefixVisitor)
+                .collect();
+            super::structural_prefix::observe_runtime_state_prefixes(
+                program,
+                machine,
+                *state,
+                &mut visitors,
+            )
+        };
+        for (index, fit) in fits.iter_mut().enumerate() {
+            if recognized.get(index).copied().unwrap_or(false)
+                && fit.seen
+                && (fit.has_positive_proof()
+                    || matches!(
+                        fit.judgment,
+                        Some(CarrierFit::Refuted | CarrierFit::Pending { .. })
+                    ))
+            {
+                accepted[group_index][index] = true;
+                continue;
+            }
+            // Inferred private requirements owe every actual arrival. The
+            // same reset the solo path performs applies before the shared
+            // coordinator publishes a proof or a conditional recipe.
+            fit.seen = false;
+            fit.judgment = None;
+            fit.range_recipe = None;
+            fit.range_complete = true;
+        }
+    }
+    let mut member_indices = Vec::new();
+    let mut members: Vec<&mut OperandFit> = Vec::new();
+    for (group_index, (_, fits)) in grouped.iter_mut().enumerate() {
+        for (index, fit) in fits.iter_mut().enumerate() {
+            if !accepted[group_index][index] {
+                member_indices.push((group_index, index));
+                members.push(fit);
+            }
+        }
+    }
+    if !members.is_empty() {
+        let verdicts = super::structural_prefix::observe_private_arrivals_batch(
+            program,
+            machine,
+            members.as_mut_slice(),
+            false,
+        );
+        for (((group_index, index), verdict), member) in
+            member_indices.iter().zip(verdicts).zip(members.iter())
+        {
+            if verdict == Some(true) && member.seen {
+                accepted[*group_index][*index] = true;
+            }
+        }
+    }
+    accepted
+}
+
 fn observe_operand_fit_at_occurrence(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     request: OperandFitRequest,
 ) -> Option<OperandFit> {
+    // The exact-formation demand is identical for every binary expression
+    // it qualifies: one population walks each of this machine's state
+    // prefixes and its private arrivals once, and later occurrences replay
+    // the recorded verdict. Other request kinds carry occurrence-specific
+    // sources, so they bypass the memo and keep the per-occurrence walk.
+    let memos = if matches!(request.source, OperandSource::CompletedOperation { .. }) {
+        crate::frozen_program::frozen_program_memos(program).filter(|_| {
+            program
+                .machine(machine.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, machine))
+                && program
+                    .state_in_machine(machine, state.symbol)
+                    .is_some_and(|stored| std::ptr::eq(stored, state))
+        })
+    } else {
+        None
+    };
+    if let Some(memos) = memos {
+        let key = (machine.symbol, request.expression);
+        let mut cached = memos
+            .operand_fit_outcomes
+            .lock()
+            .ok()
+            .and_then(|outcomes| outcomes.get(&key).cloned());
+        if cached.is_none()
+            && !memos
+                .operand_fit_populated
+                .lock()
+                .map(|populated| populated.contains_key(&machine.symbol))
+                .unwrap_or(false)
+            && let Some(_population) = OperandFitPopulation::enter(machine.symbol)
+        {
+            populate_machine_operand_fits(program, machine, memos);
+            cached = memos
+                .operand_fit_outcomes
+                .lock()
+                .ok()
+                .and_then(|outcomes| outcomes.get(&key).cloned());
+        }
+        if let Some(outcome) = cached {
+            return outcome
+                .and_then(|outcome| replay_operand_fit(program, state, request, outcome));
+        }
+    }
     let statement_index =
         super::completed_values::expression_statement_index(program, state, request.expression)?;
     let mut visitor = OperandFit {
@@ -606,14 +882,11 @@ impl StructuralPrefixVisitor for OperandFit {
                                 Some(StructuralTerm::ScalarBinary {
                                     references: [references[position]; 2],
                                     operator: BinaryOperator::NotEqual,
-                                    meaning: [(
-                                        self.request.target,
-                                        numerics::arithmetic::ArithmeticDomain::Exact,
-                                    ); 2],
+                                    meaning: [(self.request.target, ArithmeticDomain::Exact); 2],
                                     left: Box::new(value),
-                                    right: Box::new(StructuralTerm::Integer(
-                                        numerics::bignum::BigInt::from_i64(excluded),
-                                    )),
+                                    right: Box::new(StructuralTerm::Integer(BigInt::from_i64(
+                                        excluded,
+                                    ))),
                                 })
                             })
                         })
@@ -627,7 +900,7 @@ impl StructuralPrefixVisitor for OperandFit {
                             Some(StructuralTerm::ScalarBinary {
                                 references: [boolean; 2],
                                 operator: BinaryOperator::Or,
-                                meaning: [(PrimitiveType::Bool, numerics::arithmetic::ArithmeticDomain::Exact); 2],
+                                meaning: [(PrimitiveType::Bool, ArithmeticDomain::Exact); 2],
                                 left: Box::new(other), right: Box::new(first),
                             })
                         } else { Some(first) }
@@ -704,8 +977,8 @@ impl StructuralPrefixVisitor for OperandFit {
                         // Re-expanding loose operand intervals must not undo it.
                         self.request.target.integer_bounds().map(|(low, high)| {
                             checked_trees::IntegerRangeRecipe::bounds(
-                                numerics::bignum::BigInt::from_i128(low),
-                                numerics::bignum::BigInt::from_i128(high),
+                                BigInt::from_i128(low),
+                                BigInt::from_i128(high),
                             )
                         })
                     } else {

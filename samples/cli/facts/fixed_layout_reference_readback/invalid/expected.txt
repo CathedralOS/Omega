@@ -1,0 +1,2 @@
+machine `update` state `entry` local `loaded` expects `&LayoutStorage<Payload, PayloadLayout<const 8>>`
+but the value is delivered as `&LayoutStorage<Payload, PayloadLayout<Marker>>`

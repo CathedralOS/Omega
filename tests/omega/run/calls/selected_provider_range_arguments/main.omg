@@ -1,7 +1,7 @@
-// A target-scoped map row remains an opaque family head, not a chosen body.
+// A target-scoped map member calls an opaque family head, not a chosen body.
 boundary trait Counter { machine count(bytes: &[u8]) -> u64 reaches; }
 data ByteProvider {}
-Selected satisfies Counter { Counter::count = ByteProvider::count; }
+Selected satisfies Counter { machine count(bytes: &[u8]) -> u64 { ByteProvider::count(bytes) } }
 macos_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
 linux_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
 linux_x86_64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }

@@ -10,6 +10,7 @@ use crate::request::NativeRealizationRequest;
 use backend_plan::NativeCallbackThunkSettlement;
 use diagnostics::Diagnostic;
 use image_emission::PrivateFunctionObject;
+use terminal_psi_to_abstract_operations::admit_prepared_native_realization;
 use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 
 /// Realize the executable scope's callback thunks into compiler-private code,
@@ -101,11 +102,7 @@ fn lower_callback_thunk(
             }
         }),
     )?;
-    let admitted = terminal_psi_to_abstract_operations::admit_prepared_native_realization(
-        input,
-        settlement.artifact,
-        &admission,
-    )?;
+    let admitted = admit_prepared_native_realization(input, settlement.artifact, &admission)?;
     let projection = super::callable_objects::emit_callable_object(
         admitted,
         admission,

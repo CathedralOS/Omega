@@ -6,6 +6,7 @@
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
+use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 pub fn plain_owned_shape<'a>(
@@ -60,21 +61,17 @@ fn owned_shape<'a>(
                 StructuralFieldType::Structural(child) => {
                     visit(types.clone(), *child, active, complete, shared_byte_slots)
                 }
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                )
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
                 | StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    carrier: ByteSequenceCarrier::BoundedOwned { .. },
                     ..
                 } => true,
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    },
-                )
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                })
                 | StructuralFieldType::PredicateByteSequence {
                     carrier:
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        ByteSequenceCarrier::BorrowedView {
                             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
                         },
                     ..
@@ -86,14 +83,10 @@ fn owned_shape<'a>(
         };
         let supported = match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) => true,
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-            ) => true,
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                },
-            ) => shared_byte_slots,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => shared_byte_slots,
             StructuralTypeShape::ByteSequence(_) => false,
             StructuralTypeShape::BindingCarrier => false,
             StructuralTypeShape::ElementView { .. } => false,

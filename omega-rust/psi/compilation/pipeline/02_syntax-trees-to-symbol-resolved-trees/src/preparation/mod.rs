@@ -17,18 +17,22 @@ pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
 pub(crate) mod target_families;
 pub(crate) mod trait_defaults;
+pub(crate) mod type_aliases;
 pub(crate) mod type_equations;
 
+use declaration_selection::ConstantSelection;
 use diagnostics::Diagnostic;
+use module_normalization::validate_with_const_resolution_mode;
 use source::SourceMap;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
+use trait_defaults::synthesize_trait_defaults_after_module_validation;
 
 /// A forest ready to lower, with the constant selector its declarations
 /// resolved under.
 pub(crate) struct Prepared {
     pub(crate) syntax: SyntaxTrees,
-    pub(crate) constant_selection: declaration_selection::ConstantSelection<'static>,
+    pub(crate) constant_selection: ConstantSelection<'static>,
 }
 
 /// Select constants, validate the forest for the requested constant
@@ -53,18 +57,12 @@ pub(crate) fn prepare(
         top_level_bindings,
         base,
     )?;
+    type_aliases::normalize(&mut syntax, &constant_selection)?;
     // Initializer-selection probes can arrive before generic synthesis. Their
     // module constant admission needs the same lexical carrier-head binding.
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
-    module_normalization::validate_with_const_resolution_mode(
-        &syntax,
-        &constant_selection,
-        constants,
-    )?;
-    trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax,
-        &constant_selection,
-    )?;
+    validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
+    synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {
         syntax,
         constant_selection,

@@ -89,3 +89,15 @@ omega --check samples/cli/facts/nine_arg_stack_calling_plan/<place>/invalid/main
 - Pinned record at `50abcdce8fe6+wt`: 18 fixture families (`..._through_<place>_{exit,rejected}`), byte-equal to the sample tree — 9 `checked` rows with `check-target:macos_arm64` and 9 `rejected ... expected` rows carrying the decision-17 `may overflow `u64`` diagnostic in `corpus_outcomes.txt`; 9 `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; 9 `exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail fixtures that did not reject.
 - Discrimination: modifying `probe()` expectation from 0 to 1 causes runtime traps with `native signal 5` and `interp crash: Trap` (exit 255), proving the exit 0 oracle actively discriminates computation outcomes.
 - What remains open: aggregate struct argument splitting across register/stack boundaries, indirect aggregate (`sret`) return homes, and SIMD/float vector register calling spill plans. The ten-argument stack row carries its own folder and pinned family.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

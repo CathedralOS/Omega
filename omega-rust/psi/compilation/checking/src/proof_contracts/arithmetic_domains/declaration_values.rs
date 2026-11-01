@@ -4,7 +4,9 @@
 
 use super::{ArithmeticDomain, Diagnostic, ExpressionHandle, PrimitiveType, ValueEnvironment};
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
 
 /// A local type recipe is formed at this statement's current value epoch.
@@ -45,21 +47,17 @@ pub(crate) fn validate_declaration_value_range(
         // scalar arithmetic and selected call contracts. An unused declaration
         // must decline missing formation evidence just as an executed one does.
         let missing_formation = match node {
-            typed_trees::expression::ExpressionNode::Indexed(_) => Some("indexed access bounds"),
-            typed_trees::expression::ExpressionNode::Atomic(_) => Some("atomic access authority"),
-            typed_trees::expression::ExpressionNode::Borrow(_) => Some("borrow custody"),
-            typed_trees::expression::ExpressionNode::ZeroValue(_) => {
-                Some("zero construction membership")
-            }
-            typed_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            ExpressionNode::Indexed(_) => Some("indexed access bounds"),
+            ExpressionNode::Atomic(_) => Some("atomic access authority"),
+            ExpressionNode::Borrow(_) => Some("borrow custody"),
+            ExpressionNode::ZeroValue(_) => Some("zero construction membership"),
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
                 Some("recast access and representation")
             }
-            typed_trees::expression::ExpressionNode::Cast(cast)
-                if cast.semantic_domain_symbol.is_valid() =>
-            {
+            ExpressionNode::Cast(cast) if cast.semantic_domain_symbol.is_valid() => {
                 Some("domain qualification membership")
             }
-            typed_trees::expression::ExpressionNode::Member(member) => {
+            ExpressionNode::Member(member) => {
                 let receiver = crate::parameter_expression_result_type_reference(
                     program,
                     lexical_owner,
@@ -83,8 +81,7 @@ pub(crate) fn validate_declaration_value_range(
         }
         if matches!(
             node,
-            typed_trees::expression::ExpressionNode::StructLiteral(_)
-                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+            ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
         ) {
             let reference = crate::parameter_expression_result_type_reference(
                 program,
@@ -191,8 +188,10 @@ pub(super) fn binary_result_fits(
                         identity: format!("\0declaration-value:{:?}", parameter.symbol),
                         unsigned: !primitive.is_signed_integer(),
                     }),
-                    minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-                    maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                    interval: BigIntInterval {
+                        low: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                        high: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                    },
                 },
             })
         })

@@ -1,5 +1,6 @@
 //! Materialize a reference's address word without copying referent storage.
 
+use super::runtime_address::{cross_references, footprint, projection_origin, scale};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedMemoryAccessRole, invalid, memory, place_pointer, provenance, transport_at_byte_offset,
@@ -42,7 +43,7 @@ pub(super) fn establish(
             address.pointer_slots.as_slice(),
         )
     } else {
-        let (input, slots) = super::runtime_address::projection_origin(
+        let (input, slots) = projection_origin(
             source,
             builder,
             row,
@@ -52,15 +53,9 @@ pub(super) fn establish(
         )?;
         (input.ok_or_else(invalid)?, slots)
     };
-    let (mut input, leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        address.place,
-        input,
-        &address.indices,
-        slots,
-    )?;
-    input = super::runtime_address::scale(
+    let (mut input, leaf_index) =
+        cross_references(builder, row, address.place, input, &address.indices, slots)?;
+    input = scale(
         builder,
         row,
         address.place,
@@ -227,7 +222,7 @@ pub(in crate::selection::construction::scalar_graph) fn load_scalar_referent(
         None => (0, &[][..]),
     };
     let pointer = transport_register(builder, place, byte_offset)?;
-    super::runtime_address::footprint(
+    footprint(
         builder,
         row,
         place,
@@ -254,20 +249,14 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
         Some((last, preceding)) if last.scalar_descriptor => (preceding, Some(last)),
         _ => (address.pointer_slots.as_slice(), None),
     };
-    let (pointer, leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        place,
-        pointer,
-        &address.indices,
-        slots,
-    )?;
+    let (pointer, leaf_index) =
+        cross_references(builder, row, place, pointer, &address.indices, slots)?;
     let (pointer, offset) = if let Some(slot) = scalar_slot {
         if address.referent_offset != 0 || slot.indices.end != address.indices.len() {
             return Err(invalid());
         }
         (
-            super::runtime_address::scale(
+            scale(
                 builder,
                 row,
                 place,
@@ -279,7 +268,7 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
         )
     } else {
         (
-            super::runtime_address::scale(
+            scale(
                 builder,
                 row,
                 place,

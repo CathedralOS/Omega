@@ -6,21 +6,23 @@ use crate::unit_validation::structural_catalog::{
 };
 use abstract_operations::AbstractOperation as Operation;
 use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::BlockId;
+use semantic_vocabulary::StructuralDomainId;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralDomainDeclaration;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+use terminal_semantics::same_descriptor_coordinate;
 
 pub(super) fn valid(
     function: &PsiOptimizationFunction,
     operation: &Operation,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let (source, bytes, cut) = match operation {
         Operation::ByteSequenceLength { source, .. } => (source, true, None),
@@ -99,18 +101,12 @@ pub(super) fn valid(
                 result: measured,
                 source: observed,
                 ..
-            } if bytes => {
-                measured.value == length
-                    && terminal_semantics::same_descriptor_coordinate(observed, source)
-            }
+            } if bytes => measured.value == length && same_descriptor_coordinate(observed, source),
             Operation::ElementViewLength {
                 result: measured,
                 source: observed,
                 ..
-            } if !bytes => {
-                measured.value == length
-                    && terminal_semantics::same_descriptor_coordinate(observed, source)
-            }
+            } if !bytes => measured.value == length && same_descriptor_coordinate(observed, source),
             _ => false,
         })
     } else {
@@ -140,29 +136,33 @@ fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
 pub(super) fn valid_whole(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
-    source: &terminal_psi::StructuralArgument,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
+    source: &StructuralArgument,
     length: semantic_vocabulary::ValueId,
 ) -> bool {
     source.access == StructuralAccess::SharedBorrow
-        && source_shape(function, types, domains, source, StructuralAccess::SharedBorrow)
-            .is_some_and(|shape| matches!(shape, StructuralTypeShape::ByteSequence(_)) || fixed_bytes(&shape, types))
-        && function.block_nodes().any(|node| matches!(&node.operation,
+        && source_shape(
+            function,
+            types,
+            domains,
+            source,
+            StructuralAccess::SharedBorrow,
+        )
+        .is_some_and(|shape| {
+            matches!(shape, StructuralTypeShape::ByteSequence(_)) || fixed_bytes(&shape, types)
+        })
+        && function.block_nodes().any(|node| {
+            matches!(&node.operation,
             Operation::ByteSequenceLength { source: measured, result, .. }
-            if result.value == length && terminal_semantics::same_descriptor_coordinate(measured, source)))
+            if result.value == length && same_descriptor_coordinate(measured, source))
+        })
 }
 
 fn source_shape(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
-    source: &terminal_psi::StructuralArgument,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
+    source: &StructuralArgument,
     requested: StructuralAccess,
 ) -> Option<StructuralTypeShape> {
     if !covers(source.access, requested) {
@@ -237,10 +237,7 @@ fn source_shape(
 pub(super) fn validate_whole_freshness(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    predecessors: &BTreeMap<
-        semantic_vocabulary::BlockId,
-        std::collections::BTreeSet<semantic_vocabulary::BlockId>,
-    >,
+    predecessors: &BTreeMap<BlockId, std::collections::BTreeSet<BlockId>>,
 ) -> Result<(), crate::OptimizationUnitValidationError> {
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {

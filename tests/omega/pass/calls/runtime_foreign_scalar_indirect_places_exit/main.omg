@@ -49,7 +49,7 @@ linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
 linux_x86_64 machine snapshot(value: &[u8; 8], count: u64) -> u64
 satisfies Snapshot::copy via snapshot_binding()
 requires count == 8;
-NativeSnapshot satisfies Snapshot { Snapshot::copy = snapshot; }
+NativeSnapshot satisfies Snapshot { machine copy(value: &[u8; 8], count: u64) -> u64 requires count == 8 { snapshot(value, count) } }
 data ByteHolder { value: [u8; 8] }
 data ScalarHolder { value: u64 }
 data SnapshotHelpers {}

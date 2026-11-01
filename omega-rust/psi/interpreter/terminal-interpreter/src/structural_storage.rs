@@ -8,6 +8,7 @@ use semantic_vocabulary::StructuralFieldId;
 use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
+pub(crate) mod contents;
 mod retirement;
 pub(crate) use retirement::RetainedStorage;
 mod original_allocation;

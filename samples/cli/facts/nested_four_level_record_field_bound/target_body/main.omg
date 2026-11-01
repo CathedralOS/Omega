@@ -27,60 +27,69 @@ requires r.outer.mid.inner.val >= 40u64 && r.outer.mid.inner.val <= 80u64
     0i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86VerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let r: RootRec = RootRec {
+            outer: Outer {
+                mid: Middle {
+                    inner: Inner {
+                        val: 60u64,
+                    },
                 },
             },
-        },
-    };
-    verify_rec(r)
+        };
+        verify_rec(r)
+    }
+}
+
+ArmVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let r: RootRec = RootRec {
+            outer: Outer {
+                mid: Middle {
+                    inner: Inner {
+                        val: 60u64,
+                    },
+                },
+            },
+        };
+        verify_rec(r)
+    }
 }
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {
@@ -90,4 +99,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

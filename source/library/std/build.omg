@@ -1,8 +1,70 @@
 use omega::language::core::external_binding;
-
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
+    configure_windows_time(builder);
+    configure_windows_filesystem(builder);
+    // Bind the complete ObjectiveC family once. String extents stay static.
+    Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_getClass"
+        }
+    });
+    Build::bind<ObjectiveC::register_selector>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_sel_registerName"
+        }
+    });
+    Build::bind<ObjectiveC::send_string>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_byte_string>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_scalar>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_delayed>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_rect>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_image_size>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::send_scalar4>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<ObjectiveC::pool_push>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPush"
+        }
+    });
+    Build::bind<ObjectiveC::pool_pop>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
+        }
+    });
 }
 
 // Package-local raw supply follows the checked provider closure. Applications
@@ -27,4 +89,199 @@ machine configure_clock(builder: &mut Build) {
     Build::select_provider<Clock, LinuxArm64Clock>(builder, linux_arm64);
     Build::bind<LinuxArmClockWait::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
+}
+
+// The raw Windows time requirements are backed here, not by forwarding
+// declarations; the TimeHost leaves call them as ordinary requirements.
+machine configure_windows_time(builder: &mut Build) {
+    Build::bind<WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "QueryPerformanceCounter"
+        } });
+    Build::bind<WindowsTimeRead::query_performance_frequency>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "QueryPerformanceFrequency"
+        } });
+    Build::bind<WindowsTimeRead::system_time_as_file_time>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetSystemTimePreciseAsFileTime"
+        } });
+    Build::bind<WindowsTimeRead::sleep>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "Sleep"
+        } });
+}
+
+// The raw Windows filesystem requirements are backed here; their traits carry
+// every contract, so no forwarding declaration restates one. Several requirements
+// share a DLL function and differ only in the contract they promise.
+machine configure_windows_filesystem(builder: &mut Build) {
+    Build::bind<WindowsFilesystemDirectoryIo::next_name>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "NtQueryDirectoryFile"
+        } });
+    Build::bind<WindowsFilesystemDirectoryIo::next_entry>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "NtQueryDirectoryFile"
+        } });
+    Build::bind<WindowsFilesystemFileControlIo::end_of_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFileInformationByHandle"
+        } });
+    Build::bind<WindowsFilesystemFileControlIo::basic>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFileInformationByHandle"
+        } });
+    Build::bind<WindowsFilesystemFileControlIo::open_attributes>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CreateFileW"
+        } });
+    Build::bind<WindowsFilesystemLockIo::acquire>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "LockFileEx"
+        } });
+    Build::bind<WindowsFilesystemLockIo::release>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "UnlockFile"
+        } });
+    Build::bind<WindowsFilesystemMetadataIo::file_type>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFileType"
+        } });
+    Build::bind<WindowsFilesystemMetadataIo::open_attributes>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CreateFileW"
+        } });
+    Build::bind<WindowsFilesystemMetadataIo::basic>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFileInformationByHandleEx"
+        } });
+    Build::bind<WindowsFilesystemMetadataIo::standard>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFileInformationByHandleEx"
+        } });
+    Build::bind<WindowsFilesystemMetadataIo::attribute_tag>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFileInformationByHandleEx"
+        } });
+    Build::bind<WindowsFilesystemPathIo::final_path>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFinalPathNameByHandleW"
+        } });
+    Build::bind<WindowsFilesystemUtf8Io::utf8>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "WideCharToMultiByte"
+        } });
+    Build::bind<WindowsFilesystemPositionIo::object_access>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "NtQueryObject"
+        } });
+    Build::bind<WindowsFilesystemPositionIo::reopen_read>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ReOpenFile"
+        } });
+    Build::bind<WindowsFilesystemPositionIo::reopen_write>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ReOpenFile"
+        } });
+    Build::bind<WindowsFilesystemReparseIo::query>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "DeviceIoControl"
+        } });
+    Build::bind<WindowsFilesystemTransferIo::write_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "WriteFile"
+        } });
+    Build::bind<WindowsFilesystemTransferIo::read_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ReadFile"
+        } });
+    Build::bind<WindowsFilesystemRemovalIo::open>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "NtOpenFile"
+        } });
+    Build::bind<WindowsFilesystemRemovalIo::dispose>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFileInformationByHandle"
+        } });
+    Build::bind<WindowsFilesystemRemovalIo::close>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CloseHandle"
+        } });
+    Build::bind<WindowsFilesystemIo::c_file_mode>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "NtQueryInformationFile"
+        } });
+    Build::bind<WindowsFilesystemIo::c_status_to_error>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "ntdll.dll", export: "RtlNtStatusToDosError"
+        } });
+    Build::bind<WindowsFilesystemIo::c_create_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CreateFileW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_close_handle>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CloseHandle"
+        } });
+    Build::bind<WindowsFilesystemIo::c_get_last_error>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetLastError"
+        } });
+    Build::bind<WindowsFilesystemIo::c_flush_file_buffers>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "FlushFileBuffers"
+        } });
+    Build::bind<WindowsFilesystemIo::c_set_file_pointer>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFilePointerEx"
+        } });
+    Build::bind<WindowsFilesystemIo::c_get_current_process>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetCurrentProcess"
+        } });
+    Build::bind<WindowsFilesystemIo::c_duplicate_handle>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "DuplicateHandle"
+        } });
+    Build::bind<WindowsFilesystemIo::c_set_file_attributes>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFileAttributesW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_move_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "MoveFileExW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_rename_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "MoveFileExW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_hard_link>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CreateHardLinkW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_create_directory>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "CreateDirectoryW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_remove_directory>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "RemoveDirectoryW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_delete_file>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "DeleteFileW"
+        } });
+    Build::bind<WindowsFilesystemIo::c_set_file_time>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetFileTime"
+        } });
+    Build::bind<WindowsFilesystemIo::c_get_file_time>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetFileTime"
+        } });
+    Build::bind<WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "SetLastError"
+        } });
 }

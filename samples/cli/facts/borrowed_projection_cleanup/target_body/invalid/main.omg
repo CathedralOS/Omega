@@ -35,46 +35,76 @@ machine observe(receipt: &Receipt) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-windows_x86_64 machine across() crashes Trap { let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
-    let mut direct_drops: [u64; 1] = [0];
-    let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
-    verify_captured(direct_code, &direct_drops);
-    let mut call_drops: [u64; 1] = [0];
-    let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
-    verify_captured(call_code, &call_drops);
-    let mut pair_drops: [u64; 1] = [0];
-    let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
-    verify_captured(pair_code, &pair_drops); }
-linux_x86_64 machine across() crashes Trap { let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
-    let mut direct_drops: [u64; 1] = [0];
-    let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
-    verify_captured(direct_code, &direct_drops);
-    let mut call_drops: [u64; 1] = [0];
-    let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
-    verify_captured(call_code, &call_drops);
-    let mut pair_drops: [u64; 1] = [0];
-    let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
-    verify_captured(pair_code, &pair_drops); }
-linux_arm64 machine across() crashes Trap { let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
-    let mut direct_drops: [u64; 1] = [0];
-    let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
-    verify_captured(direct_code, &direct_drops);
-    let mut call_drops: [u64; 1] = [0];
-    let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
-    verify_captured(call_code, &call_drops);
-    let mut pair_drops: [u64; 1] = [0];
-    let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
-    verify_captured(pair_code, &pair_drops); }
-macos_arm64 machine across() crashes Trap { let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
-    let mut direct_drops: [u64; 1] = [0];
-    let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
-    verify_captured(direct_code, &direct_drops);
-    let mut call_drops: [u64; 1] = [0];
-    let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
-    verify_captured(call_code, &call_drops);
-    let mut pair_drops: [u64; 1] = [0];
-    let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
-    verify_captured(pair_code, &pair_drops); }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Across satisfies SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
+        let mut direct_drops: [u64; 1] = [0];
+        let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
+        verify_captured(direct_code, &direct_drops);
+        let mut call_drops: [u64; 1] = [0];
+        let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
+        verify_captured(call_code, &call_drops);
+        let mut pair_drops: [u64; 1] = [0];
+        let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
+        verify_captured(pair_code, &pair_drops); 
+    }
+}
+
+ArmAcross satisfies SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     let seed: Seed = Seed { code: 6 }; observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
+        let mut direct_drops: [u64; 1] = [0];
+        let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
+        verify_captured(direct_code, &direct_drops);
+        let mut call_drops: [u64; 1] = [0];
+        let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
+        verify_captured(call_code, &call_drops);
+        let mut pair_drops: [u64; 1] = [0];
+        let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
+        verify_captured(pair_code, &pair_drops); 
+    }
+}
+
+
 machine main() crashes Trap {
-    across();
+    SelectedAcross::across();
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

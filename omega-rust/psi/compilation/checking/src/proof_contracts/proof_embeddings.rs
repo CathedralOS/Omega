@@ -7,10 +7,12 @@
 /// Membership sets take the integer hasher; none is iterated for output order.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use symbols::BuiltinFunction;
+use symbols::BuiltinType;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
@@ -29,12 +31,11 @@ pub(crate) use calls::validate_integer_embedding_calls;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IntegerEmbedding {
     pub(crate) primitive: PrimitiveType,
-    pub(crate) minimum: BigInt,
-    pub(crate) maximum: Option<BigInt>,
+    pub(crate) interval: super::arithmetic_domains::BigIntInterval,
 }
 
 pub(crate) fn validate_proof_embeddings(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     classification: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -221,10 +222,7 @@ fn has_embedding_shape(call: &TableCallExpression) -> bool {
         && call.private_layout_operation.is_none()
 }
 
-pub(crate) fn is_exact_embed_call(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-) -> bool {
+pub(crate) fn is_exact_embed_call(program: &dyn CheckingInput, call: &TableCallExpression) -> bool {
     !call.receiver.is_valid()
         && call.target.as_str() == BuiltinFunction::IntegerEmbed.name()
         && program
@@ -238,7 +236,7 @@ pub(crate) fn is_exact_embed_call(
 /// consumers share this query instead of treating the call as an unknown
 /// declared operand. Source eligibility remains the embedding validator's job.
 pub(crate) fn embedding_result_type_reference(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     call: &TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     (is_exact_embed_call(program, call) && has_embedding_shape(call))
@@ -247,7 +245,7 @@ pub(crate) fn embedding_result_type_reference(
 }
 
 pub(crate) fn integer_embedding(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<IntegerEmbedding> {
     let primitive = expression_primitive(program, expression)?;
@@ -261,8 +259,10 @@ pub(crate) fn integer_embedding(
     };
     Some(IntegerEmbedding {
         primitive,
-        minimum,
-        maximum,
+        interval: super::arithmetic_domains::BigIntInterval {
+            low: Some(minimum),
+            high: maximum,
+        },
     })
 }
 
@@ -270,7 +270,7 @@ pub(crate) fn integer_embedding(
 /// structural query; proof placement and denotational eligibility still
 /// require the ordinary validation and checked termination gates.
 pub fn integer_embedding_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ExpressionHandle)> {
     let call = expression_table(program).call_node(expression)?;
@@ -283,19 +283,15 @@ pub fn integer_embedding_argument(
     Some((integer_embedding(program, *argument)?.primitive, *argument))
 }
 
-pub(crate) fn proof_int_type_reference(
-    program: &dyn crate::CheckingInput,
-) -> Option<TypeReferenceHandle> {
-    let symbol = program
-        .symbols
-        .builtin_type_symbol(symbols::BuiltinType::Int)?;
+pub(crate) fn proof_int_type_reference(program: &dyn CheckingInput) -> Option<TypeReferenceHandle> {
+    let symbol = program.symbols.builtin_type_symbol(BuiltinType::Int)?;
     program
         .type_reference_table
         .find_named_type_reference(symbol)
 }
 
 fn expression_primitive(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
     if let Some(type_reference) = expression_type_reference(program, expression) {
@@ -356,7 +352,7 @@ fn expression_primitive(
     }
 }
 
-fn is_unlanded_integer(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+fn is_unlanded_integer(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     matches!(expression_table(program).expression(expression),
         ExpressionNode::Integer(literal) if literal.landing().is_none())
 }
@@ -367,7 +363,7 @@ fn is_unlanded_integer(program: &dyn crate::CheckingInput, expression: Expressio
 /// refuses to treat an arbitrary borrow as an integer payload; the measure
 /// itself is the `u64` count, not the borrowed collection.
 fn collection_measure_receiver(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<crate::collection_operations::MeasureReceiver> {
     let mut receiver = member.receiver;
@@ -387,7 +383,7 @@ fn collection_measure_receiver(
 /// References are not erased here: embedding observes an integer payload,
 /// never the address or referent of an arbitrary borrow.
 pub(crate) fn expression_type_reference(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match expression_table(program).expression(expression) {
@@ -486,7 +482,7 @@ pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigIn
 }
 
 fn collect_statement_nodes(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     statement: &StatementNode,
     nodes: &mut Vec<ExpressionHandle>,
     seen: &mut HashSet<ExpressionHandle>,

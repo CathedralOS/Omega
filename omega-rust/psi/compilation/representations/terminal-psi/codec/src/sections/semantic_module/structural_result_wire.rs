@@ -2,7 +2,7 @@
 
 use terminal_psi::{
     ResultQualificationEstablishment, StructuralMultiplicity, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralResultDeclaration,
+    StructuralResultDeclaration,
 };
 
 use super::CodecError;
@@ -10,6 +10,9 @@ use super::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
 use super::wire::{Reader, Writer, strictly_increasing};
+use super::wire_fields::{
+    ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, wire_record,
+};
 use crate::sections::semantic_module::structural_place_wire::{
     decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
     encode_structural_path,
@@ -177,74 +180,43 @@ pub(crate) fn decode_function_result(
     Ok(result)
 }
 
+wire_record! {
+    OperationResult: StructuralOperationResult {
+        place: Id,
+        structural_type: Id,
+        multiplicity: Multiplicity,
+        qualifications: Ids,
+        projected_qualifications: List<PathQualification>,
+        qualification_establishments: List<Establishment>,
+        claims: List<ClaimBinding>,
+    }
+    Establishment: ResultQualificationEstablishment { domain: Id, route: RouteIndex }
+}
+
+/// A qualification route index, carried in a `u64` slot.
+struct RouteIndex;
+impl Field<u32> for RouteIndex {
+    fn write(writer: &mut Writer, value: &u32) -> Result<(), CodecError> {
+        writer.u64(u64::from(*value));
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<u32, CodecError> {
+        u32::try_from(reader.u64()?)
+            .map_err(|_| CodecError::MalformedStructuralFoundation("route index out of range"))
+    }
+}
+
 pub(crate) fn encode_operation_result(
     writer: &mut Writer,
     result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
-    writer.id(result.place);
-    writer.id(result.structural_type);
-    encode_multiplicity(writer, result.multiplicity);
-    writer.ids(
-        "structural operation result qualifications",
-        &result.qualifications,
-    )?;
-    encode_projected_qualifications(writer, &result.projected_qualifications)?;
-    writer.len(
-        "operation result qualification establishments",
-        result.qualification_establishments.len(),
-    )?;
-    for establishment in &result.qualification_establishments {
-        writer.id(establishment.domain);
-        writer.u64(u64::from(establishment.route));
-    }
-    encode_claim_bindings(writer, &result.claims)
-}
-
-/// Operation results and returning edges carry the same path-based claim join.
-/// Keep one row codec so neither envelope can lose the Case guard or rebind a
-/// claim by machine-local identity order instead of its typed source path.
-pub(crate) fn encode_claim_bindings(
-    writer: &mut Writer,
-    bindings: &[StructuralResultClaimBinding],
-) -> Result<(), CodecError> {
-    writer.len("structural claim bindings", bindings.len())?;
-    for claim in bindings {
-        writer.id(claim.claim);
-        encode_structural_path(writer, "structural claim binding path", &claim.path)?;
-    }
-    Ok(())
+    OperationResult::write(writer, result)
 }
 
 pub(crate) fn decode_operation_result(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralOperationResult, CodecError> {
-    Ok(StructuralOperationResult {
-        place: reader.id("PlaceId")?,
-        structural_type: reader.id("StructuralTypeId")?,
-        multiplicity: decode_multiplicity(reader)?,
-        qualifications: decode_ids(reader, "StructuralDomainId")?,
-        projected_qualifications: decode_projected_qualifications(reader)?,
-        qualification_establishments: decode_counted(reader, |reader| {
-            Ok(ResultQualificationEstablishment {
-                domain: reader.id("StructuralDomainId")?,
-                route: u32::try_from(reader.u64()?).map_err(|_| {
-                    CodecError::MalformedStructuralFoundation("route index out of range")
-                })?,
-            })
-        })?,
-        claims: decode_claim_bindings(reader)?,
-    })
-}
-
-pub(crate) fn decode_claim_bindings(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralResultClaimBinding>, CodecError> {
-    decode_counted(reader, |reader| {
-        Ok(StructuralResultClaimBinding {
-            claim: reader.id("ClaimId")?,
-            path: decode_structural_path(reader)?,
-        })
-    })
+    OperationResult::read(reader)
 }
 
 pub(crate) fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity) {

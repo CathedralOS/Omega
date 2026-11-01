@@ -3,64 +3,77 @@
 // Invalid control: val lower bound weakened to 25u16, allowing shifted as low as 100u16 and failing subtraction shifted - 120u16.
 // Expected rejection: may overflow `u16`
 
-linux_x86_64 machine shift_target(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16
-{
-    let shifted: u16 = val << 2u16;
-    let check: u16 = shifted - 120u16;
-    transition shifted == 120u16 && check == 0u16 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine shift_target(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16
-{
-    let shifted: u16 = val << 2u16;
-    let check: u16 = shifted - 120u16;
-    transition shifted == 120u16 && check == 0u16 {
-        true -> pass()
-        _ -> fail()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-macos_arm64 machine shift_target(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16
-{
-    let shifted: u16 = val << 2u16;
-    let check: u16 = shifted - 120u16;
-    transition shifted == 120u16 && check == 0u16 {
-        true -> pass()
-        _ -> fail()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-windows_x86_64 machine shift_target(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16
-{
-    let shifted: u16 = val << 2u16;
-    let check: u16 = shifted - 120u16;
-    transition shifted == 120u16 && check == 0u16 {
-        true -> pass()
-        _ -> fail()
+boundary trait SelectedShiftTarget {
+    machine shift_target(val: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 25u16 && val <= 30u16;
+}
+
+X86ShiftTarget satisfies SelectedShiftTarget {
+    machine shift_target(val: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 25u16 && val <= 30u16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let shifted: u16 = val << 2u16;
+        let check: u16 = shifted - 120u16;
+        transition shifted == 120u16 && check == 0u16 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+}
+
+ArmShiftTarget satisfies SelectedShiftTarget {
+    machine shift_target(val: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 25u16 && val <= 30u16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let shifted: u16 = val << 2u16;
+        let check: u16 = shifted - 120u16;
+        transition shifted == 120u16 && check == 0u16 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
+    }
 }
 
 machine main() crashes Trap {
-    let res: i32 = shift_target(30u16);
+    let res: i32 = SelectedShiftTarget::shift_target(30u16);
     transition res == 0 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

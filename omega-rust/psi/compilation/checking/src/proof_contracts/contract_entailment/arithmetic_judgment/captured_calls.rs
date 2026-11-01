@@ -8,7 +8,7 @@ use super::super::scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue, calls::ScopedCalls, install_hypotheses,
 };
-use super::{Engine, Polynomial};
+use super::{Engine, IntegerApplicationInput, Polynomial};
 use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
@@ -19,22 +19,37 @@ impl Engine<'_> {
     pub(super) fn complete_formed_call(
         &mut self,
         expression: ExpressionHandle,
-        arguments: &[(ExpressionHandle, Polynomial)],
+        arguments: &[(ExpressionHandle, IntegerApplicationInput)],
         result: &Polynomial,
     ) -> bool {
         let mut remaining = 4096usize;
-        let Some(actuals) = arguments
-            .iter()
-            .map(|(source, value)| {
-                Some(ScopedArithmeticBinding {
-                    binder: ScopedArithmeticBinder::Occurrence(*source),
-                    value: captured_polynomial(value, &self.unsigned_atoms, &mut remaining)?,
-                })
-            })
-            .collect::<Option<Vec<_>>>()
-        else {
+        let Some(call) = expression_table(self.program).call_node(expression) else {
             return false;
         };
+        let Some(owner) = super::super::specification_calls::selected_call_contract(
+            self.program,
+            self.source_owner,
+            call,
+        ) else {
+            return false;
+        };
+        let parameters = super::super::specification_calls::owner_parameters(self.program, &owner);
+        if parameters.len() != arguments.len() {
+            return false;
+        }
+        let mut actuals = Vec::new();
+        for (parameter, (source, input)) in parameters.iter().zip(arguments) {
+            let Some(mut bindings) = input.scoped_bindings(parameter.symbol, |value| {
+                captured_polynomial(value, &self.unsigned_atoms, &mut remaining)
+            }) else {
+                return false;
+            };
+            let Some(root) = bindings.first_mut() else {
+                return false;
+            };
+            root.binder = ScopedArithmeticBinder::Occurrence(*source);
+            actuals.extend(bindings);
+        }
         let Some(result) = captured_polynomial(result, &self.unsigned_atoms, &mut remaining) else {
             return false;
         };
@@ -54,6 +69,8 @@ impl Engine<'_> {
         let previous_symbols = self.strict_symbol_bindings.clone();
         let previous_result = self.strict_result_binding.clone();
         let previous_occurrences = self.strict_occurrences.clone();
+        let previous_reads = self.formal_read_arguments.clone();
+        let previous_owned = self.owned_arguments.clone();
         let previous_conditions = std::mem::take(&mut self.saved_conditions);
         let accepted = install_hypotheses(self.program, self, &hypotheses);
         self.source_owner = previous_owner;
@@ -62,6 +79,8 @@ impl Engine<'_> {
         self.strict_symbol_bindings = previous_symbols;
         self.strict_result_binding = previous_result;
         self.strict_occurrences = previous_occurrences;
+        self.formal_read_arguments = previous_reads;
+        self.owned_arguments = previous_owned;
         self.saved_conditions = previous_conditions;
         accepted
     }
@@ -182,6 +201,8 @@ impl Engine<'_> {
         let previous_symbols = self.strict_symbol_bindings.clone();
         let previous_result = self.strict_result_binding.clone();
         let previous_occurrences = self.strict_occurrences.clone();
+        let previous_reads = self.formal_read_arguments.clone();
+        let previous_owned = self.owned_arguments.clone();
         let previous_conditions = std::mem::take(&mut self.saved_conditions);
         let prepared_occurrences = self
             .install_scoped_expression(&prepared)
@@ -192,6 +213,8 @@ impl Engine<'_> {
         self.strict_symbol_bindings = previous_symbols;
         self.strict_result_binding = previous_result;
         self.strict_occurrences = previous_occurrences;
+        self.formal_read_arguments = previous_reads;
+        self.owned_arguments = previous_owned;
         self.saved_conditions = previous_conditions;
         if !accepted {
             return false;

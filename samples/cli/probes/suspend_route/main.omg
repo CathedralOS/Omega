@@ -12,8 +12,8 @@
 //     suspending machine; `suspend Sleeper::park(7)` inside.
 //   * `token: Token in Carry::AcrossSuspend` — domain member on a
 //     param: suspend-crossing carry qualification.
-//   * `suspend block Task::finish(task)` shape is a boundary
-//     requirement in core::task — kept to the plain-call form here.
+//   * `suspend block TaskLifecycle::finish<T>(task)` shape is a boundary
+//     trait requirement in core::task — kept to the plain-call form here.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: suspending machines never run here — the

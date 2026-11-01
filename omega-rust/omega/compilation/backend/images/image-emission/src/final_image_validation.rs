@@ -11,7 +11,12 @@ use image::{
 };
 
 use super::ObjectArtifact;
+use super::function_fragments::implementation_tables::validate_image_data_relocations;
+use super::hosted_unit_entry::validate_unit_shim;
 use super::hosted_unit_entry::{EntryShim, EntrySurface};
+use crate::private_object_composition::ObjectNamespace;
+use crate::private_object_composition::namespaces;
+use crate::private_object_composition::remap;
 
 mod implementation_tables;
 mod native_code_layouts;
@@ -212,9 +217,8 @@ fn validate_terminal_image_with_import_count(
                 helper.machine != private.body.entry || private.entry_bridge.is_some()
             })
         {
-            let symbol =
-                crate::private_object_composition::remap(&private.symbol_bindings, helper.symbol)
-                    .map_err(|error| Diagnostic::error(error.to_string()))?;
+            let symbol = remap(&private.symbol_bindings, helper.symbol)
+                .map_err(|error| Diagnostic::error(error.to_string()))?;
             let name = object_file::object_symbol_name(object, symbol);
             let offset = private
                 .text_offset
@@ -272,14 +276,9 @@ fn validate_terminal_image_with_import_count(
             | EntrySurface::DarwinX86_64Unit
             | EntrySurface::WindowsUnit
             | EntrySurface::LinuxUnit
-            | EntrySurface::LinuxArm64Unit => super::hosted_unit_entry::validate_unit_shim(
-                shim,
-                artifact,
-                object,
-                text_bytes,
-                relocations,
-                output,
-            )?,
+            | EntrySurface::LinuxArm64Unit => {
+                validate_unit_shim(shim, artifact, object, text_bytes, relocations, output)?
+            }
         }
     }
     let evidence =
@@ -294,13 +293,9 @@ fn validate_terminal_image_with_import_count(
     output.validate_final_initialized_data_relocation_envelope(&encoded_final_data, relocations)?;
     // Initialized compiler data belongs only to the exact immutable selector
     // table pool. Image preparation cannot add, substitute or drop its rows.
-    super::function_fragments::implementation_tables::validate_image_data_relocations(
-        artifact,
-        object,
-        relocations,
-    )
-    .map_err(|error| Diagnostic::error(error.to_string()))?;
-    for namespace in crate::private_object_composition::namespaces(artifact) {
+    validate_image_data_relocations(artifact, object, relocations)
+        .map_err(|error| Diagnostic::error(error.to_string()))?;
+    for namespace in namespaces(artifact) {
         implementation_tables::validate_targets(&namespace, output)?;
         native_code_layouts::validate_targets(&namespace, output)?;
         validate_byte_literal_address_targets(&namespace, output)?;
@@ -312,7 +307,7 @@ fn validate_terminal_image_with_import_count(
 /// Every byte-literal address in the final text must resolve to its octets in
 /// the pool, and the pool must still hold exactly those octets.
 fn validate_byte_literal_address_targets(
-    namespace: &crate::private_object_composition::ObjectNamespace<'_>,
+    namespace: &ObjectNamespace<'_>,
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
     let artifact = namespace.artifact;
@@ -425,7 +420,7 @@ fn validate_callback_relocation_targets(
     relocations: &object_file::RelocationPlan,
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    for namespace in crate::private_object_composition::namespaces(artifact) {
+    for namespace in namespaces(artifact) {
         for call in &namespace.artifact.foreign_calls {
             for callback in &call.callback_addresses {
                 let function = namespace

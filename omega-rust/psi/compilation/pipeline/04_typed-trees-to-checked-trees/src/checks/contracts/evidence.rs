@@ -43,7 +43,10 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                 continue;
             }
             let node = program.expression_table.expression(expression);
-            append_expression_children(program, node, &mut expressions);
+            program.subtree_children(node, typed_trees::SubtreeEdges::STRUCTURAL, |child| {
+                expressions.push(child);
+                false
+            });
             let typed_trees::expression::ExpressionNode::Call(call) = node else {
                 continue;
             };
@@ -170,14 +173,6 @@ pub(super) fn bind_contract_expression_evidence_arguments(
     facts
         .proof
         .contract_expression_static_conformance_applications = static_conformance_applications;
-}
-
-fn append_expression_children(
-    program: &dyn ::validation::CheckingInput,
-    expression: &typed_trees::expression::ExpressionNode,
-    children: &mut Vec<typed_trees::expression::ExpressionHandle>,
-) {
-    crate::facts::push_every_expression_child(program, expression, children)
 }
 
 fn evidence_term_belongs_to_target(

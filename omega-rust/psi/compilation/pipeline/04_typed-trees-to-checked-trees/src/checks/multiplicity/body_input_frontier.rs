@@ -5,6 +5,9 @@
 //! descendant must be live, routed, unchanged and unborrowed at this completion. These rows
 //! remain evidence inputs, not parent-consumption or child-establishment acts.
 
+use super::content_snapshots::Observation;
+use super::content_snapshots::preserve_projection;
+use super::content_snapshots::preserve_replacement;
 use super::linear_obligations::LinearPlace;
 use checked_trees::CheckFacts;
 use checked_trees::facts::{
@@ -59,13 +62,7 @@ pub(crate) fn observe_inputs(
         arena::Handle::invalid(),
     )?;
     for (transformation, expected, consumed) in descendants.replacements {
-        super::content_snapshots::preserve_replacement(
-            program,
-            facts,
-            transformation,
-            expected,
-            consumed,
-        )?;
+        preserve_replacement(program, facts, transformation, expected, consumed)?;
     }
     for descendant in descendants.bindings {
         let current_binding = facts
@@ -99,11 +96,11 @@ pub(crate) fn observe_inputs(
         ) {
             return Err("input's exact routed membership is not live at completion");
         }
-        super::content_snapshots::preserve_projection(
+        preserve_projection(
             program,
             facts,
             descendant.binding,
-            super::content_snapshots::Observation::Place {
+            Observation::Place {
                 at: operand,
                 place: current,
             },

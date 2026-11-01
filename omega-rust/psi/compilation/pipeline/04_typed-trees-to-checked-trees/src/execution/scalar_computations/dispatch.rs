@@ -185,7 +185,12 @@ impl Builder<'_, '_> {
                         },
                     },
                     path: Vec::new(),
-                    type_identity: self.program.normalized_type_identity(reference),
+                    type_identity: validation::stored_structural_type_identity(
+                        self.program,
+                        reference,
+                        &[],
+                        &[],
+                    ),
                     access: CheckedStructuralAccess::SharedBorrow,
                 },
             });
@@ -223,15 +228,60 @@ impl Builder<'_, '_> {
             .match_arms(dispatch.arms)
             .to_vec();
         let mut arms = Vec::new();
+        let mut rejected_patterns = Vec::new();
         for (ordinal, arm) in authored.iter().enumerate() {
+            if self.structural_dispatch_arm_is_impossible(dispatch, arm) {
+                continue;
+            }
             let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
-            let pattern = self.structural_dispatch_pattern(
+            let mut pattern = self.structural_dispatch_pattern(
                 source_expression,
                 dispatch,
                 &subject,
                 arm.pattern,
             )?;
-            let value = self.expression(arm.value, result_type)?;
+            if self.program.static_type_context_is_unreachable(arm.value) {
+                // A guard can execute and reject this arm on every normal
+                // return. Keep its complete computation on the fallthrough
+                // edge; the nonexistent value needs no call or payload plan.
+                rejected_patterns.push(checked_trees::CheckedScalarEvaluationOperand::Scalar(
+                    pattern.computation()?,
+                ));
+                continue;
+            }
+            let mut value = self.expression(arm.value, result_type)?;
+            if !rejected_patterns.is_empty() {
+                let operands = self
+                    .plans
+                    .evaluation_operands
+                    .insert_many(std::mem::take(&mut rejected_patterns));
+                // This generated scope sequences the preceding rejected
+                // patterns before this next decision, without reevaluating
+                // the dispatch subject or inventing an impossible arm value.
+                match pattern {
+                    CheckedScalarDispatchPattern::Predicate(predicate) => {
+                        pattern = CheckedScalarDispatchPattern::Predicate(self.insert(
+                            PrimitiveType::Bool,
+                            CheckedScalarComputationKind::WithOperands {
+                                source_expression: ExpressionHandle::invalid(),
+                                operands,
+                                operand: predicate,
+                            },
+                        ));
+                    }
+                    CheckedScalarDispatchPattern::Wildcard => {
+                        value = self.insert(
+                            result_type,
+                            CheckedScalarComputationKind::WithOperands {
+                                source_expression: ExpressionHandle::invalid(),
+                                operands,
+                                operand: value,
+                            },
+                        );
+                    }
+                    CheckedScalarDispatchPattern::Value(_) => return None,
+                }
+            }
             arms.push(CheckedScalarDispatchArm {
                 equality_use: arena::Handle::invalid(),
                 source_arm,
@@ -242,6 +292,9 @@ impl Builder<'_, '_> {
                 break;
             }
         }
+        if !rejected_patterns.is_empty() {
+            return None;
+        }
         let arms = self.plans.dispatch_arms.insert_many(arms);
         Some(self.insert(
             result_type,
@@ -251,6 +304,42 @@ impl Builder<'_, '_> {
                 arms,
             },
         ))
+    }
+
+    /// The subject has already completed. A condition with no prefix arrival,
+    /// or a false condition built from its pure tag test, evaluates no guard.
+    /// A body contradiction alone cannot erase a reachable guard's effects.
+    pub(super) fn structural_dispatch_arm_is_impossible(
+        &self,
+        dispatch: &TableMatchExpression,
+        arm: &typed_trees::expression::TableMatchArm,
+    ) -> bool {
+        match arm.pattern {
+            MatchPattern::Destructure(pattern) => {
+                self.program
+                    .static_type_context_is_unreachable(pattern.condition)
+                    || self.program.static_boolean_value(pattern.condition) == Some(false)
+            }
+            MatchPattern::Value(_)
+                if self.program.static_type_context_is_unreachable(arm.value) =>
+            {
+                let Some(machine) = self.program.machine_by_symbol(self.machine) else {
+                    return false;
+                };
+                let Some(state) = self.program.state_in_machine(machine, self.state) else {
+                    return false;
+                };
+                validation::structural_match_pattern_case(
+                    self.program,
+                    machine,
+                    state,
+                    dispatch,
+                    arm.pattern,
+                )
+                .is_some_and(|case| case.is_valid())
+            }
+            _ => false,
+        }
     }
 
     /// Structural predicates use the same checked Boolean computation as

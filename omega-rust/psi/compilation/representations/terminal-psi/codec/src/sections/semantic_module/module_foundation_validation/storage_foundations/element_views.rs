@@ -1,4 +1,10 @@
 use super::*;
+use terminal_semantics::descriptor_results::{
+    DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships, terminal_graph,
+};
+use terminal_semantics::{
+    collection_backing, collection_view_descriptor, element_view_leaf_scalar,
+};
 
 /// The shared result-place shape for element-view producers: an exact
 /// unqualified `ElementView` structural result owned by this operation,
@@ -65,14 +71,10 @@ fn fixed_descriptor_establishment(
     let extent = place_structural_type(machine, source.place)
         .and_then(|root| validate_structural_path(module, root, &source.path).ok())
         .and_then(|collection| {
-            terminal_semantics::collection_backing(
-                module.structural_types.iter(),
-                collection,
-                element,
-            )
+            collection_backing(module.structural_types.iter(), collection, element)
         })
         .map(|backing| backing.extent);
-    terminal_semantics::collection_view_descriptor(
+    collection_view_descriptor(
         shape,
         extent,
         region,
@@ -237,9 +239,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     else {
         return malformed("element-view read requires an element-view source");
     };
-    let Some(expected) =
-        terminal_semantics::element_view_leaf_scalar(&module.structural_types, element, path)
-    else {
+    let Some(expected) = element_view_leaf_scalar(&module.structural_types, element, path) else {
         return malformed("element-view read requires a scalar element leaf");
     };
     if operation
@@ -296,12 +296,9 @@ fn validate_element_memberships(
         .ok_or(CodecError::MalformedStructuralFoundation(
             "view introduction position is absent",
         ))?;
-    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
-    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-        &module.structural_types,
-        &graph,
-    );
-    let evidence = terminal_semantics::descriptor_results::element_payload_memberships(
+    let graph = terminal_graph(module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+    let evidence = element_payload_memberships(
         &module.structural_types,
         &module.structural_domains,
         machine,
@@ -313,9 +310,7 @@ fn validate_element_memberships(
     .ok_or(CodecError::MalformedStructuralFoundation(
         "view element memberships have unknown source payloads",
     ))?;
-    let terminal_semantics::descriptor_results::ElementPayloadMemberships::Present(contract) =
-        evidence
-    else {
+    let ElementPayloadMemberships::Present(contract) = evidence else {
         return Ok(());
     };
     let (whole, projected) = terminal_psi::StructuralPathQualification::select(

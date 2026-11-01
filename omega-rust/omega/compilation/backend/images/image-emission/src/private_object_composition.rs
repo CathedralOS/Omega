@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use super::function_fragments::validation::validate_function_fragment_object_artifact;
 use crate::function_fragments::refuse_symbol_collision;
 use crate::{
     FunctionFragmentObjectArtifactError as Error, ObjectArtifact, ObjectCompilerPrivateFunction,
@@ -453,7 +454,7 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
     let Some(source) = &artifact.composition_source else {
         return Ok(());
     };
-    super::function_fragments::validation::validate_function_fragment_object_artifact(
+    validate_function_fragment_object_artifact(
         &source
             .fragment_replay
             .as_ref()
@@ -468,10 +469,7 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             .fragment_replay
             .as_ref()
             .ok_or(Error::Mismatch("private object lacks fragment custody"))?;
-        super::function_fragments::validation::validate_function_fragment_object_artifact(
-            &replay.0,
-            &private.body,
-        )?;
+        validate_function_fragment_object_artifact(&replay.0, &private.body)?;
         crate::callable_entry_transport::validate_entry_transport(private)?;
         inputs.push(PrivateFunctionObject {
             identity: private.identity,

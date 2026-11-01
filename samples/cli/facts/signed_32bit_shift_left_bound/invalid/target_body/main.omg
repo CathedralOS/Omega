@@ -7,36 +7,53 @@ machine verify_shifted(shifted: i32) -> i32
     shifted - 60
 }
 
-linux_x86_64 machine compute_target_body(val: i32) -> i32
-    requires val >= 14 && val <= 15
-{
-    let shifted: i32 = val << 2u32;
-    verify_shifted(shifted)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_target_body(val: i32) -> i32
-    requires val >= 14 && val <= 15
-{
-    let shifted: i32 = val << 2u32;
-    verify_shifted(shifted)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_target_body(val: i32) -> i32
-    requires val >= 14 && val <= 15
-{
-    let shifted: i32 = val << 2u32;
-    verify_shifted(shifted)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_target_body(val: i32) -> i32
-    requires val >= 14 && val <= 15
-{
-    let shifted: i32 = val << 2u32;
-    verify_shifted(shifted)
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(val: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 14 && val <= 15;
+}
+
+X86ComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(val: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 14 && val <= 15
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let shifted: i32 = val << 2u32;
+        verify_shifted(shifted)
+    }
+}
+
+ArmComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(val: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires val >= 14 && val <= 15
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let shifted: i32 = val << 2u32;
+        verify_shifted(shifted)
+    }
 }
 
 machine evaluate() -> i32 {
-    compute_target_body(15)
+    SelectedComputeTargetBody::compute_target_body(15)
 }
 
 machine main() crashes Trap {
@@ -47,4 +64,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

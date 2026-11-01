@@ -5,8 +5,10 @@
 //! publishes evidence only after every relevant guard succeeds. Geometry
 //! without a guard is available only for invariant applications.
 
+use crate::mathematical_applications::PreparedMathematicalView;
 use crate::{CheckingInput, CheckingMemos, PreparedEffectPlans};
 use language_semantics::declaration_selection::AuthoredDeclarationSelections;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -54,14 +56,10 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.input.prepared_effect_plans()
     }
-    fn prepared_mathematics(
-        &self,
-    ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
+    fn prepared_mathematics(&self) -> Option<PreparedMathematicalView<'_>> {
         self.input.prepared_mathematics()
     }
-    fn opaque_representation_selections(
-        &self,
-    ) -> &[representation_selections::OpaqueRepresentationSelection] {
+    fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
         self.input.opaque_representation_selections()
     }
 }

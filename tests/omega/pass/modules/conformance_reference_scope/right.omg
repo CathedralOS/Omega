@@ -3,7 +3,7 @@ module right;
 trait Value { machine read() -> u64; }
 public data Reader {}
 public machine Reader::read() -> u64 { 37u64 }
-Implementation satisfies Value { Value::read = Reader::read; }
+Implementation satisfies Value { machine read() -> u64 { Reader::read() } }
 machine invoke<Selected satisfies Value>() -> u64 { Selected::read() }
 public machine run() -> u64 { invoke<Implementation>() }
 
@@ -11,7 +11,7 @@ trait Family<T> { machine read() -> T; }
 data Wrapped {}
 machine Wrapped::read() -> u64 in Wrapping { 37 }
 ReferencedFamily satisfies Family<u64 in Wrapping> {
-    Family::read = Wrapped::read;
+    machine read() -> u64 in Wrapping { Wrapped::read() }
 }
 InlineFamily satisfies Family<u64 in Wrapping> {
     machine read() -> u64 in Wrapping { 37 }

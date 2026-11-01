@@ -1,6 +1,7 @@
 //! Native pointer preservation is a checked pre-call count bound. Unsigned
 //! trapping subtraction reuses the target's existing arithmetic semantics:
 //! `maximum - count` completes exactly when the prefix remains authorized.
+use super::super::integer_arithmetic::instruction_scratch;
 use super::super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
@@ -43,19 +44,16 @@ pub(super) fn emit(
         values: vec![count],
         ..Default::default()
     };
-    let bound =
-        super::super::integer_arithmetic::instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
+    let bound = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
     builder.registers[bound.0 as usize].scalar_type = scalar;
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(u128::from(guard.max_bytes)),
         bound,
         provenance(),
     )?;
-    let output =
-        super::super::integer_arithmetic::instruction_scratch(builder, 2, IntegerSign::Unsigned)?;
+    let output = instruction_scratch(builder, 2, IntegerSign::Unsigned)?;
     builder.registers[output.0 as usize].scalar_type = scalar;
-    let scratch =
-        super::super::integer_arithmetic::instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
+    let scratch = instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
     let form = legalized_operations::TrappingForm {
         operation: legalized_operations::TrappingOperation::Subtract,
         carrier: legalized_operations::SaturatingCarrier::from_integer(guard.count_type)

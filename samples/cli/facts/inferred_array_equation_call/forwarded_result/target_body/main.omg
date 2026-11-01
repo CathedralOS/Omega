@@ -3,14 +3,62 @@
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 where Length == [u8; Capacity]
 { Capacity }
-linux_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
-windows_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
-macos_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
-linux_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     capacity(forward(items)) 
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     capacity(forward(items)) 
+    }
+}
+
+
 machine forward<Value [copy]>(value: Value) -> Value { value }
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
-    let observed: u64 = consume(items);
+    let observed: u64 = SelectedConsume::consume(items);
     transition observed == 2 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

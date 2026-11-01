@@ -3,3 +3,4 @@
 mod captures;
 pub mod const_integer;
 pub mod expression;
+pub mod subtrees;

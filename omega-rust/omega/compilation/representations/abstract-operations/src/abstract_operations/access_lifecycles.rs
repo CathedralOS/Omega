@@ -6,7 +6,9 @@
 //! through native lowering. This is operand transport, not backing admission or
 //! a claim that the profile is authoritative.
 
-use terminal_psi::{StructuralAccess, StructuralArgument, TerminalAccessLifecycleOperation};
+use terminal_psi::{
+    StructuralAccess, StructuralArgument, TerminalAccessLifecycleOperation as LifecycleOperation,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccessLifecycleOperands {
@@ -28,8 +30,7 @@ pub enum AccessLifecycleOperands {
 #[cfg(test)]
 mod tests {
     use super::{
-        AccessLifecycleOperands, StructuralAccess, StructuralArgument,
-        TerminalAccessLifecycleOperation,
+        AccessLifecycleOperands, LifecycleOperation, StructuralAccess, StructuralArgument,
     };
     use semantic_vocabulary::{ObligationId, PlaceId, ValueId};
     use terminal_psi::{StructuralPathSegment, TerminalIdentityIndex};
@@ -56,18 +57,13 @@ mod tests {
         let mut profile = argument(3, StructuralAccess::SharedBorrow);
         profile.path.push(StructuralPathSegment::Referent);
         let expected = vec![storage.clone(), value, profile];
-        let operands = AccessLifecycleOperands::from_arguments(
-            TerminalAccessLifecycleOperation::Initialize,
-            &expected,
-        )
-        .expect("owned inputs and borrowed profile");
+        let operands =
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::Initialize, &expected)
+                .expect("owned inputs and borrowed profile");
         assert_eq!(operands.arguments().cloned().collect::<Vec<_>>(), expected);
-        assert_eq!(
-            operands.operation(),
-            TerminalAccessLifecycleOperation::Initialize
-        );
+        assert_eq!(operands.operation(), LifecycleOperation::Initialize);
         let extracted = AccessLifecycleOperands::from_arguments(
-            TerminalAccessLifecycleOperation::MoveOut,
+            LifecycleOperation::MoveOut,
             &[storage.clone(), expected[2].clone()],
         )
         .expect("original resident");
@@ -75,10 +71,7 @@ mod tests {
             extracted.arguments().cloned().collect::<Vec<_>>(),
             vec![storage, expected[2].clone()]
         );
-        assert_eq!(
-            extracted.operation(),
-            TerminalAccessLifecycleOperation::MoveOut
-        );
+        assert_eq!(extracted.operation(), LifecycleOperation::MoveOut);
     }
 
     #[test]
@@ -92,17 +85,14 @@ mod tests {
             let mut changed = original.clone();
             changed[position].access = StructuralAccess::MutableBorrow;
             assert!(
-                AccessLifecycleOperands::from_arguments(
-                    TerminalAccessLifecycleOperation::Initialize,
-                    &changed,
-                )
-                .is_err()
+                AccessLifecycleOperands::from_arguments(LifecycleOperation::Initialize, &changed,)
+                    .is_err()
             );
         }
         for count in 0..3 {
             assert!(
                 AccessLifecycleOperands::from_arguments(
-                    TerminalAccessLifecycleOperation::Initialize,
+                    LifecycleOperation::Initialize,
                     &original[..count],
                 )
                 .is_err()
@@ -111,36 +101,27 @@ mod tests {
         let mut extra = original.clone();
         extra.push(argument(4, StructuralAccess::Owned));
         assert!(
-            AccessLifecycleOperands::from_arguments(
-                TerminalAccessLifecycleOperation::Initialize,
-                &extra,
-            )
-            .is_err()
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::Initialize, &extra,)
+                .is_err()
         );
         assert!(
-            AccessLifecycleOperands::from_arguments(
-                TerminalAccessLifecycleOperation::MoveOut,
-                &original,
-            )
-            .is_err()
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::MoveOut, &original,)
+                .is_err()
         );
         assert!(
-            AccessLifecycleOperands::from_arguments(
-                TerminalAccessLifecycleOperation::MoveOut,
-                &original[2..],
-            )
-            .is_err()
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::MoveOut, &original[2..],)
+                .is_err()
         );
     }
 }
 
 impl AccessLifecycleOperands {
     pub fn from_arguments(
-        operation: TerminalAccessLifecycleOperation,
+        operation: LifecycleOperation,
         arguments: &[StructuralArgument],
     ) -> Result<Self, &'static str> {
         match (operation, arguments) {
-            (TerminalAccessLifecycleOperation::View, [storage, profile])
+            (LifecycleOperation::View, [storage, profile])
                 if matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
                     && profile.access == StructuralAccess::SharedBorrow =>
             {
@@ -149,7 +130,7 @@ impl AccessLifecycleOperands {
                     profile: profile.clone(),
                 })
             }
-            (TerminalAccessLifecycleOperation::Initialize, [storage, value, profile])
+            (LifecycleOperation::Initialize, [storage, value, profile])
                 if storage.access == StructuralAccess::Owned
                     && value.access == StructuralAccess::Owned
                     && profile.access == StructuralAccess::SharedBorrow =>
@@ -160,7 +141,7 @@ impl AccessLifecycleOperands {
                     profile: profile.clone(),
                 })
             }
-            (TerminalAccessLifecycleOperation::MoveOut, [storage, profile])
+            (LifecycleOperation::MoveOut, [storage, profile])
                 if storage.access == StructuralAccess::Owned
                     && profile.access == StructuralAccess::SharedBorrow =>
             {
@@ -188,11 +169,11 @@ impl AccessLifecycleOperands {
         .flatten()
     }
 
-    pub const fn operation(&self) -> TerminalAccessLifecycleOperation {
+    pub const fn operation(&self) -> LifecycleOperation {
         match self {
-            Self::Initialize { .. } => TerminalAccessLifecycleOperation::Initialize,
-            Self::MoveOut { .. } => TerminalAccessLifecycleOperation::MoveOut,
-            Self::View { .. } => TerminalAccessLifecycleOperation::View,
+            Self::Initialize { .. } => LifecycleOperation::Initialize,
+            Self::MoveOut { .. } => LifecycleOperation::MoveOut,
+            Self::View { .. } => LifecycleOperation::View,
         }
     }
 }

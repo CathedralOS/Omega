@@ -9,6 +9,7 @@ use terminal_psi::{
     TerminalBorrowPlace, TerminalBorrowPlaceSegment,
 };
 
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::hex_text;
@@ -24,8 +25,7 @@ pub(crate) fn identity(
     if !symbol.is_valid() {
         return unsupported("reborrow custody contains an unresolved symbol");
     }
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-terminal-reborrow-symbol-v1");
+    let mut digest = DomainDigestEncoder::new(b"omega-terminal-reborrow-symbol-v1");
     digest.raw(checked.typed.symbols.display_path(symbol, "::").as_bytes());
     digest.raw(&symbol.arena_index().to_le_bytes());
     digest.raw(&symbol.generation().to_le_bytes());
@@ -51,9 +51,7 @@ pub(crate) fn storage_root_identity(
         facts::PlaceRoot::Expression(expression) if expression.is_valid() => {
             // Checking owns arena validity. This retained occurrence names
             // custody; encoding it must not reopen or revalidate source nodes.
-            let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-                b"omega-terminal-computed-backing-v1",
-            );
+            let mut digest = DomainDigestEncoder::new(b"omega-terminal-computed-backing-v1");
             digest.raw(&expression.arena_index().to_le_bytes());
             digest.raw(&expression.generation().to_le_bytes());
             Ok(format!(
@@ -130,9 +128,7 @@ impl Capture {
         if !expression.is_valid() {
             return unsupported("reborrow custody selector has no captured occurrence");
         }
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega-terminal-captured-borrow-selector-v1",
-        );
+        let mut digest = DomainDigestEncoder::new(b"omega-terminal-captured-borrow-selector-v1");
         digest.raw(identity(checked, self.state)?.as_bytes());
         digest.raw(&self.loan.arena_index().to_le_bytes());
         digest.raw(&self.loan.generation().to_le_bytes());
@@ -199,8 +195,7 @@ fn captured_root_identity(
     if !place.incoming_reference.is_valid() {
         return Ok(root);
     }
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-terminal-incoming-borrow-root-v1");
+    let mut digest = DomainDigestEncoder::new(b"omega-terminal-incoming-borrow-root-v1");
     digest.bytes(root.as_bytes());
     digest.raw(&place.incoming_reference.arena_index().to_le_bytes());
     digest.raw(&place.incoming_reference.generation().to_le_bytes());

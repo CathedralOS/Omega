@@ -23,11 +23,32 @@
 
 use crate::flow::active_context_handles;
 use crate::flow::indexed_statements;
-use checked_trees::{CheckFacts, FlowStateFact};
+use arena::Arena;
+use checked_trees::{
+    CheckFacts, CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
+    CheckedValueQualification, FlowStateFact,
+};
 use diagnostics::Diagnostic;
+use facts::FactContextHandle;
+use facts::ProgramPoint;
+use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCastExpression,
+};
+use typed_trees::literal_expression_pattern;
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::types::DomainConstraint;
+use validation::CallFrameResolver;
+use validation::exact_declared_domain_interval;
+use validation::field_domains::assignment_target_domain_constraints;
+use validation::field_domains::assignment_target_type_reference;
+use validation::field_domains::construction_field_type;
+use validation::field_domains::declared_domain_constraint_records;
+use validation::field_domains::domain_constraint_identities;
+use validation::field_domains::domain_is_vacuous;
+use validation::field_domains::domain_requires_provenance;
+use validation::machine_state_by_symbols;
 
 use crate::labels::{machine_name, symbol_name};
 
@@ -50,7 +71,7 @@ struct ConstructionQualification<'program> {
     /// The exact declared constraint, retaining its closed index roster so a
     /// constructed value of an indexed family is judged against that instance
     /// rather than its bare declaration symbol.
-    constraint: &'program typed_trees::types::DomainConstraint,
+    constraint: &'program DomainConstraint,
 }
 
 impl ConstructionQualification<'_> {
@@ -68,16 +89,14 @@ pub(super) fn check_domain_field_writes(
     facts: &CheckFacts,
     constructor_memberships: &ConstructorMemberships<'_>,
     state_flow: &FlowStateFact,
-    state_structural_values: &[&checked_trees::CheckedStructuralValue],
-    frames: Option<&validation::CallFrameResolver<'_>>,
-    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
+    state_structural_values: &[&CheckedStructuralValue],
+    frames: Option<&CallFrameResolver<'_>>,
+    decisions: &mut Arena<CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((machine, state)) = validation::machine_state_by_symbols(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    ) else {
+    let Some((machine, state)) =
+        machine_state_by_symbols(program, state_flow.machine_symbol, state_flow.state_symbol)
+    else {
         return;
     };
 
@@ -88,27 +107,22 @@ pub(super) fn check_domain_field_writes(
     let result_domains = program
         .machine_states(machine)
         .first()
-        .map(|entry| {
-            validation::field_domains::domain_constraint_identities(program, entry.return_type)
-        })
+        .map(|entry| domain_constraint_identities(program, entry.return_type))
         .unwrap_or_default();
     for &value in state_structural_values {
         if value.machine != state_flow.machine_symbol
             || value.state != state_flow.state_symbol
             || !matches!(
                 value.kind,
-                checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
-                    | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
-                    | checked_trees::CheckedStructuralValueKind::Record { .. }
-                    | checked_trees::CheckedStructuralValueKind::Case(_)
+                CheckedStructuralValueKind::ScalarArray { .. }
+                    | CheckedStructuralValueKind::FixedArray { .. }
+                    | CheckedStructuralValueKind::Record { .. }
+                    | CheckedStructuralValueKind::Case(_)
             )
         {
             continue;
         }
-        for domain in validation::field_domains::declared_domain_constraint_records(
-            program,
-            value.type_reference,
-        ) {
+        for domain in declared_domain_constraint_records(program, value.type_reference) {
             let domain_symbol = domain.symbol;
             let semantic_domain = domain.semantic_id;
             // The checked result boundary introduces routed provenance only
@@ -121,7 +135,7 @@ pub(super) fn check_domain_field_writes(
                 && program.domain_definition(domain_symbol).is_some_and(|_| {
                     // The result contract above names the closed application;
                     // a family declaration's template ID is not that instance.
-                    validation::field_domains::domain_requires_provenance(program, domain_symbol)
+                    domain_requires_provenance(program, domain_symbol)
                         && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program, machine, domain_symbol,
                         )
@@ -183,12 +197,12 @@ pub(super) fn check_domain_field_writes(
                     diagnostics: &mut *diagnostics,
                     frames,
                 };
-                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                if let TransitionGuardNode::When(guard) = transition.guard {
                     walk.scan(guard, &mut contexts);
                 }
                 for target in transition.targets() {
                     let mut branch_contexts = contexts.clone();
-                    let point = facts::ProgramPoint::TransitionArm {
+                    let point = ProgramPoint::TransitionArm {
                         machine_symbol: state_flow.machine_symbol,
                         state_symbol: state_flow.state_symbol,
                         statement_index,
@@ -199,13 +213,11 @@ pub(super) fn check_domain_field_writes(
                     // and arms for every construction check.
                     branch_contexts.extend(facts.semantic.context_handles_at_point(point));
                     let expressions = match program.statement_table.transition_target(target) {
-                        typed_trees::statement::TransitionTargetNode::Named {
-                            arguments, ..
-                        } => program
+                        TransitionTargetNode::Named { arguments, .. } => program
                             .statement_table
                             .expression_handles(*arguments)
                             .to_vec(),
-                        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        TransitionTargetNode::Value(expression) => {
                             vec![*expression]
                         }
                         _ => Vec::new(),
@@ -237,23 +249,15 @@ pub(super) fn check_domain_field_writes(
         if let Some(local) = statement.as_local_data()
             && local.initial_value.is_valid()
         {
-            for constraint in validation::field_domains::declared_domain_constraint_records(
-                program,
-                local.type_reference,
-            ) {
+            for constraint in declared_domain_constraint_records(program, local.type_reference) {
                 let domain_symbol = constraint.symbol;
                 let semantic_domain = constraint.semantic_id;
-                let requires_provenance =
-                    validation::field_domains::domain_requires_provenance(program, domain_symbol);
+                let requires_provenance = domain_requires_provenance(program, domain_symbol);
                 // A `requires` predicate is equally an obligation on the
                 // initializer: `self in T::Case` and `self.f` membership are
                 // decided by the construction or by live evidence at its
                 // place, never minted by the annotation itself.
-                if validation::field_domains::domain_is_vacuous(
-                    program,
-                    domain_symbol,
-                    &mut Vec::new(),
-                ) {
+                if domain_is_vacuous(program, domain_symbol, &mut Vec::new()) {
                     // A predicate-free, route-free domain has a successful
                     // membership judgment too. Retain that exact initializer
                     // occurrence; lowering must not infer it from its receiver.
@@ -323,26 +327,21 @@ pub(super) fn check_domain_field_writes(
         }
         // (1) Assignment into a domain-refined field, parameter, or local.
         if let Some(assignment) = statement.as_assignment() {
-            for domain in validation::field_domains::assignment_target_domain_constraints(
-                program,
-                machine,
-                state,
-                assignment.target,
-            ) {
+            for domain in
+                assignment_target_domain_constraints(program, machine, state, assignment.target)
+            {
                 let domain_symbol = domain.symbol;
                 // A write establishes a PREDICATE-ONLY domain by satisfying its
                 // predicates, the same route a `let` initializer already takes
                 // above. `domains.md`: "Predicates alone establish
                 // predicate-only membership"; a routed domain still needs its
                 // provenance and so keeps the plain rejection.
-                let requires_provenance =
-                    validation::field_domains::domain_requires_provenance(program, domain_symbol);
+                let requires_provenance = domain_requires_provenance(program, domain_symbol);
                 // A domain whose membership is exactly an interval is the
                 // target's integer range: the bounded-assignment obligation
                 // proves every write inside it, from guards and operand
                 // ranges alike, as it did for the bracketed range.
-                let exact_interval =
-                    validation::exact_declared_domain_interval(program, domain).is_some();
+                let exact_interval = exact_declared_domain_interval(program, domain).is_some();
                 if !exact_interval
                     && !value_proves_qualification(
                         program,
@@ -398,19 +397,15 @@ pub(super) fn check_domain_field_writes(
         // in, so storing one there names bytes no declaration owns.
         let view_destination = match statement {
             StatementNode::Assignment(assignment) => {
-                validation::field_domains::assignment_target_type_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
+                assignment_target_type_reference(program, machine, state, assignment.target).map(
+                    |target| {
+                        (
+                            program.expression_table.display_name(assignment.target),
+                            target,
+                            assignment.value,
+                        )
+                    },
                 )
-                .map(|target| {
-                    (
-                        program.expression_table.display_name(assignment.target),
-                        target,
-                        assignment.value,
-                    )
-                })
             }
             StatementNode::LocalData(local) if local.initial_value.is_valid() => Some((
                 local.name.to_string(),
@@ -424,7 +419,7 @@ pub(super) fn check_domain_field_writes(
             && matches!(
                 program.expression_table.expression(value),
                 ExpressionNode::Binary(binary)
-                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+                    if binary.operator == BinaryOperator::Add
             )
             && crate::values::operator_is_builtin(&facts.operators, value)
         {
@@ -474,16 +469,16 @@ struct ConstructionWalk<'a, 'b> {
     state_flow: &'a FlowStateFact,
     construction_qualifications: &'a [ConstructionQualification<'a>],
     statement_index: usize,
-    decisions: &'b mut arena::Arena<checked_trees::CheckedValueQualification>,
+    decisions: &'b mut Arena<CheckedValueQualification>,
     diagnostics: &'b mut Vec<Diagnostic>,
-    frames: Option<&'a validation::CallFrameResolver<'a>>,
+    frames: Option<&'a CallFrameResolver<'a>>,
 }
 
 impl ConstructionWalk<'_, '_> {
     /// Walk constructed children in evaluation order and prove each declared
     /// field or contextual element membership at that child's completion
     /// frontier.
-    fn scan(&mut self, expression: ExpressionHandle, contexts: &mut Vec<facts::FactContextHandle>) {
+    fn scan(&mut self, expression: ExpressionHandle, contexts: &mut Vec<FactContextHandle>) {
         let program = self.program;
         let facts = self.facts;
         let constructor_memberships = self.constructor_memberships;
@@ -498,7 +493,7 @@ impl ConstructionWalk<'_, '_> {
             ExpressionNode::Atomic(atomic) => self.scan(atomic.value, contexts),
             ExpressionNode::Match(dispatch) => {
                 self.scan(dispatch.subject, contexts);
-                let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
+                let mut joined_contexts: Option<Vec<FactContextHandle>> = None;
                 for arm in program.expression_table.match_arms(dispatch.arms) {
                     let mut arm_contexts = contexts.clone();
                     for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
@@ -609,7 +604,7 @@ impl ConstructionWalk<'_, '_> {
                 self.scan(range.end, contexts);
             }
             ExpressionNode::Unary(unary) => self.scan(unary.operand, contexts),
-            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | literal_expression_pattern!() => {}
         }
         // Children complete before the next operand may mutate their source.
         // Reuse this walk's exact live contexts, just as record-field admission does.
@@ -644,14 +639,14 @@ impl ConstructionWalk<'_, '_> {
 /// The declared predicate-domain symbols of a constructed field: a case literal's
 /// PAYLOAD field (for the named variant) or a record/common struct field whose
 /// declared type carries one or more predicate-bearing domain constraints.
-/// `validation::field_domains::construction_field_type` plus domain
+/// `construction_field_type` plus domain
 /// extraction.
 fn construction_field_domain_identities<'program>(
     program: &'program dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
-) -> Vec<&'program typed_trees::types::DomainConstraint> {
+) -> Vec<&'program DomainConstraint> {
     let Some(data_definition) = program.data_definition_by_symbol(type_symbol) else {
         return Vec::new();
     };
@@ -659,21 +654,17 @@ fn construction_field_domain_identities<'program>(
         return Vec::new();
     }
 
-    let Some(field_type) = validation::field_domains::construction_field_type(
-        program,
-        data_definition,
-        case_name,
-        field_name,
-    ) else {
+    let Some(field_type) = construction_field_type(program, data_definition, case_name, field_name)
+    else {
         return Vec::new();
     };
     // The exact constraint travels with its closed index roster: a constructed
     // field of an indexed family owes that instance's predicates, and the
     // declaration symbol alone cannot supply them.
-    validation::field_domains::declared_domain_constraint_records(program, field_type)
+    declared_domain_constraint_records(program, field_type)
         .into_iter()
         .filter(|constraint| {
-            validation::field_domains::domain_requires_provenance(program, constraint.symbol)
+            domain_requires_provenance(program, constraint.symbol)
                 || program.domain_definitions().iter().any(|domain| {
                     domain.symbol == constraint.symbol && domain.predicate_presence.is_present()
                 })
@@ -695,8 +686,8 @@ impl ConstructionWalk<'_, '_> {
     fn judge_value_qualification_cast(
         &mut self,
         expression: ExpressionHandle,
-        cast: &typed_trees::expression::TableCastExpression,
-        contexts: &[facts::FactContextHandle],
+        cast: &TableCastExpression,
+        contexts: &[FactContextHandle],
     ) {
         let program = self.program;
         let facts = self.facts;
@@ -706,14 +697,13 @@ impl ConstructionWalk<'_, '_> {
         let Some(domain) = program.domain_definition(domain_symbol) else {
             return;
         };
-        let requires_provenance =
-            validation::field_domains::domain_requires_provenance(program, domain_symbol);
+        let requires_provenance = domain_requires_provenance(program, domain_symbol);
         if cast.semantic_domain.is_empty()
             || (!requires_provenance
                 && program
                     .primitive_type_reference(domain.target_type)
                     .is_some())
-            || validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new())
+            || domain_is_vacuous(program, domain_symbol, &mut Vec::new())
         {
             return;
         }
@@ -722,10 +712,7 @@ impl ConstructionWalk<'_, '_> {
         // must hold on the operand at this occurrence. Requiring a single fact for
         // the alias would reject an existing routed claim plus a vacuous label;
         // proving only predicates would instead forge the routed constituent.
-        let obligations = validation::field_domains::declared_domain_constraint_records(
-            program,
-            cast.result_type,
-        );
+        let obligations = declared_domain_constraint_records(program, cast.result_type);
         let established = !obligations.is_empty()
             && obligations.iter().all(|obligation| {
                 validation::field_domains::domain_is_vacuous(
@@ -757,13 +744,14 @@ impl ConstructionWalk<'_, '_> {
                 ) || (!validation::field_domains::domain_requires_provenance(
                     program,
                     obligation.symbol,
-                ) && value_satisfies_domain_predicates_in_contexts(
+                ) && member_domains::value_satisfies_domain_instance_predicates_in_contexts(
                     program,
                     facts,
                     state_flow,
                     statement_index,
                     cast.value,
                     obligation.symbol,
+                    obligation.semantic_id,
                     contexts,
                     &mut Vec::new(),
                     None,
@@ -812,7 +800,7 @@ fn qualification_cast_refusal(
 /// declaration expressions merely because their asserted target is routed.
 pub(super) fn check_routed_cast_coverage(
     program: &dyn ::validation::CheckingInput,
-    decisions: &arena::Arena<checked_trees::CheckedValueQualification>,
+    decisions: &Arena<CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (expression, node) in program.expression_table.expression_entries() {
@@ -820,10 +808,7 @@ pub(super) fn check_routed_cast_coverage(
             continue;
         };
         if !cast.semantic_domain.is_empty()
-            && validation::field_domains::domain_requires_provenance(
-                program,
-                cast.semantic_domain_symbol,
-            )
+            && domain_requires_provenance(program, cast.semantic_domain_symbol)
             && !decisions
                 .iter()
                 .any(|(_, decision)| decision.expression == expression)
@@ -838,23 +823,23 @@ pub(super) fn check_routed_cast_coverage(
 }
 
 fn record_qualification(
-    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
+    decisions: &mut Arena<CheckedValueQualification>,
     state: &FlowStateFact,
     statement_index: usize,
     expression: ExpressionHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+    semantic_domain: SemanticDomainId,
     domain_symbol: symbols::SymbolHandle,
 ) {
     let Ok(statement_index) = u32::try_from(statement_index) else {
         return;
     };
-    decisions.append(checked_trees::CheckedValueQualification {
+    decisions.append(CheckedValueQualification {
         machine: state.machine_symbol,
         state: state.state_symbol,
         statement_index,
         expression,
         semantic_domain,
         domain_symbol,
-        structural_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+        structural_value: CheckedStructuralValueHandle::invalid(),
     });
 }

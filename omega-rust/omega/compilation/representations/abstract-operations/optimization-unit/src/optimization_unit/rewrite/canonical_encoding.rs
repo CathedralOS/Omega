@@ -1,7 +1,5 @@
 //! Model-neutral canonical writers shared by rewrite identities and candidate encoding.
-pub(super) use crate::optimization_unit::integer_intervals::{
-    encode_integer_type, encode_integer_value,
-};
+pub(super) use super::super::integer_intervals::{encode_integer_type, encode_integer_value};
 
 use super::{ScalarType, ValueDefinitionSite};
 /// The rewrite-candidate definition-site table, which is **not** the canonical
@@ -43,7 +41,7 @@ pub(super) fn encode_len(bytes: &mut Vec<u8>, len: usize) {
 }
 
 pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
-    crate::optimization_unit::encode_scalar_type(
+    super::super::encode_scalar_type(
         bytes,
         scalar_type,
         |bytes, tag| bytes.push(tag),

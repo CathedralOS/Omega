@@ -7,20 +7,46 @@
 //! independent snapshots. CurrentScalarValues owns assignment/effect transfer
 //! and checked equality, so changing the source variable never retags an old
 //! object. These are erased checking obligations, not runtime proof storage.
+//!
+//! Region operands of an application compare by their identity in the current
+//! machine. A call that authors no lifetime rows does not name such regions in
+//! its signature types: inference instantiates the callee's binders to the
+//! regions of the arguments, which `region_operand` reads back from them.
 
 use super::current_scalar_values::CurrentScalarValues;
 use crate::flow::state_statements;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-use symbols::SymbolHandle;
-use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use numerics::bignum::BigInt;
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data::{DataMember, TypeParameter, TypeParameterKind};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::static_applications::StaticMachineApplication;
+use typed_trees::static_applications::StaticMachineApplicationHandle;
+use typed_trees::type_identity::NormalizedTypeIdentity;
+use typed_trees::type_identity::StaticOperandIdentityRequest;
+use typed_trees::type_identity::applied_index_identity;
+use typed_trees::type_identity::applied_type_identity;
+use typed_trees::type_identity::applied_type_identity_in_scope;
+use typed_trees::typed_trees::static_const_argument_spelling;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use validation::{CallFrameResolver, ScopedArithmeticValue};
+use validation::expression_traversal::collect_statement_expression_trees;
+use validation::expression_traversal::expressions_before_occurrence;
+use validation::expression_traversal::visit_post_order;
+use validation::mathematical_applications::is_source_evidence_carrier;
+use validation::{
+    CallFrameResolver, CallSite, CheckingInput, ScopedArithmeticValue,
+    call_site_argument_expressions, call_target_parameters, call_target_return_type,
+    captured_call_argument_index_matches, captured_call_index_value, declaration_type_reference,
+    declared_case_projection_field, expression_result_type_reference, find_call_site,
+};
 
 #[derive(Clone)]
 struct Application<'program> {
@@ -28,7 +54,7 @@ struct Application<'program> {
     formation: usize,
     substitutions: Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
     arguments: Vec<(SymbolHandle, Option<ExpressionHandle>)>,
-    call: Option<validation::CallSite<'program>>,
+    call: Option<CallSite<'program>>,
     position: Option<usize>,
 }
 
@@ -48,8 +74,25 @@ impl Application<'_> {
     }
 }
 
+/// A region operand as this comparison sees it.
+enum Region {
+    /// Names a region of the current machine.
+    Known(typed_trees::type_identity::NormalizedTypeIdentity),
+    /// Instantiated by call inference to no single region the arguments name,
+    /// so no obligation compares it here.
+    Inferred,
+}
+
+/// One edge followed from a type reference to a node that binds region operands.
+#[derive(Clone, Copy)]
+enum RegionStep {
+    Pointee,
+    Element,
+    Argument(usize),
+}
+
 struct Scope<'a> {
-    program: &'a dyn validation::CheckingInput,
+    program: &'a dyn CheckingInput,
     machine: &'a Machine,
     state: &'a State,
     statement: usize,
@@ -61,7 +104,7 @@ impl Scope<'_> {
     fn expression_is_const(
         &self,
         expr: ExpressionHandle,
-        static_parameters: &[typed_trees::data::TypeParameter],
+        static_parameters: &[TypeParameter],
     ) -> bool {
         let is_const_symbol = |symbol: SymbolHandle| {
             !symbol.is_valid()
@@ -106,7 +149,7 @@ impl Scope<'_> {
         &self,
         argument: TypeReferenceHandle,
         application: &Application<'_>,
-    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    ) -> Option<NormalizedTypeIdentity> {
         let source = self.application_source(application);
         let static_parameters = source.map_or(&[][..], |(_, source)| {
             self.program
@@ -137,12 +180,7 @@ impl Scope<'_> {
         }
         let argument = typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument);
         let (Some((handle, source)), Some(site)) = (source, application.call) else {
-            return typed_trees::type_identity::applied_index_identity(
-                self.program,
-                argument,
-                self.machine.symbol,
-                &[],
-            );
+            return applied_index_identity(self.program, argument, self.machine.symbol, &[]);
         };
         if !source.binding_declaration.is_valid() || !source.lexical_owner.is_valid() {
             return None;
@@ -177,12 +215,7 @@ impl Scope<'_> {
             arguments: &arguments,
             lifetimes: &lifetimes,
         }];
-        typed_trees::type_identity::applied_index_identity(
-            self.program,
-            argument,
-            source.lexical_owner,
-            &scopes,
-        )
+        applied_index_identity(self.program, argument, source.lexical_owner, &scopes)
     }
 
     fn values(&self, at: usize) -> Option<CurrentScalarValues<'_>> {
@@ -211,8 +244,7 @@ impl Scope<'_> {
         ) || matches!(self.program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. }
                 if application.substitutions.iter().any(|(formal, _)| formal == symbol));
         if supplied && let Some(site) = application.call {
-            let prefix_unchanged = if let validation::CallSite::Expression { expression, .. } = site
-            {
+            let prefix_unchanged = if let CallSite::Expression { expression, .. } = site {
                 let statement = self
                     .program
                     .statement_table
@@ -224,21 +256,18 @@ impl Scope<'_> {
                     .into_iter()
                     .map(|(_, expression)| expression)
                     .collect::<Vec<_>>();
-                validation::expression_traversal::expressions_before_occurrence(
-                    self.program,
-                    &roots,
-                    expression,
-                )
-                .is_some_and(|prefix| {
-                    prefix.iter().all(|expression| {
-                        self.frames.is_some_and(|frames| {
-                            frames
-                                .expression_write_frame(self.machine, *expression)
-                                .complete_paths()
-                                .is_some_and(|paths| paths.is_empty())
+                expressions_before_occurrence(self.program, &roots, expression).is_some_and(
+                    |prefix| {
+                        prefix.iter().all(|expression| {
+                            self.frames.is_some_and(|frames| {
+                                frames
+                                    .expression_write_frame(self.machine, *expression)
+                                    .complete_paths()
+                                    .is_some_and(|paths| paths.is_empty())
+                            })
                         })
-                    })
-                })
+                    },
+                )
             } else {
                 true
             };
@@ -252,8 +281,8 @@ impl Scope<'_> {
                     .any(|(_, value)| value.is_none())
             {
                 let target = site.target_symbol(self.program);
-                let parameters = validation::call_target_parameters(self.program, target)?;
-                return validation::captured_call_index_value(
+                let parameters = call_target_parameters(self.program, target)?;
+                return captured_call_index_value(
                     self.program,
                     self.state.symbol,
                     application.formation,
@@ -306,9 +335,7 @@ impl Scope<'_> {
                                 .type_reference_table
                                 .anonymous_numeric_literal_value(actual_arg.type_reference)
                                 .map(|v| {
-                                    ScopedArithmeticValue::Integer(
-                                        numerics::bignum::BigInt::from_i128(v as i128),
-                                    )
+                                    ScopedArithmeticValue::Integer(BigInt::from_i128(v as i128))
                                 })
                         } else {
                             None
@@ -346,9 +373,9 @@ impl Scope<'_> {
                 return match CanonicalConstValue::new("", encoding.to_owned(), "")
                     .decode_encoding()?
                 {
-                    DecodedCanonicalConstValue::Integer { value, .. } => Some(
-                        ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(value)),
-                    ),
+                    DecodedCanonicalConstValue::Integer { value, .. } => {
+                        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(value)))
+                    }
                     _ => None,
                 };
             }
@@ -362,14 +389,12 @@ impl Scope<'_> {
             return self.values(application.formation)?.current_symbol(*symbol);
         }
         if let Ok(integer) = name.as_str().parse::<i128>() {
-            return Some(ScopedArithmeticValue::Integer(
-                numerics::bignum::BigInt::from_i128(integer),
-            ));
+            return Some(ScopedArithmeticValue::Integer(BigInt::from_i128(integer)));
         }
         match CanonicalConstValue::from_atom(name.as_str())?.decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => Some(
-                ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(value)),
-            ),
+            DecodedCanonicalConstValue::Integer { value, .. } => {
+                Some(ScopedArithmeticValue::Integer(BigInt::from_i128(value)))
+            }
             _ => None,
         }
     }
@@ -389,7 +414,7 @@ impl Scope<'_> {
 
     fn argument_substitutions(
         &self,
-        parameters: &[typed_trees::signature::StateParameter],
+        parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
     ) -> (
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
@@ -422,8 +447,8 @@ impl Scope<'_> {
 
     fn call_substitutions(
         &self,
-        site: validation::CallSite<'_>,
-        parameters: &[typed_trees::signature::StateParameter],
+        site: CallSite<'_>,
+        parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
     ) -> (
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
@@ -434,9 +459,9 @@ impl Scope<'_> {
         let inert = self.arguments_inert(arguments);
         let target = site.target_symbol(self.program);
         let static_arguments = match site {
-            validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
-            validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-            validation::CallSite::TransitionNamed { .. } => &[][..],
+            CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+            CallSite::Statement(call) => call.machine_arguments.as_ref(),
+            CallSite::TransitionNamed { .. } => &[][..],
         };
         if let Some(signature) = self
             .program
@@ -487,12 +512,8 @@ impl Scope<'_> {
         if !expression.is_valid() {
             return None;
         }
-        let reference = validation::expression_result_type_reference(
-            self.program,
-            self.machine,
-            self.state,
-            expression,
-        )?;
+        let reference =
+            expression_result_type_reference(self.program, self.machine, self.state, expression)?;
         if self
             .program
             .expression_const_declaration(expression)
@@ -510,13 +531,12 @@ impl Scope<'_> {
                 Some(Application::bare(reference, formation))
             }
             ExpressionNode::Call(call) => {
-                let parameters =
-                    validation::call_target_parameters(self.program, call.target_symbol)?;
+                let parameters = call_target_parameters(self.program, call.target_symbol)?;
                 let arguments = self
                     .program
                     .expression_table
                     .expression_handles(call.arguments);
-                let site = validation::CallSite::Expression { expression, call };
+                let site = CallSite::Expression { expression, call };
                 let (substitutions, captured_arguments) =
                     self.call_substitutions(site, parameters, arguments);
 
@@ -524,10 +544,7 @@ impl Scope<'_> {
                     // Interpret the declaration under captured formal bindings.
                     // A caller-applied index could otherwise bypass the prefix
                     // guard by ceasing to name any of those formal binders.
-                    reference: validation::call_target_return_type(
-                        self.program,
-                        call.target_symbol,
-                    )?,
+                    reference: call_target_return_type(self.program, call.target_symbol)?,
                     formation: self.statement,
                     substitutions,
                     arguments: captured_arguments,
@@ -557,15 +574,12 @@ impl Scope<'_> {
     fn application_source(
         &self,
         application: &Application<'_>,
-    ) -> Option<(
-        typed_trees::static_applications::StaticMachineApplicationHandle,
-        &typed_trees::static_applications::StaticMachineApplication,
-    )> {
+    ) -> Option<(StaticMachineApplicationHandle, &StaticMachineApplication)> {
         application.call.and_then(|site| {
             let handle = match site {
-                validation::CallSite::Statement(call) => call.authored_machine_application,
-                validation::CallSite::Expression { call, .. } => call.authored_machine_application,
-                validation::CallSite::TransitionNamed { .. } => Default::default(),
+                CallSite::Statement(call) => call.authored_machine_application,
+                CallSite::Expression { call, .. } => call.authored_machine_application,
+                CallSite::TransitionNamed { .. } => Default::default(),
             };
             handle.is_valid().then(|| {
                 (
@@ -580,7 +594,7 @@ impl Scope<'_> {
 
     fn application_lifetimes(
         &self,
-        handle: typed_trees::static_applications::StaticMachineApplicationHandle,
+        handle: StaticMachineApplicationHandle,
     ) -> Vec<(String, String)> {
         self.program
             .expression_table
@@ -595,7 +609,7 @@ impl Scope<'_> {
         application: &Application<'_>,
         reference: TypeReferenceHandle,
         ordinal: usize,
-    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    ) -> Option<NormalizedTypeIdentity> {
         use typed_trees::type_identity::{
             AppliedTypeIdentityScope, applied_type_lifetime_identity_in_scope,
         };
@@ -627,6 +641,173 @@ impl Scope<'_> {
             source.lexical_owner,
             &scopes,
         )
+    }
+
+    /// The region operand `ordinal` of `reference` in this machine's terms.
+    ///
+    /// A call that authors no lifetime rows leaves its callee's region binders
+    /// to inference: its formal types and its result type name regions of the
+    /// callee's scope, so resolving them here would match them against nothing
+    /// (the application may carry no binding declaration at all). Inference
+    /// instantiates a binder to the regions of the arguments it types, so the
+    /// operand is read from those arguments instead. A binder that no
+    /// argument types, or that arguments type with different regions, is left
+    /// to the borrow checker and carries no obligation to this comparison.
+    /// Authored rows, declared types and locals keep their exact identity.
+    fn region_operand(
+        &self,
+        application: &Application<'_>,
+        reference: TypeReferenceHandle,
+        ordinal: usize,
+        depth: usize,
+    ) -> Option<Region> {
+        let rowless_call = application.call.is_some()
+            && self
+                .application_source(application)
+                .is_none_or(|(handle, _)| self.application_lifetimes(handle).is_empty());
+        if !rowless_call {
+            return self
+                .application_lifetime_identity(application, reference, ordinal)
+                .map(Region::Known);
+        }
+        let site = application.call?;
+        let TypeReferenceNode::Generic {
+            lifetime_arguments, ..
+        } = self.program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        let name = lifetime_arguments.get(ordinal)?;
+        if depth > 16 {
+            return Some(Region::Inferred);
+        }
+        let parameters =
+            validation::call_target_parameters(self.program, site.target_symbol(self.program))?;
+        let arguments = validation::call_site_argument_expressions(self.program, &site);
+        let mut supplied: Option<typed_trees::type_identity::NormalizedTypeIdentity> = None;
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            let mut occurrences = Vec::new();
+            self.region_binder_paths(
+                parameter.type_reference,
+                name.as_str(),
+                &mut Vec::new(),
+                &mut occurrences,
+            );
+            if occurrences.is_empty() {
+                continue;
+            }
+            let Some(actual) = self.actual(*argument) else {
+                continue;
+            };
+            for (path, binder_ordinal) in occurrences {
+                let Some(node) = self.region_node_at(actual.reference, &path) else {
+                    continue;
+                };
+                match self.region_operand(&actual, node, binder_ordinal, depth + 1) {
+                    Some(Region::Known(identity)) => match supplied {
+                        Some(earlier) if earlier != identity => return Some(Region::Inferred),
+                        _ => supplied = Some(identity),
+                    },
+                    Some(Region::Inferred) | None => {}
+                }
+            }
+        }
+        Some(supplied.map_or(Region::Inferred, Region::Known))
+    }
+
+    /// Every generic node of `reference` that binds the region operand `name`,
+    /// as the path of edges reaching it and the operand's ordinal there.
+    fn region_binder_paths(
+        &self,
+        reference: TypeReferenceHandle,
+        name: &str,
+        path: &mut Vec<RegionStep>,
+        occurrences: &mut Vec<(Vec<RegionStep>, usize)>,
+    ) {
+        if path.len() > 16 {
+            return;
+        }
+        let table = &self.program.type_reference_table;
+        match table.type_reference(self.region_carrier(reference)) {
+            TypeReferenceNode::Generic {
+                lifetime_arguments,
+                arguments,
+                ..
+            } => {
+                for (ordinal, argument) in lifetime_arguments.iter().enumerate() {
+                    if argument.as_str() == name {
+                        occurrences.push((path.clone(), ordinal));
+                    }
+                }
+                for (position, argument) in
+                    table.type_reference_handles(*arguments).iter().enumerate()
+                {
+                    path.push(RegionStep::Argument(position));
+                    self.region_binder_paths(*argument, name, path, occurrences);
+                    path.pop();
+                }
+            }
+            TypeReferenceNode::Reference { referee, .. } => {
+                path.push(RegionStep::Pointee);
+                self.region_binder_paths(*referee, name, path, occurrences);
+                path.pop();
+            }
+            TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::FixedArray { element_type, .. } => {
+                path.push(RegionStep::Element);
+                self.region_binder_paths(*element_type, name, path, occurrences);
+                path.pop();
+            }
+            _ => {}
+        }
+    }
+
+    /// The node reached by following `path` from `reference`, if the types
+    /// have the same shape along it.
+    fn region_node_at(
+        &self,
+        reference: TypeReferenceHandle,
+        path: &[RegionStep],
+    ) -> Option<TypeReferenceHandle> {
+        let table = &self.program.type_reference_table;
+        let mut current = self.region_carrier(reference);
+        for step in path {
+            current = self.region_carrier(match (step, table.type_reference(current)) {
+                (RegionStep::Pointee, TypeReferenceNode::Reference { referee, .. }) => *referee,
+                (
+                    RegionStep::Element,
+                    TypeReferenceNode::Slice { element_type }
+                    | TypeReferenceNode::FixedArray { element_type, .. },
+                ) => *element_type,
+                (RegionStep::Argument(position), TypeReferenceNode::Generic { arguments, .. }) => {
+                    *table.type_reference_handles(*arguments).get(*position)?
+                }
+                _ => return None,
+            });
+        }
+        Some(current)
+    }
+
+    /// `reference` without domain constraints or the specialization wrapper
+    /// of a generic data instance, matching what `compare` looks through.
+    fn region_carrier(&self, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        let table = &self.program.type_reference_table;
+        for _ in 0..16 {
+            reference = table.unconstrained_type_reference(reference);
+            let TypeReferenceNode::Named { symbol, .. } = table.type_reference(reference) else {
+                break;
+            };
+            let Some(origin) = self
+                .program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|data| data.generic_instance)
+                .filter(|origin| *origin != reference)
+            else {
+                break;
+            };
+            reference = origin;
+        }
+        reference
     }
 
     fn compare(
@@ -664,18 +845,8 @@ impl Scope<'_> {
                 .filter(|origin| *origin != reference)
         };
         let exact = |left, right| {
-            let left = typed_trees::type_identity::applied_type_identity(
-                self.program,
-                left,
-                self.machine.symbol,
-                &[],
-            );
-            let right = typed_trees::type_identity::applied_type_identity(
-                self.program,
-                right,
-                self.machine.symbol,
-                &[],
-            );
+            let left = applied_type_identity(self.program, left, self.machine.symbol, &[]);
+            let right = applied_type_identity(self.program, right, self.machine.symbol, &[]);
             left.is_some() && left == right
         };
         let recurse = |left, right| {
@@ -741,14 +912,16 @@ impl Scope<'_> {
                 // operands, including phantom regions on selected code.
                 if left_lifetimes.len() != right_lifetimes.len()
                     || !(0..left_lifetimes.len()).all(|ordinal| {
-                        let left =
-                            self.application_lifetime_identity(actual, actual_reference, ordinal);
-                        let right = self.application_lifetime_identity(
-                            required,
-                            required_reference,
-                            ordinal,
-                        );
-                        left.is_some() && left == right
+                        match (
+                            self.region_operand(actual, actual_reference, ordinal, 0),
+                            self.region_operand(required, required_reference, ordinal, 0),
+                        ) {
+                            (Some(Region::Known(left)), Some(Region::Known(right))) => {
+                                left == right
+                            }
+                            (Some(_), Some(_)) => true,
+                            _ => false,
+                        }
                     })
                 {
                     return false;
@@ -808,11 +981,11 @@ impl Scope<'_> {
                             {
                                 let target = site.target_symbol(self.program);
                                 let Some(parameters) =
-                                    validation::call_target_parameters(self.program, target)
+                                    call_target_parameters(self.program, target)
                                 else {
                                     return false;
                                 };
-                                return validation::captured_call_argument_index_matches(
+                                return captured_call_argument_index_matches(
                                     self.program,
                                     self.state.symbol,
                                     self.statement,
@@ -832,7 +1005,7 @@ impl Scope<'_> {
                             let identity = |reference| {
                                 let operand = self.program.static_operand_from_type_reference(reference).ok()?;
                                 self.program.static_operand_identity(
-                                    typed_trees::type_identity::StaticOperandIdentityRequest {
+                                    StaticOperandIdentityRequest {
                                         operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&operand),
                                         lexical_owner: self.machine.symbol,
                                         substitutions: &[],
@@ -876,7 +1049,7 @@ impl Scope<'_> {
         let static_equal = self
             .static_index(argument, application)
             .is_some_and(|required| {
-                typed_trees::type_identity::applied_index_identity(
+                applied_index_identity(
                     self.program,
                     typed_trees::type_identity::IndexIdentityArgument::Expression(value),
                     self.machine.symbol,
@@ -930,8 +1103,7 @@ impl Scope<'_> {
                 if prefix.is_empty() {
                     return None;
                 }
-                let Some(reference) =
-                    validation::declaration_type_reference(self.program, path.head_symbol)
+                let Some(reference) = declaration_type_reference(self.program, path.head_symbol)
                 else {
                     return None;
                 };
@@ -955,9 +1127,13 @@ impl Scope<'_> {
                                 .type_head_symbol(reference)
                                 .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
                         });
-                    if data.is_some_and(|data| self.program.data_members(data).iter().any(|member| {
-                        matches!(member, typed_trees::data::DataMember::Variant(case) if case.symbol == *symbol)
-                    })) { continue; }
+                    if data.is_some_and(|data| {
+                        self.program.data_members(data).iter().any(|member| {
+                        matches!(member, DataMember::Variant(case) if case.symbol == *symbol)
+                    })
+                    }) {
+                        continue;
+                    }
                     let Some(field) = data.and_then(|data| {
                         self.program
                             .data_member_fields(self.program.data_members(data))
@@ -1000,29 +1176,24 @@ impl Scope<'_> {
         expression: ExpressionHandle,
         required: Application<'_>,
         erased: bool,
-        expected_proof_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+        expected_proof_identity: Option<NormalizedTypeIdentity>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let formal_evidence = erased
-            && validation::mathematical_applications::is_source_evidence_carrier(
-                self.program,
-                required.reference,
-            )
+            && is_source_evidence_carrier(self.program, required.reference)
             && expected_proof_identity.is_some_and(|expected| {
                 self.erased_evidence_reference(expression, 0)
                     .is_some_and(|actual| {
                         let payload_owner =
                             match self.program.expression_table.expression(expression) {
-                                ExpressionNode::Member(_) => {
-                                    validation::declared_case_projection_field(
-                                        self.program,
-                                        self.machine,
-                                        Some(self.state),
-                                        expression,
-                                    )
-                                    .map(|field| self.program.symbols.get(field.symbol).parent)
-                                    .unwrap_or_default()
-                                }
+                                ExpressionNode::Member(_) => declared_case_projection_field(
+                                    self.program,
+                                    self.machine,
+                                    Some(self.state),
+                                    expression,
+                                )
+                                .map(|field| self.program.symbols.get(field.symbol).parent)
+                                .unwrap_or_default(),
                                 _ => SymbolHandle::invalid(),
                             };
                         if !self.stable_proof_indices(actual, payload_owner, 0) {
@@ -1050,7 +1221,7 @@ impl Scope<'_> {
                                 // Both sides name the caller's value telescope.
                                 // The retained ordinary identity above binds the
                                 // source row; it has no lexical application scope.
-                                typed_trees::type_identity::applied_type_identity(
+                                applied_type_identity(
                                     self.program,
                                     constructor.source_type,
                                     self.machine.symbol,
@@ -1103,16 +1274,13 @@ impl Scope<'_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                let reference = validation::expression_result_type_reference(
+                let reference = expression_result_type_reference(
                     self.program,
                     self.machine,
                     self.state,
                     expression,
                 )?;
-                if !validation::mathematical_applications::is_source_evidence_carrier(
-                    self.program,
-                    reference,
-                ) {
+                if !is_source_evidence_carrier(self.program, reference) {
                     return None;
                 }
                 if path.symbol != path.head_symbol
@@ -1135,7 +1303,7 @@ impl Scope<'_> {
             }
             ExpressionNode::Member(member) => {
                 let receiver = self.erased_evidence_reference(member.receiver, depth + 1)?;
-                let field = validation::declared_case_projection_field(
+                let field = declared_case_projection_field(
                     self.program,
                     self.machine,
                     Some(self.state),
@@ -1144,10 +1312,7 @@ impl Scope<'_> {
                 if !field.relevance.is_erased() {
                     return None;
                 }
-                if validation::mathematical_applications::is_source_evidence_carrier(
-                    self.program,
-                    field.type_reference,
-                ) {
+                if is_source_evidence_carrier(self.program, field.type_reference) {
                     return Some(field.type_reference);
                 }
                 // A prepared Type application substitutes its payload types.
@@ -1157,13 +1322,13 @@ impl Scope<'_> {
                 // complete Type/value tuple and exact payload projections.
                 let retained = member.member_symbol;
                 if !retained.is_valid()
-                    || self.program.symbols.get(retained).kind != symbols::SymbolKind::Field
+                    || self.program.symbols.get(retained).kind != SymbolKind::Field
                 {
                     return None;
                 }
                 let case_symbol = self.program.symbols.get(retained).parent;
                 if !case_symbol.is_valid()
-                    || self.program.symbols.get(case_symbol).kind != symbols::SymbolKind::Variant
+                    || self.program.symbols.get(case_symbol).kind != SymbolKind::Variant
                 {
                     return None;
                 }
@@ -1183,10 +1348,7 @@ impl Scope<'_> {
                     && applied.symbol == field.symbol
                     && applied.identity == field.identity
                     && applied.type_reference == field.type_reference
-                    && validation::mathematical_applications::is_source_evidence_carrier(
-                        self.program,
-                        declared.type_reference,
-                    ))
+                    && is_source_evidence_carrier(self.program, declared.type_reference))
                 .then_some(declared.type_reference)
             }
             _ => None,
@@ -1227,7 +1389,7 @@ impl Scope<'_> {
         }
         payload_owner.is_valid()
             && self.program.symbols.get(symbol).parent == payload_owner
-            && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Field
+            && self.program.symbols.get(symbol).kind == SymbolKind::Field
     }
 
     fn stable_proof_indices(
@@ -1326,7 +1488,7 @@ impl Scope<'_> {
             ExpressionNode::Member(member) => {
                 self.erased_evidence_reference(member.receiver, depth + 1)
                     .is_some()
-                    && validation::declared_case_projection_field(
+                    && declared_case_projection_field(
                         self.program,
                         self.machine,
                         Some(self.state),
@@ -1338,10 +1500,7 @@ impl Scope<'_> {
         }
     }
 
-    fn stable_static_proof_argument(
-        &self,
-        argument: &typed_trees::expression::StaticMachineArgument,
-    ) -> bool {
+    fn stable_static_proof_argument(&self, argument: &StaticMachineArgument) -> bool {
         if argument.symbol.is_valid() {
             return self.stable_index_symbol(argument.symbol, SymbolHandle::invalid());
         }
@@ -1357,31 +1516,25 @@ impl Scope<'_> {
                 return self.stable_proof_argument(*expression, 0);
             }
         }
-        typed_trees::typed_trees::static_const_argument_spelling(
-            self.program.typed_program(),
-            argument,
+        static_const_argument_spelling(self.program.typed_program(), argument).is_some_and(
+            |spelling| {
+                spelling.parse::<i128>().is_ok()
+                    || CanonicalConstValue::from_atom(&spelling).is_some()
+            },
         )
-        .is_some_and(|spelling| {
-            spelling.parse::<i128>().is_ok() || CanonicalConstValue::from_atom(&spelling).is_some()
-        })
     }
 
     fn actual_erased_identity(
         &self,
         expression: ExpressionHandle,
         reference: TypeReferenceHandle,
-    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    ) -> Option<NormalizedTypeIdentity> {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
         let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
         else {
-            return typed_trees::type_identity::applied_type_identity(
-                self.program,
-                reference,
-                self.machine.symbol,
-                &[],
-            );
+            return applied_type_identity(self.program, reference, self.machine.symbol, &[]);
         };
-        let field = validation::declared_case_projection_field(
+        let field = declared_case_projection_field(
             self.program,
             self.machine,
             Some(self.state),
@@ -1451,7 +1604,7 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
-        typed_trees::type_identity::applied_type_identity_in_scope(
+        applied_type_identity_in_scope(
             self.program,
             reference,
             data.symbol,
@@ -1476,11 +1629,11 @@ impl Scope<'_> {
         &self,
         mut reference: TypeReferenceHandle,
         target: SymbolHandle,
-        site: &validation::CallSite<'_>,
-        parameters: &[typed_trees::signature::StateParameter],
+        site: &CallSite<'_>,
+        parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
         position: usize,
-    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    ) -> Option<NormalizedTypeIdentity> {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
         if parameters.len() != arguments.len()
             || !arguments
@@ -1494,15 +1647,15 @@ impl Scope<'_> {
             .machine_by_symbol(target)
             .or_else(|| self.program.machine_holding_state(target))?;
         let (application, explicit) = match site {
-            validation::CallSite::Statement(call) => (
+            CallSite::Statement(call) => (
                 call.authored_machine_application,
                 call.machine_arguments.as_ref(),
             ),
-            validation::CallSite::Expression { call, .. } => (
+            CallSite::Expression { call, .. } => (
                 call.authored_machine_application,
                 call.machine_arguments.as_ref(),
             ),
-            validation::CallSite::TransitionNamed { .. } => (Default::default(), &[][..]),
+            CallSite::TransitionNamed { .. } => (Default::default(), &[][..]),
         };
         let mut owner = callee.symbol;
         let mut source_parameters_override = None;
@@ -1539,10 +1692,7 @@ impl Scope<'_> {
                 .static_machine_application_arguments(application);
         }
         let parameters = source_parameters_override.unwrap_or(parameters);
-        if !validation::mathematical_applications::is_source_evidence_carrier(
-            self.program,
-            reference,
-        ) {
+        if !is_source_evidence_carrier(self.program, reference) {
             return None;
         }
         if static_parameters.len() != static_arguments.len() && !static_arguments.is_empty() {
@@ -1574,7 +1724,7 @@ impl Scope<'_> {
             };
             substitutions.push((formal.symbol, argument));
         }
-        typed_trees::type_identity::applied_type_identity_in_scope(
+        applied_type_identity_in_scope(
             self.program,
             reference,
             owner,
@@ -1805,7 +1955,7 @@ impl Scope<'_> {
 }
 
 pub(super) fn check(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     frames: Option<&CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1844,26 +1994,19 @@ pub(super) fn check(
             // Whole indexed loans retain that relationship in their referee type.
             if has_runtime_indices {
                 let mut roots = Vec::new();
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program, node, &mut roots,
-                );
+                collect_statement_expression_trees(program, node, &mut roots);
                 let mut visited = Vec::new();
                 for root in roots {
-                    validation::expression_traversal::visit_post_order(
-                        program,
-                        root,
-                        &mut visited,
-                        |expression, node| {
-                            if let ExpressionNode::Borrow(borrow) = node {
-                                if borrow.access != language_core::ReferenceAccess::Shared
-                                    && scope.descriptor_target(borrow.target).is_some()
-                                {
-                                    diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
+                    visit_post_order(program, root, &mut visited, |expression, node| {
+                        if let ExpressionNode::Borrow(borrow) = node {
+                            if borrow.access != language_core::ReferenceAccess::Shared
+                                && scope.descriptor_target(borrow.target).is_some()
+                            {
+                                diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
                                 .with_source_span(program.expression_table.source_span(expression)));
-                                }
                             }
-                        },
-                    );
+                        }
+                    });
                 }
             }
             match node {
@@ -1871,12 +2014,7 @@ pub(super) fn check(
                     local.initial_value,
                     Application::bare(local.type_reference, statement),
                     local.relevance.is_erased(),
-                    typed_trees::type_identity::applied_type_identity(
-                        program,
-                        local.type_reference,
-                        machine.symbol,
-                        &[],
-                    ),
+                    applied_type_identity(program, local.type_reference, machine.symbol, &[]),
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
@@ -1912,11 +2050,10 @@ pub(super) fn check(
             }
         }
         for call in facts.flow.control.calls.span_or_empty(flow.calls) {
-            let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
-            else {
+            let Some(parameters) = call_target_parameters(program, call.target_symbol) else {
                 continue;
             };
-            let Some(site) = validation::find_call_site(
+            let Some(site) = find_call_site(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -1925,7 +2062,7 @@ pub(super) fn check(
             ) else {
                 continue;
             };
-            let arguments = validation::call_site_argument_expressions(program, &site);
+            let arguments = call_site_argument_expressions(program, &site);
             let scope = Scope {
                 program,
                 machine,
@@ -1951,10 +2088,7 @@ pub(super) fn check(
                     },
                     parameter.relevance.is_erased(),
                     (parameter.relevance.is_erased()
-                        && validation::mathematical_applications::is_source_evidence_carrier(
-                            program,
-                            parameter.type_reference,
-                        ))
+                        && is_source_evidence_carrier(program, parameter.type_reference))
                     .then(|| {
                         scope.expected_erased_identity(
                             parameter.type_reference,

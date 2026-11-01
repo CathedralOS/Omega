@@ -7,14 +7,20 @@ use super::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     derive_native_artifact_identity,
 };
+use effects::provider_plan::ServiceSurface;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceSchema,
 };
 use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
+use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
+use std::slice::from_ref;
+use target::TargetProfile;
+use target_operations::CallSiteOwner;
+use target_operations::NormalizedForeignCallMechanism;
 
-fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignCall {
+fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
     let native = profile.native_target();
     let signature = calling_conventions::CallSignature {
         parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
@@ -22,9 +28,7 @@ fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignC
     };
     image_emission::ObjectForeignCall {
         machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-        owner: target_operations::CallSiteOwner::Operation(
-            semantic_vocabulary::OperationId::new(2).unwrap(),
-        ),
+        owner: CallSiteOwner::Operation(OperationId::new(2).unwrap()),
         operation_ordinal: 0,
         binding: target_operations::NormalizedForeignCallBinding {
             boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
@@ -34,7 +38,7 @@ fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignC
             .unwrap()
             .plan()
             .clone(),
-            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
+            mechanism: NormalizedForeignCallMechanism::SystemCall(
                 target_operations::NormalizedSystemCallBinding {
                     target: profile,
                     number: 0,
@@ -63,10 +67,7 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         NativeSelectedProviderPlanDigest::from_digest([23; 32]),
         vec!["Input::read".into()],
     )];
-    for profile in [
-        target::TargetProfile::LinuxX64,
-        target::TargetProfile::LinuxArm64,
-    ] {
+    for profile in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
         let call = kernel_call(profile);
         let identities = terminal_psi::TerminalIdentityTable::default();
         let validate = |call: &image_emission::ObjectForeignCall| {
@@ -76,8 +77,7 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         assert_eq!(validate(&call), Ok(()));
         for mutation in 0..5 {
             let mut changed = call.clone();
-            let target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) =
-                &mut changed.binding.mechanism
+            let NormalizedForeignCallMechanism::SystemCall(kernel) = &mut changed.binding.mechanism
             else {
                 unreachable!()
             };
@@ -123,17 +123,16 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
 #[test]
 fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
     use super::identity::foreign_call_custody_digest;
-    let call = kernel_call(target::TargetProfile::LinuxX64);
-    let expected = foreign_call_custody_digest(std::slice::from_ref(&call));
+    let call = kernel_call(TargetProfile::LinuxX64);
+    let expected = foreign_call_custody_digest(from_ref(&call));
     for mutation in 0..5 {
         let mut changed = call.clone();
-        let target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) =
-            &mut changed.binding.mechanism
+        let NormalizedForeignCallMechanism::SystemCall(kernel) = &mut changed.binding.mechanism
         else {
             unreachable!()
         };
         match mutation {
-            0 => kernel.target = target::TargetProfile::LinuxArm64,
+            0 => kernel.target = TargetProfile::LinuxArm64,
             1 => kernel.number = 211,
             2 => kernel.requirement_identity = "Input::other".into(),
             3 => kernel.provider_plan_report_identity += 1,
@@ -160,20 +159,18 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
             name: name.into(),
             provider_type: format!("{name}Provider"),
             target: "macos_arm64".into(),
-            schema: ServiceSchema::from_declaration(std::sync::Arc::new(
-                effects::provider_plan::ServiceSurface {
-                    trait_name,
-                    identities: schema_identities,
-                    methods: vec![ServiceMethod {
-                        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                        name: "read".into(),
-                        requirement_owner: name.into(),
-                        requirement_identity,
-                        ..ServiceMethod::default()
-                    }],
-                    ..effects::provider_plan::ServiceSurface::default()
-                },
-            )),
+            schema: ServiceSchema::from_declaration(std::sync::Arc::new(ServiceSurface {
+                trait_name,
+                identities: schema_identities,
+                methods: vec![ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                    name: "read".into(),
+                    requirement_owner: name.into(),
+                    requirement_identity,
+                    ..ServiceMethod::default()
+                }],
+                ..ServiceSurface::default()
+            })),
             identities,
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
@@ -284,12 +281,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
     let required = BTreeSet::from([(selected.into(), 7, 11, 12, 13, 14)]);
     assert_eq!(plan.selected_requirement_identity(closed), selected);
     assert_eq!(plan.selected_requirement_identity(other), other);
-    validate_provider_execution_reports(
-        std::slice::from_ref(&plan),
-        std::slice::from_ref(&execution),
-        &required,
-    )
-    .unwrap();
+    validate_provider_execution_reports(from_ref(&plan), from_ref(&execution), &required).unwrap();
     validate_foreign_stack_contribution(
         closed,
         machine_code::ProviderExecutionRecord {
@@ -302,30 +294,20 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
         selected,
         7,
         [2; 32],
-        std::slice::from_ref(&plan),
+        from_ref(&plan),
     )
     .unwrap();
     let mut changed = plan.clone();
     changed.external_requirement_applications[0].provider_plan_digest =
         effects::provider_plan::ProviderPlanDigest::from_digest([3; 32]);
     assert!(
-        validate_provider_execution_reports(
-            &[changed],
-            std::slice::from_ref(&execution),
-            &required
-        )
-        .is_err()
+        validate_provider_execution_reports(&[changed], from_ref(&execution), &required).is_err()
     );
     let mut changed = plan.clone();
     changed.external_requirement_applications[0].requirement_identity =
         identities.index_of(other).unwrap();
     assert!(
-        validate_provider_execution_reports(
-            &[changed],
-            std::slice::from_ref(&execution),
-            &required
-        )
-        .is_err()
+        validate_provider_execution_reports(&[changed], from_ref(&execution), &required).is_err()
     );
     let mut changed_execution = execution;
     changed_execution.requirement_identity = other.into();

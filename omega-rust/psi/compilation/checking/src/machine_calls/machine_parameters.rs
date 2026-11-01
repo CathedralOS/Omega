@@ -9,6 +9,8 @@
 
 mod callable_shape;
 mod family_demands;
+#[cfg(test)]
+mod parameter_contract_tests;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
@@ -17,6 +19,7 @@ pub(crate) use selected_dependencies::{
 mod closed_types;
 mod type_selections;
 pub use closed_types::closed_static_call_type_bindings;
+use typed_trees::static_applications::StaticMachineBindingValue;
 pub(crate) mod contract_facts;
 mod nominal_admission;
 mod type_refinement;
@@ -660,10 +663,8 @@ fn form_call_selection(
     if application.is_valid() {
         for binding in expression_table(program).static_machine_application_bindings(application) {
             let actual = match binding.value {
-                typed_trees::static_applications::StaticMachineBindingValue::Type(actual)
-                | typed_trees::static_applications::StaticMachineBindingValue::Const(actual) => {
-                    actual
-                }
+                StaticMachineBindingValue::Type(actual)
+                | StaticMachineBindingValue::Const(actual) => actual,
                 _ => continue,
             };
             if !bindings
@@ -996,6 +997,20 @@ fn machine_parameter_contract_definition(
             return Some(found);
         }
     }
+    // Expansion erases the type head, not an alias's authored callable promise.
+    // Rejoin its owned telescope rather than accepting an orphan arena row.
+    for alias in program.type_aliases() {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program
+                .tables
+                .data_type_parameters
+                .span_or_empty(alias.type_parameters),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
     None
 }
 
@@ -1139,10 +1154,8 @@ fn validate_conformance_machine_selections(
             .static_machine_application_bindings(invocation)
             .iter()
             .filter_map(|binding| match binding.value {
-                typed_trees::static_applications::StaticMachineBindingValue::Type(actual)
-                | typed_trees::static_applications::StaticMachineBindingValue::Const(actual) => {
-                    Some((binding.parameter, actual))
-                }
+                StaticMachineBindingValue::Type(actual)
+                | StaticMachineBindingValue::Const(actual) => Some((binding.parameter, actual)),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -1187,6 +1200,23 @@ fn validate_conformance_machine_selections(
             let exact = original.zip(view).is_some_and(|(original, view)| {
                 let provider = expression_table(program).static_machine_application(view.provider);
                 provider_tuple_matches_source(program, original, view.provider)
+                    && program.applied_machine_callable_matches(
+                        invocation,
+                        ordinal,
+                        argument.symbol,
+                        parameter.symbol,
+                        program
+                            .expression_table
+                            .static_machine_application_bindings(view.provider),
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(view.provider),
+                        required,
+                        &substitutions,
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(invocation),
+                    )
                     && provider.registration_operation
                         == program
                             .machine_by_symbol(original.symbol)
@@ -1295,7 +1325,7 @@ fn provider_tuple_matches_source(
             let [selected] = selected.as_slice() else {
                 return false;
             };
-            if !matches!(&selected.value, typed_trees::static_applications::StaticMachineBindingValue::Conformance(actual) if actual == argument)
+            if !matches!(&selected.value, StaticMachineBindingValue::Conformance(actual) if actual == argument)
             {
                 return false;
             }

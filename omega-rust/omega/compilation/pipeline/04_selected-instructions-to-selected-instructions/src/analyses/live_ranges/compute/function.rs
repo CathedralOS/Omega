@@ -1,11 +1,9 @@
 //! Ordinary and structural function live-range construction.
 use super::{
-    FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint, VirtualFixedConstraintSite,
-    VirtualLiveRange, VirtualOccurrence,
-};
-use super::{
-    LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
-    derive_tied_pairs, operand_point, register_fragments,
+    FunctionLiveRanges, LiveRangeError, RegisterOperandAccess, VirtualFixedConstraint,
+    VirtualFixedConstraintSite, VirtualLiveRange, VirtualOccurrence, architectural_units,
+    block_domain, connector, derive_early_clobbers, derive_tied_pairs, operand_point,
+    register_fragments,
 };
 
 pub(crate) fn compute_function(

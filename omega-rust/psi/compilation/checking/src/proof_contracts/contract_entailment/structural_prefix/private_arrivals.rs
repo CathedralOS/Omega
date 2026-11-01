@@ -65,8 +65,13 @@ where
         .collect::<Vec<_>>();
     // Each cached frontier replaces every non-anchor owner with all of its
     // incoming owners. Every trial starts from the original query state;
-    // failed overapproximations cannot publish a negative judgment.
-    for indices in &arrivals.caller_frontiers {
+    // failed overapproximations cannot publish a negative judgment, so a
+    // skipped trial never changes the verdict - it only gives up a cheap
+    // early proof. Trial the most-expanded cut once: frontiers nearer the
+    // anchors retain the most caller-chain premises, giving context-dependent
+    // obligations their best single shot instead of an O(depth) sequence of
+    // progressively weaker approximations.
+    for indices in arrivals.caller_frontiers.iter().rev().take(1) {
         let Some(caller_roots) = indices
             .iter()
             .map(|&index| program.machines().get(index))
@@ -74,14 +79,14 @@ where
         else {
             continue;
         };
-        if same_frontier(&caller_roots, &roots)
+        if caller_roots.len() == roots.len() && caller_roots.iter().all(|root| roots.iter().any(|other| root.symbol == other.symbol))
             // Ranked mathematical induction retains its original owner.
             || caller_roots.iter().any(|caller| classification.is_proof_machine(program, caller))
         {
             continue;
         }
         let mut trial = requirement.clone();
-        if observe_frontier(
+        let outcome = observe_frontier(
             program,
             machine,
             entry.symbol,
@@ -89,8 +94,17 @@ where
             &mut trial,
             case_facts_only,
             &arrivals,
-        ) && trial.has_positive_proof()
-        {
+        );
+        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
+            eprintln!(
+                "[trial] machine={} roots={} outcome={} positive={}",
+                machine.name,
+                caller_roots.len(),
+                outcome,
+                trial.has_positive_proof()
+            );
+        }
+        if outcome && trial.has_positive_proof() {
             *requirement = trial;
             return Some(true);
         }
@@ -106,11 +120,129 @@ where
     ))
 }
 
-fn same_frontier(left: &[&Machine], right: &[&Machine]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .all(|root| right.iter().any(|other| root.symbol == other.symbol))
+/// One frontier computation shared by every obligation on `machine`: the
+/// arrival closure, roots, boundaries and expected set are per-machine, so
+/// obligations differ only in their wrapped site requirement. Each root walk
+/// delivers to all members at once; members record their own arrivals and the
+/// caller reads each member's verdict from its own requirement afterwards.
+/// Trials are not batched here — they are optional positive-proof shortcuts
+/// and the main frontier answers authoritatively.
+pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals_batch<Request>(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    requirements: &mut [&mut Request],
+    case_facts_only: bool,
+) -> Vec<Option<bool>>
+where
+    Request: StructuralPrefixVisitor + Clone,
+{
+    let empty = vec![None; requirements.len()];
+    let Some(root) = scope::lexical_root(program, machine) else {
+        return empty;
+    };
+    let arrivals = match scope::closed_arrivals(program, root, machine) {
+        Ok(arrivals) => arrivals,
+        Err(reason) => {
+            if super::super::struct_trace() {
+                eprintln!("PRIVATE arrivals machine={} reason={reason}", machine.name);
+            }
+            return vec![Some(false); requirements.len()];
+        }
+    };
+    let Some(entry) = program.machine_states(machine).first() else {
+        return empty;
+    };
+    let classification = crate::proof_only_classification(program);
+    if arrivals.entry_boundaries.iter().any(|symbol| {
+        program
+            .machine_by_symbol(*symbol)
+            .is_none_or(|entry| classification.is_proof_machine(program, entry))
+    }) {
+        return vec![Some(false); requirements.len()];
+    }
+    let roots = program
+        .machines()
+        .iter()
+        .filter(|candidate| {
+            scope::is_root(program, candidate, root)
+                || arrivals.entry_boundaries.contains(&candidate.symbol)
+        })
+        .collect::<Vec<_>>();
+    let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
+    let mut members = requirements
+        .iter_mut()
+        .map(|requirement| ArrivalRequirement {
+            requirement: &mut **requirement,
+            entry: entry.symbol,
+            root: SymbolHandle::invalid(),
+            observed: Vec::new(),
+            boundaries: boundaries.clone(),
+            closed: std::sync::Arc::clone(&arrivals),
+        })
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    let mut recognized = true;
+    // Each executable application starts independently with arbitrary runtime
+    // inputs under its own applied contract. One cone walk serves every member
+    // whose site is reachable from this root; unreachable members keep their
+    // solo `continue` behavior by receiving no events from the walk.
+    for arrival_root in &roots {
+        for member in members.iter_mut() {
+            member.root = arrival_root.symbol;
+        }
+        let Some(root_entry) = program.machine_states(arrival_root).first() else {
+            return vec![Some(false); requirements.len()];
+        };
+        let mut eligible = members
+            .iter_mut()
+            .filter(|member| {
+                super::super::structural_case_arms::prefix_site_is_reachable(
+                    program, root_entry, &**member,
+                )
+            })
+            .map(|member| member as &mut dyn StructuralPrefixVisitor)
+            .collect::<Vec<_>>();
+        if eligible.is_empty() {
+            continue;
+        }
+        let requires = super::machine_requires_facts(program, arrival_root);
+        let mut judge = if classification.is_proof_machine(program, arrival_root) {
+            StructuralJudge::from_requires(program, arrival_root, &requires, true)
+        } else {
+            StructuralJudge::from_runtime_state_requires(
+                program,
+                arrival_root,
+                root_entry,
+                &requires,
+            )
+        };
+        if case_facts_only {
+            judge.restrict_to_case_facts();
+        }
+        recognized &= super::recognize_structural_case_arms_batched(
+            program,
+            arrival_root,
+            &judge,
+            &classification,
+            &mut diagnostics,
+            &mut eligible,
+        )
+        .is_some();
+    }
+    members
+        .into_iter()
+        .map(|member| {
+            Some(
+                recognized
+                    && diagnostics.is_empty()
+                    && !arrivals.expected.is_empty()
+                    && arrivals
+                        .expected
+                        .iter()
+                        .all(|arrival| member.observed.contains(arrival)),
+            )
+        })
+        .collect()
 }
 
 fn observe_frontier(
@@ -142,7 +274,21 @@ fn observe_frontier(
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
             return false;
         };
-        if !super::super::structural_case_arms::prefix_site_is_reachable(
+        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
+            let reachable = super::super::structural_case_arms::prefix_site_is_reachable(
+                program, root_entry, &observer,
+            );
+            eprintln!(
+                "[frontier] machine={} root={} roots={} reachable={}",
+                machine.name,
+                arrival_root.name,
+                roots.len(),
+                reachable
+            );
+            if !reachable {
+                continue;
+            }
+        } else if !super::super::structural_case_arms::prefix_site_is_reachable(
             program, root_entry, &observer,
         ) {
             continue;

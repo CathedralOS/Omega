@@ -1,0 +1,9 @@
+// A completed bounded snapshot cannot prove a replacement stored value.
+data Bound requires self.value >= 0 && self.value <= 255 { value: i32; }
+data Source { value: i32; }
+machine make(source: &mut Source, value: u8) -> Bound {
+    source.value = value as i32;
+    source.value = 256;
+    Bound { value: source.value }
+}
+machine main() {}

@@ -3,12 +3,14 @@
 //! or state edge supplied it. Operation validation owns access permissions;
 //! native geometry must not reinterpret qualification or frozen-content rules.
 use super::descriptor_operands::observes_measured_length;
+use super::descriptor_operands::refusal;
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use calling_conventions::ValueShape;
+use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{
     IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
@@ -18,6 +20,8 @@ use target_operations::{
     TargetBooleanExpression, TargetIntegerExpression, TargetStructuralParameter,
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_semantics::descriptor_results::{is_descriptor, result_access};
+use terminal_semantics::{descriptor_parameter_access, fixed_byte_extent};
 
 pub(in crate::lowering) fn block_source(
     function: &AbstractFunction,
@@ -251,9 +255,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
                 result.value,
                 KnownScalar::Integer {
                     scalar_type,
-                    value: KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(
-                        u128::from(length),
-                    )),
+                    value: KnownInteger::Immediate(IntegerValue::Unsigned(u128::from(length))),
                 },
             )?;
             provenance.push(*psi_operation);
@@ -268,9 +270,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         };
         let value = match carrier {
             terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-                KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                    *capacity,
-                )))
+                KnownInteger::Immediate(IntegerValue::Unsigned(u128::from(*capacity)))
             }
             _ => KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
                 psi_operation: *psi_operation,
@@ -377,7 +377,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
     let invalid = || {
-        super::descriptor_operands::refusal(
+        refusal(
             function,
             &(place, backings.homes.get(&place), values, lengths),
         )
@@ -405,11 +405,7 @@ pub(in crate::lowering) fn resolve_byte_view(
                 place,
                 structural_type: result.structural_type,
             },
-            terminal_semantics::descriptor_results::result_access(
-                structural_types.values().copied(),
-                result,
-            )
-            .ok_or_else(invalid)?,
+            result_access(structural_types.values().copied(), result).ok_or_else(invalid)?,
         ));
     }
     if let Some((psi_operation, result)) = owned_byte_result(function, place, structural_types) {
@@ -491,11 +487,8 @@ pub(in crate::lowering) fn resolve_byte_view(
             }
             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => {
-                terminal_semantics::descriptor_parameter_access(
-                    semantic,
-                    structural_types.values().copied(),
-                )
-                .ok_or_else(invalid)?
+                descriptor_parameter_access(semantic, structural_types.values().copied())
+                    .ok_or_else(invalid)?
             }
             _ => return Err(invalid()),
         };
@@ -592,7 +585,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     let start = endpoint(*start)?;
     let end = endpoint(*end)?;
     if !super::descriptor_operands::observes_count(function, values, *length, source, true) {
-        return Err(super::descriptor_operands::refusal(
+        return Err(refusal(
             function,
             &("subslice count observation", length, source),
         ));
@@ -703,10 +696,7 @@ pub(in crate::lowering) fn completed_descriptor<'function>(
         )
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::descriptor_results::is_descriptor(
-            types.values().copied(),
-            result.structural_type,
-        ))
+        && is_descriptor(types.values().copied(), result.structural_type))
     .then_some((operation, result))
 }
 
@@ -752,11 +742,7 @@ fn validate_whole_operand(
             || !structural_types.get(&selected).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
                     || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
-                        && terminal_semantics::fixed_byte_extent(
-                            structural_types.values().copied(),
-                            selected,
-                        )
-                        .is_some()
+                        && fixed_byte_extent(structural_types.values().copied(), selected).is_some()
             })
             || !super::descriptor_operands::observes_count(function, values, *length, source, true)
         {

@@ -1,14 +1,21 @@
 use super::{TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label};
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
 };
 use std::collections::HashSet;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
+use typed_trees::data::DataShapeKind;
 use typed_trees::data::{
     DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
 use typed_trees::expression::StaticMachineArgument;
+use typed_trees::signature::StateParameter;
+use typed_trees::type_identity::IndexIdentityArgument;
+use typed_trees::type_identity::NormalizedTypeIdentity;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod closed_expressions;
@@ -19,7 +26,7 @@ pub(crate) use closed_expressions::normalize_closed_const_expression_in_carrier;
 /// declaration's theory. The destination supplies a carrier, never assumptions
 /// that discharge the source operation's formation obligations.
 pub fn check_closed_const_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     lexical_owner: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     carrier: TypeReferenceHandle,
@@ -35,7 +42,7 @@ pub fn check_closed_const_expression(
 /// Normalize only after formation in the complete simultaneous receiving scope.
 /// Supplied actual descendants retain their original caller telescope.
 pub(crate) fn check_closed_const_expression_in_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     lexical_owner: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     carrier: AppliedValueCarrier<'_>,
@@ -72,7 +79,7 @@ pub(crate) fn check_closed_const_expression_in_carrier(
 }
 
 pub(crate) fn validate_machine_data_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_symbol: SymbolHandle,
     base_name: &str,
     parameter: &TypeParameter,
@@ -110,6 +117,18 @@ pub(crate) fn validate_machine_data_argument(
                 .trait_definition_by_symbol(base_symbol)
                 .map(|definition| program.trait_type_parameters(definition))
         })
+        .or_else(|| {
+            program
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == base_symbol)
+                .map(|alias| {
+                    program
+                        .tables
+                        .data_type_parameters
+                        .span_or_empty(alias.type_parameters)
+                })
+        })
         .unwrap_or(&[])
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
@@ -131,7 +150,7 @@ pub(crate) fn validate_machine_data_argument(
 }
 
 pub(super) fn machine_argument_name<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'program>,
 ) -> Option<&'program str> {
@@ -156,7 +175,7 @@ pub(super) fn machine_argument_name<'program>(
 }
 
 pub(super) fn validate_symbolic_array_length(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     length: &FixedArrayLength,
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -181,7 +200,7 @@ pub(super) fn validate_symbolic_array_length(
                     | TypeParameterKind::Value { type_reference } => type_reference,
                     _ => return None,
                 };
-                Some(typed_trees::signature::StateParameter {
+                Some(StateParameter {
                     symbol: parameter.symbol,
                     name: parameter.name.clone(),
                     type_reference,
@@ -299,7 +318,7 @@ pub(super) fn validate_symbolic_array_length(
 /// admits neither unresolved binders nor unevaluated expressions and applies
 /// even when the selected binder has no body occurrences.
 pub fn validate_closed_const_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: &str,
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
@@ -359,7 +378,7 @@ pub fn validate_closed_const_argument(
 /// Reuse constructor admission with the caller's exact lexical telescope;
 /// runtime value binders cannot fill compile-time const slots.
 pub(crate) fn const_argument_matches_parameter(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
     caller_parameters: &[TypeParameter],
@@ -453,7 +472,7 @@ impl<'application> AppliedValueCarrier<'application> {
 
     fn type_argument(
         self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         position: usize,
     ) -> Option<TypeReferenceHandle> {
         if let Some(arguments) = self.static_arguments {
@@ -479,7 +498,7 @@ impl<'application> AppliedValueCarrier<'application> {
             .filter(|argument| argument.is_valid())
     }
 
-    pub(crate) fn resolved(self, program: &dyn crate::CheckingInput) -> Self {
+    pub(crate) fn resolved(self, program: &dyn CheckingInput) -> Self {
         if !self.reference.is_valid() {
             return self;
         }
@@ -509,19 +528,12 @@ impl<'application> AppliedValueCarrier<'application> {
         Self { reference, ..self }
     }
 
-    pub(crate) fn matches(
-        self,
-        program: &dyn crate::CheckingInput,
-        actual: TypeReferenceHandle,
-    ) -> bool {
+    pub(crate) fn matches(self, program: &dyn CheckingInput, actual: TypeReferenceHandle) -> bool {
         self.identity(program)
             .is_some_and(|expected| expected == program.normalized_type_identity(actual))
     }
 
-    fn identity(
-        self,
-        program: &dyn crate::CheckingInput,
-    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    fn identity(self, program: &dyn CheckingInput) -> Option<NormalizedTypeIdentity> {
         if let Some(arguments) = self.static_arguments {
             let mut values = Vec::new();
             for (position, (parameter, argument)) in
@@ -534,15 +546,13 @@ impl<'application> AppliedValueCarrier<'application> {
                         };
                         values.push((
                             parameter.symbol,
-                            typed_trees::type_identity::IndexIdentityArgument::TypeArgument(actual),
+                            IndexIdentityArgument::TypeArgument(actual),
                         ));
                     }
                     TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                         values.push((
                             parameter.symbol,
-                            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
-                                argument,
-                            ),
+                            IndexIdentityArgument::StaticArgument(argument),
                         ));
                     }
                     _ => {}
@@ -552,7 +562,7 @@ impl<'application> AppliedValueCarrier<'application> {
             // particular, a supplied Type's descendants cannot acquire a
             // sibling receiving Const replacement.
             return program.scoped_type_identity_with_index_arguments(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference),
+                TypeIdentityRequest::ordinary(self.reference),
                 &[],
                 &values,
             );
@@ -571,26 +581,20 @@ impl<'application> AppliedValueCarrier<'application> {
             })
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        let expected = program.type_identity_with_simultaneous_substitutions(
-            typed_trees::type_identity::TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference)
-            },
-        );
+        let expected = program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::ordinary(self.reference)
+        });
         expected.is_valid().then_some(expected)
     }
 
-    fn identity_text(self, program: &dyn crate::CheckingInput) -> Result<String, String> {
+    fn identity_text(self, program: &dyn CheckingInput) -> Result<String, String> {
         self.identity(program)
             .and_then(|identity| program.type_identity_text(identity))
             .ok_or_else(|| "const carrier lost its complete applied identity".to_owned())
     }
 
-    fn array_length(
-        self,
-        program: &dyn crate::CheckingInput,
-        length: &FixedArrayLength,
-    ) -> Option<usize> {
+    fn array_length(self, program: &dyn CheckingInput, length: &FixedArrayLength) -> Option<usize> {
         match length {
             FixedArrayLength::Literal(length) => Some(*length),
             FixedArrayLength::ConstParameter { symbol, .. } => {
@@ -643,7 +647,7 @@ impl<'application> AppliedValueCarrier<'application> {
 }
 
 pub(crate) fn validate_const_data_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
     carrier: AppliedValueCarrier<'_>,
@@ -883,7 +887,7 @@ pub(crate) fn validate_const_data_argument(
 /// implementation may use it. A pending const recipe retains evaluation work;
 /// it does not waive the supplying declaration's arithmetic obligations.
 pub(super) fn validate_const_argument_expression_formation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
     carrier: AppliedValueCarrier<'_>,
@@ -911,7 +915,7 @@ pub(super) fn validate_const_argument_expression_formation(
             .iter()
             .any(|known| known.symbol == parameter.symbol)
         {
-            parameters.push(typed_trees::signature::StateParameter {
+            parameters.push(StateParameter {
                 symbol: parameter.symbol,
                 name: parameter.name.clone(),
                 type_reference,
@@ -947,7 +951,7 @@ pub(super) fn validate_const_argument_expression_formation(
 /// rules remain with the broader producer judgment until their typed replay is
 /// shared too.
 pub(crate) fn validate_exact_typed_structured_const_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expected_type: TypeReferenceHandle,
     value: &CanonicalConstValue,
 ) -> Result<(), String> {
@@ -978,7 +982,7 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
 }
 
 pub(crate) fn validate_exact_const_identity(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expected_type: TypeReferenceHandle,
     identity: &CanonicalConstIdentity,
 ) -> Result<(), String> {
@@ -990,7 +994,7 @@ pub(crate) fn validate_exact_const_identity(
 }
 
 pub(crate) fn validate_exact_const_identity_in_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     identity: &CanonicalConstIdentity,
 ) -> Result<(), String> {
@@ -1028,7 +1032,7 @@ pub(crate) fn validate_exact_const_identity_in_carrier(
 /// carrier. This syntax-free entry is for downstream compiler stages: names
 /// embedded in the encoding are consistency claims, never type authority.
 pub fn validate_exact_const_value_encoding(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expected_type: TypeReferenceHandle,
     encoding: &str,
 ) -> Result<(), String> {
@@ -1040,7 +1044,7 @@ pub fn validate_exact_const_value_encoding(
 }
 
 pub(crate) fn validate_exact_const_value_encoding_in_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     encoding: &str,
 ) -> Result<(), String> {
@@ -1059,7 +1063,7 @@ pub(crate) fn validate_exact_const_value_encoding_in_carrier(
 /// A caller's qualification or import alias cannot change a value encoding;
 /// the label still supplies no nominal authority without the exact typed slot.
 fn canonical_carrier_label(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     carrier: AppliedValueCarrier<'_>,
 ) -> String {
     let carrier = carrier.resolved(program);
@@ -1090,7 +1094,7 @@ fn canonical_carrier_label(
 /// canonical replay. Eligibility never discharges a data predicate or field
 /// obligation: those still belong to ordinary construction and value replay.
 pub(crate) fn exact_const_carrier_is_eligible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     exact_structured_const_carrier_is_eligible(
@@ -1101,7 +1105,7 @@ pub(crate) fn exact_const_carrier_is_eligible(
 }
 
 fn exact_structured_const_data_carrier_is_eligible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let TypeReferenceNode::Named { symbol, .. } =
@@ -1119,7 +1123,7 @@ fn exact_structured_const_data_carrier_is_eligible(
 }
 
 fn exact_structured_const_carrier_is_eligible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
@@ -1158,14 +1162,23 @@ fn exact_structured_const_carrier_is_eligible(
                             && program.data_type_parameters(definition).is_empty()
                             && definition.generic_instance.is_none()
                             && definition.quotient.is_none()
-                            && match typed_trees::data::DataDefinition::shape_kind_from_members(
-                                members,
-                            ) {
-                                typed_trees::data::DataShapeKind::Record => {
-                                    members.iter().all(|member| {
-                                        let Some(field) = member.as_field() else {
-                                            return false;
-                                        };
+                            && match DataDefinition::shape_kind_from_members(members) {
+                                DataShapeKind::Record => members.iter().all(|member| {
+                                    let Some(field) = member.as_field() else {
+                                        return false;
+                                    };
+                                    !field.relevance.is_erased()
+                                        && exact_structured_const_carrier_is_eligible(
+                                            program,
+                                            AppliedValueCarrier::ordinary(field.type_reference),
+                                            visiting,
+                                        )
+                                }),
+                                DataShapeKind::Enum => members.iter().all(|member| {
+                                    let Some(variant) = member.as_variant() else {
+                                        return false;
+                                    };
+                                    program.data_payload_fields(variant).iter().all(|field| {
                                         !field.relevance.is_erased()
                                             && exact_structured_const_carrier_is_eligible(
                                                 program,
@@ -1173,26 +1186,8 @@ fn exact_structured_const_carrier_is_eligible(
                                                 visiting,
                                             )
                                     })
-                                }
-                                typed_trees::data::DataShapeKind::Enum => {
-                                    members.iter().all(|member| {
-                                        let Some(variant) = member.as_variant() else {
-                                            return false;
-                                        };
-                                        program.data_payload_fields(variant).iter().all(|field| {
-                                            !field.relevance.is_erased()
-                                                && exact_structured_const_carrier_is_eligible(
-                                                    program,
-                                                    AppliedValueCarrier::ordinary(
-                                                        field.type_reference,
-                                                    ),
-                                                    visiting,
-                                                )
-                                        })
-                                    })
-                                }
-                                typed_trees::data::DataShapeKind::Empty
-                                | typed_trees::data::DataShapeKind::Mixed => false,
+                                }),
+                                DataShapeKind::Empty | DataShapeKind::Mixed => false,
                             }
                     });
             visiting.pop();
@@ -1206,12 +1201,12 @@ fn exact_structured_const_carrier_is_eligible(
 /// unresolved or recursive symbol and a declared type name mismatch are
 /// errors; `node_kind` is `record` or `variant` in the diagnostic.
 fn structured_const_carrier_definition<'p>(
-    program: &'p dyn crate::CheckingInput,
+    program: &'p dyn CheckingInput,
     symbol: &symbols::SymbolHandle,
     type_name: &str,
     node_kind: &str,
     visiting: &[symbols::SymbolHandle],
-) -> Result<&'p typed_trees::data::DataDefinition, String> {
+) -> Result<&'p DataDefinition, String> {
     if !symbol.is_valid() || visiting.contains(symbol) {
         return Err("structured const carrier is unresolved or recursive".to_owned());
     }
@@ -1227,7 +1222,7 @@ fn structured_const_carrier_definition<'p>(
 }
 
 fn validate_decoded_structured_const(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     value: &DecodedCanonicalConstValue,
     visiting: &mut Vec<symbols::SymbolHandle>,
@@ -1308,9 +1303,7 @@ fn validate_decoded_structured_const(
                 visiting,
             )?;
             let members = program.data_members(definition);
-            if typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                != typed_trees::data::DataShapeKind::Record
-            {
+            if DataDefinition::shape_kind_from_members(members) != DataShapeKind::Record {
                 return Err("canonical record node names non-record data".to_owned());
             }
             if fields.len() != members.len() {
@@ -1367,9 +1360,7 @@ fn validate_decoded_structured_const(
                 visiting,
             )?;
             let members = program.data_members(definition);
-            if typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                != typed_trees::data::DataShapeKind::Enum
-            {
+            if DataDefinition::shape_kind_from_members(members) != DataShapeKind::Enum {
                 return Err("canonical variant node names non-sum data".to_owned());
             }
             let mut matching_cases = members.iter().filter_map(|member| {
@@ -1440,7 +1431,7 @@ fn validate_decoded_structured_const(
 /// field's name, then the value recurses through the structured-const
 /// validation with the visiting guard intact.
 fn validate_named_field_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     encoded_name: &str,
     field: &DataField,
     encoded_value: &DecodedCanonicalConstValue,
@@ -1462,7 +1453,7 @@ fn validate_named_field_value(
 }
 
 fn exact_const_primitive(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let TypeReferenceNode::Named { symbol, name } =
@@ -1489,7 +1480,7 @@ fn exact_const_primitive(
 }
 
 fn validate_typed_const_index_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<String>,
 ) -> Result<(), String> {
@@ -1568,7 +1559,7 @@ fn validate_typed_const_index_type(
 }
 
 fn validate_const_integer_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
     mut parameter_type: TypeReferenceHandle,
@@ -1631,7 +1622,7 @@ fn validate_const_integer_range(
 /// reference in its declaration's scope: it must resolve like a field type,
 /// and an integer carrier's declared ranges must close over integers.
 pub(crate) fn validate_const_binder_carriers(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     owner: &str,
     parameters: &[TypeParameter],
@@ -1710,7 +1701,7 @@ pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value
 /// on in-scope type parameters count, so `data Outer<U [copy]>` may store a
 /// `Box<U>`.
 pub(super) fn validate_generic_argument_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_symbol: SymbolHandle,
     base_name: &str,
     arguments: arena::HandleSpan<TypeReferenceHandle>,
@@ -1741,7 +1732,7 @@ pub(super) fn validate_generic_argument_bounds(
 /// Property admission is independent of whether a telescope belongs to stored
 /// data or a trait. Unused/phantom parameters still carry every declared bound.
 pub(crate) fn validate_parameter_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     base_name: &str,
     parameters: &[TypeParameter],
     arguments: &[TypeReferenceHandle],
@@ -1772,10 +1763,7 @@ pub(crate) fn validate_parameter_bounds(
 }
 
 /// Declaration symbols, rather than diagnostic names, select operand types.
-fn declaration_parameters(
-    program: &dyn crate::CheckingInput,
-    owner: SymbolHandle,
-) -> Vec<typed_trees::signature::StateParameter> {
+fn declaration_parameters(program: &dyn CheckingInput, owner: SymbolHandle) -> Vec<StateParameter> {
     if let Some(machine) = program.machine_by_symbol(owner) {
         return program
             .machine_states(machine)

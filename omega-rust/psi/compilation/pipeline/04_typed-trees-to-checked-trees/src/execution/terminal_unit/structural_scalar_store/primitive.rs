@@ -23,9 +23,9 @@
 //! statement owner: its complete value is established before receiving storage
 //! changes, so stored reads cannot observe a partial replacement.
 use super::super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
-    TypeConstraintNode, TypeReferenceNode,
+    CheckFacts, CheckedScalarExpression as ScalarExpression,
+    CheckedScalarExpressionRole as ExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
+    PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode,
 };
 use crate::flow::expressions;
 use crate::places::place_at;
@@ -204,7 +204,7 @@ fn primitive_store_value(
         .filter(|root| {
             root.state == state.symbol
                 && root.statement_ordinal == statement_index
-                && root.role == CheckedScalarExpressionRole::AssignmentValue
+                && root.role == ExpressionRole::AssignmentValue
         });
     if let Some(root) = roots.next() {
         if roots.next().is_some()
@@ -220,7 +220,7 @@ fn primitive_store_value(
                 .expression_at(
                     state.symbol,
                     statement_index,
-                    CheckedScalarExpressionRole::AssignmentValue,
+                    ExpressionRole::AssignmentValue,
                 )
                 .is_some()
         {
@@ -233,7 +233,7 @@ fn primitive_store_value(
     let Some((binding, value)) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
+        ExpressionRole::AssignmentValue,
     ) else {
         return None;
     };
@@ -338,7 +338,7 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,
-    value: &CheckedScalarExpression,
+    value: &ScalarExpression,
     primitive_type: PrimitiveType,
 ) -> bool {
     if !scalar_binding_symbols_exact(program, facts, state, binding) {
@@ -347,9 +347,7 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
     let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
         return false;
     };
-    if binding.role == CheckedScalarExpressionRole::StorageInitializer
-        && !binding.expression.is_valid()
-    {
+    if binding.role == ExpressionRole::StorageInitializer && !binding.expression.is_valid() {
         return matches!(program.statement_table.statement_at(state, statement_index),
             Some(StatementNode::LocalData(local)) if local.symbol == binding.destination
                 && crate::values::zeroed_scalar_local_initializer(program, local).as_ref() == Some(value));
@@ -379,7 +377,7 @@ fn scalar_store_value_is_exact(
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,
-    value: &CheckedScalarExpression,
+    value: &ScalarExpression,
     primitive_type: PrimitiveType,
 ) -> bool {
     if !scalar_binding_symbols_exact(program, facts, state, binding) {
@@ -410,29 +408,26 @@ fn scalar_store_value_is_exact(
 fn scalar_expression_needs_no_bindings(
     expression: &checked_trees::CheckedScalarExpression,
 ) -> bool {
-    use checked_trees::CheckedScalarExpression;
     match expression {
-        CheckedScalarExpression::Parameter { .. }
-        | CheckedScalarExpression::Local { .. }
-        | CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::ImplementationSelection { .. } => true,
-        CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+        ScalarExpression::Parameter { .. }
+        | ScalarExpression::Local { .. }
+        | ScalarExpression::IntegerLiteral { .. }
+        | ScalarExpression::IeeeFloatLiteral { .. }
+        | ScalarExpression::ImplementationSelection { .. } => true,
+        ScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_expression_needs_no_bindings(left) && scalar_expression_needs_no_bindings(right)
         }
         checked_trees::integer_widen_triple_pattern!(operand, ..)
-        | CheckedScalarExpression::RepresentationView { operand, .. } => {
+        | ScalarExpression::RepresentationView { operand, .. } => {
             scalar_expression_needs_no_bindings(operand)
         }
-        CheckedScalarExpression::Boolean(expression) => {
-            boolean_expression_needs_no_bindings(expression)
-        }
-        CheckedScalarExpression::ConstantApplication { .. }
-        | CheckedScalarExpression::StructuralSequenceLength { .. }
-        | CheckedScalarExpression::StorageRead { .. }
-        | CheckedScalarExpression::ErasedParameter { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
+        ScalarExpression::Boolean(expression) => boolean_expression_needs_no_bindings(expression),
+        ScalarExpression::ConstantApplication { .. }
+        | ScalarExpression::StructuralSequenceLength { .. }
+        | ScalarExpression::StorageRead { .. }
+        | ScalarExpression::ErasedParameter { .. }
+        | ScalarExpression::StructuralParameterField { .. }
+        | ScalarExpression::StructuralParameterIndexedRead { .. } => false,
     }
 }
 

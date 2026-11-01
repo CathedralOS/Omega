@@ -3,6 +3,7 @@
 //! on the selected result. Neither a receiving type nor a loan issues a domain.
 
 use super::Execution;
+use crate::semantic::places::append_place;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowCallFact, FlowConstraintRef, FlowOperandFact, FlowSemanticContextRef};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
@@ -74,7 +75,7 @@ impl Execution<'_, '_, '_> {
             let dependencies = self
                 .membership_backing_dependencies(value, &path)
                 .unwrap_or_else(|| vec![FactPlace::Unknown]);
-            let place = crate::semantic::places::append_place(
+            let place = append_place(
                 self.semantic,
                 PlaceRoot::Expression(value.expression),
                 &path,
@@ -119,11 +120,8 @@ impl Execution<'_, '_, '_> {
                 return None;
             }
             let place = crate::flow::project_captured_view_place(backing, path)?;
-            let dependency = FactPlace::Place(crate::semantic::places::append_place(
-                self.semantic,
-                place.root,
-                &place.segments,
-            ));
+            let dependency =
+                FactPlace::Place(append_place(self.semantic, place.root, &place.segments));
             crate::collections::push_unique(&mut dependencies, dependency);
         }
         (!dependencies.is_empty()).then_some(dependencies)

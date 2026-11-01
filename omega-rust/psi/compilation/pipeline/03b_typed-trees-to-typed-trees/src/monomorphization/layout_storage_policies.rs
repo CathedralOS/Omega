@@ -3,21 +3,31 @@
 use super::{Diagnostic, TypedTrees};
 use crate::tables::expressions_of_mut;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+use validation::conformance_applications::close_conformance_application;
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let occurrences = typed_trees::references::collect_program_type_occurrences(program);
+    let occurrences = typed_trees::references::collect_authored_program_type_occurrences(program);
+    let mut owners = program
+        .data_implementation_applications
+        .iter()
+        .map(|(_, selected)| selected.lexical_owner)
+        .collect::<Vec<_>>();
+    owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
+    owners.dedup();
+    let source_inputs = typed_trees::references::authored_type_occurrences(program, &owners)
+        .into_iter()
+        .map(|occurrence| (occurrence.lexical_owner, occurrence.reference))
+        .collect::<std::collections::HashSet<_, symbols::BuildSymbolHasher>>();
     // Preparation can replace an initializer or its inferred type. Retire
     // derived demands for those exact removed occurrences before discovering
-    // the current source-owned roster. Frozen checking still verifies every
-    // retained demand independently and never repairs its own evidence.
+    // the current source-owned roster. A projected-away supplying declaration
+    // can still describe an already-needed capture, but never seeds new work.
+    // Frozen checking verifies every retained demand independently.
     let retained = program
         .data_implementation_applications
         .iter()
         .filter(|(_, selected)| {
-            occurrences.iter().any(|occurrence| {
-                occurrence.reference == selected.source_application
-                    && occurrence.lexical_owner == selected.lexical_owner
-            })
+            source_inputs.contains(&(selected.lexical_owner, selected.source_application))
         })
         .map(|(_, selected)| selected.clone())
         .collect::<Vec<_>>();
@@ -46,9 +56,7 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         {
             continue;
         }
-        let application = match validation::conformance_applications::close_conformance_application(
-            program, &operand,
-        ) {
+        let application = match close_conformance_application(program, &operand) {
             Ok(application) => application,
             // Ordinary source formation diagnoses a wrong or open selection;
             // no executable demand may be manufactured for it here.

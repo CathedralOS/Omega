@@ -7,7 +7,7 @@ use super::super::{
 use crate::tables::syntax_type_references;
 /// Marks expressions reached by a collection walk; `mark` reports whether
 /// the expression was new, so a shared subtree is walked once.
-pub(in crate::preparation::generic_data) trait ExpressionMarks {
+pub(in crate::preparation) trait ExpressionMarks {
     fn mark(&mut self, expression: ExpressionHandle) -> bool;
 }
 
@@ -57,7 +57,7 @@ pub(crate) fn statement_type_inputs(
     inputs
 }
 
-pub(in crate::preparation::generic_data) fn visit_expression_type_inputs(
+pub(in crate::preparation) fn visit_expression_type_inputs(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
@@ -203,7 +203,6 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
                         ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)
                         | ConformanceMember::TraitDefault { machine, .. } => machine,
-                        ConformanceMember::Reference { .. } => continue,
                     };
                     enter_machine(machine);
                 }
@@ -290,7 +289,7 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
     }
 }
 
-pub(in crate::preparation::generic_data) fn collect_expression_handles(
+pub(in crate::preparation) fn collect_expression_handles(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     handles: &mut impl ExpressionMarks,

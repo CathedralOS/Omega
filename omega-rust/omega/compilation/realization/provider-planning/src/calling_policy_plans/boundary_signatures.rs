@@ -2,12 +2,12 @@
 //! call carries, the materialized signature, and how signatures are
 //! collected from the typed program and its calling-policy machines.
 
-use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
+use crate::calling_policy_plans::policy_signature::validate_fresh_native_parameter_report_identity;
 use crate::provider_planning::type_reference_node;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
@@ -365,12 +365,13 @@ pub(crate) fn materialize_prepared_signature(
             invokes_synchronously: binder.invokes_synchronously,
         })
         .collect();
-    let (representation_types, representation_uses) =
-        crate::boundary_value_recipes::representation_inputs(opaque_representation_selections);
+    let representation_types =
+        crate::boundary_value_recipes::representation_types(opaque_representation_selections);
     let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
-    let mut values = BoundaryValueLayout::new(layout_target, &representation_uses);
+    let mut values = BoundaryValueLayout::new(layout_target);
     let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
-    let mut native_parameters = Vec::with_capacity(prepared.parameter_types.len());
+    let mut native_parameters =
+        Vec::<BoundaryNativeParameter>::with_capacity(prepared.parameter_types.len());
     for (formal_ordinal, (type_reference, formal)) in prepared
         .parameter_types
         .iter()
@@ -386,7 +387,7 @@ pub(crate) fn materialize_prepared_signature(
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
         validate_fresh_native_parameter_report_identity(
-            &native_parameters,
+            native_parameters.iter().map(|parameter| parameter.identity),
             formal.identity,
             formal.native_ordinal,
         )?;
@@ -404,7 +405,11 @@ pub(crate) fn materialize_prepared_signature(
     } else {
         None
     };
-    let (shapes, fields, opaque_representations) = values.into_parts();
+    let (shapes, fields, occurrences) = values.into_parts();
+    let opaque_representations = crate::boundary_value_recipes::representation_uses(
+        opaque_representation_selections,
+        &occurrences,
+    )?;
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: declaration.requirement_identity.clone(),
         native_target: layout_target.native_target(),

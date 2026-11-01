@@ -78,6 +78,7 @@ pub(crate) fn bind(
         bind_roots!(
             const_declarations,
             data_definitions,
+            type_aliases,
             domain_definitions,
             machines,
             operators,

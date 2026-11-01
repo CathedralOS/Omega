@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "static_count_requires_out_of_order");
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

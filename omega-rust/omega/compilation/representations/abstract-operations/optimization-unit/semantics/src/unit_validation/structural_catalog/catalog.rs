@@ -11,13 +11,12 @@ use crate::unit_validation::structural_catalog::type_declarations::{
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralTypeDeclaration;
 
 pub(super) fn index_structural_types(
     unit: &PsiOptimizationUnit,
-) -> Result<
-    BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    OptimizationUnitValidationError,
-> {
+) -> Result<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>, OptimizationUnitValidationError>
+{
     terminal_semantics::quotients::validate_quotient_representations(
         &unit.structural_types,
         unit.structural_types.quotients(),
@@ -95,10 +94,8 @@ pub(super) fn index_structural_types(
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
-            ) => {}
-            terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
             ) => {}
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
             terminal_psi::StructuralTypeShape::ElementView { .. } => {}
@@ -212,7 +209,7 @@ pub(super) fn index_structural_types(
 
 pub(super) fn index_structural_domains<'unit>(
     unit: &'unit PsiOptimizationUnit,
-    types: &BTreeMap<StructuralTypeId, &'unit terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &'unit StructuralTypeDeclaration>,
 ) -> Result<
     BTreeMap<StructuralDomainId, &'unit terminal_psi::StructuralDomainDeclaration>,
     OptimizationUnitValidationError,

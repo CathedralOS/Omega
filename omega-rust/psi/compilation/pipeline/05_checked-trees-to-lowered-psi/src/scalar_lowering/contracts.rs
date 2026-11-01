@@ -10,8 +10,14 @@ use super::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
+use crate::proofs::crash_routes::checked_boolean_scalar_term;
+use crate::proofs::crash_routes::checked_scalar_term_with_views;
+use crate::proofs::crash_routes::lowered_direct_scalar_term;
+use crate::proofs::integer_predicates::lower;
 use crate::terminal_identities::{allocate_dense, value_id};
+use crate::unit::attached_unit::scalar_applications::SourceScalarApplications;
 use checked_trees::{
     CheckedErasedProofParameterPlan, CheckedMathematicalArgument, CheckedProofTerm,
     CheckedStructuralScalarParameterPlan, CheckedTrees,
@@ -55,8 +61,7 @@ impl ContractStructuralResult<'_> {
 /// while retaining the compilation's constant application namespace.
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
-    pub scalar_applications:
-        &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
+    pub scalar_applications: &'a SourceScalarApplications,
     /// Values supplied by this checked product's exact target closure. The
     /// retained predicate owns recipe identity; this roster supplies atoms,
     /// never source syntax or authority to discharge pending obligations.
@@ -75,8 +80,7 @@ pub(crate) struct ContractViewNamespace<'a> {
 impl ContractViewNamespace<'static> {
     /// Empty formal and constant namespaces, for genuinely context-free terms.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
-        scalar_applications:
-            &crate::unit::attached_unit::scalar_applications::SourceScalarApplications::EMPTY,
+        scalar_applications: &SourceScalarApplications::EMPTY,
         constant_values: &[],
         parameters: &[],
         result: ContractStructuralResult::Absent,
@@ -318,7 +322,7 @@ pub(crate) fn checked_proof_term(
                         }
                         Ok(LoweredMathematicalArgument::Scalar {
                             type_identity: *type_identity,
-                            expression: crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
+                            expression: lower_checked_scalar_expression(
                                 identities, expression, &[])?,
                         })
                     }
@@ -395,11 +399,7 @@ pub(crate) fn checked_proof_term(
             })
         }
         CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
-            crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
-                identities,
-                expression,
-                &[],
-            )?,
+            lower_checked_scalar_expression(identities, expression, &[])?,
         )),
     }
 }
@@ -455,9 +455,7 @@ pub(crate) fn lowered_proof_term(
                                 "mathematical scalar argument lost its source type",
                             ),
                         )?,
-                        term: crate::proofs::crash_routes::lowered_direct_scalar_term(
-                            expression, values, erased,
-                        )?,
+                        term: lowered_direct_scalar_term(expression, values, erased)?,
                     }),
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
@@ -497,9 +495,9 @@ pub(crate) fn lowered_proof_term(
         LoweredProofTerm::Formal { position } => Ok(ProofTerm::Formal {
             position: *position,
         }),
-        LoweredProofTerm::Scalar(expression) => Ok(ProofTerm::Scalar(
-            crate::proofs::crash_routes::lowered_direct_scalar_term(expression, values, erased)?,
-        )),
+        LoweredProofTerm::Scalar(expression) => Ok(ProofTerm::Scalar(lowered_direct_scalar_term(
+            expression, values, erased,
+        )?)),
     }
 }
 
@@ -594,9 +592,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         // entry requirements use, so a member leaf below arithmetic
         // (`self.length - 1`) resolves in the same namespace as a bare one.
         // Closed contracts carry no partial operation's safety evidence.
-        crate::proofs::integer_predicates::lower(expression, &[], &mut |leaf| {
-            self.leaf(identities, leaf)
-        })
+        lower(expression, &[], &mut |leaf| self.leaf(identities, leaf))
     }
 
     fn boolean(
@@ -636,12 +632,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                 self.boolean(identities, right)?,
             )
             .map_err(LoweringError::InvalidCrashPredicate),
-            _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
-                identities,
-                expression,
-                self.namespace,
-                self.erased,
-            ),
+            _ => checked_boolean_scalar_term(identities, expression, self.namespace, self.erased),
         }
     }
 
@@ -802,12 +793,7 @@ impl ScalarContractTerms<'_> {
                 crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
             );
         }
-        crate::proofs::crash_routes::checked_scalar_term_with_views(
-            identities,
-            expression,
-            self.namespace,
-            self.erased,
-        )
+        checked_scalar_term_with_views(identities, expression, self.namespace, self.erased)
     }
 }
 

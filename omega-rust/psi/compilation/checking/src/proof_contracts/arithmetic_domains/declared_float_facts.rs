@@ -8,6 +8,8 @@
 
 use super::float_arithmetic::float_bound_from;
 use super::value_environment::ValueEnvironment;
+use crate::proof_contracts::default_domains::FieldRepresentationBound;
+use numerics::bignum::ExactFloat;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -29,11 +31,7 @@ impl DeclaredFloatFieldBound {
             PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
             _ => return None,
         };
-        facts::FloatPredicate::comparison(
-            format,
-            self.operator,
-            &numerics::bignum::ExactFloat::from_f64(self.value),
-        )
+        facts::FloatPredicate::comparison(format, self.operator, &ExactFloat::from_f64(self.value))
     }
 }
 
@@ -119,10 +117,7 @@ fn collect(
         )
     {
         for bound in bounds {
-            let crate::proof_contracts::default_domains::FieldRepresentationBound::FloatLiteral(
-                bound,
-            ) = bound
-            else {
+            let FieldRepresentationBound::FloatLiteral(bound) = bound else {
                 continue;
             };
             let Some(field) = program.data_field(definition, bound.field) else {

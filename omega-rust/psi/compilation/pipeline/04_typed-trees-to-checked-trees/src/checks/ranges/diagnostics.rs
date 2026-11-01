@@ -1,3 +1,4 @@
+use super::proofs::is_exact_collection_length;
 use typed_trees::expression::{ExpressionHandle, TableRangeExpression};
 
 use super::expressions::{expression_integer_value, normalize_exclusive_end};
@@ -76,9 +77,7 @@ pub(super) fn unknown_length_range_failure(
     range: &TableRangeExpression,
 ) -> SubsliceRangeFailure {
     if !range.end_inclusive
-        && super::proofs::is_exact_collection_length(
-            program, machine, state, facts, collection, range.end,
-        )
+        && is_exact_collection_length(program, machine, state, facts, collection, range.end)
     {
         return SubsliceRangeFailure::StartBound;
     }

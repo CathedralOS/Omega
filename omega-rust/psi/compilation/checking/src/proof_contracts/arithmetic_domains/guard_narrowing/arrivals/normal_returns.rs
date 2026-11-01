@@ -6,9 +6,12 @@
 
 use super::{ArrivalWalk, ExpressionObservation, ValueObservationSite, incoming_environments};
 use crate::CallFrameResolver;
+use crate::DependencyBodyRead;
 use crate::proof_contracts::arithmetic_domains::{Interval, Machine, State};
+use checked_trees::IntegerRangeRecipe;
 use std::cell::RefCell;
 use symbols::SymbolHandle;
+use typed_trees::statement::TransitionExit;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 /// One outer range request owns the active invocation graph. Ordinary and
@@ -27,16 +30,12 @@ impl ReturnInference {
         entry: &State,
         target_primitive: Option<typed_trees::types::PrimitiveType>,
         actuals: &[ActualRange],
-    ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+    ) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
         inferred_normal_return_interval_in(program, machine, entry, target_primitive, actuals, self)
     }
 }
 
-type ActualRange = (
-    SymbolHandle,
-    Interval,
-    Option<checked_trees::IntegerRangeRecipe>,
-);
+type ActualRange = (SymbolHandle, Interval, Option<IntegerRangeRecipe>);
 
 pub(crate) fn inferred_normal_return_interval(
     program: &dyn crate::CheckingInput,
@@ -44,20 +43,16 @@ pub(crate) fn inferred_normal_return_interval(
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
-    crate::note_dependency_body_read(
-        program,
-        machine.symbol,
-        crate::DependencyBodyRead::ReturnInterval,
-    );
+) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
+    crate::note_dependency_body_read(program, machine.symbol, DependencyBodyRead::ReturnInterval);
     ReturnInference::default().infer(program, machine, entry, target_primitive, actuals)
 }
 
 fn join_return(
     combined: &mut Option<Interval>,
-    combined_recipe: &mut Option<checked_trees::IntegerRangeRecipe>,
+    combined_recipe: &mut Option<IntegerRangeRecipe>,
     interval: Interval,
-    recipe: Option<checked_trees::IntegerRangeRecipe>,
+    recipe: Option<IntegerRangeRecipe>,
 ) {
     *combined_recipe = if combined.is_none() {
         recipe
@@ -77,7 +72,7 @@ fn inferred_normal_return_interval_in(
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
     inference: &ReturnInference,
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
     // This judgment publishes integer intervals. Other result carriers have
     // their own evidence owners and cannot benefit from this body traversal.
     let primitive = target_primitive?;
@@ -99,7 +94,7 @@ fn inferred_normal_return_interval_in(
         primitive as u8,
         actuals
             .iter()
-            .map(|(symbol, interval, _)| (*symbol, interval.low, interval.high))
+            .map(|(symbol, interval, _)| (*symbol, *interval))
             .collect::<Vec<_>>(),
     );
     if let Some(memos) = memos
@@ -172,14 +167,14 @@ fn discover_normal_return_interval(
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
     inference: &ReturnInference,
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
     if machine.target_family_interface
         && program.machine_states(machine).first()?.symbol == entry.symbol
     {
         let parameters = program.state_parameters(entry);
         let members = crate::machine_calls::calls::target_family_members(program, machine)?;
         let mut combined: Option<Interval> = None;
-        let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+        let mut combined_recipe: Option<IntegerRangeRecipe> = None;
         for member in members {
             let member_machine = program.machine(member.machine)?;
             let member_entry = program.machine_states(member_machine).first()?;
@@ -252,10 +247,7 @@ fn discover_normal_return_interval(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            if !matches!(
-                transition.exit,
-                typed_trees::statement::TransitionExit::Ordinary
-            ) {
+            if !matches!(transition.exit, TransitionExit::Ordinary) {
                 continue;
             }
             for target in transition.targets() {
@@ -306,7 +298,7 @@ fn discover_normal_return_interval(
         Some(inference),
     );
     let mut combined: Option<Interval> = None;
-    let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+    let mut combined_recipe: Option<IntegerRangeRecipe> = None;
     for (state, mut returns) in state_returns {
         returns.sort_unstable_by_key(ExpressionObservation::key);
         let mut environment = incoming.iter().find_map(|(symbol, environment)| {

@@ -1,5 +1,7 @@
 //! Case layout correspondence after exact operation and abstract custody replay.
+use super::super::super::aggregate_results::{block_home_layout, result_home, type_home_layout};
 use super::super::super::scalar_shape;
+use super::super::super::structural_case::dispatch_projection;
 use super::super::BlockId;
 use super::{AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph};
 use crate::legalization::scalar_graph_input::target::control_flow::sources;
@@ -30,12 +32,7 @@ pub(super) fn home_available(
                     if result.place != expected_source {
                         return None;
                     }
-                    let expected = super::super::super::aggregate_results::result_home(
-                        optimized,
-                        expected_source,
-                        plan,
-                    )
-                    .ok()?;
+                    let expected = result_home(optimized, expected_source, plan).ok()?;
                     if !matches!(&expected.origin,
                         target_operations::TargetStructuralHomeOrigin::OperationResult {
                             operation, result: declaration,
@@ -94,11 +91,7 @@ pub(super) fn home_available(
             {
                 return false;
             }
-            if super::super::super::aggregate_results::block_home_layout(declaration, plan)
-                .ok()
-                .as_ref()
-                != Some(&source.layout)
-            {
+            if block_home_layout(declaration, plan).ok().as_ref() != Some(&source.layout) {
                 return false;
             }
         }
@@ -123,10 +116,7 @@ fn parameter_available(
         return false;
     };
     parameter_corresponds(graph, parameter, declaration, expected_source)
-        && super::super::super::aggregate_results::block_home_layout(declaration, plan)
-            .ok()
-            .as_ref()
-            == Some(layout)
+        && block_home_layout(declaration, plan).ok().as_ref() == Some(layout)
         && layout.shape() == parameter.shape
 }
 
@@ -152,7 +142,7 @@ fn borrowed_parameter_available(
         && parameter_corresponds(graph, parameter, declaration, expected_source)
         // The carrier is the pointer; the layout describes the referent.
         && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
-        && super::super::super::aggregate_results::type_home_layout(
+        && type_home_layout(
             parameter.structural_type,
             plan,
         )
@@ -204,12 +194,9 @@ pub(super) fn matches(
                 && parameter.access == declaration.access
                 && parameter.multiplicity == declaration.multiplicity
                 && parameter.projected_qualifications == declaration.projected_qualifications
-                && super::super::super::aggregate_results::type_home_layout(
-                    parameter.structural_type,
-                    plan,
-                )
-                .ok()
-                .as_ref()
+                && type_home_layout(parameter.structural_type, plan)
+                    .ok()
+                    .as_ref()
                     == Some(layout)
         }
     };
@@ -217,12 +204,7 @@ pub(super) fn matches(
         return false;
     }
     let Ok((selected, expected_offset, _, expected_layout)) =
-        super::super::super::structural_case::dispatch_projection(
-            optimized,
-            expected_source,
-            path,
-            plan,
-        )
+        dispatch_projection(optimized, expected_source, path, plan)
     else {
         return false;
     };

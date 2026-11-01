@@ -1,0 +1,2 @@
+data Interval { case Range(lo: u64, hi: u64) requires lo <= hi; }
+machine main() {}

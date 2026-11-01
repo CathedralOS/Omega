@@ -15,6 +15,12 @@ use terminal_psi::{
 };
 
 use crate::{OperationSite, OptimizationUnitValidationError};
+use abstract_operations::byte_sequence_store_pair_pattern;
+use semantic_vocabulary::PlaceId;
+use terminal_psi::exclusive_borrow_pair_pattern;
+use terminal_psi::mutating_access_pair_pattern;
+use terminal_psi::reading_borrow_pair_pattern;
+use terminal_semantics::descriptor_results::descriptor_value_access;
 
 /// Resolve the bounded field from the exact writable destination declaration.
 /// Replacement source validity and indexed-store freshness are checked separately.
@@ -31,10 +37,7 @@ pub(crate) fn byte_field_store_capacity(
     {
         let parameter = function.arrival_parameter(*destination)?;
         if destination == source
-            || !matches!(
-                parameter.access,
-                terminal_psi::exclusive_borrow_pair_pattern!()
-            )
+            || !matches!(parameter.access, exclusive_borrow_pair_pattern!())
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
             || function.entry_claim_declared(*destination)
@@ -140,7 +143,7 @@ pub(crate) fn byte_view_field_store_is_valid(
 /// type is a descriptor and reads its declared byte qualifications.
 pub fn declared_descriptor_home(
     function: &PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
+    place: PlaceId,
 ) -> Option<&terminal_psi::StructuralOperationResult> {
     function
         .block_nodes()
@@ -160,7 +163,7 @@ pub fn declared_descriptor_home(
 /// claim-free parameter or an explicit mutable-record `Referent` crossing.
 fn writable_byte_field_carrier(
     function: &PsiOptimizationFunction,
-    destination: semantic_vocabulary::PlaceId,
+    destination: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -180,7 +183,7 @@ fn writable_byte_field_carrier(
         let (root_type, access) =
             super::byte_field_freshness::byte_field_root(function, destination)?;
         let writable = match access {
-            terminal_psi::exclusive_borrow_pair_pattern!() => true,
+            exclusive_borrow_pair_pattern!() => true,
             // Owned payload is writable; owning a loan descriptor does not
             // itself grant authority over the memory its pointer denotes.
             StructuralAccess::Owned => matches!(
@@ -232,7 +235,7 @@ pub(super) fn validate_byte_view_source(
             length,
             ..
         } => (*destination, Some(*length)),
-        abstract_operations::byte_sequence_store_pair_pattern!(source, length, ..)
+        byte_sequence_store_pair_pattern!(source, length, ..)
         | AbstractOperation::ByteSequenceRead { source, length, .. } => (*source, Some(*length)),
         _ => return Ok(()),
     };
@@ -257,17 +260,15 @@ pub(super) fn validate_source(
     source_kind: Option<&StructuralPlaceKind>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
-    source: semantic_vocabulary::PlaceId,
+    source: PlaceId,
     length: Option<semantic_vocabulary::ValueId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let permitted_access = |access| match operation {
         AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
-        abstract_operations::byte_sequence_store_pair_pattern!(..) => {
-            access == StructuralAccess::SharedBorrow
-        }
+        byte_sequence_store_pair_pattern!(..) => access == StructuralAccess::SharedBorrow,
         _ => matches!(
             access,
-            StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
+            StructuralAccess::SharedBorrow | mutating_access_pair_pattern!()
         ),
     };
     let arrival = function.arrival_parameter(source);
@@ -288,24 +289,20 @@ pub(super) fn validate_source(
                             || owned && parameter.access == StructuralAccess::Owned
                     }
                     AbstractOperation::ByteSequenceLength { .. } => {
-                        matches!(
-                            parameter.access,
-                            terminal_psi::reading_borrow_pair_pattern!()
-                        ) || owned
-                            && matches!(
-                                parameter.access,
-                                StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow
-                            )
+                        matches!(parameter.access, reading_borrow_pair_pattern!())
+                            || owned
+                                && matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow
+                                )
                     }
-                    abstract_operations::byte_sequence_store_pair_pattern!(..) => {
+                    byte_sequence_store_pair_pattern!(..) => {
                         parameter.access == StructuralAccess::SharedBorrow
                             || owned && parameter.access == StructuralAccess::Owned
                     }
                     _ => {
-                        matches!(
-                            parameter.access,
-                            terminal_psi::reading_borrow_pair_pattern!()
-                        ) || owned && parameter.access == StructuralAccess::Owned
+                        matches!(parameter.access, reading_borrow_pair_pattern!())
+                            || owned && parameter.access == StructuralAccess::Owned
                     }
                 };
                 // A same-carrier domain is not necessarily a byte predicate.
@@ -407,13 +404,11 @@ pub(super) fn validate_source(
                 && structural_type.is_some_and(|source_type| {
                     super::super::operation_contracts::structural_source_contract(function, source)
                         .is_some_and(|contract| {
-                            let Some(result_access) =
-                                terminal_semantics::descriptor_results::descriptor_value_access(
-                                    structural_types.values().copied(),
-                                    result.structural_type,
-                                    result.multiplicity,
-                                )
-                            else {
+                            let Some(result_access) = descriptor_value_access(
+                                structural_types.values().copied(),
+                                result.structural_type,
+                                result.multiplicity,
+                            ) else {
                                 return false;
                             };
                             terminal_semantics::descriptor_reborrow_matches(
@@ -423,7 +418,7 @@ pub(super) fn validate_source(
                                 if contract.access != StructuralAccess::Owned {
                                     Some(contract.access)
                                 } else {
-                                    terminal_semantics::descriptor_results::descriptor_value_access(
+                                    descriptor_value_access(
                                         structural_types.values().copied(),
                                         source_type,
                                         contract.multiplicity,
@@ -453,15 +448,13 @@ pub(super) fn validate_source(
     let writable = !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
         || super::super::operation_contracts::structural_source_contract(function, source)
             .is_some_and(|contract| {
-                matches!(
-                    contract.access,
-                    terminal_psi::mutating_access_pair_pattern!()
-                ) || contract.access == StructuralAccess::Owned
-                    && structural_type
-                        .and_then(|identity| structural_types.get(&identity))
-                        .is_some_and(|declaration| {
-                            declaration.shape.is_bounded_owned_byte_sequence()
-                        })
+                matches!(contract.access, mutating_access_pair_pattern!())
+                    || contract.access == StructuralAccess::Owned
+                        && structural_type
+                            .and_then(|identity| structural_types.get(&identity))
+                            .is_some_and(|declaration| {
+                                declaration.shape.is_bounded_owned_byte_sequence()
+                            })
             });
     if !valid || !exact_length || !valid_result || !writable {
         return Err(
@@ -502,7 +495,7 @@ pub(super) fn validate_source(
 pub(super) fn owned_byte_result(
     function: &PsiOptimizationFunction,
     source_kind: Option<&StructuralPlaceKind>,
-    source: semantic_vocabulary::PlaceId,
+    source: PlaceId,
     mut bounded_owned_type: impl FnMut(StructuralTypeId) -> bool,
 ) -> Option<StructuralTypeId> {
     let StructuralPlaceKind::OperationResult {

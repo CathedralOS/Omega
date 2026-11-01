@@ -33,7 +33,10 @@ pub fn has_builtin_bound_expression_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    bound_subtree_meaning(program, machine, state, expression, 0)
+    matches!(
+        bound_subtree_height(program, machine, state, expression, 0),
+        SubtreeMeaning::Valid(_)
+    )
 }
 
 /// Check a guard node whose Boolean children the caller decomposes and checks
@@ -183,19 +186,6 @@ enum SubtreeMeaning {
     Valid(u8),
     Invalid,
     DepthLimit,
-}
-
-fn bound_subtree_meaning(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> bool {
-    matches!(
-        bound_subtree_height(program, machine, state, expression, depth),
-        SubtreeMeaning::Valid(_)
-    )
 }
 
 fn bound_subtree_height(
@@ -881,7 +871,7 @@ fn membership_subject_matches_owner(
     // and rejects sibling applications, without changing the authored selection
     // ledger or inferring a subject type from the case being tested.
     if program
-        .closed_data_constructor_definition(subject_type, owner.symbol)
+        .data_constructor_definition(subject_type, owner.symbol)
         .is_some()
     {
         return true;
@@ -1272,4 +1262,88 @@ pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec
         .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
     equalities.dedup();
     equalities
+}
+
+/// Closed-application case refutations for the static type worlds.
+/// Open type equations are supplied by the complete-predicate prefix owner. A rigid generic binder is refined where
+/// the selected case's default-domain branch states a type equation over it,
+/// and a case an instance refutes ends its paths. This is the same refinement
+/// a `T == u32` branch makes, taken from the data declaration instead of a
+/// guard, so a case match recovers `T == i32` for its `i32` payload and a
+/// result checked against `T` sees the equation. The facts describe the
+/// selected case only; they grant no membership, payload access or value fact.
+pub fn case_membership_type_facts(
+    program: &dyn crate::CheckingInput,
+) -> Vec<typed_trees::CaseMembershipTypeFacts> {
+    let mut facts = Vec::new();
+    let mut seen =
+        std::collections::HashSet::<ExpressionHandle, symbols::BuildSymbolHasher>::default();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                crate::collect_statement_expression_trees(program, statement, &mut expressions);
+            }
+            for contract in program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state))
+            {
+                crate::collect_contract_facts(program, contract.facts, &mut expressions);
+            }
+            for expression in expressions {
+                let Some(binary) = expression_table(program).binary_node(expression) else {
+                    continue;
+                };
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::CaseMembership | BinaryOperator::Equal
+                ) || !seen.insert(expression)
+                {
+                    continue;
+                }
+                let membership = typed_trees::expression::TableBinaryExpression {
+                    left: binary.left,
+                    operator: binary.operator,
+                    right: binary.right,
+                };
+                facts.extend(applied_case_type_facts(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    &membership,
+                ));
+            }
+        }
+    }
+    facts
+}
+
+fn applied_case_type_facts(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    membership: &typed_trees::expression::TableBinaryExpression,
+) -> Option<typed_trees::CaseMembershipTypeFacts> {
+    let selected =
+        applied_case_membership_variant(program, machine, Some(state), expression, membership)?;
+    let mut subject = membership.left;
+    while let ExpressionNode::Borrow(borrow) = expression_table(program).expression(subject) {
+        subject = borrow.target;
+    }
+    let subject_type = program
+        .type_reference_table
+        .peeled_type_reference(operand_type(program, machine, Some(state), subject)?);
+    let (_, variant) = program.variant_owner(selected)?;
+    // Closed applications retain canonical false witnesses for impossible
+    // cases. Open equations now come from the complete admitted predicate at
+    // the executed prefix; no projected case clause supplies them.
+    program.closed_data_definition(subject_type)?;
+    crate::impossible_variant(program, variant).then(|| typed_trees::CaseMembershipTypeFacts {
+        membership: expression,
+        impossible: true,
+        equations: Vec::new(),
+    })
 }

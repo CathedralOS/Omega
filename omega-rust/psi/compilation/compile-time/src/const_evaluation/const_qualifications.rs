@@ -9,10 +9,12 @@
 //! copies never leave preparation or supply qualification evidence themselves.
 
 use crate::build_time_evaluation::type_references;
+use crate::syntax_probes::prepare_owned_probe_evaluation;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstQualification, Item};
 use syntax_trees::types::TypeReferenceNode;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe;
 
 pub(crate) fn prove_ready(
     mut syntax: SyntaxTrees,
@@ -124,22 +126,19 @@ pub(crate) fn prove_ready(
         context.sources.clone(),
         context.source_scoped_top_level_bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
         &probe_declarations,
     )?;
-    let frontier =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            context.resolution_request(probe),
-        )?;
+    let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;
     let owners = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(
-        frontier,
-        &owners,
-        &[],
-        context.predecessor.clone(),
-    )?;
+    let prepared =
+        prepare_owned_probe_evaluation(frontier, &owners, &[], context.predecessor.clone())?;
     let program = prepared.domain.execution_program(&prepared.typed);
     let request = typed_trees_to_typed_trees::PreparationRequest::settled();
     let (program, preparation) =

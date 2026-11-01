@@ -12,6 +12,8 @@
 //! Formation independently proves every index against its actual collection.
 
 use crate::frozen_program::expression_table;
+use language_core::ReferenceAccess;
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -45,8 +47,7 @@ pub fn immutable_entry_integer_projection(
     (program
         .primitive_type_reference(reference)?
         .is_fixed_integer()
-        && program.arithmetic_domain_for_type_reference(reference)
-            == numerics::arithmetic::ArithmeticDomain::Exact)
+        && program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Exact)
         .then_some((position, projection))
 }
 
@@ -98,8 +99,7 @@ pub fn immutable_entry_indexed_read_identity(
     if !program
         .primitive_type_reference(reference)?
         .is_fixed_integer()
-        || program.arithmetic_domain_for_type_reference(reference)
-            != numerics::arithmetic::ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
     {
         return None;
     }
@@ -139,8 +139,7 @@ pub fn instantiate_immutable_entry_indexed_read_identity(
     if !program
         .primitive_type_reference(reference)?
         .is_fixed_integer()
-        || program.arithmetic_domain_for_type_reference(reference)
-            != numerics::arithmetic::ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
     {
         return None;
     }
@@ -216,9 +215,7 @@ fn immutable_formal_expression(
                 .iter()
                 .find(|parameter| parameter.symbol == name.symbol && !parameter.is_mutable)?;
             match crate::reference_shell(program, parameter.type_reference) {
-                Some(shell) if shell.access == language_core::ReferenceAccess::Shared => {
-                    shell.referee
-                }
+                Some(shell) if shell.access == ReferenceAccess::Shared => shell.referee,
                 Some(_) => return None,
                 None => parameter.type_reference,
             }
@@ -271,7 +268,7 @@ fn immutable_formal_expression(
                     .primitive_type_reference(selector)?
                     .is_fixed_integer()
                     || program.arithmetic_domain_for_type_reference(selector)
-                        != numerics::arithmetic::ArithmeticDomain::Exact
+                        != ArithmeticDomain::Exact
                 {
                     return None;
                 }
@@ -285,9 +282,7 @@ fn immutable_formal_expression(
             };
             *element_type
         }
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
+        ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Shared => {
             immutable_formal_expression(program, machine, state, borrow.target, depth + 1)?
         }
         ExpressionNode::Integer(_) => {

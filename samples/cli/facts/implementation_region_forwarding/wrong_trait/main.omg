@@ -1,0 +1,5 @@
+trait Tag {}
+trait Other {}
+Different satisfies Other {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine main() { let value: Holder<Different> = Holder { value: 42u64 }; }

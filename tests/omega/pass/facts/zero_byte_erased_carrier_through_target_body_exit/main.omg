@@ -22,37 +22,64 @@ requires carrier.value >= 100u64 && carrier.value <= 100u64
     }
 }
 
-linux_x86_64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
+boundary trait SelectedProbe {
+    machine probe(carrier: Carrier) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires carrier.value >= 100u64 && carrier.value <= 100u64;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine probe(carrier: Carrier) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires carrier.value >= 100u64 && carrier.value <= 100u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        verify_carrier(carrier)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(carrier: Carrier) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires carrier.value >= 100u64 && carrier.value <= 100u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        verify_carrier(carrier)
+    }
 }
 
 machine main() crashes Trap {
     let carrier: Carrier = Carrier { token: Token { empty: [] }, value: 100u64 };
-    let exit_code: u64 = probe(carrier);
+    let exit_code: u64 = SelectedProbe::probe(carrier);
     transition exit_code == 0 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

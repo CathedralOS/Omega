@@ -200,6 +200,7 @@ mod tests {
         validate_aarch64_selected_hosted_exit_process_form,
     };
     use crate::test_support::reject_every_bit_flip;
+    use register_model::RegisterViewId;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
@@ -214,75 +215,42 @@ mod tests {
             family: MachineAlternativeFamily::HostedExitProcessI32,
             variant: 0,
         };
+        let encode = |target, kind, operands: &[RegisterViewId]| {
+            encode_aarch64_selected_hosted_exit_process_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+            )
+        };
+        let validate = |target, operands: &[RegisterViewId], bytes: &[u8]| {
+            validate_aarch64_selected_hosted_exit_process_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                bytes,
+            )
+        };
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             for name in ["x0", "x1", "x8", "x16", "x18", "x30"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
-                let encoded = encode_aarch64_selected_hosted_exit_process_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                )
-                .unwrap();
+                let encoded = encode(target, kind, &operands).unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
                 reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupted| {
-                    validate_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &corrupted,
-                    )
-                    .is_err()
+                    validate(target, &operands, &corrupted).is_err()
                 });
                 let different = [physical
                     .model()
                     .view_named(if name == "x0" { "x1" } else { "x0" })
                     .unwrap()
                     .id];
-                assert!(
-                    validate_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &different,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[]
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[operands[0], operands[0]]
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_aarch64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        SelectedInstructionKind::ReturnUnit,
-                        alternative,
-                        &operands
-                    )
-                    .is_err()
-                );
+                assert!(validate(target, &different, encoded.bytes()).is_err());
+                assert!(encode(target, kind, &[]).is_err());
+                assert!(encode(target, kind, &[operands[0], operands[0]]).is_err());
+                assert!(encode(target, SelectedInstructionKind::ReturnUnit, &operands).is_err());
                 for wrong_target in [
                     NativeTarget::windows_x64(),
                     NativeTarget {
@@ -295,17 +263,7 @@ mod tests {
                         NativeTarget::linux_arm64()
                     },
                 ] {
-                    assert!(
-                        validate_aarch64_selected_hosted_exit_process_form(
-                            wrong_target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
+                    assert!(validate(wrong_target, &operands, encoded.bytes()).is_err());
                 }
                 let mut extra = encoded.bytes().to_vec();
                 extra.push(0);

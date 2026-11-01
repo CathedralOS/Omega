@@ -21,7 +21,7 @@ machine Counter::increment(other: &mut Other) satisfies Incrementable<Counter>::
     other.value = other.value + 1;
 }
 CounterIncrementable satisfies Incrementable<Counter> {
-    Incrementable::increment = Counter::increment;
+    machine increment(counter: &mut Counter) { counter.value = counter.value + 1; }
 }
 
 data Main { counter: Counter; }

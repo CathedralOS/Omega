@@ -7,6 +7,7 @@
 //! different canonical constants.
 
 use super::semantic_operations::symbol_is_declared_in_sealed_source;
+use language_semantics::const_value::CanonicalConstValue;
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics::{FloatFormat, FloatMeaning};
 use numerics::float_semantics_catalog::{
@@ -284,10 +285,7 @@ pub fn exact_toolchain_float_format_const(
                                 .as_ref()
                                 .and_then(|value| value.encoding())
                                 .and_then(|encoding| {
-                                    language_semantics::const_value::CanonicalConstValue::new(
-                                        "", encoding, "",
-                                    )
-                                    .decode_encoding()
+                                    CanonicalConstValue::new("", encoding, "").decode_encoding()
                                 })
                                 .is_some_and(|decoded| {
                                     struct_literal_matches_decoded_const(

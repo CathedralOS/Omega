@@ -8,36 +8,62 @@ machine store(target: &mut Cell, value: i32) -> bool requires value == 41 {
     target.value = value;
     target.value == 41
 }
-windows_x86_64 machine select(envelope: Envelope) -> bool {
-    match envelope {
-        Envelope::Active { message } -> store(&mut message.body, 41)
-        Envelope::Empty -> false
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_x86_64 machine select(envelope: Envelope) -> bool {
-    match envelope {
-        Envelope::Active { message } -> store(&mut message.body, 41)
-        Envelope::Empty -> false
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-macos_arm64 machine select(envelope: Envelope) -> bool {
-    match envelope {
-        Envelope::Active { message } -> store(&mut message.body, 41)
-        Envelope::Empty -> false
+
+boundary trait SelectedSelect {
+    machine select(envelope: Envelope) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Select satisfies SelectedSelect {
+    machine select(envelope: Envelope) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        match envelope {
+            Envelope::Active { message } -> store(&mut message.body, 41)
+            Envelope::Empty -> false
+        }
     }
 }
-linux_arm64 machine select(envelope: Envelope) -> bool {
-    match envelope {
-        Envelope::Active { message } -> store(&mut message.body, 41)
-        Envelope::Empty -> false
+
+ArmSelect satisfies SelectedSelect {
+    machine select(envelope: Envelope) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        match envelope {
+            Envelope::Active { message } -> store(&mut message.body, 41)
+            Envelope::Empty -> false
+        }
     }
 }
+
+
 machine exercise() -> bool {
     let mut backing: Cell = Cell { value: 17 };
     let sibling: Cell = Cell { value: 19 };
     let mut message: Message = Message { body: &mut backing };
     let envelope: Envelope = Envelope::Active { message: &mut message };
-    let written: bool = select(envelope);
+    let written: bool = SelectedSelect::select(envelope);
     written && backing.value == 41 && sibling.value == 19
 }
 machine main() crashes Trap {
@@ -45,4 +71,11 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

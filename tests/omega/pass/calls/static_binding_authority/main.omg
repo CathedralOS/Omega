@@ -23,9 +23,9 @@ machine owned() reaches Service {
 }
 
 ServiceImplementation satisfies Service {
-    Service::send = send;
-    Service::read = read;
+    machine send(value: i32) reaches Service { send_realization(value) }
+    machine read() -> i32 reaches Service { read_realization() }
 }
-machine send(value: i32) {}
-machine read() -> i32 { 65 }
+machine send_realization(value: i32) {}
+machine read_realization() -> i32 { 65 }
 machine selected() -> i32 { ServiceImplementation::read() }

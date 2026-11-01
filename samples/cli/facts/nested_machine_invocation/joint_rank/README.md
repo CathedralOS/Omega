@@ -232,3 +232,32 @@ retains the smaller direct-call shape used to locate the first refusal.
 [Call formation, captured inputs and execution evidence](local/computed_measure/call/README.md)
 cover this production's nine places, its composition probe and invalid controls.
 The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.
+
+[Structured scalar measure bodies](local/computed_measure/structured/README.md)
+continue this fact through ordered conditional values. All nine places execute
+in both engines on macOS ARM64 and their no-progress twins reject. The linked
+page records the ingress compositions and the remaining parent acceptance.
+
+[Cross-carrier scalar measures](local/computed_measure/cross_carrier/README.md)
+carry the same fact through distinct input and result carriers, retaining each
+conversion's own formation and the actual source coordinate. Final acceptance
+is recorded on that production's page.
+
+[Completion cleanup](local/completion_cleanup/README.md) carries the same fact
+through an owned resource that holds the caller's counter and drops exactly once
+when the component completes, in all nine places with strict-descent twins. It
+adds a 100,000-edge long cycle, a missing drop precondition and a live local
+loan. Windows x86-64 native and Terminal Psi agree; other hosts were not run.
+
+[Mutable distance endpoints](parameter/bounded_distance/moving_upper/mutable_upper/README.md)
+carry the same fact through indexed storage in all nine places, retaining
+entry selectors and bounds while observing the replacement value after mutation.
+
+[Computed distance endpoints](parameter/bounded_distance/moving_upper/computed_upper/README.md)
+carry the same fact through arithmetic over explicit entry inputs in all nine
+places, preserving completed captures and each formal's carrier and policy.
+
+[Whole-record computed measures](parameter/declared_measure/computed_record/README.md)
+carry this same fact, bound and counter operation through a declared integer
+application that reads both endpoints of one nominal record. All nine places
+retain the full read roster; exact increment-zero twins reject non-descent.

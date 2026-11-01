@@ -6,7 +6,11 @@ use crate::{
     SynchronousInvocationFacts, TerminationFacts,
 };
 
+use crate::operators::handle_position;
 use crate::{CheckedAccessViewInput, CheckedFactCallProjection};
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
+use language_semantics::declaration_selection::AuthoredDeclarationSelections;
+use typed_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
@@ -27,13 +31,12 @@ pub struct CheckFacts {
     pub accepted_template_identities: crate::CheckedAcceptedTemplateIdentities,
     /// Authored declaration choices finalized by checking. The typed ledger
     /// retains resolution data; checked consumers read this ledger exclusively.
-    pub finalized_selections:
-        language_semantics::declaration_selection::AuthoredDeclarationSelections,
+    pub finalized_selections: AuthoredDeclarationSelections,
     /// Checking-minted proof-view occurrences and their exact expression handles.
     /// The optional occurrence supplies the arena's empty row, not semantic absence.
     pub finalized_selection_occurrences: arena::Arena<(
-        typed_trees::expression::ExpressionHandle,
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+        ExpressionHandle,
+        Option<AuthoredDeclarationSelectionOccurrenceId>,
     )>,
     /// Frozen executable place/result types and type-reference carriers.
     /// Lowering consumes these decisions instead of reconstructing them.
@@ -46,14 +49,14 @@ pub struct CheckFacts {
     /// within its collection's live length, ordered by handle position.
     /// Lowering marks the read it emits for one of them, so that read's bound
     /// obligation consumes the decision instead of searching for a proof.
-    pub proven_scalar_indexes: Vec<typed_trees::expression::ExpressionHandle>,
+    pub proven_scalar_indexes: Vec<ExpressionHandle>,
     /// Exact nonnegative coordinates agreed by every range check of an indexed
     /// occurrence. Evaluation and bounds remain on the executable selector.
-    pub scalar_index_coordinates: Vec<(typed_trees::expression::ExpressionHandle, u64)>,
+    pub scalar_index_coordinates: Vec<(ExpressionHandle, u64)>,
     /// Indexed byte assignments whose live bound and declared byte predicates
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
-    pub proven_byte_writes: Vec<typed_trees::expression::ExpressionHandle>,
+    pub proven_byte_writes: Vec<ExpressionHandle>,
     /// The `AssignmentIndex` selectors whose `[]` occurrence in their
     /// assignment target is in `proven_scalar_indexes`, keyed by the
     /// coordinate a plan path names (state, statement, depth) and ordered.
@@ -187,9 +190,7 @@ pub struct DecidedCallRequires {
 
 impl CheckFacts {
     /// The finalized ledger never falls back to unresolved typed selections.
-    pub fn authored_declaration_selections(
-        &self,
-    ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {
+    pub fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
         &self.finalized_selections
     }
 
@@ -206,10 +207,8 @@ impl CheckFacts {
     pub fn authored_selection_occurrences<'input>(
         &'input self,
         program: &'input typed_trees::TypedTrees,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> impl Iterator<
-        Item = language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
-    > + 'input {
+        expression: ExpressionHandle,
+    ) -> impl Iterator<Item = AuthoredDeclarationSelectionOccurrenceId> + 'input {
         program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -220,11 +219,9 @@ impl CheckFacts {
             ))
     }
 
-    pub fn byte_write_is_proven(&self, target: typed_trees::expression::ExpressionHandle) -> bool {
+    pub fn byte_write_is_proven(&self, target: ExpressionHandle) -> bool {
         self.proven_byte_writes
-            .binary_search_by_key(&crate::operators::handle_position(target), |proven| {
-                crate::operators::handle_position(*proven)
-            })
+            .binary_search_by_key(&handle_position(target), |proven| handle_position(*proven))
             .is_ok()
     }
 
@@ -287,13 +284,10 @@ impl CheckFacts {
 
     /// Whether every bounds check of this `[]` occurrence proved its scalar
     /// index in range.
-    pub fn scalar_index_is_proven(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> bool {
+    pub fn scalar_index_is_proven(&self, expression: ExpressionHandle) -> bool {
         self.proven_scalar_indexes
-            .binary_search_by_key(&crate::operators::handle_position(expression), |proven| {
-                crate::operators::handle_position(*proven)
+            .binary_search_by_key(&handle_position(expression), |proven| {
+                handle_position(*proven)
             })
             .is_ok()
     }

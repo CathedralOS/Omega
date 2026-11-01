@@ -7,7 +7,9 @@
 use facts::FactPayload;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use validation::{CallSite, call_site_argument_expressions};
+use validation::{
+    CallSite, call_site_argument_expressions, call_type_arguments, parameter_domain_constraints,
+};
 
 pub(crate) fn call_parameter_domains(
     program: &dyn ::validation::CheckingInput,
@@ -36,7 +38,7 @@ pub(crate) fn call_parameter_domains(
     };
     let arguments = call_site_argument_expressions(program, site);
     let parameters = program.state_parameters(entry);
-    let Some(bindings) = validation::call_type_arguments(
+    let Some(bindings) = call_type_arguments(
         program,
         caller,
         Some(state),
@@ -50,11 +52,8 @@ pub(crate) fn call_parameter_domains(
     };
     let mut requirements = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let declared =
-            validation::parameter_domain_constraints(program, parameter.type_reference, &[]);
-        for domain in
-            validation::parameter_domain_constraints(program, parameter.type_reference, &bindings)
-        {
+        let declared = parameter_domain_constraints(program, parameter.type_reference, &[]);
+        for domain in parameter_domain_constraints(program, parameter.type_reference, &bindings) {
             // Existing declaration contracts instantiate their own domain
             // arguments. Do not copy an open callee-domain identity into the
             // caller; only newly selected caller qualifications belong here.

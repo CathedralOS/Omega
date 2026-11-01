@@ -36,6 +36,7 @@ pub(crate) mod structural_result_wire;
 pub(crate) mod structural_signature_wire;
 pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
+mod wire_fields;
 
 #[cfg(test)]
 mod counted_collection_bound_tests;
@@ -43,6 +44,8 @@ mod counted_collection_bound_tests;
 mod external_provider_tests;
 #[cfg(test)]
 mod numeric_intrinsic_tests;
+#[cfg(test)]
+mod reference_transport_tests;
 #[cfg(test)]
 mod routed_scalar_tests;
 #[cfg(test)]
@@ -53,9 +56,9 @@ use canonical_order::{
     canonical_proposition_order_key, crash_routes_are_canonical, validate_canonical_order,
     validate_crash_route_predicates,
 };
-use contract_wire::{decode_crash_routes, encode_crash_routes};
 use module_foundation_validation::validate_structural_foundation;
 use module_wire::{decode_module_body, encode_raw};
+use wire_fields::{CrashRoutes, Field};
 
 #[cfg(test)]
 mod qualified_cleanup_receiving_tests;
@@ -145,7 +148,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Callback uses retain missing entry admission as an explicit native obligation.
 // Fixed representation applications retain exact semantic and policy inputs.
 // Schema ABI3 retains every target input and retired field identity.
-pub(crate) const FORMAT_MARKER: u16 = 221;
+// Identity-only referents retain their checked foreign pointer/descriptor role.
+pub(crate) const FORMAT_MARKER: u16 = 224;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -240,7 +244,7 @@ pub fn encode_crash_route_buckets(
     }
     validate_crash_route_predicates(routes)?;
     let mut writer = Writer::default();
-    encode_crash_routes(&mut writer, routes)?;
+    writer.counted("crash route buckets", routes, contract_wire::Bucket::write)?;
     Ok(writer.finish())
 }
 
@@ -248,7 +252,7 @@ pub fn encode_crash_route_buckets(
 pub fn decode_crash_route_buckets(
     bytes: &[u8],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, CodecError> {
-    decode_canonical(bytes, decode_crash_routes, |routes| {
+    decode_canonical(bytes, CrashRoutes::read, |routes| {
         encode_crash_route_buckets(routes)
     })
 }

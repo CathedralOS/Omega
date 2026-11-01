@@ -383,7 +383,7 @@ fn demanded_provider_plans(
             crate::provider_planning::selection_declarations::project_declaration(choice, &Ok, ())
         })
         .collect::<Vec<_>>();
-    candidates
+    let demanded: Vec<_> = candidates
         .iter()
         .filter(|candidate| {
             provider_selection::is_candidate_demanded(
@@ -395,7 +395,29 @@ fn demanded_provider_plans(
             )
         })
         .cloned()
-        .collect()
+        .collect();
+    if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+        eprintln!(
+            "[prov] uses={} candidates={} demanded={}",
+            uses.len(),
+            candidates.len(),
+            demanded.len()
+        );
+        for candidate in candidates {
+            eprintln!(
+                "[prov] candidate plan={} schema_trait={}",
+                candidate.plan.name,
+                candidate
+                    .plan
+                    .schema
+                    .identity_text(candidate.plan.schema.declaration.trait_name),
+            );
+        }
+        for choice in &choices {
+            eprintln!("[prov] choice subject={}", choice.subject.authored_path());
+        }
+    }
+    demanded
 }
 
 /// Derive every candidate, selecting whole maps only for demanded or authored

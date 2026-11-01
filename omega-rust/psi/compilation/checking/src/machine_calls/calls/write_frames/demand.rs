@@ -34,6 +34,9 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, summarize_state_written_paths,
 };
 use facts::NormalizedWriteFrame;
+use facts::PlaceSegment;
+use flow_effects::OperationalPlan;
+use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
@@ -41,6 +44,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
@@ -52,11 +56,11 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// closed if the program's symbols are already invalid.
 pub struct CallFrameResolver<'program> {
     program: &'program dyn crate::CheckingInput,
-    tables: std::sync::Arc<CallFrameTables<'program>>,
+    tables: Arc<CallFrameTables<'program>>,
     /// The query memos. Inside a frozen-program scope every resolver built
     /// for the scope's program shares one set; see
     /// `CheckingContext`.
-    caches: std::sync::Arc<CallFrameCaches>,
+    caches: Arc<CallFrameCaches>,
 }
 
 /// The program-fixed symbol tables a resolver reads. They depend only on the
@@ -67,7 +71,7 @@ pub struct CallFrameTables<'program> {
     pub(crate) symbols: TopLevelSymbols<'program>,
     /// Per-machine member/state symbol tables. `None` retains the build's
     /// non-empty-diagnostics verdict so callers keep failing closed.
-    machine_symbols: HashMap<SymbolHandle, Option<std::sync::Arc<MachineSymbols<'program>>>>,
+    machine_symbols: HashMap<SymbolHandle, Option<Arc<MachineSymbols<'program>>>>,
 }
 
 impl<'program> CallFrameTables<'program> {
@@ -85,7 +89,7 @@ impl<'program> CallFrameTables<'program> {
                     let built = MachineSymbols::build(program, machine, &mut diagnostics);
                     (
                         machine.symbol,
-                        diagnostics.is_empty().then(|| std::sync::Arc::new(built)),
+                        diagnostics.is_empty().then(|| Arc::new(built)),
                     )
                 })
                 .collect(),
@@ -96,7 +100,7 @@ impl<'program> CallFrameTables<'program> {
 pub(super) fn machine_symbols<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
-) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
+) -> Option<Arc<MachineSymbols<'program>>> {
     if let Some(tables) = program.call_frame_tables() {
         return tables
             .machine_symbols
@@ -106,7 +110,7 @@ pub(super) fn machine_symbols<'program>(
     }
     let mut diagnostics = Vec::new();
     let built = MachineSymbols::build(program, machine, &mut diagnostics);
-    diagnostics.is_empty().then(|| std::sync::Arc::new(built))
+    diagnostics.is_empty().then(|| Arc::new(built))
 }
 
 /// Every memo a resolver fills. Each is pure over the resolver's immutable
@@ -124,10 +128,7 @@ pub(crate) struct CallFrameCaches {
     binding_replacements: Mutex<HashMap<(SymbolHandle, usize), Option<bool>>>,
     reference_slot_replacements: Mutex<HashMap<(SymbolHandle, usize), Option<bool>>>,
     local_reference_origins: Mutex<
-        HashMap<
-            (SymbolHandle, usize, SymbolHandle),
-            Option<(SymbolHandle, Vec<facts::PlaceSegment>)>,
-        >,
+        HashMap<(SymbolHandle, usize, SymbolHandle), Option<(SymbolHandle, Vec<PlaceSegment>)>>,
     >,
     reference_result_origins: Mutex<HashMap<SymbolHandle, Option<Vec<LocalWriteSource>>>>,
     reference_result_leaves: Mutex<HashMap<SymbolHandle, Option<Vec<ReferenceResultLeafOrigin>>>>,
@@ -135,8 +136,8 @@ pub(crate) struct CallFrameCaches {
         Mutex<HashMap<SymbolHandle, Option<Vec<super::ReferenceResultTransport>>>>,
     stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
     stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
-    caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
-    write_origin_requirements: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
+    caller_isolated_proof_values: Mutex<HashMap<TypeReferenceHandle, bool>>,
+    write_origin_requirements: Mutex<HashMap<TypeReferenceHandle, bool>>,
     assignment_targets: Mutex<HashMap<(SymbolHandle, usize), Option<AssignmentWriteTarget>>>,
     assignment_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     local_write_origins: Mutex<HashMap<(SymbolHandle, usize), Option<Vec<LocalWriteOrigin>>>>,
@@ -152,39 +153,30 @@ pub(crate) struct CallFrameCaches {
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
-    inferred_machine_frames:
-        Mutex<HashMap<SymbolHandle, std::sync::Arc<Vec<NormalizedWriteFrame>>>>,
+    inferred_machine_frames: Mutex<HashMap<SymbolHandle, Arc<Vec<NormalizedWriteFrame>>>>,
     /// Every assignment's target and prefix origins per (machine, state),
     /// from one recorded walk of the state instead of one prefix walk per
     /// assignment statement and per query kind.
     state_assignments: Mutex<
         HashMap<
             (SymbolHandle, SymbolHandle),
-            std::sync::Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>>,
+            Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>>,
         >,
     >,
     /// Whole-program operational and service-reach plans an operand Call node
     /// consumes to test call-candidate totality. The immutable checking
     /// context owns this pair; changing selected cleanup or other prepared
     /// inputs replaces its memos, even when TypedTrees stays unchanged.
-    call_plans: OnceLock<
-        std::sync::Arc<(
-            flow_effects::OperationalPlan,
-            flow_effects::ServiceReachInferencePlan,
-        )>,
-    >,
+    call_plans: OnceLock<Arc<(OperationalPlan, flow_effects::ServiceReachInferencePlan)>>,
 }
 
 impl CallFrameCaches {
     fn call_plans(
         &self,
         program: &dyn crate::CheckingInput,
-    ) -> std::sync::Arc<(
-        flow_effects::OperationalPlan,
-        flow_effects::ServiceReachInferencePlan,
-    )> {
+    ) -> Arc<(OperationalPlan, flow_effects::ServiceReachInferencePlan)> {
         self.call_plans
-            .get_or_init(|| std::sync::Arc::new(compute_call_plans(program)))
+            .get_or_init(|| Arc::new(compute_call_plans(program)))
             .clone()
     }
 }
@@ -205,10 +197,7 @@ type KnownWrittenPathsForParts = for<'site> fn(
 
 fn compute_call_plans(
     program: &dyn crate::CheckingInput,
-) -> (
-    flow_effects::OperationalPlan,
-    flow_effects::ServiceReachInferencePlan,
-) {
+) -> (OperationalPlan, flow_effects::ServiceReachInferencePlan) {
     let operational = crate::infer_operational_may(program);
     let service_reaches = crate::infer_service_reaches(program, &operational);
     (operational, service_reaches)
@@ -221,14 +210,11 @@ fn compute_call_plans(
 pub fn operand_call_plans(
     program: &dyn crate::CheckingInput,
     frames: Option<&CallFrameResolver<'_>>,
-) -> std::sync::Arc<(
-    flow_effects::OperationalPlan,
-    flow_effects::ServiceReachInferencePlan,
-)> {
+) -> Arc<(OperationalPlan, flow_effects::ServiceReachInferencePlan)> {
     match frames {
         Some(frames) => frames.call_plans(),
         None => crate::frozen_program::frozen_program_memos(program).map_or_else(
-            || std::sync::Arc::new(compute_call_plans(program)),
+            || Arc::new(compute_call_plans(program)),
             |memos| memos.call_frames.call_plans(program),
         ),
     }
@@ -537,7 +523,7 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         statement: &StatementNode,
-        binding_is_stable: impl Fn(SymbolHandle, &[facts::PlaceSegment]) -> bool,
+        binding_is_stable: impl Fn(SymbolHandle, &[PlaceSegment]) -> bool,
     ) -> Option<Vec<LocalWriteOrigin>> {
         let (state, index, mut prefix, transfers) =
             self.statement_reference_transfer(machine, statement)?;
@@ -695,7 +681,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
         local: SymbolHandle,
-    ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
         memoized(
             &self.caches.local_reference_origins,
             (machine.symbol, std::ptr::from_ref(statement).addr(), local),
@@ -735,7 +721,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
         expression: ExpressionHandle,
-    ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+    ) -> Option<Vec<(SymbolHandle, Vec<PlaceSegment>)>> {
         super::reference_subjects::expression_origins_before_statement(
             self.program,
             machine,
@@ -783,7 +769,7 @@ impl<'program> CallFrameResolver<'program> {
         state: &State,
         index: usize,
         root: SymbolHandle,
-        path: &[facts::PlaceSegment],
+        path: &[PlaceSegment],
     ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
         let source = super::FrameSourcePlace {
             root,
@@ -828,7 +814,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
         expression: ExpressionHandle,
-    ) -> Result<Vec<typed_trees::types::TypeReferenceHandle>, &'static str> {
+    ) -> Result<Vec<TypeReferenceHandle>, &'static str> {
         super::reference_subjects::expression_lender_declarations_before_statement(
             self.program,
             machine,
@@ -846,7 +832,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
         local: SymbolHandle,
-    ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+    ) -> Option<Vec<(SymbolHandle, Vec<PlaceSegment>)>> {
         super::reference_subjects::local_origins(
             self.program,
             machine,
@@ -973,10 +959,7 @@ impl<'program> CallFrameResolver<'program> {
 
     /// Reference-free erased value shape; unlike runtime layout, inline proof
     /// recursion does not make a value capable of aliasing caller storage.
-    pub fn proof_value_is_caller_isolated(
-        &self,
-        reference: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
+    pub fn proof_value_is_caller_isolated(&self, reference: TypeReferenceHandle) -> bool {
         memoized(&self.caches.caller_isolated_proof_values, reference, || {
             super::isolation::type_is_caller_isolated_proof_value(self.program, reference)
         })
@@ -984,19 +967,13 @@ impl<'program> CallFrameResolver<'program> {
 
     /// A fully known owned value cannot observe a write through an alias.
     /// Opaque data and reference-bearing storage need independent origins.
-    pub fn value_is_reference_free(
-        &self,
-        reference: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
+    pub fn value_is_reference_free(&self, reference: TypeReferenceHandle) -> bool {
         super::type_capabilities::type_is_reference_free_value(self.program, reference, &[])
     }
 
     /// Checked storage with no exclusive reference leaves writes only its own
     /// local place. Other reference-bearing storage still requires prefix origins.
-    pub fn local_requires_write_origin(
-        &self,
-        reference: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
+    pub fn local_requires_write_origin(&self, reference: TypeReferenceHandle) -> bool {
         memoized(&self.caches.write_origin_requirements, reference, || {
             super::type_may_carry_write(self.program, reference)
                 && !super::type_is_caller_isolated_local(self.program, reference)
@@ -1083,7 +1060,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
         root: SymbolHandle,
-        path: &[facts::PlaceSegment],
+        path: &[PlaceSegment],
     ) -> bool {
         let Some((_, _, mut prefix, transfers)) =
             self.statement_reference_transfer(machine, statement)
@@ -1144,12 +1121,12 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         state: &typed_trees::state::State,
-    ) -> std::sync::Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>> {
+    ) -> Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>> {
         memoized(
             &self.caches.state_assignments,
             (machine.symbol, state.symbol),
             || {
-                std::sync::Arc::new(super::state_write_walk::walk_state_assignments(
+                Arc::new(super::state_write_walk::walk_state_assignments(
                     self.program,
                     machine,
                     state,
@@ -1214,7 +1191,7 @@ impl<'program> CallFrameResolver<'program> {
         // A frozen context shares one set of tables; a bare program builds its own.
         let tables = match program.call_frame_tables() {
             Some(tables) => tables,
-            None => std::sync::Arc::new(CallFrameTables::build(program)?),
+            None => Arc::new(CallFrameTables::build(program)?),
         };
         Some(Self {
             program,
@@ -1228,10 +1205,7 @@ impl<'program> CallFrameResolver<'program> {
     /// The machine's member/state symbol table, built once per machine for
     /// this resolver. `None` is the build's diagnostics verdict — the exact
     /// contract the inline `diagnostics.is_empty()` checks encoded.
-    fn machine_symbols(
-        &self,
-        machine: &'program Machine,
-    ) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
+    fn machine_symbols(&self, machine: &'program Machine) -> Option<Arc<MachineSymbols<'program>>> {
         self.tables
             .machine_symbols
             .get(&machine.symbol)
@@ -1241,12 +1215,7 @@ impl<'program> CallFrameResolver<'program> {
 
     /// Whole-program call plans, derived once per resolver and shared by
     /// every operand call-candidate check this resolver serves.
-    pub fn call_plans(
-        &self,
-    ) -> std::sync::Arc<(
-        flow_effects::OperationalPlan,
-        flow_effects::ServiceReachInferencePlan,
-    )> {
+    pub fn call_plans(&self) -> Arc<(OperationalPlan, flow_effects::ServiceReachInferencePlan)> {
         self.caches.call_plans(self.program)
     }
 
@@ -1712,7 +1681,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &'program Machine,
     ) -> Vec<NormalizedWriteFrame> {
         let frames = memoized(&self.caches.inferred_machine_frames, machine.symbol, || {
-            std::sync::Arc::new(
+            Arc::new(
                 self.program
                     .machine_states(machine)
                     .iter()

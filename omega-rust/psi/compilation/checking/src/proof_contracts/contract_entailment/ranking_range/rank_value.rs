@@ -1,6 +1,7 @@
 //! Denotation and its pending application travel together until caller facts
 //! are installed. Normalizing a rank never proves its intermediate operations.
 
+use super::super::arithmetic_judgment::IntegerApplicationInput;
 use super::{BTreeMap, Engine, ExpressionHandle, Polynomial, identity_views};
 
 pub(super) struct RankValue {
@@ -10,7 +11,7 @@ pub(super) struct RankValue {
 
 struct DeclaredApplication {
     measure: symbols::SymbolHandle,
-    input: Polynomial,
+    input: IntegerApplicationInput,
 }
 
 impl RankValue {
@@ -29,6 +30,16 @@ impl RankValue {
         body: ExpressionHandle,
     ) -> Option<Self> {
         let input = engine.normalize(subject)?;
+        Self::with_input(program, engine, parameter, body, input.into())
+    }
+
+    pub(super) fn with_input(
+        program: &dyn crate::CheckingInput,
+        engine: &mut Engine<'_>,
+        parameter: symbols::SymbolHandle,
+        body: ExpressionHandle,
+        input: IntegerApplicationInput,
+    ) -> Option<Self> {
         let value =
             identity_views::computed_measure_value(program, engine, parameter, body, &input)?;
         Some(Self {
@@ -41,14 +52,25 @@ impl RankValue {
     }
 
     pub fn after_arrival(&self, substitutions: &BTreeMap<String, Polynomial>) -> Option<Self> {
-        let substitute =
-            |value| super::inductive_judgment::apply_argument_map(value, substitutions);
+        // This legacy adapter substitutes a fresh invocation's scalar inputs.
+        // It has no completed destination record. Re-expressing the old read
+        // roster cannot replace whole-value identity: fields absent from the
+        // public contract may have changed too. Record arrivals use the normal
+        // operand capture path, which supplies their fresh complete snapshot.
+        if self.application.as_ref().is_some_and(|application| {
+            matches!(application.input, IntegerApplicationInput::Record { .. })
+        }) {
+            return None;
+        }
+        let substitute = |value: &Polynomial| {
+            super::inductive_judgment::apply_argument_map(value, substitutions)
+        };
         Some(Self {
             value: substitute(&self.value)?,
             application: match &self.application {
                 Some(application) => Some(DeclaredApplication {
                     measure: application.measure,
-                    input: substitute(&application.input)?,
+                    input: application.input.mapped(substitute)?,
                 }),
                 None => None,
             },
@@ -68,7 +90,16 @@ impl RankValue {
         };
         let formed =
             engine.form_declared_integer_application(application.measure, &application.input)?;
-        (engine.substituted(&formed.value) == engine.substituted(&self.value))
+        // Only completed formation can expose the declaration's value. A
+        // reservation is not an evaluator and cannot lend facts to its own
+        // partial children. Already-produced source invariants remain attached
+        // to the reserved observation while this equality gives its meaning.
+        engine
+            .install_hypotheses(vec![(
+                typed_trees::expression::BinaryOperator::Equal,
+                self.value.clone(),
+                formed.value,
+            )])
             .then_some(formed.formation)
     }
 }

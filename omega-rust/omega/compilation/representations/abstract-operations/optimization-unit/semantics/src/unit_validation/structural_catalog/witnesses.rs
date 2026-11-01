@@ -3,13 +3,12 @@ use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralPlaceDeclaration;
+use terminal_psi::StructuralTypeDeclaration;
 
 pub(crate) fn validate_byte_sequence_literal_witnesses(
     function: &PsiOptimizationFunction,
-    expected_literals: &[(
-        terminal_psi::StructuralPlaceDeclaration,
-        terminal_psi::StructuralTypeDeclaration,
-    )],
+    expected_literals: &[(StructuralPlaceDeclaration, StructuralTypeDeclaration)],
 ) -> Result<(), OptimizationUnitValidationError> {
     let mut expected = expected_literals
         .iter()
@@ -51,10 +50,7 @@ pub(crate) fn validate_byte_sequence_literal_witnesses(
 
 pub(crate) fn validate_trivial_affine_local_witnesses(
     function: &PsiOptimizationFunction,
-    expected_locals: &[(
-        terminal_psi::StructuralPlaceDeclaration,
-        terminal_psi::StructuralTypeDeclaration,
-    )],
+    expected_locals: &[(StructuralPlaceDeclaration, StructuralTypeDeclaration)],
 ) -> Result<(), OptimizationUnitValidationError> {
     let explicit = function
         .block_nodes()

@@ -5,15 +5,33 @@
 //! application still forms independently at the completed operand frontier.
 
 use super::{BigInt, IntegerObservations, Polynomial, StructuralJudge, StructuralTerm, atom_name};
-use crate::proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
+use crate::proof_contracts::contract_entailment::arithmetic_judgment::{
+    IntegerApplicationInput, IntegerDenotation,
+};
 use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use typed_trees::{expression::BinaryOperator, types::PrimitiveType};
 
 pub(in crate::proof_contracts::contract_entailment) struct CapturedIntegerRank {
-    pub input: StructuralTerm,
-    pub primitive: PrimitiveType,
+    pub input: CapturedIntegerInput,
+    /// The selected relation's floor is a goal, not an input assumption.
+    /// The independently formed word still supplies its own carrier bounds.
+    pub minimum: BigInt,
     pub measure: SymbolHandle,
+}
+
+#[derive(Debug)]
+pub(in crate::proof_contracts::contract_entailment) enum CapturedIntegerInput {
+    Scalar {
+        value: StructuralTerm,
+        primitive: PrimitiveType,
+    },
+    Record {
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        snapshot: Option<crate::CapturedOwnedSnapshot>,
+        reads: Vec<(crate::RankSubjectCoordinate, StructuralTerm, PrimitiveType)>,
+    },
 }
 
 /// Only `form_captured_integer_rank` constructs this record. The polynomial
@@ -24,7 +42,7 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
         Option<crate::IntegerApplicationFormation>,
     value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
-    maximum: BigInt,
+    interval: BigIntInterval,
 }
 
 impl StructuralJudge<'_> {
@@ -35,9 +53,7 @@ impl StructuralJudge<'_> {
         let mut observations = IntegerObservations::empty(self.program);
         observations.engine =
             super::Engine::strict_for_declaration(self.program, self.machine_symbol);
-        let input = self
-            .integer_value(&rank.input, rank.primitive, &mut observations, 0)
-            .ok_or("the entry rank input has no exact integer observation")?;
+        let input = self.observed_rank_input(&rank.input, &mut observations)?;
         let required = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut premises) || !observations.admitted(required) {
@@ -65,18 +81,28 @@ impl StructuralJudge<'_> {
                 })?;
             (value.value, primitive, value.formation)
         } else {
-            (input, rank.primitive, None)
+            let CapturedIntegerInput::Scalar { primitive, .. } = &rank.input else {
+                return Err("a builtin integer rank needs a scalar input");
+            };
+            let IntegerApplicationInput::Scalar(input) = input else {
+                return Err("a builtin rank cannot consume a record");
+            };
+            (input, *primitive, None)
         };
         let value = engine.substituted(&value);
         if !engine.integer_value_lands(primitive, &value) {
             return Err("the entry rank has no independently proved result carrier bound");
         }
-        if !engine.prove_at_least(&value, &BigInt::zero()) {
-            return Err("the entry rank is not independently nonnegative");
-        }
         let (_, maximum) = primitive
             .integer_bounds()
             .ok_or("the entry rank has no fixed integer carrier bounds")?;
+        let minimum = rank.minimum.clone();
+        if !engine.prove_at_least(
+            &value.sub(&Polynomial::constant(minimum.clone())),
+            &BigInt::zero(),
+        ) {
+            return Err("the entry rank has no independently established lower bound");
+        }
         let value = engine
             .capture_integer_denotation(&value)
             .ok_or("the formed rank has an incomplete opaque dependency graph")?;
@@ -106,74 +132,171 @@ impl StructuralJudge<'_> {
             application,
             value,
             atoms,
-            maximum: BigInt::from_i128(maximum),
+            interval: BigIntInterval {
+                low: Some(minimum),
+                high: Some(BigInt::from_i128(maximum)),
+            },
         })
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn compare_captured_integer_ranks(
+    /// One observation cut owns the entire ordered rank. Restore only bounds
+    /// proved on the saved source values, then form every destination component
+    /// before comparing. An earlier strict component may ignore a suffix's
+    /// ordering, never its formation, ownership or carrier obligations.
+    pub(in crate::proof_contracts::contract_entailment) fn compare_captured_integer_rank_sequences(
         &self,
-        source: &FormedIntegerRank,
-        destination: &CapturedIntegerRank,
+        sources: &[FormedIntegerRank],
+        destinations: &[CapturedIntegerRank],
     ) -> Result<bool, &'static str> {
+        if sources.is_empty() || sources.len() != destinations.len() {
+            return Err("captured rank tuples have incompatible component arity");
+        }
         let mut observations = IntegerObservations::empty(self.program);
         observations.engine =
             super::Engine::strict_for_declaration(self.program, self.machine_symbol);
-        let mut substitutions = BTreeMap::new();
-        for (name, value, primitive) in &source.atoms {
-            let value = self
-                .integer_value(value, *primitive, &mut observations, 0)
-                .ok_or("the saved rank lost an immutable atom observation")?;
-            substitutions.insert(name.clone(), value);
+        let mut substitutions = Vec::with_capacity(sources.len());
+        for source in sources {
+            let mut bindings = BTreeMap::new();
+            for (name, value, primitive) in &source.atoms {
+                let value = self
+                    .integer_value(value, *primitive, &mut observations, 0)
+                    .ok_or("the saved rank lost an immutable atom observation")?;
+                bindings.insert(name.clone(), value);
+            }
+            substitutions.push(bindings);
         }
-        let destination_input = self
-            .integer_value(
-                &destination.input,
-                destination.primitive,
-                &mut observations,
-                0,
-            )
-            .ok_or("the arriving rank input has no exact integer observation")?;
+        let mut inputs = Vec::with_capacity(destinations.len());
+        for destination in destinations {
+            inputs.push(self.observed_rank_input(&destination.input, &mut observations)?);
+        }
         let required = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut premises) || !observations.admitted(required) {
             return Err("a captured rank operand has unformed arithmetic");
         }
         let engine = &mut observations.engine;
-        let source_value = engine
-            .instantiate_integer_denotation(&source.value, &substitutions)
-            .ok_or("the saved rank lost its complete observed dependency roster")?;
-        // These facts were proved at the source observation, before effects.
-        // They constrain its saved produced value, never the destination input
-        // or that application's still-pending intermediate operations.
-        if !engine.install_hypotheses(vec![
-            (
-                BinaryOperator::GreaterOrEqual,
-                source_value.clone(),
-                Polynomial::constant(BigInt::zero()),
-            ),
-            (
-                BinaryOperator::LessOrEqual,
-                source_value.clone(),
-                Polynomial::constant(source.maximum.clone()),
-            ),
-        ]) {
-            return Err("the saved rank bounds could not enter the current observation scope");
+        let mut source_values = Vec::with_capacity(sources.len());
+        for (source, bindings) in sources.iter().zip(&substitutions) {
+            let value = engine
+                .instantiate_integer_denotation(&source.value, bindings)
+                .ok_or("the saved rank lost its complete observed dependency roster")?;
+            let (Some(minimum), Some(maximum)) = (&source.interval.low, &source.interval.high)
+            else {
+                return Err("the saved rank lost its independently formed finite bounds");
+            };
+            // These facts belong to the earlier produced value, not the next
+            // input or its pending intermediate operations. Distinct captures
+            // use their own local-to-shared atom map; equal atom ordinals in
+            // separate denotations do not identify their underlying values.
+            if !engine.install_hypotheses(vec![
+                (
+                    BinaryOperator::GreaterOrEqual,
+                    value.clone(),
+                    Polynomial::constant(minimum.clone()),
+                ),
+                (
+                    BinaryOperator::LessOrEqual,
+                    value.clone(),
+                    Polynomial::constant(maximum.clone()),
+                ),
+            ]) {
+                return Err("the saved rank bounds could not enter the current observation scope");
+            }
+            source_values.push(value);
         }
-        let destination_value = if destination.measure.is_valid() {
-            engine
-                .form_declared_integer_application(destination.measure, &destination_input)
-                .ok_or("the arriving rank application has no independent formation")?
-                .value
-        } else {
-            destination_input
-        };
-        let source_value = engine.substituted(&source_value);
-        let destination_value = engine.substituted(&destination_value);
-        if !engine.prove_at_least(&destination_value, &BigInt::zero())
-            || !engine.prove_at_least(&source_value.sub(&destination_value), &BigInt::zero())
-        {
-            return Err("captured ranks do not prove natural nonincrease");
+        let mut destination_values = Vec::with_capacity(destinations.len());
+        for (destination, input) in destinations.iter().zip(&inputs) {
+            let (value, minimum) = self.form_arriving_integer_rank(engine, destination, input)?;
+            let value = engine.substituted(&value);
+            if !engine.prove_at_least(&value.sub(&Polynomial::constant(minimum)), &BigInt::zero()) {
+                return Err(if sources.len() == 1 {
+                    "captured ranks do not prove natural nonincrease"
+                } else {
+                    "the arriving rank has no independently established lower bound"
+                });
+            }
+            destination_values.push(value);
         }
-        Ok(engine.prove_at_least(&source_value.sub(&destination_value), &BigInt::from_u64(1)))
+        for (source, destination) in source_values.iter().zip(&destination_values) {
+            let difference = engine.substituted(source).sub(destination);
+            if !engine.prove_at_least(&difference, &BigInt::zero()) {
+                return Err(if sources.len() == 1 {
+                    "captured ranks do not prove natural nonincrease"
+                } else {
+                    "captured ranks do not prove lexicographic nonincrease"
+                });
+            }
+            if engine.prove_at_least(&difference, &BigInt::from_u64(1)) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn observed_rank_input(
+        &self,
+        input: &CapturedIntegerInput,
+        observations: &mut IntegerObservations<'_>,
+    ) -> Result<IntegerApplicationInput, &'static str> {
+        match input {
+            CapturedIntegerInput::Scalar { value, primitive } => self
+                .integer_value(value, *primitive, observations, 0)
+                .map(IntegerApplicationInput::Scalar)
+                .ok_or("the rank input has no exact integer observation"),
+            CapturedIntegerInput::Record {
+                type_reference,
+                reads,
+                snapshot,
+            } => {
+                let reads = reads
+                    .iter()
+                    .map(|(source, value, primitive)| {
+                        self.integer_value(value, *primitive, observations, 0)
+                            .map(|value| (source.clone(), value))
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or("a record rank read has no exact integer observation")?;
+                Ok(IntegerApplicationInput::Record {
+                    type_reference: *type_reference,
+                    snapshot: snapshot.clone(),
+                    reads,
+                })
+            }
+        }
+    }
+
+    fn form_arriving_integer_rank(
+        &self,
+        engine: &mut super::Engine<'_>,
+        destination: &CapturedIntegerRank,
+        input: &IntegerApplicationInput,
+    ) -> Result<(Polynomial, BigInt), &'static str> {
+        if !destination.measure.is_valid() {
+            let IntegerApplicationInput::Scalar(input) = input else {
+                return Err("a builtin rank cannot consume a record");
+            };
+            return Ok((input.clone(), destination.minimum.clone()));
+        }
+        let primitive = self
+            .program
+            .measures()
+            .iter()
+            .find(|declaration| declaration.symbol == destination.measure)
+            .and_then(|declaration| {
+                self.program
+                    .primitive_type_reference(declaration.return_type)
+            })
+            .ok_or("the arriving rank lost its declared integer carrier")?;
+        primitive
+            .integer_bounds()
+            .ok_or("the arriving rank has no fixed integer bounds")?;
+        let value = engine
+            .form_declared_integer_application(destination.measure, input)
+            .ok_or("the arriving rank application has no independent formation")?
+            .value;
+        if !engine.integer_value_lands(primitive, &value) {
+            return Err("the arriving rank does not fit its declared carrier");
+        }
+        Ok((value, destination.minimum.clone()))
     }
 }

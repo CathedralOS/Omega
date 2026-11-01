@@ -324,6 +324,7 @@ mod tests {
         PropositionContext, ScalarTerm, ScalarType, check_integer_shift_chain_witness,
     };
     use semantic_vocabulary::ValueId;
+    use std::slice::from_ref;
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
         IntegerType::new(sign, bits).expect("fixed integer type")
@@ -475,11 +476,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            check_integer_shift_chain_witness(
-                &context,
-                std::slice::from_ref(&definition),
-                &witness(0, None),
-            ),
+            check_integer_shift_chain_witness(&context, from_ref(&definition), &witness(0, None)),
             Err(IntegerShiftChainWitnessError::MissingCountAxiom(0)),
         );
         assert_eq!(

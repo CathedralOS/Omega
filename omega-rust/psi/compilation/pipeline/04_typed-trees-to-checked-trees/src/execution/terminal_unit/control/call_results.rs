@@ -5,6 +5,9 @@
 //! that authority from its declaration: it must still establish each member.
 //! Both routes retain the exact carrier for the receiving custody replay.
 
+use crate::checks::type_multiplicity;
+use crate::execution::terminal_unit::types::borrowed_slice_result;
+use crate::execution::terminal_unit::types::substituted_formal_type;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, parameter_qualifications};
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
@@ -128,11 +131,7 @@ pub(crate) fn bind_structural_call_result(
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let return_type = crate::execution::terminal_unit::types::substituted_formal_type(
-                program,
-                return_type,
-                &substitutions,
-            );
+            let return_type = substituted_formal_type(program, return_type, &substitutions);
             let result_claims = validation::structural_call_result_claims(
                 program,
                 facts,
@@ -182,7 +181,7 @@ pub(crate) fn checked_copied_result_type(
     if let Some(result) = checked_structural_result_type(program, shapes, result_type, binders) {
         return Some(result);
     }
-    if crate::checks::type_multiplicity(program, result_type) != Multiplicity::Unrestricted
+    if type_multiplicity(program, result_type) != Multiplicity::Unrestricted
         || !validation::has_contents(
             program,
             result_type,
@@ -237,7 +236,7 @@ pub(crate) fn checked_structural_result_type(
     // Shared descriptors are unrestricted and mutable descriptors affine.
     // Descriptor custody owns neither the borrowed backing nor a stored
     // reference carrier; both view families keep their original geometry.
-    if crate::execution::terminal_unit::types::borrowed_slice_result(program, result_type) {
+    if borrowed_slice_result(program, result_type) {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
@@ -249,7 +248,7 @@ pub(crate) fn checked_structural_result_type(
             local: Default::default(),
         });
     }
-    let multiplicity = crate::checks::type_multiplicity(program, result_type);
+    let multiplicity = type_multiplicity(program, result_type);
     // Register exact domain identities independently of storage and linear
     // claims. An affine qualified result need not own any linear claim.
     parameter_qualifications(program, shapes, result_type, binders)?;

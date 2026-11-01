@@ -50,13 +50,14 @@ pub struct ProjectionStep {
 
 /// A declared scalar view applied to one exact subject. The produced rank is
 /// the subject itself (`computation` is `None`) or the measure body with its
-/// parameter bound to the subject; either way the subject and the measure
-/// share `carrier`, and the rank is a natural of that carrier once the range
-/// judgment proves its formation.
+/// parameter bound to the subject. The input coordinate and produced rank
+/// have independent carriers; formation checks the input domain and the entire
+/// body before the result can supply facts in its own carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DeclaredScalarView {
     pub measure: SymbolHandle,
-    pub carrier: BuiltinTypeAtom,
+    pub input_type: TypeReferenceHandle,
+    pub result_carrier: BuiltinTypeAtom,
     pub computation: Option<ScalarViewComputation>,
 }
 
@@ -72,13 +73,14 @@ pub struct ScalarViewComputation {
 /// body node and its output under the actual captured values. No syntactic
 /// operator family or global monotonicity stands in for that judgment.
 pub struct ComputationBodyShape {
-    pub carrier: BuiltinTypeAtom,
+    pub input_type: TypeReferenceHandle,
+    pub result_carrier: BuiltinTypeAtom,
     pub parameter: SymbolHandle,
     pub body: ExpressionHandle,
 }
 
-/// Describe a scalar declaration without granting its body a proof. Callers
-/// select identity and structural projections through their own owners first.
+/// Describe an integer-producing declaration without granting its body a
+/// proof. Its input shape and all reads retain their exact declared types.
 pub fn computation_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
@@ -95,13 +97,11 @@ pub fn computation_body_shape(
     {
         return None;
     }
-    let (carrier, _) = unsigned_carrier(program, parameter.type_reference)?;
-    let (result, _) = unsigned_carrier(program, measure.return_type)?;
-    if result != carrier {
-        return None;
-    }
+    super::declared_input_shape(program, measure)?;
+    let (result, _) = integer_carrier(program, measure.return_type)?;
     Some(ComputationBodyShape {
-        carrier,
+        input_type: parameter.type_reference,
+        result_carrier: result,
         parameter: parameter.symbol,
         body: *body,
     })
@@ -133,20 +133,24 @@ pub fn declared_scalar_view(
             && measure_constraints_cover_subject(program, state, subject, &constraints))
         .then_some(DeclaredScalarView {
             measure: measure.symbol,
-            carrier,
+            input_type: measure.parameter.as_ref()?.type_reference,
+            result_carrier: carrier,
             computation: None,
         }),
-        Some(MeasureBodyShape::FieldProjection { .. }) => None,
-        None => {
+        Some(MeasureBodyShape::FieldProjection { .. }) | None => {
             let ComputationBodyShape {
-                carrier,
+                input_type,
+                result_carrier,
                 parameter,
                 body,
             } = computation_body_shape(program, measure)?;
-            identity_subject_matches(program, state, subject, carrier).then_some(
+            let machine = owning_machine(program, state)?;
+            let actual = crate::declared_place_type_raw(program, machine, Some(state), subject)?;
+            super::declared_input_type_matches(program, actual, input_type).then_some(
                 DeclaredScalarView {
                     measure: measure.symbol,
-                    carrier,
+                    input_type,
+                    result_carrier,
                     computation: Some(ScalarViewComputation { parameter, body }),
                 },
             )
@@ -163,7 +167,7 @@ pub(super) fn computed_measure_value(
     engine: &mut Engine<'_>,
     parameter: SymbolHandle,
     body: ExpressionHandle,
-    input: &super::Polynomial,
+    input: &super::super::arithmetic_judgment::IntegerApplicationInput,
 ) -> Option<super::Polynomial> {
     if !parameter.is_valid() {
         return None;
@@ -185,9 +189,7 @@ pub(super) fn computed_measure_value(
     {
         return None;
     }
-    engine.with_formal_arguments(owner, &[(parameter, input.clone())], |engine| {
-        engine.normalize(body)
-    })
+    engine.declared_application_value(owner, input.clone())
 }
 
 /// Classify only bodies whose projection is justified by resolved declarations.
@@ -420,7 +422,25 @@ fn owning_machine<'program>(
 /// constraint kinds change what the view may assume and cannot be discharged
 /// here. Returns the carrier and the collected `(minimum, maximum,
 /// end_inclusive)` constraints for the caller to prove against the subject.
+// Identity forwarding may reuse the existing unsigned natural-coordinate
+// proof tier. Other fixed-integer declarations use complete application
+// formation, retaining the result domain even when their body is a forward.
 fn unsigned_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<(
+    BuiltinTypeAtom,
+    Vec<(ExpressionHandle, ExpressionHandle, bool)>,
+)> {
+    let (carrier, constraints) = integer_carrier(program, reference)?;
+    matches!(
+        carrier,
+        BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
+    )
+    .then_some((carrier, constraints))
+}
+
+fn integer_carrier(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(
@@ -454,7 +474,14 @@ fn unsigned_carrier(
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
     matches!(
         carrier,
-        BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
+        BuiltinTypeAtom::U8
+            | BuiltinTypeAtom::U16
+            | BuiltinTypeAtom::U32
+            | BuiltinTypeAtom::U64
+            | BuiltinTypeAtom::I8
+            | BuiltinTypeAtom::I16
+            | BuiltinTypeAtom::I32
+            | BuiltinTypeAtom::I64
     )
     .then_some((carrier, constraints))
 }

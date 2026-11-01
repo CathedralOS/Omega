@@ -6,10 +6,14 @@ use super::{
     CheckFacts, ExpressionHandle, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
     TypeReferenceHandle,
 };
+use crate::checks::arithmetic_spelling;
 use crate::checks::contracts::call_bounds::context::comparison_is_admitted;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
-use crate::flow::expressions;
+use crate::checks::contracts::prover::has_builtin_operators;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::flow::frame_storage_writes;
+use crate::values::scalar_expression_type;
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(super) fn primitive_type(
@@ -36,11 +40,7 @@ pub(super) fn capture_is_current<'program>(
 ) -> bool {
     let parameters = program.state_parameters(state);
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        argument,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, argument, &mut occurrences);
     let captured = occurrences
         .iter()
         .filter_map(|expression| {
@@ -60,7 +60,7 @@ pub(super) fn capture_is_current<'program>(
             return false;
         }
         let frame = frames.expression_write_frame(machine, *expression);
-        crate::flow::frame_storage_writes(
+        frame_storage_writes(
             program,
             machine.symbol,
             state.symbol,
@@ -87,38 +87,31 @@ fn operand_effects_are_known(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::Borrow(borrow) => {
-            operand_effects_are_known(program, facts, owner, parameters, borrow.target)
-        }
-        ExpressionNode::Call(call) => {
-            (!call.receiver.is_valid()
-                || operand_effects_are_known(program, facts, owner, parameters, call.receiver))
-                && expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| {
-                        operand_effects_are_known(program, facts, owner, parameters, *argument)
-                    })
-        }
-        ExpressionNode::Cast(_) => {
-            primitive_type(program, facts, owner, parameters, expression).is_some()
-        }
-        ExpressionNode::Binary(_) => {
-            primitive_type(program, facts, owner, parameters, expression).is_some()
-                || comparison_is_admitted(program, facts, owner, parameters, expression)
-        }
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    let known = |expression| primitive_type(program, facts, owner, parameters, expression);
+    program.expression_table.expression_is_valid(expression)
+        && !program.subtree_any(
+            expression,
+            typed_trees::SubtreeEdges::VALUES,
+            |handle, node| match node {
+                ExpressionNode::Name(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::ZeroValue(_)
+                | ExpressionNode::Borrow(_)
+                | ExpressionNode::Call(_) => SubtreeVisit::Descend,
+                ExpressionNode::Cast(_) if known(handle).is_some() => SubtreeVisit::Prune,
+                ExpressionNode::Binary(_)
+                    if known(handle).is_some()
+                        || comparison_is_admitted(program, facts, owner, parameters, handle) =>
+                {
+                    SubtreeVisit::Prune
+                }
+                _ => SubtreeVisit::Found,
+            },
+        )
 }
 
 struct Meaning {
@@ -169,11 +162,10 @@ fn meaning(
             })
         }
         ExpressionNode::Integer(literal) => {
-            let primitive = crate::values::scalar_expression_type(
-                &checked_trees::CheckedScalarExpression::IntegerLiteral {
+            let primitive =
+                scalar_expression_type(&checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
-                },
-            )?;
+                })?;
             primitive.is_fixed_integer().then_some(Meaning {
                 primitive,
                 domain: literal.landing()?.domain,
@@ -196,7 +188,7 @@ fn meaning(
             })
         }
         ExpressionNode::Binary(binary) => {
-            let spelling = crate::checks::arithmetic_spelling(binary.operator)?;
+            let spelling = arithmetic_spelling(binary.operator)?;
             let left = meaning(program, facts, owner, parameters, binary.left);
             let right = meaning(program, facts, owner, parameters, binary.right);
             // Anonymous integer literals take the other operand's carrier;
@@ -227,7 +219,7 @@ fn meaning(
                 // that reading when they selected anything non-builtin.
                 // A compound operand has a plain builtin result, not a retained
                 // source parameter's constrained/custom type reference.
-                || !crate::checks::contracts::prover::has_builtin_operators(
+                || !has_builtin_operators(
                     program,
                     &facts.operators,
                     expression,

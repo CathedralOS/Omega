@@ -1,5 +1,7 @@
 //! Closed construction and decoding failure surfaces.
 
+use optimization_core::invalid_error_display;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidPsiTransformationLedger {
     BrokenRevisionChain,
@@ -14,10 +16,7 @@ pub enum InvalidPsiTransformationLedger {
     DuplicatePrunedSourceOrdinal,
 }
 
-optimization_core::invalid_error_display!(
-    InvalidPsiTransformationLedger,
-    "Psi transformation ledger"
-);
+invalid_error_display!(InvalidPsiTransformationLedger, "Psi transformation ledger");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PsiTransformationLedgerDecodeError {
@@ -34,7 +33,7 @@ pub enum PsiTransformationLedgerDecodeError {
     InvalidLedger(InvalidPsiTransformationLedger),
 }
 
-optimization_core::invalid_error_display!(
+invalid_error_display!(
     PsiTransformationLedgerDecodeError,
     "Psi transformation-ledger encoding"
 );

@@ -7,7 +7,7 @@
 //! and both execution engines reuse the ordinary member path.
 //!
 //! A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
-//! member or reference row receives a compiler-emitted `equals` member whose
+//! member receives a compiler-emitted `equals` member whose
 //! body compares its two operands with `==`; typed lowering expands that
 //! comparison structurally for `T` (core equality acquisition in
 //! `wiki/spec/language/conformances.md`). The row belongs to the named
@@ -27,6 +27,7 @@
 //! inside the declaration's package instead of falling back to a same-leaf
 //! competitor.
 
+use crate::preparation::declaration_selection::ConstantSelection;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
@@ -97,12 +98,7 @@ pub fn synthesize_trait_defaults(
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<(), Vec<Diagnostic>> {
     let selection =
-        crate::preparation::declaration_selection::ConstantSelection::with_retained_base(
-            syntax,
-            sources,
-            bindings,
-            retained_base,
-        )?;
+        ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
     crate::preparation::generic_data::domain_heads::normalize(syntax, Some(&selection))?;
     crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)
@@ -115,7 +111,7 @@ pub fn synthesize_trait_defaults(
 /// pass follows was already admitted by the caller's namespace validation.
 pub(crate) fn synthesize_trait_defaults_after_module_validation(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::declaration_selection::ConstantSelection,
+    selection: &ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let traits = syntax
         .root_items()
@@ -293,11 +289,17 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 &requirement.substitution,
                 conformance.handle,
             );
+            let exact_requirement_owner = traits
+                .get(&requirement.declaring_trait)
+                .filter(|definition| {
+                    !definition.has_lifetime_parameters && definition.parameter_names.is_empty()
+                })
+                .map(|definition| definition.path.as_str());
             let machine = machine_from_signature(
                 syntax,
                 implementation_member_name(&conformance.declaration, signature.name.as_str(syntax)),
                 &signature,
-                exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
+                exact_requirement_owner,
                 Identifier::generated(declaring_path.as_str()),
             );
             closed_members.push(ConformanceMember::TraitDefault {
@@ -432,7 +434,7 @@ fn replace_closed_members(
 const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 
 /// The `equals` member a closed `Equatable<T>` implementation receives when it
-/// authors neither an `equals` member nor a reference row for it: the trait's
+/// authors no `equals` member for it: the trait's
 /// requirement signature instantiated at `T`, with the body `left == right`
 /// over its two parameters. Typed lowering expands that comparison
 /// structurally and routes every use of this row to the same expansion. A
@@ -450,9 +452,6 @@ fn synthesized_equality_member(
     if equatable.parameter_names.len() != 1
         || members.iter().any(|member| match member {
             ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == EQUALS,
-            ConformanceMember::Reference { requirement, .. } => {
-                requirement.as_str(syntax) == EQUALS
-            }
             ConformanceMember::Synthesized(_) => true,
             ConformanceMember::TraitDefault { .. } => false,
         })
@@ -536,11 +535,7 @@ fn substitute_type_reference(
                 syntax
                     .tables
                     .type_references
-                    .insert_reference_with_lifetime(
-                    substituted,
-                    access,
-                    lifetime,
-                )
+                    .insert_reference_with_lifetime(substituted, access, lifetime)
             }
         }
         TypeReferenceNode::Constrained {
@@ -1069,21 +1064,6 @@ fn bare_static_argument(name: Identifier) -> StaticMachineArgument {
         const_literal: None,
         evidence_projection: None,
     }
-}
-
-/// A requirement edge on a synthesized default only rejoins the declaring
-/// trait for an unparameterized trait reference. Parameterized owners resolve
-/// through their instantiated generic instead. The returned spelling is the
-/// selected trait's logical path: the compiler-derived partition requires a
-/// generated spelling, and a qualified path still reaches the exact owner in
-/// its package where a bare leaf could select a same-spelled competitor.
-fn exact_unargumented_requirement_owner(
-    traits: &HashMap<SymbolHandle, TraitDefaultsInput>,
-    owner: SymbolHandle,
-) -> Option<&str> {
-    let definition = traits.get(&owner)?;
-    (!definition.has_lifetime_parameters && definition.parameter_names.is_empty())
-        .then_some(definition.path.as_str())
 }
 
 /// `default_body_trait` names the trait that authored `signature`'s body. The

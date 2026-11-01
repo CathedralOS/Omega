@@ -1,8 +1,9 @@
 //! Snapshots of states, signatures, parameters, statements and transitions.
 
-use crate::item::{StateParameterNode, StateSignature};
+use crate::item::{CrashCause, State, StateParameterHandle, StateParameterNode, StateSignature};
 use crate::statement::{
-    AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
+    AssemblyExit, AssemblyFactKind, StatementHandle, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
@@ -171,10 +172,7 @@ pub enum TransitionTargetSnapshot {
     Terminal,
 }
 
-pub(crate) fn snapshot_state_node(
-    syntax_trees: &SyntaxTrees,
-    state: &crate::item::State,
-) -> StateSnapshot {
+pub(crate) fn snapshot_state_node(syntax_trees: &SyntaxTrees, state: &State) -> StateSnapshot {
     StateSnapshot {
         name: snapshot_identifier(syntax_trees, &state.name),
         parameters: snapshot_state_parameters(syntax_trees, state.parameters),
@@ -235,7 +233,7 @@ pub(crate) fn snapshot_state_signature(
 
 pub(crate) fn snapshot_state_signature_node(
     syntax_trees: &SyntaxTrees,
-    signature: &crate::item::StateSignature,
+    signature: &StateSignature,
 ) -> StateSignatureSnapshot {
     state_signature_snapshot!(syntax_trees, signature)
 }
@@ -255,7 +253,7 @@ pub(crate) fn snapshot_state_parameter(
 
 pub(crate) fn snapshot_state_parameters(
     syntax_trees: &SyntaxTrees,
-    span: HandleSpan<crate::item::StateParameterHandle>,
+    span: HandleSpan<StateParameterHandle>,
 ) -> Vec<StateParameterSnapshot> {
     syntax_trees
         .items
@@ -315,19 +313,17 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                             })
                             .collect(),
                         exit: match &block.exit {
-                            crate::statement::AssemblyExit::Fallthrough => {
-                                AssemblyExitSnapshot::Fallthrough
-                            }
-                            crate::statement::AssemblyExit::ZeroFlag(label, when_set) => {
+                            AssemblyExit::Fallthrough => AssemblyExitSnapshot::Fallthrough,
+                            AssemblyExit::ZeroFlag(label, when_set) => {
                                 AssemblyExitSnapshot::ZeroFlag(
                                     snapshot_identifier(syntax_trees, label),
                                     *when_set,
                                 )
                             }
-                            crate::statement::AssemblyExit::Jump(label) => {
+                            AssemblyExit::Jump(label) => {
                                 AssemblyExitSnapshot::Jump(snapshot_identifier(syntax_trees, label))
                             }
-                            crate::statement::AssemblyExit::EnclosingTransition => {
+                            AssemblyExit::EnclosingTransition => {
                                 AssemblyExitSnapshot::EnclosingTransition
                             }
                         },
@@ -435,13 +431,9 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 },
             },
             crash_cause: match value.exit {
-                crate::statement::TransitionExit::Ordinary => None,
-                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Trap) => {
-                    Some("Trap")
-                }
-                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Abort) => {
-                    Some("Abort")
-                }
+                TransitionExit::Ordinary => None,
+                TransitionExit::Crash(CrashCause::Trap) => Some("Trap"),
+                TransitionExit::Crash(CrashCause::Abort) => Some("Abort"),
             },
         },
     }
@@ -449,7 +441,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
 
 pub(crate) fn snapshot_statements(
     syntax_trees: &SyntaxTrees,
-    span: HandleSpan<crate::statement::StatementHandle>,
+    span: HandleSpan<StatementHandle>,
 ) -> Vec<StatementSnapshot> {
     syntax_trees
         .items

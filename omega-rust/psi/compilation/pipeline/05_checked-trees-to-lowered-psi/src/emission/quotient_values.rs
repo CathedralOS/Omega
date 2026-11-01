@@ -6,8 +6,14 @@ use crate::emission::operation_emission::buffer::{
     OperationBuffer, SourceCallCoordinate, scalar_result_declaration, structural_result_declaration,
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::value_id;
+use crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations;
+use crate::unit::attached_unit::parameters::authored_result_qualification_domains;
+use crate::unit::attached_unit::primitive_locals::completed_scalar;
+use crate::unit::attached_unit::signatures::find;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedTrees};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralArgument, StructuralMultiplicity};
@@ -46,9 +52,7 @@ pub(crate) fn emit_call(
         validation::find_machine_by_entry_state(&checked.typed, representative_state).ok_or(
             LoweringError::Unsupported("quotient representative body is absent"),
         )?;
-    let signature =
-        crate::unit::attached_unit::signatures::find(calls.signatures, representative.symbol)?
-            .clone();
+    let signature = find(calls.signatures, representative.symbol)?.clone();
     // Private inferred causes are as real as published causes. This
     // bounded lane emits no continuations only when the effective checked
     // ceiling is empty, including the representative's helper closure.
@@ -68,11 +72,7 @@ pub(crate) fn emit_call(
         || !validation::view_result_carrier_qualifications(&checked.typed, state.return_type)
             .map_err(LoweringError::Unsupported)?
             .is_empty()
-        || !crate::unit::attached_unit::parameters::authored_result_qualification_domains(
-            checked,
-            representative.symbol,
-        )
-        .is_empty()
+        || !authored_result_qualification_domains(checked, representative.symbol).is_empty()
         || !validation::structural_result_projected_qualifications(
             &checked.typed,
             state.return_type,
@@ -108,17 +108,15 @@ pub(crate) fn emit_call(
             {
                 return unsupported("quotient scalar input has a different checked carrier");
             }
-            scalar_arguments.push(
-                crate::emission::operation_emission::expressions::emit_scalar_leaf(
-                    terminal_psi::OperationKind::PrimitiveScalarRead {
-                        source: actual.place,
-                        path: Vec::new(),
-                    },
-                    scalar_type,
-                    next_value,
-                    operations,
-                ),
-            );
+            scalar_arguments.push(emit_scalar_leaf(
+                terminal_psi::OperationKind::PrimitiveScalarRead {
+                    source: actual.place,
+                    path: Vec::new(),
+                },
+                scalar_type,
+                next_value,
+                operations,
+            ));
         } else {
             let formal = structural_formals.next().ok_or(LoweringError::Unsupported(
                 "quotient structural formal is absent",
@@ -148,20 +146,14 @@ pub(crate) fn emit_call(
     // needs special substitution only for crash continuations, excluded above.
     // Quotient theorem schemas are not runtime witnesses or a second verifier.
     let requirement_obligations =
-        crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
-            &signature.call_target(),
-            calls,
-            operations,
-        )?;
+        prepare_requirement_obligations(&signature.call_target(), calls, operations)?;
     let callee =
         crate::terminal_identities::lookup_machine_id(calls.machine_ids, representative.symbol)?;
     let (result, mode, scalar) = if let Some(scalar) = signature.scalar_result {
         if !scalar.qualifications.is_empty() {
             return unsupported("quotient scalar result has unimplemented qualifications");
         }
-        let id = crate::terminal_identities::value_id(crate::terminal_identities::allocate_dense(
-            next_value,
-        )?);
+        let id = value_id(crate::terminal_identities::allocate_dense(next_value)?);
         (
             scalar_result_declaration(id, scalar.scalar_type),
             DirectCallResult::Scalar,
@@ -204,11 +196,7 @@ pub(crate) fn emit_call(
         ),
     )?;
     if let Some(scalar) = scalar {
-        let scalar = crate::unit::attached_unit::primitive_locals::completed_scalar(
-            scalar,
-            &[],
-            operations,
-        )?;
+        let scalar = completed_scalar(scalar, &[], operations)?;
         crate::unit::attached_unit::primitive_locals::establish_at(
             place,
             operations,

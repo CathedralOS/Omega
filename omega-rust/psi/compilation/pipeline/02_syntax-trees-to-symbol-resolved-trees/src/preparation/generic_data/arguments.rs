@@ -9,11 +9,13 @@ use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
+use crate::symbols::builtin_type_atom_by_symbol_name;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DomainDefinition;
 use syntax_trees::item::Item;
@@ -251,10 +253,10 @@ pub(crate) fn type_reference_slug(
         TypeReferenceNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeReferenceNode::ConstExpression(expression) => {
             match syntax.expressions.expression(*expression) {
-                syntax_trees::expression::ExpressionNode::Integer(literal) => {
+                ExpressionNode::Integer(literal) => {
                     super::integer_literal_value(literal).map(|value| value.to_string())
                 }
-                syntax_trees::expression::ExpressionNode::Name(path) => {
+                ExpressionNode::Name(path) => {
                     let [member] = syntax.expressions.identifier_path_members(*path) else {
                         return None;
                     };
@@ -382,7 +384,7 @@ fn closed_argument_identities(
 /// Close an argument under its receiving declaration's actual parameter kind.
 /// Implementations do not enter the data namespace; unsupported static operand
 /// categories stay on the ordinary resolver/checker path.
-pub(in crate::preparation::generic_data) fn closed_parameter_argument_identity(
+pub(crate) fn closed_parameter_argument_identity(
     syntax: &SyntaxTrees,
     selection: Option<&declaration_selection::ConstantSelection>,
     handle: TypeReferenceHandle,
@@ -509,11 +511,9 @@ pub(crate) fn closed_argument_identity(
         )),
         TypeReferenceNode::ConstExpression(expression) if is_constant => {
             match syntax.expressions.expression(*expression) {
-                syntax_trees::expression::ExpressionNode::Integer(literal) => {
-                    super::integer_literal_value(literal)
-                        .map(|value| ClosedArgumentIdentity::Constant(value.to_string()))
-                }
-                syntax_trees::expression::ExpressionNode::Name(path) => {
+                ExpressionNode::Integer(literal) => super::integer_literal_value(literal)
+                    .map(|value| ClosedArgumentIdentity::Constant(value.to_string())),
+                ExpressionNode::Name(path) => {
                     let [member] = syntax.expressions.identifier_path_members(*path) else {
                         return None;
                     };
@@ -525,9 +525,7 @@ pub(crate) fn closed_argument_identity(
             }
         }
         TypeReferenceNode::Named(name) => {
-            if let Some(atom) =
-                crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax))
-            {
+            if let Some(atom) = builtin_type_atom_by_symbol_name(name.as_str(syntax)) {
                 return Some(ClosedArgumentIdentity::Builtin(atom));
             }
             if let Some(declaration) = selected_data_item(syntax, selection, name) {

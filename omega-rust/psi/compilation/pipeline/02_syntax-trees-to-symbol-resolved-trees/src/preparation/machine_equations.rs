@@ -34,22 +34,32 @@ use syntax_trees::{
 
 mod argument_types;
 mod completion;
+use super::generic_data::canonicalize_selected_declared_const_definition;
+use super::generic_data::closed_argument_identity;
+use arena::HandleSpan;
 pub(crate) use argument_types::DeclaredTypeOrigin;
+use argument_types::call_constraints;
 use completion::complete_arguments;
+use numerics::arithmetic::ArithmeticDomain;
+use std::iter::once;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::statement::Statement;
+use symbol_resolved_trees::types::TypeConstraint;
+use symbol_resolved_trees::types::TypeReference;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::ItemHandle;
+use syntax_trees::statement::StatementHandle;
+use syntax_trees::statement::StatementNode;
+use type_equations::const_binder_envelope;
 
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceLinks {
     pub(crate) declared_types: Vec<(DeclaredTypeOrigin, TypeReferenceHandle)>,
     pub(crate) declarations: Vec<(usize, Machine)>,
-    pub(crate) data_declarations: Vec<(syntax_trees::item::ItemHandle, usize)>,
-    pub(crate) expressions: Vec<(
-        syntax_trees::expression::ExpressionHandle,
-        symbol_resolved_trees::expression::ExpressionHandle,
-    )>,
-    pub(crate) statements: Vec<(
-        syntax_trees::statement::StatementHandle,
-        Handle<symbol_resolved_trees::statement::Statement>,
-    )>,
+    pub(crate) data_declarations: Vec<(ItemHandle, usize)>,
+    pub(crate) expressions: Vec<(syntax_trees::expression::ExpressionHandle, ExpressionHandle)>,
+    pub(crate) statements: Vec<(StatementHandle, Handle<Statement>)>,
 }
 
 impl SourceLinks {
@@ -161,7 +171,7 @@ pub(crate) fn complete(
     }
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) => {
                 reject_machine_arguments(trees, &call.machine_arguments)?;
                 let Some(index) = selected_machine(trees, call.target_symbol) else {
                     continue;
@@ -177,14 +187,8 @@ pub(crate) fn complete(
                         "machine equation application lost its authored call",
                     )]);
                 };
-                let ordinary_types = argument_types::call_constraints(
-                    syntax,
-                    trees,
-                    sources,
-                    call,
-                    Some(*resolved),
-                    selection,
-                );
+                let ordinary_types =
+                    call_constraints(syntax, trees, sources, call, Some(*resolved), selection);
                 complete_authored_arguments(
                     syntax,
                     index,
@@ -201,7 +205,7 @@ pub(crate) fn complete(
                     syntax_trees::expression::ExpressionNode::Call(authored),
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Name(path)
+            ExpressionNode::Name(path)
                 if selected_machine(trees, path.symbol)
                     .is_some_and(|index| trees.machines[index].has_structural_type_equations) =>
             {
@@ -213,8 +217,7 @@ pub(crate) fn complete(
         }
     }
     for (original, resolved) in &sources.statements {
-        let symbol_resolved_trees::statement::Statement::Call(call) =
-            trees.tables.declarations.state_statements.get(*resolved)
+        let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved)
         else {
             continue;
         };
@@ -226,8 +229,7 @@ pub(crate) fn complete(
             continue;
         }
         require_closed_selected_arguments(trees, &call.machine_arguments)?;
-        let syntax_trees::statement::StatementNode::Call(mut authored) =
-            syntax.statements.statement(*original).clone()
+        let StatementNode::Call(mut authored) = syntax.statements.statement(*original).clone()
         else {
             return Err(vec![Diagnostic::error(
                 "machine equation application lost its authored statement",
@@ -246,10 +248,9 @@ pub(crate) fn complete(
             selection,
             &mut completed_type_roots,
         )?;
-        syntax.statements.replace_statement(
-            *original,
-            syntax_trees::statement::StatementNode::Call(authored),
-        );
+        syntax
+            .statements
+            .replace_statement(*original, StatementNode::Call(authored));
     }
     // Completion may introduce nominal type applications after the compiler's
     // earlier data-normalization pass. Rejoin that same owner only after all
@@ -349,6 +350,11 @@ fn require_closed_selected_arguments(
         }
         visited.push(handle);
         match trees.child_type_reference(handle) {
+            TypeReference::AliasUse { expansion, .. } => {
+                if !argument_types::closed_type(trees, expansion) {
+                    return Err(reject());
+                }
+            }
             TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
                 if is_binder(*symbol) {
                     return Err(reject());
@@ -377,8 +383,7 @@ fn require_closed_selected_arguments(
                     .constraints
                     .span_or_empty(constrained.constraints)
                 {
-                    if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
-                    {
+                    if let TypeConstraint::Domain(domain) = constraint {
                         append_type_children(domain.arguments, &mut pending);
                     }
                 }
@@ -396,10 +401,7 @@ fn require_closed_selected_arguments(
     Ok(())
 }
 
-fn append_type_children(
-    span: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
-    pending: &mut Vec<Handle<symbol_resolved_trees::types::TypeReference>>,
-) {
+fn append_type_children(span: HandleSpan<TypeReference>, pending: &mut Vec<Handle<TypeReference>>) {
     pending.extend(span.handles());
 }
 
@@ -408,7 +410,7 @@ fn append_type_children(
 fn complete_authored_arguments(
     syntax: &mut SyntaxTrees,
     index: usize,
-    target: &syntax_trees::identifier::Identifier,
+    target: &Identifier,
     machine_arguments: &mut Box<[StaticMachineArgument]>,
     ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
     pending_diagnostics: &[Diagnostic],
@@ -427,7 +429,7 @@ fn complete_authored_arguments(
         selection,
     )
     .map_err(|error| {
-        std::iter::once(error)
+        once(error)
             .chain(pending_diagnostics.iter().cloned())
             .collect::<Vec<_>>()
     })?
@@ -510,10 +512,7 @@ fn supplied_const_argument_reference(
         let first = argument.path.first().ok_or_else(|| {
             Diagnostic::error("structural const argument lost its source selection")
         })?;
-        let name = syntax_trees::identifier::Identifier::new(
-            argument.path.joined_path_in(syntax),
-            first.source_span(),
-        );
+        let name = Identifier::new(argument.path.joined_path_in(syntax), first.source_span());
         return Ok(syntax
             .type_references
             .insert(TypeReferenceNode::Named(name)));
@@ -541,10 +540,7 @@ fn scalar_const_argument(
     let Some(first) = argument.path.first() else {
         return Err(reject("requires a selected scalar const argument"));
     };
-    let name = syntax_trees::identifier::Identifier::new(
-        argument.path.joined_path_in(syntax),
-        first.source_span(),
-    );
+    let name = Identifier::new(argument.path.joined_path_in(syntax), first.source_span());
     if let Some(value) = type_equations::normalized_boolean_argument(name.as_str(syntax)) {
         return Ok((
             CanonicalConstValue::boolean(value),
@@ -555,12 +551,9 @@ fn scalar_const_argument(
         reject("requires an unambiguous selected scalar const argument")
             .with_source_span(name.source_span())
     })?;
-    let value = super::generic_data::canonicalize_selected_declared_const_definition(
-        syntax,
-        &definition,
-        Some(selection),
-    )
-    .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?;
+    let value =
+        canonicalize_selected_declared_const_definition(syntax, &definition, Some(selection))
+            .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?;
     Ok((value, definition.type_reference))
 }
 
@@ -579,9 +572,9 @@ fn scalar_const_argument_reference(
             ));
         }
     };
-    Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-        syntax_trees::identifier::Identifier::generated(spelling),
-    )))
+    Ok(syntax
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated(spelling))))
 }
 
 /// The selected type slot determines how a static application is read.
@@ -617,12 +610,8 @@ fn application_argument_reference(
                 // canonical Boolean leaf. Its encoded payload is no authority
                 // to change carriers: compare the selected declaration first.
                 if declared_type.is_valid()
-                    && super::generic_data::closed_argument_identity(
-                        syntax,
-                        Some(selection),
-                        declared_type,
-                        false,
-                    ) != required_carrier
+                    && closed_argument_identity(syntax, Some(selection), declared_type, false)
+                        != required_carrier
                 {
                     return Err(reject(
                         "has a constructor argument with a different declared carrier",
@@ -631,9 +620,7 @@ fn application_argument_reference(
                 match value.decode_encoding() {
                     Some(DecodedCanonicalConstValue::Boolean(_)) if boolean => {}
                     Some(DecodedCanonicalConstValue::Integer { .. })
-                        if !boolean
-                            && type_equations::const_binder_envelope(carrier.as_str(syntax))
-                                .is_some() => {}
+                        if !boolean && const_binder_envelope(carrier.as_str(syntax)).is_some() => {}
                     Some(
                         DecodedCanonicalConstValue::Array { .. }
                         | DecodedCanonicalConstValue::Record { .. }
@@ -642,7 +629,7 @@ fn application_argument_reference(
                         let first = argument.path.first().ok_or_else(|| {
                             reject("lost its structural constructor argument selection")
                         })?;
-                        let name = syntax_trees::identifier::Identifier::new(
+                        let name = Identifier::new(
                             argument.path.joined_path_in(syntax),
                             first.source_span(),
                         );
@@ -667,13 +654,13 @@ fn application_argument_reference(
                 .ok_or_else(|| reject("requires a closed integer constructor argument"))?;
             if literal.landing().is_some_and(|landing| {
                 landing.landed_type.name() != carrier.as_str(syntax)
-                    || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    || landing.domain != ArithmeticDomain::Exact
             }) {
                 return Err(reject(
                     "has a constructor argument with a different integer meaning",
                 ));
             }
-            let (minimum, maximum) = type_equations::const_binder_envelope(carrier.as_str(syntax))
+            let (minimum, maximum) = const_binder_envelope(carrier.as_str(syntax))
                 .ok_or_else(|| reject("requires a builtin integer constructor parameter"))?;
             let value = literal
                 .value_bignum()
@@ -683,9 +670,11 @@ fn application_argument_reference(
                     "has a constructor constant outside its declared carrier",
                 ));
             }
-            Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-                syntax_trees::identifier::Identifier::generated(value.to_string()),
-            )))
+            Ok(syntax
+                .type_references
+                .insert(TypeReferenceNode::Named(Identifier::generated(
+                    value.to_string(),
+                ))))
         }
         TypeParameterKind::Type => {
             if argument.const_literal.is_some() {
@@ -697,10 +686,7 @@ fn application_argument_reference(
             let Some(first) = argument.path.first() else {
                 return Err(reject("requires a selected type name"));
             };
-            let name = syntax_trees::identifier::Identifier::new(
-                argument.path.joined_path_in(syntax),
-                first.source_span(),
-            );
+            let name = Identifier::new(argument.path.joined_path_in(syntax), first.source_span());
             let Some(application) = &argument.application else {
                 return Ok(syntax
                     .type_references

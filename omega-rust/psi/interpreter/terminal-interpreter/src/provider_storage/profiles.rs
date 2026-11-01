@@ -9,9 +9,11 @@
 //! neither backing nor resident content.
 
 use super::ProviderStorageBinding;
+use crate::effects::AdmittedBoundarySupply;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use access_plans::ValidatedResourceProfile;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralArgument, TerminalAccessLifecycleExecution};
 
@@ -41,13 +43,7 @@ impl TerminalExecution<'_> {
         plan: &terminal_psi::TerminalAccessLifecyclePlan,
         storage: &TerminalStructuralValue,
         profile: &TerminalStructuralValue,
-    ) -> Result<
-        (
-            ProviderStorageBinding,
-            access_plans::ValidatedResourceProfile,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(ProviderStorageBinding, ValidatedResourceProfile), TerminalInterpretError> {
         let TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(profile_type),
             profile_requirement: Some(requirement),
@@ -81,9 +77,7 @@ impl TerminalExecution<'_> {
             || completion.result_type != *profile_type
             || completion.boundary != requirement.boundary
             || self.boundary_supplies.get(&requirement.boundary).copied()
-                != Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(
-                    completion.provider,
-                ))
+                != Some(AdmittedBoundarySupply::CheckedProvider(completion.provider))
             || storage.structural_type != plan.storage.carrier
             || !storage.qualifications.contains(&plan.storage.granted)
             || content.is_some_and(|content| !storage.qualifications.contains(&content))

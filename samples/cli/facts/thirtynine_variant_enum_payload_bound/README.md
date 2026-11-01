@@ -116,3 +116,15 @@ The compiler strictly fails closed at compile time:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 39-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 - **Remaining Open**: None for this fact row. The nine places and nine reject twins are pinned under `tests/omega/{pass,fail}/facts` and recorded on three legs at base `9b001b8f6af` with the shared generation producer (`omega` sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, `corpus_runner` sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`): `corpus_outcomes.txt` 18 `checked … check-target:macos_arm64` pass rows and 18 `rejected … expected` fail rows carrying each twin's verbatim diagnostic, `corpus_native_macos_arm64.txt` 18 `built … exit:0` rows, `corpus_both_macos_arm64.txt` 18 `built … exit:0 interpreter-exit:0 interpreter:agrees` rows — 36/18/18, no timeout rows, additions only.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

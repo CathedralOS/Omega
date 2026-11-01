@@ -163,7 +163,7 @@ mod tests {
         EvidenceIdentity, EvidenceRoute, Obligation, ObligationClass, ObligationId,
         ProofSystemMarker, Proposition, PropositionContext, verify_obligation,
     };
-    use semantic_vocabulary::ProfileDecisionId;
+    use semantic_vocabulary::{ProfileDecisionId, PropositionId};
     fn obligation(proposition: Proposition, class: ObligationClass) -> Obligation {
         Obligation {
             id: ObligationId::new(1).expect("obligation identity"),
@@ -209,9 +209,7 @@ mod tests {
     #[test]
     fn admission_rejects_authority_substitution_and_receiver_acceptance() {
         let evidence = admission();
-        let proposition = Proposition::Atom(
-            semantic_vocabulary::PropositionId::new(6).expect("proposition identity"),
-        );
+        let proposition = Proposition::Atom(PropositionId::new(6).expect("proposition identity"));
         let authorized = AuthorizedAdmission {
             site: evidence.site,
             kind: evidence.kind,

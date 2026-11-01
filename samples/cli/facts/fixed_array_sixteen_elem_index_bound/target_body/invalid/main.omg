@@ -3,34 +3,53 @@
 // Invalid: all target bodies weaken the index bound to idx <= 16u64, so the index may exceed length 16.
 // Expected rejection: cannot prove index
 
-linux_x86_64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64
-{
-    values[idx]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64
-{
-    values[idx]
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64
-{
-    values[idx]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64
-{
-    values[idx]
+boundary trait SelectedReadElement {
+    machine read_element(values: [u64; 16], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx <= 16u64;
+}
+
+X86ReadElement satisfies SelectedReadElement {
+    machine read_element(values: [u64; 16], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx <= 16u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        values[idx]
+    }
+}
+
+ArmReadElement satisfies SelectedReadElement {
+    machine read_element(values: [u64; 16], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx <= 16u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        values[idx]
+    }
 }
 
 machine probe(values: [u64; 16], idx: u64) -> u64
     requires idx <= 16u64
 {
-    read_element(values, idx)
+    SelectedReadElement::read_element(values, idx)
 }
 
 machine main() crashes Trap {
@@ -45,4 +64,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

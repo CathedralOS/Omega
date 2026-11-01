@@ -1,5 +1,6 @@
 //! Proof-output calls, static requirement dispatch and runtime calls.
 
+use crate::machine_lowering::declarations::semantic_identity;
 use crate::proofs::evidence_lowering::evidence_terms::{
     evidence_term_index, lower_evidence_interface,
 };
@@ -13,6 +14,7 @@ use crate::proofs::{
     PropositionBinderArgumentIdentity, PropositionDeclaration, PropositionId,
     StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
+use crate::retention::checked_method_arguments;
 use terminal_psi::ProofOutputRuntimeResult;
 
 pub(crate) fn lower_proof_output_calls(
@@ -276,12 +278,7 @@ fn lower_static_requirement_dispatch(
         )? {
             expected_rows.push(terminal_psi::ClosedConformanceRow {
                 requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
-                    crate::machine_lowering::declarations::semantic_identity(
-                        identities,
-                        checked,
-                        row.requirement,
-                    )
-                    .map_err(|_| {
+                    semantic_identity(identities, checked, row.requirement).map_err(|_| {
                         LoweringError::Unsupported(
                             "conformance requirement lost its declaration owner",
                         )
@@ -354,11 +351,8 @@ fn lower_static_requirement_dispatch(
         .specialization_identities
         .for_instance(invocation.target_machine_symbol)
         .map(|identity| identity.commitment.as_bytes());
-    let expected_arguments = crate::retention::checked_method_arguments(
-        identities,
-        checked,
-        invocation.target_machine_symbol,
-    )?;
+    let expected_arguments =
+        checked_method_arguments(identities, checked, invocation.target_machine_symbol)?;
     let mut applications = application.static_applications.iter().filter(|applied| {
         applied.public_requirement_identity == identities.intern(&public_requirement_identity)
             && applied.realization_identity == identities.intern(&realization_identity)

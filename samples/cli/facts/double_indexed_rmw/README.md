@@ -148,3 +148,15 @@ The earlier macOS measurements above are historical; this cloud run did not
 execute `windows_x86_64`, `macos_arm64`, or `linux_arm64` images. The rest of PLACED-ACCESS-NATIVE-OPS — placed
 MMIO access and the wider address-composition frontier — is not established
 here.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

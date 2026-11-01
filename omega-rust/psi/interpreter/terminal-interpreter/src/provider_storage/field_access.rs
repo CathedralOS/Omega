@@ -26,6 +26,7 @@ use terminal_psi::{
     StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalAccessFieldPlan,
     TerminalAccessViewPlan, TerminalAccessorKind,
 };
+use terminal_semantics::reference_storage_byte_width;
 
 pub(crate) enum ProviderFieldContent<'view> {
     Resident,
@@ -90,8 +91,7 @@ impl TerminalExecution<'_> {
                 entry.key(),
                 projected.byte_offset,
                 u16::from(
-                    terminal_semantics::reference_storage_byte_width(projected.stored_scalar)
-                        .ok_or_else(malformed)?,
+                    reference_storage_byte_width(projected.stored_scalar).ok_or_else(malformed)?,
                 ) * 8,
                 operation.receiver_polarity(),
                 source_borrow,
@@ -188,8 +188,7 @@ impl TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                     "resident accessor requires a scalar value contract",
                 ))?;
-        let width =
-            terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?;
+        let width = reference_storage_byte_width(scalar).ok_or_else(malformed)?;
         let write = match (kind, arguments) {
             (TerminalAccessorKind::Read, []) => None,
             (TerminalAccessorKind::Write, [value])

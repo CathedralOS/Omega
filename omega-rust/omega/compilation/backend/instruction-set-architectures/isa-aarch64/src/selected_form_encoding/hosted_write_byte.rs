@@ -280,6 +280,7 @@ mod tests {
         validate_aarch64_selected_hosted_write_byte_form,
     };
     use crate::test_support::reject_every_bit_flip;
+    use register_model::RegisterViewId;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, SelectedInstructionKind,
@@ -301,21 +302,34 @@ mod tests {
             family: MachineAlternativeFamily::HostedWriteByteI32,
             variant: 0,
         };
+        let encode = |target, operands: &[RegisterViewId], displacement| {
+            encode_aarch64_selected_hosted_write_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+            )
+        };
+        let validate = |target, kind, operands: &[RegisterViewId], displacement, bytes: &[u8]| {
+            validate_aarch64_selected_hosted_write_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+                bytes,
+            )
+        };
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             for name in ["x0", "x1", "x2", "x8", "x9", "x16", "x28"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
                 // Both store reaches: the twelve-bit immediate, then `x1`
                 // page steps past 4 KiB and past 16 MiB.
                 for displacement in [0, 31, 4095, 4096, 16_777_223, 33_554_448] {
-                    let encoded = encode_aarch64_selected_hosted_write_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                    )
-                    .unwrap();
+                    let encoded = encode(target, &operands, displacement).unwrap();
                     assert_eq!(encoded.footprint().encoded, effects(target));
                     let other_target = if target == NativeTarget::linux_arm64() {
                         NativeTarget::macos_arm64()
@@ -324,90 +338,30 @@ mod tests {
                     };
                     assert!(decode(other_target, encoded.bytes()).is_none());
                     assert!(decode(NativeTarget::linux_x64(), encoded.bytes()).is_none());
-                    assert!(
-                        encode_aarch64_selected_hosted_write_byte_form(
-                            NativeTarget::linux_x64(),
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                        )
-                        .is_err()
-                    );
+                    assert!(encode(NativeTarget::linux_x64(), &operands, displacement).is_err());
                     assert!(encoded.footprint().register_writes.is_empty());
                     assert_eq!(
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
                     reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-                        validate_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &changed,
-                        )
-                        .is_err()
+                        validate(target, kind, &operands, displacement, &changed).is_err()
                     });
-                    assert!(
-                        validate_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement ^ 1,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        validate_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &encoded.bytes()[1..]
-                        )
-                        .is_err()
-                    );
+                    let rejects = |kind, displacement, bytes: &[u8]| {
+                        validate(target, kind, &operands, displacement, bytes).is_err()
+                    };
+                    assert!(rejects(kind, displacement ^ 1, encoded.bytes()));
+                    assert!(rejects(kind, displacement, &encoded.bytes()[1..]));
                     let mut trailing = encoded.bytes().to_vec();
                     trailing.push(0);
-                    assert!(
-                        validate_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &trailing
-                        )
-                        .is_err()
-                    );
+                    assert!(rejects(kind, displacement, &trailing));
                     let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
                         slot: LocalStorageSlotId::Structural {
                             operation: OperationId::new(7).unwrap(),
                             place: PlaceId::new(1).unwrap(),
                         },
                     };
-                    assert!(
-                        validate_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            wrong_slot,
-                            alternative,
-                            &operands,
-                            displacement,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
+                    assert!(rejects(wrong_slot, displacement, encoded.bytes()));
                     assert_eq!(
                         super::aarch64_hosted_write_byte_i32_byte_count(
                             target,
@@ -415,28 +369,8 @@ mod tests {
                         ),
                         Some(encoded.bytes().len())
                     );
-                    assert!(
-                        encode_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            i64::from(u32::MAX) + 1
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        encode_aarch64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement
-                        )
-                        .is_err()
-                    );
+                    assert!(encode(target, &operands, i64::from(u32::MAX) + 1).is_err());
+                    assert!(encode(target, &[], displacement).is_err());
                 }
             }
         }

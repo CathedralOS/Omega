@@ -7,11 +7,26 @@
 
 use crate::flow::expressions;
 use crate::places::place_at;
+use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::byte_predicates::byte_predicate_call;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
+use typed_trees::statement::{
+    StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
+use validation::CallFrameResolver;
+use validation::collection_length_receiver;
+use validation::exact_case_reference_owner;
+use validation::expression_traversal::children;
+use validation::expression_traversal::collect_expression_tree;
+use validation::expression_traversal::single_segment_name_symbol;
+use validation::expression_type_reference_in_state;
+use validation::frame_coordinate_path;
+use validation::frame_paths_overlap;
+use validation::has_builtin_decomposed_guard_meaning;
+use validation::reference_shell;
 
 /// One evaluated decision retained through its reaching Boolean definition.
 /// Its source statement selects the actual Flow read and receiver. The later
@@ -57,9 +72,9 @@ pub(crate) fn transition_guard_observations<'program>(
     machine: &'program Machine,
     state: &State,
     statement_index: usize,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &TableTransition,
     value: bool,
-    frames: &validation::CallFrameResolver<'program>,
+    frames: &CallFrameResolver<'program>,
 ) -> Option<Vec<(ExpressionHandle, bool)>> {
     let TransitionGuardNode::When(guard) = transition.guard else {
         return Some(Vec::new());
@@ -72,12 +87,12 @@ pub(crate) fn transition_guard_observations<'program>(
     let mut later_writes = Vec::new();
     if target.is_valid() {
         let operands = match program.statement_table.transition_target(target) {
-            typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
+            TransitionTargetNode::Named { arguments, .. } => program
                 .statement_table
                 .expression_handles(*arguments)
                 .to_vec(),
-            typed_trees::statement::TransitionTargetNode::Value(expression) => vec![*expression],
-            typed_trees::statement::TransitionTargetNode::Terminal => Vec::new(),
+            TransitionTargetNode::Value(expression) => vec![*expression],
+            TransitionTargetNode::Terminal => Vec::new(),
         };
         for operand in operands {
             later_writes.extend(
@@ -139,7 +154,7 @@ pub(crate) fn saved_guard_observations<'program>(
     guard: ExpressionHandle,
     value: bool,
     later_writes: &[String],
-    frames: Option<&validation::CallFrameResolver<'program>>,
+    frames: Option<&CallFrameResolver<'program>>,
 ) -> Vec<GuardObservation> {
     let Some(frames) = frames else {
         return Vec::new();
@@ -162,9 +177,7 @@ pub(crate) fn saved_guard_observations<'program>(
             continue;
         }
         visited.push((subject, polarity));
-        let Some(symbol) =
-            validation::expression_traversal::single_segment_name_symbol(program, subject)
-        else {
+        let Some(symbol) = single_segment_name_symbol(program, subject) else {
             continue;
         };
         if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Local {
@@ -242,7 +255,7 @@ fn reaching_capture<'program>(
     state: &State,
     statement_index: usize,
     symbol: SymbolHandle,
-    frames: &validation::CallFrameResolver<'program>,
+    frames: &CallFrameResolver<'program>,
 ) -> Option<(ExpressionHandle, usize, Vec<String>)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut writes = Vec::new();
@@ -309,7 +322,7 @@ fn reads_survive(
     statement_index: usize,
     expression: ExpressionHandle,
     writes: &[String],
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
 ) -> bool {
     if writes.is_empty() {
         return true;
@@ -321,31 +334,24 @@ fn reads_survive(
             continue;
         }
         if !reads_value {
-            let Some(reference) = validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                node,
-            ) else {
+            let Some(reference) =
+                expression_type_reference_in_state(program, state.symbol, statement_index, node)
+            else {
                 // Missing type information cannot prove an address path free
                 // of loaded reference descriptors. Keep the complete footprint.
-                validation::expression_traversal::collect_expression_tree(
-                    program, node, &mut nodes,
-                );
+                collect_expression_tree(program, node, &mut nodes);
                 continue;
             };
-            if let Some(reference) = validation::reference_shell(program, reference) {
+            if let Some(reference) = reference_shell(program, reference) {
                 let fixed_address = frames.expression_borrows_fixed_parameter_address(state, node)
-                    && validation::reference_shell(program, reference.referee).is_none();
+                    && reference_shell(program, reference.referee).is_none();
                 if !fixed_address {
                     // Loaded descriptors can be replaced through a different
                     // alias of their holder. A final referent resolved at this
                     // use would see the replacement, not the captured load.
                     // Retain complete base footprints across that boundary;
                     // maximal scalar leaf precision never authenticates a slot.
-                    validation::expression_traversal::collect_expression_tree(
-                        program, node, &mut nodes,
-                    );
+                    collect_expression_tree(program, node, &mut nodes);
                     continue;
                 }
             }
@@ -364,7 +370,7 @@ fn reads_survive(
                 pending.push((indexed.index, true));
             }
             ExpressionNode::Name(_) if !reads_value => {}
-            other => validation::expression_traversal::children(program, other, |child| {
+            other => children(program, other, |child| {
                 pending.push((child, true));
             }),
         }
@@ -375,7 +381,7 @@ fn reads_survive(
         // complete walk independently visits every computed operand.
         match program.expression_table.expression(node) {
             ExpressionNode::Name(path)
-                if validation::exact_case_reference_owner(program, node).is_some()
+                if exact_case_reference_owner(program, node).is_some()
                     || (path.symbol.is_valid()
                         && program.symbols.get(path.symbol).kind == SymbolKind::Const) =>
             {
@@ -389,11 +395,11 @@ fn reads_survive(
             _ => return true,
         }
         let place = place_at(program, state.symbol, statement_index, node);
-        let preserved = |root, segments: &[facts::PlaceSegment]| {
-            validation::frame_coordinate_path(program, root, segments).is_some_and(|path| {
+        let preserved = |root, segments: &[PlaceSegment]| {
+            frame_coordinate_path(program, root, segments).is_some_and(|path| {
                 writes
                     .iter()
-                    .all(|written| !validation::frame_paths_overlap(written, &path))
+                    .all(|written| !frame_paths_overlap(written, &path))
             })
         };
         if let Some(place) = place {
@@ -416,13 +422,8 @@ fn reads_survive(
                     return false;
                 }
                 ExpressionNode::Member(_)
-                    if validation::collection_length_receiver(
-                        program,
-                        machine,
-                        Some(state),
-                        node,
-                    )
-                    .is_none() =>
+                    if collection_length_receiver(program, machine, Some(state), node)
+                        .is_none() =>
                 {
                     return false;
                 }
@@ -437,51 +438,43 @@ fn reads_survive(
         // owner's complete prefix read footprints, including shared and field loans.
         // A coarse window footprint can invalidate an observation, but cannot
         // establish exact referent identity or predicate equality.
-        let reference = validation::expression_type_reference_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            node,
-        );
+        let reference =
+            expression_type_reference_in_state(program, state.symbol, statement_index, node);
         let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
             return false;
         };
-        let reads = if reference
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-        {
-            frames.reference_expression_read_paths_before_statement(machine, statement, node)
-        } else if matches!(
-            program.expression_table.expression(node),
-            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-        ) {
-            // The same borrowable-place origin query accepts scalar leaves by
-            // implicit borrow. Normalize the leaf, not its reference-valued base:
-            // a write through another loan must still invalidate this observation.
-            // A builtin extent has no declared field; its collection supplies a
-            // conservative footprint, never an exact descriptor/value identity.
-            let source =
-                validation::collection_length_receiver(program, machine, Some(state), node)
-                    .unwrap_or(node);
-            frames
-                .reference_expression_origins_before_statement(machine, statement, source)
-                .and_then(|origins| {
-                    origins
-                        .into_iter()
-                        .map(|(root, segments)| {
-                            validation::frame_coordinate_path(program, root, &segments)
-                        })
-                        .collect()
-                })
-        } else {
-            return true;
-        };
+        let reads =
+            if reference.is_some_and(|reference| reference_shell(program, reference).is_some()) {
+                frames.reference_expression_read_paths_before_statement(machine, statement, node)
+            } else if matches!(
+                program.expression_table.expression(node),
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+            ) {
+                // The same borrowable-place origin query accepts scalar leaves by
+                // implicit borrow. Normalize the leaf, not its reference-valued base:
+                // a write through another loan must still invalidate this observation.
+                // A builtin extent has no declared field; its collection supplies a
+                // conservative footprint, never an exact descriptor/value identity.
+                let source =
+                    collection_length_receiver(program, machine, Some(state), node).unwrap_or(node);
+                frames
+                    .reference_expression_origins_before_statement(machine, statement, source)
+                    .and_then(|origins| {
+                        origins
+                            .into_iter()
+                            .map(|(root, segments)| frame_coordinate_path(program, root, &segments))
+                            .collect()
+                    })
+            } else {
+                return true;
+            };
         let Some(reads) = reads else {
             return false;
         };
         reads.iter().all(|read| {
             writes
                 .iter()
-                .all(|written| !validation::frame_paths_overlap(written, read))
+                .all(|written| !frame_paths_overlap(written, read))
         })
     })
 }
@@ -501,7 +494,7 @@ pub(super) fn guard_observations(
     match program.expression_table.expression(expression) {
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::LogicalNot
-                && validation::has_builtin_decomposed_guard_meaning(
+                && has_builtin_decomposed_guard_meaning(
                     program,
                     machine,
                     Some(state),
@@ -523,7 +516,7 @@ pub(super) fn guard_observations(
             if matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && validation::has_builtin_decomposed_guard_meaning(
+            ) && has_builtin_decomposed_guard_meaning(
                 program,
                 machine,
                 Some(state),
@@ -560,40 +553,35 @@ pub(super) fn expression_is_stable_predicate(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| expression_is_stable_predicate(program, field.value)),
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_stable_predicate(program, *value)),
-        ExpressionNode::Member(member) => expression_is_stable_predicate(program, member.receiver),
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_stable_predicate(program, indexed.collection)
-                && expression_is_stable_predicate(program, indexed.index)
-        }
-        ExpressionNode::Unary(unary) => expression_is_stable_predicate(program, unary.operand),
-        ExpressionNode::Binary(binary) => {
-            expression_is_stable_predicate(program, binary.left)
-                && expression_is_stable_predicate(program, binary.right)
-        }
-        ExpressionNode::Borrow(borrow) => expression_is_stable_predicate(program, borrow.target),
-        // A selected primitive observation is repeatable while its operand
-        // storage is preserved. Observation contexts retain those operand
-        // places, so ordinary alias-aware invalidation owns both polarities.
-        ExpressionNode::Call(_) => {
-            typed_trees::byte_predicates::byte_predicate_call(program, expression)
-                .is_some_and(|(_, operand)| expression_is_stable_predicate(program, operand))
-        }
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    !program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |handle, node| {
+            match node {
+                ExpressionNode::Name(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::ZeroValue(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Binary(_)
+                | ExpressionNode::Borrow(_) => SubtreeVisit::Descend,
+                // A selected primitive observation is repeatable while its operand
+                // storage is preserved. Observation contexts retain those operand
+                // places, so ordinary alias-aware invalidation owns both polarities.
+                ExpressionNode::Call(_) => byte_predicate_call(program, handle)
+                    .map_or(SubtreeVisit::Found, |(_, operand)| {
+                        SubtreeVisit::Instead(operand)
+                    }),
+                _ => SubtreeVisit::Found,
+            }
+        },
+    )
 }

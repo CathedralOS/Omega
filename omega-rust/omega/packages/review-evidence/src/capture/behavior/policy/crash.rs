@@ -6,8 +6,9 @@ use crate::capture::contracts::{
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
-    PackagePolicyInferredCrash, PackageReviewCrashInterface,
+    PackagePolicyInferredCrash, PackageReviewCrashCause, PackageReviewCrashInterface,
 };
+use checked_trees::CrashInterface;
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -17,6 +18,7 @@ use typed_trees::{
     signature::{CrashCause, SignatureContractKind},
     state::State,
 };
+use typed_trees_to_checked_trees::derive_authored_machine_crash_buckets;
 
 pub(crate) fn crash(
     compilation: &PackageReviewInput<'_>,
@@ -30,11 +32,8 @@ pub(crate) fn crash(
     let plan = machine_contract_plan(compilation.program, machine)?;
     // Concrete machines own a MachineContractPlan. Separate capsules belong
     // only to trait/static signatures, as in the checked call-target owner.
-    let derived = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
-        compilation.checking_input,
-        machine,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let derived = derive_authored_machine_crash_buckets(compilation.checking_input, machine)
+        .map_err(|diagnostic| vec![diagnostic])?;
     validate_crash_publication(compilation, machine, plan, &derived)?;
     if envelope.machine != machine.symbol
         || compilation
@@ -83,12 +82,8 @@ pub(crate) fn crash(
     }
     Ok(PackagePolicyCrash {
         interface: match plan.crash.interface() {
-            checked_trees::CrashInterface::InternalInferred => {
-                PackageReviewCrashInterface::InternalInferred
-            }
-            checked_trees::CrashInterface::PublishedCeiling => {
-                PackageReviewCrashInterface::PublishedCeiling
-            }
+            CrashInterface::InternalInferred => PackageReviewCrashInterface::InternalInferred,
+            CrashInterface::PublishedCeiling => PackageReviewCrashInterface::PublishedCeiling,
         },
         published,
         structural_runtime_requirements: plan
@@ -109,12 +104,8 @@ pub(crate) fn crash(
                 causes: causes
                     .iter()
                     .map(|cause| match cause {
-                        checked_trees::CrashCause::Trap => {
-                            crate::record::PackageReviewCrashCause::Trap
-                        }
-                        checked_trees::CrashCause::Abort => {
-                            crate::record::PackageReviewCrashCause::Abort
-                        }
+                        checked_trees::CrashCause::Trap => PackageReviewCrashCause::Trap,
+                        checked_trees::CrashCause::Abort => PackageReviewCrashCause::Abort,
                     })
                     .collect(),
             }
@@ -150,11 +141,9 @@ fn validate_crash_publication(
         "family head declaration custody",
     )?;
     let original_head = machine_contract_plan(compilation.custody, original_machine)?;
-    let original_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
-        compilation.custody_checking_input,
-        original_machine,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let original_authored =
+        derive_authored_machine_crash_buckets(compilation.custody_checking_input, original_machine)
+            .map_err(|diagnostic| vec![diagnostic])?;
     if plan.crash != original_head.crash
         || plan.commitment != original_head.commitment
         || authored != original_authored
@@ -166,11 +155,9 @@ fn validate_crash_publication(
     for member in members {
         let checked = machine_contract_plan(compilation.program, member)?;
         let original = machine_contract_plan(compilation.custody, member)?;
-        let member_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
-            compilation.checking_input,
-            member,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let member_authored =
+            derive_authored_machine_crash_buckets(compilation.checking_input, member)
+                .map_err(|diagnostic| vec![diagnostic])?;
         if member_authored != checked.crash.published()
             || checked.crash != original.crash
             || checked.commitment != original.commitment

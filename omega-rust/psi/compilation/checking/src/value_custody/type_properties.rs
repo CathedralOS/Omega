@@ -4,6 +4,7 @@
 //! different rows concurrently; recursion stays within the domain's fresh walk,
 //! not a shared stack or a partially initialized answer from another root.
 
+use crate::CheckingInput;
 use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 use std::sync::OnceLock;
 use symbols::SymbolHandle;
@@ -14,7 +15,7 @@ pub(crate) struct ClaimFrontierQueries {
 }
 
 impl ClaimFrontierQueries {
-    fn of(program: &dyn crate::CheckingInput) -> Self {
+    fn of(program: &dyn CheckingInput) -> Self {
         let mut rows: Vec<_> = program
             .type_reference_table
             .type_reference_rows()
@@ -26,7 +27,7 @@ impl ClaimFrontierQueries {
 }
 
 pub(crate) fn memoized_claim_frontier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     let compute = || super::claim_frontier::linear_claim_frontier_uncached(program, type_reference);
@@ -45,10 +46,7 @@ pub(crate) fn memoized_claim_frontier(
     queries.rows[position].1.get_or_init(compute).clone()
 }
 
-pub(crate) fn memoized_owns_drop_hook(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> bool {
+pub(crate) fn memoized_owns_drop_hook(program: &dyn CheckingInput, symbol: SymbolHandle) -> bool {
     program.attached_drop_machine_exists(symbol)
 }
 
@@ -58,7 +56,7 @@ pub(crate) struct EstablishmentQueries {
 }
 
 impl EstablishmentQueries {
-    fn of(program: &dyn crate::CheckingInput) -> Self {
+    fn of(program: &dyn CheckingInput) -> Self {
         let mut identities = program
             .data_definitions()
             .iter()
@@ -83,7 +81,7 @@ impl EstablishmentQueries {
 }
 
 pub(crate) fn memoized_type_requires_establishment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
     compute: impl FnOnce() -> bool,
 ) -> bool {
@@ -103,7 +101,7 @@ pub(crate) fn memoized_type_requires_establishment(
 }
 
 pub(crate) fn memoized_data_requires_establishment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     compute: impl FnOnce() -> bool,
 ) -> bool {

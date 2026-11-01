@@ -1,11 +1,27 @@
+use crate::unit_validation::function_structure::whole_source_predicates;
 use crate::unit_validation::structural_catalog::{
     resolve_runtime_projection, resolve_structural_path,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
+use abstract_operations::StructuralCallFormal;
+use abstract_operations::element_view_or_byte_subslice_pattern;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralDomainDeclaration;
+use terminal_psi::StructuralOperationResult;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathQualification;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::TerminalIdentityTable;
+use terminal_semantics::borrowed_referent_matches;
+use terminal_semantics::byte_parameter_predicates_in;
+use terminal_semantics::descriptor_results::PayloadMembershipContract;
+use terminal_semantics::reference_preserves_ancestor_qualifications;
 use terminal_semantics::structural_paths_may_overlap;
 
 mod descriptor_access;
@@ -23,14 +39,14 @@ pub(crate) struct StructuralSourceContract<'a> {
     place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
-    pub(crate) access: terminal_psi::StructuralAccess,
+    pub(crate) access: StructuralAccess,
     qualifications: &'a [StructuralDomainId],
-    projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
-    operation_result: Option<&'a terminal_psi::StructuralOperationResult>,
+    projected_qualifications: &'a [StructuralPathQualification],
+    operation_result: Option<&'a StructuralOperationResult>,
 }
 
 impl StructuralSourceContract<'_> {
-    pub(crate) fn operation_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
+    pub(crate) fn operation_result(&self) -> Option<&StructuralOperationResult> {
         self.operation_result
     }
 
@@ -39,8 +55,8 @@ impl StructuralSourceContract<'_> {
     /// access; this ceiling applies before selecting any element of the view.
     pub(crate) fn backing_access<'types>(
         &self,
-        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
-    ) -> Option<terminal_psi::StructuralAccess> {
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    ) -> Option<StructuralAccess> {
         descriptor_access::backing_access(self.caller, self.place, types)
     }
 
@@ -48,16 +64,16 @@ impl StructuralSourceContract<'_> {
     /// requiring referent authority use the typed backing_access query above.
     fn claimed_backing_access<'types>(
         &self,
-        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
-    ) -> terminal_psi::StructuralAccess {
-        if self.access == terminal_psi::StructuralAccess::Owned
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    ) -> StructuralAccess {
+        if self.access == StructuralAccess::Owned
             && let Some(result) = self.operation_result
             && let Some(access) =
                 terminal_semantics::descriptor_results::result_access(types.clone(), result)
         {
             return access;
         }
-        if self.access == terminal_psi::StructuralAccess::Owned
+        if self.access == StructuralAccess::Owned
             && let Some(access) = terminal_semantics::descriptor_results::descriptor_value_access(
                 types,
                 self.structural_type,
@@ -70,10 +86,8 @@ impl StructuralSourceContract<'_> {
         }
     }
 
-    pub(crate) fn payload_contract(
-        &self,
-    ) -> terminal_semantics::descriptor_results::PayloadMembershipContract {
-        terminal_semantics::descriptor_results::PayloadMembershipContract {
+    pub(crate) fn payload_contract(&self) -> PayloadMembershipContract {
+        PayloadMembershipContract {
             scalar_observations: Vec::new(),
             scalar_requirements: Vec::new(),
             carrier: self.structural_type,
@@ -92,7 +106,7 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn declared_byte_predicates(
         &self,
-        domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+        domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     ) -> Option<terminal_psi::ByteSequencePredicateSet> {
         if !self.projected_qualifications.is_empty() || self.has_result_evidence() {
             return None;
@@ -116,18 +130,15 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn carries_qualification(
         &self,
-        path: &[terminal_psi::StructuralPathSegment],
+        path: &[StructuralPathSegment],
         domain: StructuralDomainId,
     ) -> bool {
         if path.is_empty() {
             self.qualifications.contains(&domain)
         } else {
             self.projected_qualifications.iter().any(|qualification| {
-                terminal_psi::StructuralPathQualification::selected_suffix(
-                    &qualification.path,
-                    path,
-                )
-                .is_some_and(|suffix| suffix.is_empty())
+                StructuralPathQualification::selected_suffix(&qualification.path, path)
+                    .is_some_and(|suffix| suffix.is_empty())
                     && qualification.domain == domain
             })
         }
@@ -135,10 +146,7 @@ impl StructuralSourceContract<'_> {
 
     /// A restoration window must retain every selected membership and may
     /// not open only part of an ancestor-qualified invariant.
-    pub(crate) fn memberships_disjoint_from_write(
-        &self,
-        path: &[terminal_psi::StructuralPathSegment],
-    ) -> bool {
+    pub(crate) fn memberships_disjoint_from_write(&self, path: &[StructuralPathSegment]) -> bool {
         terminal_semantics::structural_memberships_disjoint_from_write(
             self.qualifications,
             self.projected_qualifications,
@@ -148,12 +156,9 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn restorable_qualifications(
         &self,
-        path: &[terminal_psi::StructuralPathSegment],
-    ) -> Option<(
-        Vec<StructuralDomainId>,
-        Vec<terminal_psi::StructuralPathQualification>,
-    )> {
-        terminal_psi::StructuralPathQualification::select_restorable(
+        path: &[StructuralPathSegment],
+    ) -> Option<(Vec<StructuralDomainId>, Vec<StructuralPathQualification>)> {
+        StructuralPathQualification::select_restorable(
             self.qualifications,
             self.projected_qualifications,
             path,
@@ -165,9 +170,9 @@ impl StructuralSourceContract<'_> {
     /// A destination may forget memberships, but cannot add one.
     pub(crate) fn supplies_qualifications(
         &self,
-        path: &[terminal_psi::StructuralPathSegment],
+        path: &[StructuralPathSegment],
         required: &[StructuralDomainId],
-        projected: &[terminal_psi::StructuralPathQualification],
+        projected: &[StructuralPathQualification],
     ) -> bool {
         required
             .iter()
@@ -181,13 +186,13 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn reference_ancestor_qualifications_preserved<'types>(
         &self,
-        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
-        domains: impl Iterator<Item = &'types terminal_psi::StructuralDomainDeclaration> + Clone,
-        identities: &terminal_psi::TerminalIdentityTable,
-        path: &[terminal_psi::StructuralPathSegment],
-        access: terminal_psi::StructuralAccess,
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'types StructuralDomainDeclaration> + Clone,
+        identities: &TerminalIdentityTable,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
     ) -> bool {
-        terminal_semantics::reference_preserves_ancestor_qualifications(
+        reference_preserves_ancestor_qualifications(
             types,
             domains,
             identities,
@@ -200,15 +205,15 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn reference_memberships<'types>(
         &self,
-        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
-        domains: impl Iterator<Item = &'types terminal_psi::StructuralDomainDeclaration> + Clone,
-        identities: &terminal_psi::TerminalIdentityTable,
-        path: &[terminal_psi::StructuralPathSegment],
-        access: terminal_psi::StructuralAccess,
-        reference: semantic_vocabulary::StructuralTypeId,
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'types StructuralDomainDeclaration> + Clone,
+        identities: &TerminalIdentityTable,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+        reference: StructuralTypeId,
         storage: Option<&terminal_psi::ReferenceStorageView>,
-    ) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
-        if !terminal_semantics::reference_preserves_ancestor_qualifications(
+    ) -> Result<Vec<StructuralPathQualification>, &'static str> {
+        if !reference_preserves_ancestor_qualifications(
             types.clone(),
             domains,
             identities,
@@ -233,12 +238,9 @@ impl StructuralSourceContract<'_> {
 
     pub(crate) fn selected_qualifications(
         &self,
-        path: &[terminal_psi::StructuralPathSegment],
-    ) -> (
-        Vec<StructuralDomainId>,
-        Vec<terminal_psi::StructuralPathQualification>,
-    ) {
-        terminal_psi::StructuralPathQualification::select(
+        path: &[StructuralPathSegment],
+    ) -> (Vec<StructuralDomainId>, Vec<StructuralPathQualification>) {
+        StructuralPathQualification::select(
             self.qualifications,
             self.projected_qualifications,
             path,
@@ -250,8 +252,8 @@ impl StructuralSourceContract<'_> {
     /// call nor a state edge can erase those obligations by changing carriers.
     pub(crate) fn borrowed_qualifications_match(
         &self,
-        path: &[terminal_psi::StructuralPathSegment],
-        parameter: &terminal_psi::StructuralParameterDeclaration,
+        path: &[StructuralPathSegment],
+        parameter: &StructuralParameterDeclaration,
     ) -> bool {
         let (whole, projected) = self.selected_qualifications(path);
         parameter
@@ -262,7 +264,7 @@ impl StructuralSourceContract<'_> {
                 .projected_qualifications
                 .iter()
                 .all(|row| projected.contains(row))
-            && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && (parameter.access == StructuralAccess::SharedBorrow
                 || (whole
                     .iter()
                     .all(|domain| parameter.qualifications.contains(domain))
@@ -275,14 +277,14 @@ impl StructuralSourceContract<'_> {
 pub(crate) fn structural_arguments_match<'declaration, Formal>(
     caller: &PsiOptimizationFunction,
     consumer: Option<semantic_vocabulary::OperationId>,
-    arguments: &[terminal_psi::StructuralArgument],
+    arguments: &[StructuralArgument],
     parameters: &'declaration [Formal],
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     projection: StructuralProjectionPolicy,
 ) -> bool
 where
-    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+    StructuralCallFormal<'declaration>: From<&'declaration Formal>,
 {
     structural_arguments_match_at_invocation(
         caller,
@@ -298,25 +300,25 @@ where
 pub(crate) fn structural_arguments_match_at_invocation<'declaration, Formal>(
     caller: &PsiOptimizationFunction,
     consumer: Option<semantic_vocabulary::InvocationSite>,
-    arguments: &[terminal_psi::StructuralArgument],
+    arguments: &[StructuralArgument],
     parameters: &'declaration [Formal],
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     projection: StructuralProjectionPolicy,
 ) -> bool
 where
-    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+    StructuralCallFormal<'declaration>: From<&'declaration Formal>,
 {
     if arguments.len() != parameters.len() {
         return false;
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
-        let formal = abstract_operations::StructuralCallFormal::from(parameter);
+        let formal = StructuralCallFormal::from(parameter);
         // The borrowed formal owns only the expected shape. Legacy geometry
         // queries take a declaration, but never inspect its place: associate
         // that scratch shape with the actual caller home, not a fictional
         // callee home. Source authority still comes from structural_source_contract.
-        let parameter = &terminal_psi::StructuralParameterDeclaration {
+        let parameter = &StructuralParameterDeclaration {
             place: argument.place,
             position: formal.position,
             structural_type: formal.structural_type,
@@ -331,9 +333,9 @@ where
         let case_projection = argument
             .path
             .iter()
-            .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)));
+            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)));
         if case_projection
-            && (argument.access == terminal_psi::StructuralAccess::Owned
+            && (argument.access == StructuralAccess::Owned
                 || matches!(projection, StructuralProjectionPolicy::Boundary))
         {
             return false;
@@ -372,7 +374,7 @@ where
                 row.shape,
                 terminal_psi::StructuralTypeShape::ElementView { .. }
             )
-        }) && argument.access != terminal_psi::StructuralAccess::Owned
+        }) && argument.access != StructuralAccess::Owned
             && (source.backing_access(types.values().copied()).is_none()
                 || !terminal_semantics::descriptor_source_projection_accessible(
                     types.values().copied(),
@@ -385,7 +387,7 @@ where
         {
             return false;
         }
-        let borrowed_owner_expected = parameter.access != terminal_psi::StructuralAccess::Owned
+        let borrowed_owner_expected = parameter.access != StructuralAccess::Owned
             && types
                 .get(&parameter.structural_type)
                 .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
@@ -398,7 +400,7 @@ where
             // Arrivals supply authenticated entry obligations. A completed
             // owned value instead needs its current content derivation below;
             // its advertised qualifications alone cannot establish membership.
-            && (((source.access != terminal_psi::StructuralAccess::Owned
+            && (((source.access != StructuralAccess::Owned
                 || !argument.path.is_empty()
                 || caller.arrival_parameter(argument.place).is_some_and(|arrival| {
                     abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
@@ -409,7 +411,7 @@ where
                 && terminal_semantics::bounded_byte_owner_capacity_in(
                 types.values().copied(),
                 domains.values().copied(),
-                &terminal_psi::StructuralParameterDeclaration {
+                &StructuralParameterDeclaration {
                     place: argument.place,
                     position: parameter.position,
                     structural_type: source.structural_type,
@@ -429,10 +431,7 @@ where
         // A projection through a reference carrier names the carrier's exact
         // primitive referent, never a byte of the carrier itself. This mirrors
         // the verified call rule: internal calls only, exact parameter match.
-        if argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-        {
+        if argument.path.contains(&StructuralPathSegment::Referent) {
             let selected =
                 crate::unit_validation::references::call_source_type(caller, types, argument);
             // Crossing a descriptor changes coordinates, not the call's
@@ -443,7 +442,7 @@ where
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && (bounded_owner_presentation
                     || (selected.is_some_and(|actual| {
-                        terminal_semantics::borrowed_referent_matches(
+                        borrowed_referent_matches(
                             types.values().copied(),
                             actual,
                             parameter.structural_type,
@@ -457,15 +456,15 @@ where
         // Moving or exclusively lending a descriptor does not own its referent. Keep obligations
         // below exclusive pointer boundaries even when the receiving aggregate
         // would otherwise be allowed to forget ordinary value memberships.
-        if argument.access != terminal_psi::StructuralAccess::SharedBorrow
-            && parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+        if argument.access != StructuralAccess::SharedBorrow
+            && parameter.access != StructuralAccess::SharedBorrow
         {
             let (_, selected) = source.selected_qualifications(&argument.path);
             for row in selected {
                 let Some(crossing) = row
                     .path
                     .iter()
-                    .position(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)
+                    .position(|segment| *segment == StructuralPathSegment::Referent)
                 else {
                     continue;
                 };
@@ -480,7 +479,7 @@ where
                     !matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference {
-                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                            access: StructuralAccess::SharedBorrow,
                             ..
                         }
                     )
@@ -493,7 +492,7 @@ where
         // Moving a carrier remains a custody operation. Lending payload must
         // also fit the backing permission; Owned is not permission to mutate
         // through a returned or copied shared descriptor.
-        if argument.access != terminal_psi::StructuralAccess::Owned
+        if argument.access != StructuralAccess::Owned
             && !source
                 .backing_access(types.values().copied())
                 .is_some_and(|access| structural_access_can_supply(access, argument.access))
@@ -508,34 +507,34 @@ where
             && matches!(
                 (source.access, argument.access),
                 (
-                    terminal_psi::StructuralAccess::MutableBorrow,
-                    terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow
-                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
                 ) | (
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                    terminal_psi::StructuralAccess::SharedBorrow
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow
                 ) | (
-                    terminal_psi::StructuralAccess::WriteOnlyBorrow,
-                    terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    StructuralAccess::WriteOnlyBorrow,
+                    StructuralAccess::WriteOnlyBorrow
                 ) | (
-                    terminal_psi::StructuralAccess::Owned,
-                    terminal_psi::StructuralAccess::MutableBorrow
-                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        | terminal_psi::StructuralAccess::SharedBorrow
+                    StructuralAccess::Owned,
+                    StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                        | StructuralAccess::SharedBorrow
                 )
             )
             && argument.path.iter().all(|segment| match segment {
-                terminal_psi::StructuralPathSegment::Field(identity) => {
+                StructuralPathSegment::Field(identity) => {
                     *identity != terminal_psi::TerminalIdentityIndex::ABSENT
                 }
-                terminal_psi::StructuralPathSegment::FixedIndex(_)
-                | terminal_psi::StructuralPathSegment::Case(_)
-                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
-                terminal_psi::StructuralPathSegment::AllElements
-                | terminal_psi::StructuralPathSegment::Referent
-                | terminal_psi::StructuralPathSegment::RepresentationView { .. }
-                | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
+                StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::RuntimeIndex { .. } => true,
+                StructuralPathSegment::AllElements
+                | StructuralPathSegment::Referent
+                | StructuralPathSegment::RepresentationView { .. }
+                | StructuralPathSegment::FixedByteRange { .. } => false,
             });
         let path_shape_matches = match projection {
             StructuralProjectionPolicy::Unit => {
@@ -544,20 +543,19 @@ where
                     || is_nonempty_field_path(&argument.path)
                     || matches!(
                         argument.path.as_slice(),
-                        [terminal_psi::StructuralPathSegment::FixedIndex(_)]
+                        [StructuralPathSegment::FixedIndex(_)]
                             | [
-                                terminal_psi::StructuralPathSegment::FixedIndex(_),
-                                terminal_psi::StructuralPathSegment::FixedIndex(_),
+                                StructuralPathSegment::FixedIndex(_),
+                                StructuralPathSegment::FixedIndex(_),
                             ]
                     )
-                    || (source.access == terminal_psi::StructuralAccess::Owned
-                        && argument.access == terminal_psi::StructuralAccess::Owned
+                    || (source.access == StructuralAccess::Owned
+                        && argument.access == StructuralAccess::Owned
                         && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && is_partial_affine_path(types, source.structural_type, &argument.path))
             }
-            StructuralProjectionPolicy::Projected => true,
-            StructuralProjectionPolicy::Boundary => true,
+            StructuralProjectionPolicy::Projected | StructuralProjectionPolicy::Boundary => true,
         };
         // Borrowing lends completed storage without transferring carried permissions.
         let completed_result = source.operation_result.is_some_and(|result| {
@@ -574,15 +572,15 @@ where
         let completed_affine_result =
             completed_result && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let unrestricted_mutable_subloan = static_borrowed_path
-            && argument.access == terminal_psi::StructuralAccess::MutableBorrow
-            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-            && source.access == terminal_psi::StructuralAccess::MutableBorrow
+            && argument.access == StructuralAccess::MutableBorrow
+            && parameter.access == StructuralAccess::MutableBorrow
+            && source.access == StructuralAccess::MutableBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         let unrestricted_shared_subloan = (is_nonempty_field_path(&argument.path)
             || static_borrowed_path)
-            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
-            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && argument.access == StructuralAccess::SharedBorrow
+            && parameter.access == StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         // A live view binding lends its descriptor or a viewed element: its
@@ -590,11 +588,10 @@ where
         // exactly like a parameter subloan — even when the view result
         // itself is affine (a mutable establishment's result is Affine, not
         // Unrestricted, yet nothing moves when the view is borrowed).
-        let view_loan = argument.access != terminal_psi::StructuralAccess::Owned
+        let view_loan = argument.access != StructuralAccess::Owned
             && matches!(
                 source.access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
             )
             && types
                 .get(&source.structural_type)
@@ -652,11 +649,8 @@ where
                 parameter,
             )
             .is_some_and(|declared| {
-                terminal_semantics::byte_parameter_predicates_in(
-                    domains.values().copied(),
-                    parameter,
-                )
-                .is_some_and(|required| declared.implies(required))
+                byte_parameter_predicates_in(domains.values().copied(), parameter)
+                    .is_some_and(|required| declared.implies(required))
             });
         let byte_field_presentation =
             buffer_presentation || shared_buffer_presentation || view_field_presentation;
@@ -666,7 +660,7 @@ where
         // Scalar-result and dynamic calls lend the same window a Unit or
         // boundary call does: the borrowed subloan shape is identical and a
         // scalar or dispatched result carries no custody of the backing.
-        let presents_fixed_array = |actual: &terminal_psi::StructuralParameterDeclaration| {
+        let presents_fixed_array = |actual: &StructuralParameterDeclaration| {
             terminal_semantics::fixed_byte_array_loan(
                 types.values().copied(),
                 domains.values().copied(),
@@ -692,7 +686,7 @@ where
                 | StructuralProjectionPolicy::Projected
                 | StructuralProjectionPolicy::Boundary
         ) && !source.has_result_evidence()
-            && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {
+            && presents_fixed_array(&StructuralParameterDeclaration {
                 place: argument.place,
                 position: parameter.position,
                 structural_type: source.structural_type,
@@ -713,19 +707,16 @@ where
         // membership annotations. Partial loans cannot discard an ancestor.
         if matches!(
             argument.access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         ) && types
             .get(&source.structural_type)
             .is_some_and(|declaration| declaration.shape.is_composite_shape())
         {
-            let Some((whole, projected)) =
-                terminal_psi::StructuralPathQualification::select_restorable(
-                    source.qualifications,
-                    source.projected_qualifications,
-                    &argument.path,
-                )
-            else {
+            let Some((whole, projected)) = StructuralPathQualification::select_restorable(
+                source.qualifications,
+                source.projected_qualifications,
+                &argument.path,
+            ) else {
                 return false;
             };
             // A byte-field loan has its own exact, bidirectional predicate
@@ -738,23 +729,22 @@ where
                 return false;
             }
         }
-        let actual_type = if argument.access == parameter.access
-            && argument.access != terminal_psi::StructuralAccess::Owned
-        {
-            terminal_semantics::borrowed_primitive_projection_declaration(
-                types.values().copied(),
-                source.structural_type,
-                &argument.path,
-                Some(parameter.structural_type),
-            )
-        } else {
-            None
-        }
-        .or_else(|| resolve_runtime_projection(types, source.structural_type, &argument.path));
+        let actual_type =
+            if argument.access == parameter.access && argument.access != StructuralAccess::Owned {
+                terminal_semantics::borrowed_primitive_projection_declaration(
+                    types.values().copied(),
+                    source.structural_type,
+                    &argument.path,
+                    Some(parameter.structural_type),
+                )
+            } else {
+                None
+            }
+            .or_else(|| resolve_runtime_projection(types, source.structural_type, &argument.path));
         let type_matches = actual_type.is_some_and(|actual| {
             actual == parameter.structural_type
-                || (argument.access != terminal_psi::StructuralAccess::Owned
-                    && terminal_semantics::borrowed_referent_matches(
+                || (argument.access != StructuralAccess::Owned
+                    && borrowed_referent_matches(
                         types.values().copied(),
                         actual,
                         parameter.structural_type,
@@ -772,9 +762,9 @@ where
         // the parameter's type, so inline byte-field presentations — which
         // resolve to no standalone type — stay borrowed-parent forms.
         let unrestricted_owned_mutable_subloan = static_borrowed_path
-            && argument.access == terminal_psi::StructuralAccess::MutableBorrow
-            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-            && source.access == terminal_psi::StructuralAccess::Owned
+            && argument.access == StructuralAccess::MutableBorrow
+            && parameter.access == StructuralAccess::MutableBorrow
+            && source.access == StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 || completed_affine_result)
@@ -791,34 +781,36 @@ where
             // The whole borrow itself is still a loan — it cannot be
             // moved out owned.
             || (!structural_access_can_supply(source.access, argument.access)
-                && !(source.access == terminal_psi::StructuralAccess::MutableBorrow
-                    && argument.access == terminal_psi::StructuralAccess::Owned
+                && !(source.access == StructuralAccess::MutableBorrow
+                    && argument.access == StructuralAccess::Owned
                     && !argument.path.is_empty()))
         {
             return false;
         }
         let indexed_write_only_path_is_material = || {
-            !argument.path.iter().any(|segment| {
-                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
-            }) || (is_material_write_only_type(types, source.structural_type)
-                && actual_type
-                    .and_then(|actual| types.get(&actual))
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                                | terminal_psi::StructuralTypeShape::Record { .. }
-                        )
-                    }))
+            !argument
+                .path
+                .iter()
+                .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                || (is_material_write_only_type(types, source.structural_type)
+                    && actual_type
+                        .and_then(|actual| types.get(&actual))
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                                    | terminal_psi::StructuralTypeShape::Record { .. }
+                            )
+                        }))
         };
         let unrestricted_write_only_subloan = !argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            && parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && argument.access == StructuralAccess::WriteOnlyBorrow
+            && parameter.access == StructuralAccess::WriteOnlyBorrow
             && matches!(
                 source.access,
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
             )
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -826,10 +818,11 @@ where
         // Terminal admits indexed write-only arguments only as unrestricted
         // material subloans. Linear fallback cannot supply that authority.
         if projection == StructuralProjectionPolicy::Unit
-            && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            && argument.path.iter().any(|segment| {
-                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
-            })
+            && argument.access == StructuralAccess::WriteOnlyBorrow
+            && argument
+                .path
+                .iter()
+                .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
             && !unrestricted_write_only_subloan
         {
             return false;
@@ -848,11 +841,11 @@ where
         // established-access rules. Type, access and qualification checks
         // still bind the selected referent; liveness and overlapping loans
         // belong to the ownership replay.
-        let affine_owner_loan = argument.access != terminal_psi::StructuralAccess::Owned
+        let affine_owner_loan = argument.access != StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.access == terminal_psi::StructuralAccess::Owned
+            && source.access == StructuralAccess::Owned
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && (argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && (argument.access == StructuralAccess::SharedBorrow
                 || (argument.path.is_empty()
                     && types
                         .get(&source.structural_type)
@@ -864,7 +857,7 @@ where
                                 )
                         })));
         let completed_result_loan = completed_result
-            && argument.access != terminal_psi::StructuralAccess::Owned
+            && argument.access != StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         let actual_multiplicity = if affine_owner_loan
             || completed_result_loan
@@ -881,7 +874,7 @@ where
             || unrestricted_owned_mutable_subloan
             || unrestricted_shared_subloan
             || (buffer_presentation
-                && source.access == terminal_psi::StructuralAccess::MutableBorrow
+                && source.access == StructuralAccess::MutableBorrow
                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
         {
             terminal_psi::StructuralMultiplicity::Unrestricted
@@ -890,8 +883,8 @@ where
             && is_partial_affine_path(types, source.structural_type, &argument.path)
         {
             terminal_psi::StructuralMultiplicity::Affine
-        } else if argument.access == terminal_psi::StructuralAccess::Owned
-            && source.access == terminal_psi::StructuralAccess::MutableBorrow
+        } else if argument.access == StructuralAccess::Owned
+            && source.access == StructuralAccess::MutableBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
         {
             // An owned projected move out of an exclusive borrow surrenders
@@ -906,15 +899,15 @@ where
         };
         let copied_byte_predicates = projection != StructuralProjectionPolicy::Boundary
             && argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::Owned
-            && parameter.access == terminal_psi::StructuralAccess::Owned
+            && argument.access == StructuralAccess::Owned
+            && parameter.access == StructuralAccess::Owned
             && source.structural_type == parameter.structural_type
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.projected_qualifications.is_empty()
             && !caller.entry_claim_declared(argument.place)
             && !caller.content_entry_claim_declared(argument.place)
-            && terminal_semantics::byte_parameter_predicates_in(
+            && byte_parameter_predicates_in(
                 domains.values().copied(),
                 parameter,
             )
@@ -930,8 +923,8 @@ where
         // Replay primitive byte membership in the current graph; producer
         // annotations cannot manufacture a source's content predicates.
         let byte_content_qualifications = argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
-            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && argument.access == StructuralAccess::SharedBorrow
+            && parameter.access == StructuralAccess::SharedBorrow
             && types.values().any(|row| {
                 row.id == parameter.structural_type
                     && matches!(
@@ -939,19 +932,14 @@ where
                         terminal_psi::StructuralTypeShape::ByteSequence(_)
                     )
             })
-            && terminal_semantics::byte_parameter_predicates_in(
-                domains.values().copied(),
-                parameter,
-            )
-            .zip(
-                crate::unit_validation::function_structure::whole_source_predicates(
+            && byte_parameter_predicates_in(domains.values().copied(), parameter)
+                .zip(whole_source_predicates(
                     types.values().copied(),
                     domains.values().copied(),
                     caller,
                     argument.place,
-                ),
-            )
-            .is_some_and(|(required, available)| available.implies(required));
+                ))
+                .is_some_and(|(required, available)| available.implies(required));
         if actual_multiplicity != parameter.multiplicity
             || (!bounded_owner_presentation
                 && !view_field_presentation
@@ -991,10 +979,10 @@ where
                     // Moving an affine owner is exclusive even when the other
                     // argument only borrows a child. Block arrivals retain that
                     // obligation just like parameters and operation results.
-                    || ((left.access == terminal_psi::StructuralAccess::Owned
-                        || right.access == terminal_psi::StructuralAccess::Owned)
+                    || ((left.access == StructuralAccess::Owned
+                        || right.access == StructuralAccess::Owned)
                         && structural_source_contract(caller, left.place)
-                            .is_some_and(|source| source.access == terminal_psi::StructuralAccess::Owned
+                            .is_some_and(|source| source.access == StructuralAccess::Owned
                                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine)))
             {
                 return false;
@@ -1008,7 +996,7 @@ where
 /// descriptors. The validated catalog is acyclic; shared children are inspected
 /// once without imposing a private depth limit.
 fn is_material_write_only_type(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     use terminal_psi::{StructuralFieldType, StructuralTypeShape};
@@ -1063,23 +1051,23 @@ fn is_material_write_only_type(
 /// does not depend on which operation established it.
 pub(crate) fn owned_bounded_owner_loan(
     caller: &PsiOptimizationFunction,
-    argument: &terminal_psi::StructuralArgument,
-    parameter: &terminal_psi::StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+    parameter: &StructuralParameterDeclaration,
     source: &StructuralSourceContract<'_>,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     if !argument.path.is_empty()
         || !matches!(
             argument.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         )
         || parameter.access != argument.access
         || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !parameter.projected_qualifications.is_empty()
-        || source.access != terminal_psi::StructuralAccess::Owned
+        || source.access != StructuralAccess::Owned
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !source.projected_qualifications.is_empty()
         || !source.operation_result.is_some_and(|result| {
@@ -1096,12 +1084,10 @@ pub(crate) fn owned_bounded_owner_loan(
     {
         return false;
     }
-    let Some(required) =
-        terminal_semantics::byte_parameter_predicates_in(domains.values().copied(), parameter)
-    else {
+    let Some(required) = byte_parameter_predicates_in(domains.values().copied(), parameter) else {
         return false;
     };
-    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+    if argument.access != StructuralAccess::SharedBorrow
         && !source
             .declared_byte_predicates(domains)
             .is_some_and(|declared| required.implies(declared))
@@ -1109,7 +1095,7 @@ pub(crate) fn owned_bounded_owner_loan(
         return false;
     }
     required.is_empty()
-        || crate::unit_validation::function_structure::whole_source_predicates(
+        || whole_source_predicates(
             types.values().copied(),
             domains.values().copied(),
             caller,
@@ -1164,7 +1150,7 @@ pub(crate) fn structural_source_contract(
                     place,
                     structural_type: structural_type.id,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    access: StructuralAccess::SharedBorrow,
                     qualifications: qualifications.as_slice(),
                     projected_qualifications: &[],
                     operation_result: None,
@@ -1191,7 +1177,7 @@ fn trivial_affine_local_contract(
             place,
             structural_type: structural_type.id,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-            access: terminal_psi::StructuralAccess::Owned,
+            access: StructuralAccess::Owned,
             qualifications: &[],
             projected_qualifications: &[],
             operation_result: None,
@@ -1210,9 +1196,9 @@ pub(crate) fn structural_operation_result_contract<'a>(
     let (result, access) = match operation {
                 // Activation-local storage supplies loans, never owned escape.
                 O::EstablishPrimitiveLocal { result, .. } => {
-                    (result, terminal_psi::StructuralAccess::MutableBorrow)
+                    (result, StructuralAccess::MutableBorrow)
                 }
-                abstract_operations::element_view_or_byte_subslice_pattern!(result, ..) => {
+                element_view_or_byte_subslice_pattern!(result, ..) => {
                     (result, view_access(caller, operation)?)
                 }
                 // The view's source access IS the loan's access: a mutable
@@ -1242,7 +1228,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..
-                } => (result, terminal_psi::StructuralAccess::Owned),
+                } => (result, StructuralAccess::Owned),
                 _ => return None,
             };
     Some(StructuralSourceContract {
@@ -1260,10 +1246,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
 /// Rejoin every descriptor with its current declaration and producer. Multiplicity
 /// selects the requested loan; the exact source chain must supply it. The place
 /// count bounds malformed cycles without recursive queries or guessed authority.
-fn view_access(
-    caller: &PsiOptimizationFunction,
-    operation: &O,
-) -> Option<terminal_psi::StructuralAccess> {
+fn view_access(caller: &PsiOptimizationFunction, operation: &O) -> Option<StructuralAccess> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
 
@@ -1325,7 +1308,7 @@ fn view_access(
             return None;
         }
         match operation {
-            abstract_operations::element_view_or_byte_subslice_pattern!(source, ..) => {
+            element_view_or_byte_subslice_pattern!(source, ..) => {
                 if !result.qualifications.is_empty()
                     || result
                         .projected_qualifications
@@ -1444,45 +1427,40 @@ fn view_access(
 }
 
 pub(crate) fn structural_access_can_supply(
-    source: terminal_psi::StructuralAccess,
-    presented: terminal_psi::StructuralAccess,
+    source: StructuralAccess,
+    presented: StructuralAccess,
 ) -> bool {
     match source {
-        terminal_psi::StructuralAccess::Owned => true,
-        terminal_psi::StructuralAccess::SharedBorrow => {
-            presented == terminal_psi::StructuralAccess::SharedBorrow
-        }
-        terminal_psi::StructuralAccess::MutableBorrow => matches!(
+        StructuralAccess::Owned => true,
+        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow => matches!(
             presented,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ),
-        terminal_psi::StructuralAccess::WriteOnlyBorrow => {
-            presented == terminal_psi::StructuralAccess::WriteOnlyBorrow
-        }
+        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
     }
 }
 
-pub(crate) fn structural_access_is_exclusive(access: terminal_psi::StructuralAccess) -> bool {
+pub(crate) fn structural_access_is_exclusive(access: StructuralAccess) -> bool {
     matches!(
         access,
-        terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     )
 }
 
-pub(crate) fn is_nonempty_field_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
+pub(crate) fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path
             .iter()
-            .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
 }
 
 pub(crate) fn is_partial_affine_path(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
 ) -> bool {
     !path.is_empty() && resolve_structural_path(types, root, path).is_some()
 }

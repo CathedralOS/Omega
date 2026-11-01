@@ -2,14 +2,15 @@
 //! changed overlay is rebuilt at the original referent identity; inactive old
 //! payload storage is removed, not left addressable through a stale view.
 
-use super::contents::{self, StorageLeafKind, TerminalStorageContents};
 use super::{StructuralLoanBinding, TerminalBoundaryStructuralBuffer};
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::effects::scalar_loans::satisfies_source_restriction;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::ConstructorStorage;
-use crate::scalar_operations::terminal_scalar_belongs_to_type;
+use crate::structural_storage::contents::{self, StorageLeafKind, TerminalStorageContents};
 use crate::values::StructuralRuntimePlace;
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 use std::sync::Arc;
 use terminal_psi::StructuralAccess;
 
@@ -87,7 +88,8 @@ pub(super) fn stage(
         &binding.referent,
         binding.access,
         Some(&buffer.values),
-    )?;
+    )?
+    .leaves;
     let visible: Vec<_> = leaves
         .iter()
         .filter(|leaf| {
@@ -121,32 +123,17 @@ pub(super) fn stage(
     }
     let mut staged = ConstructorStorage::new(execution.account.as_ref());
     for (leaf, value) in visible.into_iter().zip(&buffer.values) {
-        if leaf.path != value.path {
-            return Err(malformed());
-        }
+        leaf.validate_value(value).map_err(|reason| {
+            TerminalInterpretError::StructuralArgumentPreparation {
+                stage: "validate completed storage contents",
+                detail: reason.to_owned(),
+            }
+        })?;
         match (&leaf.kind, value.contents) {
             (
-                StorageLeafKind::Scalar {
-                    destination,
-                    scalar,
-                    restriction,
-                    stored_scalar,
-                },
-                TerminalStorageContents::Scalar {
-                    value,
-                    stored_scalar: actual,
-                },
+                StorageLeafKind::Scalar { destination, .. },
+                TerminalStorageContents::Scalar { value, .. },
             ) => {
-                if value.scalar_type() != *scalar
-                    || !terminal_scalar_belongs_to_type(value)
-                    || actual != *stored_scalar
-                    || !crate::primitive_storage::scalar_fits_storage(actual, value)
-                    || restriction
-                        .as_ref()
-                        .is_some_and(|field| !value.satisfies_field(field))
-                {
-                    return Err(malformed());
-                }
                 let original = binding
                     .scalars
                     .binary_search_by(|original| original.path.cmp(&leaf.path))
@@ -154,11 +141,7 @@ pub(super) fn stage(
                     .map(|position| &binding.scalars[position]);
                 if let Some(original) = original
                     && original.restriction.as_ref().is_some_and(|field| {
-                        !crate::effects::scalar_loans::satisfies_source_restriction(
-                            value,
-                            field,
-                            original.storage.encoding,
-                        )
+                        !satisfies_source_restriction(value, field, original.storage.encoding)
                     })
                 {
                     return Err(malformed());
@@ -223,7 +206,7 @@ pub(super) fn stage(
                     if !binding.leaves.iter().any(|old| old.path == leaf.path && matches!(&old.kind, StorageLeafKind::ByteField { declaration: original, .. } if original == declaration)) { return Err(TerminalInterpretError::UnsupportedSemanticVariant("case replacement lacks a semantic codec for new byte fields")); }
                     let namespace = if matches!(
                         leaf.path.iter().rev().nth(1),
-                        Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                        Some(CanonicalStructuralPathSegment::Case(_))
                     ) {
                         crate::values::StructuralFieldNamespace::CasePayload
                     } else {
@@ -247,11 +230,7 @@ pub(super) fn stage(
                 } => {
                     let values = (0..*length).map(|element_index| {
                         let mut path = leaf.path.clone();
-                        path.push(
-                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
-                                element_index,
-                            ),
-                        );
+                        path.push(CanonicalStructuralPathSegment::FixedIndex(element_index));
                         let position = buffer
                             .values
                             .binary_search_by(|value| value.path.cmp(&path))

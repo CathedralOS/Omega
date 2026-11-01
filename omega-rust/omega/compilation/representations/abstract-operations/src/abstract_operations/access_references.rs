@@ -6,7 +6,7 @@
 //! successful lifecycle and admitted provider still supply custody and authority.
 
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{AccessRamCorrespondence, ResidentReferenceSource};
+use terminal_psi::{AccessRamCorrespondence, ResidentReferenceSource, StructuralTypeShape};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessReferenceBacking {
@@ -56,8 +56,7 @@ impl AccessReferenceBacking {
         };
         if let Some((owner, base)) = extent {
             let declaration = terminal_psi::find_structural_type(types, owner)?;
-            let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
-            else {
+            let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
                 return None;
             };
             let field = fields.iter().find(|field| field.id == base)?;

@@ -1,3 +1,4 @@
+use symbol_resolved_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
 
 pub(in crate::symbols) fn stamp_receiver_path_symbols_in_table(
@@ -7,15 +8,13 @@ pub(in crate::symbols) fn stamp_receiver_path_symbols_in_table(
     symbol: SymbolHandle,
 ) {
     match expression_table.expression(expression).clone() {
-        symbol_resolved_trees::expression::ExpressionNode::Name(_) => {
-            if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-                expression_table.expression_mut(expression)
-            {
+        ExpressionNode::Name(_) => {
+            if let ExpressionNode::Name(path) = expression_table.expression_mut(expression) {
                 path.head_symbol = head_symbol;
                 path.symbol = symbol;
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        ExpressionNode::Indexed(indexed) => {
             stamp_receiver_path_symbols_in_table(
                 expression_table,
                 indexed.collection,
@@ -23,7 +22,7 @@ pub(in crate::symbols) fn stamp_receiver_path_symbols_in_table(
                 head_symbol,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        ExpressionNode::Member(member) => {
             stamp_receiver_path_symbols_in_table(
                 expression_table,
                 member.receiver,
@@ -31,7 +30,7 @@ pub(in crate::symbols) fn stamp_receiver_path_symbols_in_table(
                 head_symbol,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        ExpressionNode::Borrow(inner) => {
             stamp_receiver_path_symbols_in_table(
                 expression_table,
                 inner.target,

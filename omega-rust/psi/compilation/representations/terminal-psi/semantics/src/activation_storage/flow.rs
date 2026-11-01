@@ -14,6 +14,7 @@ use semantic_vocabulary::{
     ClaimId, MachineId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralResultClaimBinding;
 use terminal_psi::{
     OperationKind as O, StructuralAccess, StructuralArgument, StructuralPathSegment as P,
     StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
@@ -266,11 +267,7 @@ impl State {
         self.retire_carriers(place);
         Ok(())
     }
-    fn rebind_claims(
-        &mut self,
-        claims: &[terminal_psi::StructuralResultClaimBinding],
-        root: PlaceId,
-    ) {
+    fn rebind_claims(&mut self, claims: &[StructuralResultClaimBinding], root: PlaceId) {
         for live in &mut self.live {
             if live.place.root == root
                 && let Some(binding) = claims
@@ -721,20 +718,19 @@ pub fn validate_flow(
                     }) else {
                         return Err("activation split result has no restored parent");
                     };
-                    let child =
-                        |bound, binding: &terminal_psi::StructuralResultClaimBinding, role| Live {
-                            site: parent.site,
-                            bound,
-                            claim: binding.claim,
-                            place: Place {
-                                root: result.place,
-                                path: binding.path.clone(),
-                            },
-                            pending: Some((root.clone(), *covered_case)),
-                            counts_demand: true,
-                            split_origin: Some(operation.id),
-                            split_role: role,
-                        };
+                    let child = |bound, binding: &StructuralResultClaimBinding, role| Live {
+                        site: parent.site,
+                        bound,
+                        claim: binding.claim,
+                        place: Place {
+                            root: result.place,
+                            path: binding.path.clone(),
+                        },
+                        pending: Some((root.clone(), *covered_case)),
+                        counts_demand: true,
+                        split_origin: Some(operation.id),
+                        split_role: role,
+                    };
                     state.live.push(child(*bound_at, lower_binding, 1));
                     state
                         .live

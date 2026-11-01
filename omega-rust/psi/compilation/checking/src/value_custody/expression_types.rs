@@ -39,9 +39,11 @@
 //!   and occurrence collection belong to `crate::expression_traversal`.
 
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedByteSequenceCarrier;
 use diagnostics::Diagnostic;
 use std::fmt;
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -889,7 +891,7 @@ fn hinted_named_value_type_reference(
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) if matches_symbol(field.symbol) => {
+                    DataMember::Field(field) if matches_symbol(field.symbol) => {
                         Some(field.type_reference)
                     }
                     _ => None,
@@ -903,11 +905,7 @@ fn hinted_named_value_type_reference(
                     .data_members(definition)
                     .iter()
                     .find_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == parent =>
-                        {
-                            Some(variant)
-                        }
+                        DataMember::Variant(variant) if variant.symbol == parent => Some(variant),
                         _ => None,
                     })?;
             program
@@ -997,9 +995,7 @@ pub fn bounded_byte_buffer_capacity(
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match crate::byte_sequence_carrier(program, type_reference, &[])? {
-        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
-            usize::try_from(capacity).ok()
-        }
+        CheckedByteSequenceCarrier::BoundedOwned { capacity } => usize::try_from(capacity).ok(),
         _ => None,
     }
 }

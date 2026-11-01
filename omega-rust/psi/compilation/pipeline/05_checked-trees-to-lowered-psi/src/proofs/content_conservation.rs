@@ -367,20 +367,14 @@ pub(crate) fn lower_whole_content_entry_claims(
         });
     }
 
+    // Each row names its own entry claim; consumers join content to a
+    // claim by that identity, never by position. A content-bearing claim
+    // may therefore sit anywhere in the dense entry roster, beside linear
+    // claims that carry no content, as `AccessReturn<Extent in Vacant, Word>`
+    // does when `Word` owns claims of its own.
     output.sort_by_key(|entry| entry.claim);
-    for (index, entry) in output.iter().enumerate() {
-        let expected = ClaimId::new(
-            u64::try_from(index)
-                .expect("an in-memory content claim count fits u64")
-                .checked_add(1)
-                .expect("an in-memory content claim count cannot exhaust u64"),
-        )
-        .expect("dense content claim identities begin at one");
-        if entry.claim != expected {
-            return unsupported(
-                "bodyless content-bearing claims must form the leading claim frontier",
-            );
-        }
+    if output.windows(2).any(|pair| pair[0].claim == pair[1].claim) {
+        return unsupported("content entry claims must name distinct source claims");
     }
     Ok(output)
 }

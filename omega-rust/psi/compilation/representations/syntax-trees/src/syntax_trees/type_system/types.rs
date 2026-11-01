@@ -1,4 +1,6 @@
+use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
+use crate::item::ItemHandle;
 use crate::syntax_trees::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan, PagedArenaFrontier};
 
@@ -17,7 +19,28 @@ paged_roster! {
         arena integer_range_normalizations: RetainedIntegerRangeNormalization,
         arena pending_const_arguments: PendingConstArgument,
         arena supplied_operand_owners: SuppliedOperandOwner,
+        arena type_alias_applications: TypeAliasApplicationOrigin,
+        arena alias_header_references: TypeReferenceHandle,
     }
+}
+
+/// One source alias use and its independently retained argument obligations.
+/// `instance` is the expanded ordinary type; `application` is private source
+/// metadata and must never become that type's generic identity origin.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
+pub struct TypeAliasApplicationOrigin {
+    pub instance: TypeReferenceHandle,
+    pub application: TypeReferenceHandle,
+    pub declaration: source::SourceSpan,
+    pub definition_references: Vec<source::SourceSpan>,
 }
 
 /// The exact declaration supplying a substituted operand. This is syntax
@@ -33,7 +56,7 @@ paged_roster! {
 )]
 struct SuppliedOperandOwner {
     operand: TypeReferenceHandle,
-    declaration: crate::item::ItemHandle,
+    declaration: ItemHandle,
 }
 
 /// Private probe custody, never a canonical value or checking receipt. Copies
@@ -117,7 +140,7 @@ struct RetainedConstArgumentNormalization {
 pub struct ConstArgumentNormalization {
     /// Exact authored structural expression before it becomes an atom. This
     /// carries constructor selections, independently of named-constant origins.
-    pub authored_expression: crate::expression::ExpressionHandle,
+    pub authored_expression: ExpressionHandle,
     pub reference: source::SourceSpan,
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
@@ -147,10 +170,48 @@ impl TypeReferenceTable {
         self.type_references.insert(type_reference)
     }
 
+    /// Alias headers describe a recipe; only its expanded uses demand type
+    /// work. This role does not establish any argument or layout obligation.
+    pub fn retain_alias_header_reference(&mut self, reference: TypeReferenceHandle) {
+        if !self.is_alias_header_reference(reference) {
+            self.alias_header_references.insert(reference);
+        }
+    }
+
+    pub fn is_alias_header_reference(&self, reference: TypeReferenceHandle) -> bool {
+        self.alias_header_references
+            .iter()
+            .any(|(_, candidate)| *candidate == reference)
+    }
+
+    pub fn type_alias_applications(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = &TypeAliasApplicationOrigin> {
+        self.type_alias_applications
+            .iter()
+            .filter_map(move |(_, origin)| (origin.instance == reference).then_some(origin))
+    }
+
+    pub fn retain_type_alias_application(&mut self, origin: TypeAliasApplicationOrigin) {
+        assert!(
+            origin.instance.is_valid()
+                && origin.application.is_valid()
+                && origin.instance != origin.application
+        );
+        if !self
+            .type_alias_applications
+            .iter()
+            .any(|(_, row)| row == &origin)
+        {
+            self.type_alias_applications.insert(origin);
+        }
+    }
+
     pub fn supplied_operand_owner(
         &self,
         operand: TypeReferenceHandle,
-    ) -> Result<crate::item::ItemHandle, &'static str> {
+    ) -> Result<ItemHandle, &'static str> {
         self.supplied_operand_owners
             .iter()
             .find_map(|(_, row)| {
@@ -162,7 +223,7 @@ impl TypeReferenceTable {
                     }
                 })
             })
-            .unwrap_or(Ok(crate::item::ItemHandle::invalid()))
+            .unwrap_or(Ok(ItemHandle::invalid()))
     }
 
     /// Attach custody only to a newly copied operand root. Its children retain
@@ -171,7 +232,7 @@ impl TypeReferenceTable {
     pub fn retain_supplied_operand_owner(
         &mut self,
         operand: TypeReferenceHandle,
-        declaration: crate::item::ItemHandle,
+        declaration: ItemHandle,
     ) {
         if operand.is_valid() && declaration.is_valid() {
             let existing = self
@@ -181,7 +242,7 @@ impl TypeReferenceTable {
             if let Some(handle) = existing {
                 let row = self.supplied_operand_owners.get_mut(handle);
                 if row.declaration != declaration {
-                    row.declaration = crate::item::ItemHandle::invalid();
+                    row.declaration = ItemHandle::invalid();
                 }
                 return;
             }
@@ -214,13 +275,12 @@ impl TypeReferenceTable {
             .iter()
             .find_map(|(handle, row)| (row.operand == operand).then_some(handle));
         if let Some(handle) = existing {
-            self.supplied_operand_owners.get_mut(handle).declaration =
-                crate::item::ItemHandle::invalid();
+            self.supplied_operand_owners.get_mut(handle).declaration = ItemHandle::invalid();
             return;
         }
         self.supplied_operand_owners.insert(SuppliedOperandOwner {
             operand,
-            declaration: crate::item::ItemHandle::invalid(),
+            declaration: ItemHandle::invalid(),
         });
     }
 
@@ -234,7 +294,7 @@ impl TypeReferenceTable {
     pub(crate) fn remap_supplied_operand_owners(
         &mut self,
         frontier: usize,
-        declarations: &[(crate::item::ItemHandle, crate::item::ItemHandle)],
+        declarations: &[(ItemHandle, ItemHandle)],
     ) {
         let rows = self
             .supplied_operand_owners
@@ -383,7 +443,7 @@ impl TypeReferenceTable {
             .insert(RetainedConstArgumentNormalization {
                 argument,
                 normalization: ConstArgumentNormalization {
-                    authored_expression: crate::expression::ExpressionHandle::invalid(),
+                    authored_expression: ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
                     selections,
@@ -395,7 +455,7 @@ impl TypeReferenceTable {
     pub fn retain_const_argument_expression(
         &mut self,
         argument: TypeReferenceHandle,
-        expression: crate::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) {
         let handle = self
             .const_argument_normalizations
@@ -487,11 +547,10 @@ impl TypeReferenceTable {
     }
 
     /// Const-generic expression nodes awaiting the orchestration prepass.
-    pub fn const_expression_nodes(
-        &self,
-    ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
+    pub fn const_expression_nodes(&self) -> Vec<(TypeReferenceHandle, ExpressionHandle)> {
         self.type_references
             .iter()
+            .filter(|(handle, _)| !self.is_alias_header_reference(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
                 _ => None,
@@ -508,9 +567,16 @@ impl TypeReferenceTable {
     pub fn generic_nodes(&self) -> Vec<TypeReferenceHandle> {
         self.type_references
             .iter()
+            .filter(|(handle, _)| !self.is_alias_header_reference(*handle))
             .filter(|(handle, _)| {
                 !self
                     .generic_application_origins
+                    .iter()
+                    .any(|(_, origin)| origin.application == *handle)
+            })
+            .filter(|(handle, _)| {
+                !self
+                    .type_alias_applications
                     .iter()
                     .any(|(_, origin)| origin.application == *handle)
             })
@@ -644,6 +710,54 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// Make a distinct source occurrence of an existing prepared type while
+    /// retaining every source obligation and supplying coordinate.
+    pub fn fresh_type_occurrence(&mut self, source: TypeReferenceHandle) -> TypeReferenceHandle {
+        let fresh = self.insert(self.type_reference(source).clone());
+        self.replace_type_occurrence(fresh, source);
+        fresh
+    }
+
+    /// Replace an occurrence by an already prepared occurrence in this same
+    /// forest, retaining its exact normalization and supplying metadata. The
+    /// old authored application must be retained separately before this call.
+    pub fn replace_type_occurrence(
+        &mut self,
+        destination: TypeReferenceHandle,
+        source: TypeReferenceHandle,
+    ) {
+        assert!(destination != source);
+        macro_rules! transfer {
+            ($table:ident, $field:ident) => {{
+                let rows = self
+                    .$table
+                    .iter()
+                    .filter_map(|(_, row)| (row.$field == source).then_some(row.clone()))
+                    .collect::<Vec<_>>();
+                let previous = self
+                    .$table
+                    .iter()
+                    .filter_map(|(handle, row)| (row.$field == destination).then_some(handle))
+                    .collect::<Vec<_>>();
+                for handle in previous {
+                    self.$table.free(handle);
+                }
+                for mut row in rows {
+                    row.$field = destination;
+                    self.$table.insert(row);
+                }
+            }};
+        }
+        let node = self.type_reference(source).clone();
+        self.replace_type_reference(destination, node);
+        transfer!(supplied_operand_owners, operand);
+        transfer!(generic_application_origins, instance);
+        transfer!(const_argument_normalizations, argument);
+        transfer!(integer_range_normalizations, owner);
+        transfer!(pending_const_arguments, position);
+        transfer!(type_alias_applications, instance);
+    }
+
     /// Replace a node in place. Every site holding this handle sees the new
     /// node; used by pre-resolution desugars (plan-laid value types rewrite
     /// `Policy<Schema>` spellings to the synthesized instance's plain name).
@@ -731,7 +845,7 @@ pub enum TypeReferenceNode {
     /// monomorphization evaluates this against scoped integer consts, then
     /// replaces it with the canonical decimal `Named` leaf used by literal
     /// const arguments. It must never survive into symbol-resolved trees.
-    ConstExpression(crate::expression::ExpressionHandle),
+    ConstExpression(ExpressionHandle),
     /// `dyn Trait<Args>`: a runtime selector of one named implementation of
     /// exactly this trait application. It packages no data instance; every
     /// data value is an ordinary argument of the calls it selects.
@@ -805,8 +919,8 @@ impl FixedArrayLength {
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
-        minimum: crate::expression::ExpressionHandle,
-        maximum: crate::expression::ExpressionHandle,
+        minimum: ExpressionHandle,
+        maximum: ExpressionHandle,
         /// The authored upper endpoint is inclusive only for `..=`. Preserve
         /// its expression so semantic checking precedes any predecessor step.
         end_inclusive: bool,

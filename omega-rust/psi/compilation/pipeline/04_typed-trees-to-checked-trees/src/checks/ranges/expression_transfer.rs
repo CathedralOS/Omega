@@ -46,7 +46,7 @@ pub(in crate::checks::ranges) fn expression_has_transfer_effect(
     expression: ExpressionHandle,
     checks_indexed: bool,
 ) -> bool {
-    expression_has_effect_at_depth(program, expression, checks_indexed, true, 0)
+    expression_has_effect(program, expression, checks_indexed, true)
 }
 
 pub(in crate::checks::ranges) fn expression_has_sink_effect(
@@ -54,77 +54,31 @@ pub(in crate::checks::ranges) fn expression_has_sink_effect(
     expression: ExpressionHandle,
     checks_indexed: bool,
 ) -> bool {
-    expression_has_effect_at_depth(program, expression, checks_indexed, false, 0)
+    expression_has_effect(program, expression, checks_indexed, false)
 }
 
-fn expression_has_effect_at_depth(
+/// Calls always have effects; casts and atomics count as fact mutations for
+/// transfer; indexed reads count when the caller checks them.
+fn expression_has_effect(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     checks_indexed: bool,
     include_fact_mutations: bool,
-    depth: usize,
 ) -> bool {
-    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
-        return false;
-    };
-    let next = depth + 1;
-    macro_rules! child_has_effect {
-        ($child:expr) => {
-            expression_has_effect_at_depth(
-                program,
-                $child,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            )
-        };
-    }
-    match node {
-        ExpressionNode::SavedSubject(_) => false,
-        ExpressionNode::Call(_) => true,
-        ExpressionNode::Indexed(indexed) => {
-            checks_indexed
-                || child_has_effect!(indexed.collection)
-                || child_has_effect!(indexed.index)
-        }
-        ExpressionNode::Cast(cast) => include_fact_mutations || child_has_effect!(cast.value),
-        ExpressionNode::Atomic(atomic) => {
-            include_fact_mutations
-                || if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
-                    child_has_effect!(carrier.place)
-                        || carrier
-                            .operands
-                            .into_iter()
-                            .any(|operand| child_has_effect!(operand))
-                } else {
-                    child_has_effect!(atomic.value)
-                }
-        }
-        ExpressionNode::Match(dispatch) => {
-            child_has_effect!(dispatch.subject)
-                || crate::flow::match_arm_satisfies(program, dispatch.arms, |operand| {
-                    child_has_effect!(operand)
-                })
-        }
-        ExpressionNode::Binary(binary) => {
-            child_has_effect!(binary.left) || child_has_effect!(binary.right)
-        }
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| child_has_effect!(*value)),
-        ExpressionNode::Member(member) => child_has_effect!(member.receiver),
-        ExpressionNode::Borrow(borrow) => child_has_effect!(borrow.target),
-        ExpressionNode::Unary(unary) => child_has_effect!(unary.operand),
-        ExpressionNode::Range(range) => {
-            child_has_effect!(range.start) || child_has_effect!(range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| child_has_effect!(field.value)),
-        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
-    }
+    use typed_trees::SubtreeVisit;
+    validation::executable_subtree_any(
+        program,
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |_, node| match node {
+            ExpressionNode::Call(_) => SubtreeVisit::Found,
+            ExpressionNode::Indexed(_) if checks_indexed => SubtreeVisit::Found,
+            ExpressionNode::Cast(_) | ExpressionNode::Atomic(_) if include_fact_mutations => {
+                SubtreeVisit::Found
+            }
+            _ => SubtreeVisit::Descend,
+        },
+    )
 }
 
 pub(super) struct ExpressionTransfer<'program, 'frames> {

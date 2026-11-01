@@ -21,6 +21,7 @@
 
 use crate::monomorphization::{BindingContext, StaticProposals};
 
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 
@@ -52,11 +53,7 @@ pub(super) fn collect_literals(
                     // Either authored boundary kind may be required by the
                     // callee. This conversion is proof-integer normalization,
                     // not solving an arbitrary endpoint equation.
-                    literals.push(
-                        value
-                            .add(&numerics::bignum::BigInt::from_u64(1))
-                            .to_string(),
-                    );
+                    literals.push(value.add(&BigInt::from_u64(1)).to_string());
                 }
             }
         }
@@ -95,7 +92,7 @@ pub(super) fn infer(
             if required_inclusive {
                 maximum
             } else {
-                maximum.add(&numerics::bignum::BigInt::from_u64(1))
+                maximum.add(&BigInt::from_u64(1))
             },
         ]),
         _ => None,

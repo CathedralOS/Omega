@@ -7,9 +7,15 @@ use crate::monomorphization::{
     Candidate, SpecializationKey, candidate, materialize_static_argument_types, saved_calls,
 };
 use crate::tables::expressions_of;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use typed_trees::operator::ClosedOperatorApplicationArgument;
+use typed_trees::operator::closed_operator_application_for_operands;
+use typed_trees::operator::declaration_by_symbol;
+use typed_trees::operator::resolve_satisfied_checked_operator_for_conformance;
+use typed_trees::statement::StatementRootRole;
 use validation::collect_expression_tree;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
+use validation::declared_place_type_raw;
 
 /// One exact authored conformance edge. This is internal elaboration data,
 /// never a provider choice supplied by Omega or the compiler coordinator.
@@ -43,13 +49,11 @@ impl OperatorCandidateTemplates {
                 if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
                     continue;
                 }
-                let Some(operator) =
-                    typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                        program,
-                        machine,
-                        conformance,
-                    )
-                else {
+                let Some(operator) = resolve_satisfied_checked_operator_for_conformance(
+                    program,
+                    machine,
+                    conformance,
+                ) else {
                     continue;
                 };
                 if !operator.is_boundary {
@@ -103,8 +107,7 @@ pub(crate) fn specialize_operator_candidates(
         };
         let template_machine = templates.machines()[machine_index].clone();
         let Some(operator) =
-            typed_trees::operator::declaration_by_symbol(templates, request.requirement_operator)
-                .cloned()
+            declaration_by_symbol(templates, request.requirement_operator).cloned()
         else {
             diagnostics.push(Diagnostic::error(
                 "generic operator candidate names no operator requirement",
@@ -115,7 +118,7 @@ pub(crate) fn specialize_operator_candidates(
             .machine_trait_conformances(&template_machine)
             .iter()
             .any(|conformance| {
-                typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                resolve_satisfied_checked_operator_for_conformance(
                     templates,
                     &template_machine,
                     conformance,
@@ -130,9 +133,8 @@ pub(crate) fn specialize_operator_candidates(
             continue;
         }
 
-        let current_operator =
-            typed_trees::operator::declaration_by_symbol(program, request.requirement_operator)
-                .expect("candidate requirement survives specialization");
+        let current_operator = declaration_by_symbol(program, request.requirement_operator)
+            .expect("candidate requirement survives specialization");
         let applications = match selected_operator_applications(program, current_operator) {
             Ok(applications) => applications,
             Err(mut errors) => {
@@ -254,7 +256,7 @@ fn materialized_application(
     machine: &typed_trees::machine::Machine,
     template: &Candidate,
     requirement: SymbolHandle,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
+    application: &[ClosedOperatorApplicationArgument],
 ) -> bool {
     use typed_trees::operator::ClosedOperatorApplicationArgument;
     let parameters = templates.machine_type_parameters(machine);
@@ -297,19 +299,16 @@ fn materialized_application(
 fn copy_application_types(
     program: &dyn ::validation::CheckingInput,
     source: &mut TypedTrees,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
-) -> Result<
-    Vec<typed_trees::operator::ClosedOperatorApplicationArgument>,
-    super::body_cloning::TypeCopyError,
-> {
+    application: &[ClosedOperatorApplicationArgument],
+) -> Result<Vec<ClosedOperatorApplicationArgument>, super::body_cloning::TypeCopyError> {
     application
         .iter()
         .map(|argument| {
             Ok(match argument {
-                typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                ClosedOperatorApplicationArgument::Type {
                     binder_symbol,
                     type_reference,
-                } => typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                } => ClosedOperatorApplicationArgument::Type {
                     binder_symbol: *binder_symbol,
                     type_reference: copy_type_reference(
                         Some(program),
@@ -318,11 +317,11 @@ fn copy_application_types(
                         &[],
                     )?,
                 },
-                typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                ClosedOperatorApplicationArgument::Const {
                     binder_symbol,
                     declared_carrier,
                     value,
-                } => typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                } => ClosedOperatorApplicationArgument::Const {
                     binder_symbol: *binder_symbol,
                     declared_carrier: copy_type_reference(
                         Some(program),
@@ -363,7 +362,7 @@ fn selected_operator_candidate_for_application<'template>(
     program: &dyn ::validation::CheckingInput,
     template: &'template Candidate<'_>,
     machine: &typed_trees::machine::Machine,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
+    application: &[ClosedOperatorApplicationArgument],
 ) -> Result<Candidate<'template>, Diagnostic> {
     let machine_parameters = program.machine_type_parameters(machine);
     if machine_parameters.len() != application.len()
@@ -380,10 +379,7 @@ fn selected_operator_candidate_for_application<'template>(
         match (&parameter.kind, argument) {
             (
                 TypeParameterKind::Type,
-                typed_trees::operator::ClosedOperatorApplicationArgument::Type {
-                    type_reference,
-                    ..
-                },
+                ClosedOperatorApplicationArgument::Type { type_reference, .. },
             ) => {
                 let index = candidate
                     .template
@@ -395,7 +391,7 @@ fn selected_operator_candidate_for_application<'template>(
             }
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                typed_trees::operator::ClosedOperatorApplicationArgument::Const { value, .. },
+                ClosedOperatorApplicationArgument::Const { value, .. },
             ) => {
                 let Some(binding) = const_identity_type_reference(program, value) else {
                     return Err(Diagnostic::error(format!(
@@ -426,9 +422,7 @@ fn const_identity_type_reference(
     program: &dyn ::validation::CheckingInput,
     value: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<TypeReferenceHandle> {
-    let language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } =
-        value.decode_encoding()?
-    else {
+    let DecodedCanonicalConstValue::Integer { value, .. } = value.decode_encoding()? else {
         return None;
     };
     let value = value.to_string();
@@ -442,7 +436,7 @@ fn const_identity_type_reference(
 fn selected_operator_applications(
     program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
-) -> Result<Vec<Vec<typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>> {
+) -> Result<Vec<Vec<ClosedOperatorApplicationArgument>>, Vec<Diagnostic>> {
     let mut applications = Vec::new();
     let mut diagnostics = Vec::new();
     if program.machine_by_symbol(operator.symbol).is_some() {
@@ -541,9 +535,7 @@ pub(super) fn executable_statement_expression_roots(
         .tables
         .expression_roots(statement)
         .into_iter()
-        .filter(|(role, root)| {
-            *role != typed_trees::statement::StatementRootRole::AssemblyFact && root.is_valid()
-        })
+        .filter(|(role, root)| *role != StatementRootRole::AssemblyFact && root.is_valid())
         .map(|(_, root)| root)
         .collect()
 }
@@ -604,9 +596,7 @@ fn selected_operator_application_at_expression(
         .iter()
         .map(|operand| {
             validation::expression_type_reference_for_origin(program, *operand, origin)
-                .or_else(|| {
-                    validation::declared_place_type_raw(program, machine, Some(state), *operand)
-                })
+                .or_else(|| declared_place_type_raw(program, machine, Some(state), *operand))
                 .or_else(|| validation::landed_integer_literal_type_reference(program, *operand))
         })
         .collect::<Vec<_>>();
@@ -640,11 +630,9 @@ fn selected_operator_application_at_expression(
     {
         return Ok(None);
     }
-    let Some(application) = typed_trees::operator::closed_operator_application_for_operands(
-        program,
-        operator,
-        &operand_types,
-    ) else {
+    let Some(application) =
+        closed_operator_application_for_operands(program, operator, &operand_types)
+    else {
         // Generic templates and declaration-derived expressions may retain
         // the spelling while their operands are still open. They are symbolic
         // demand, not a concrete specialization request.

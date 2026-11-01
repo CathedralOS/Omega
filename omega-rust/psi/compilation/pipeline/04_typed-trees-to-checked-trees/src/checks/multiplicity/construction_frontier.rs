@@ -8,9 +8,13 @@
 //! not a runtime liveness map or a second ownership replay.
 
 use facts::PlaceSegment;
-use language_semantics::Multiplicity;
+use language_semantics::{DataSupplyMode, Multiplicity};
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use validation::peel_declared_constraints;
+use validation::project_type_reference_from_segments;
+use validation::reference_shell;
+use validation::type_requires_establishment;
 
 /// The first case mismatch in a zero value's exact closed structural path.
 /// Both claim production and residual cleanup use this absence: a nonselected
@@ -26,13 +30,10 @@ pub(super) fn zero_image_inactive_case<'path>(
         let PlaceSegment::Case { variant } = segment else {
             continue;
         };
-        let projected = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            &path[..segment_index],
-        )?;
-        let definition = program
-            .closed_data_definition(validation::peel_declared_constraints(program, projected))?;
+        let projected =
+            project_type_reference_from_segments(program, reference, &path[..segment_index])?;
+        let definition =
+            program.closed_data_definition(peel_declared_constraints(program, projected))?;
         let zero_case = program
             .data_members(definition)
             .iter()
@@ -95,8 +96,7 @@ impl ConstructionFrontier {
         for child_path in record_children(program, reference).unwrap_or_default() {
             let parent_length = path.len();
             path.extend(child_path);
-            if let Some(child) =
-                validation::project_type_reference_from_segments(program, self.reference, path)
+            if let Some(child) = project_type_reference_from_segments(program, self.reference, path)
             {
                 self.seed_zero_values(program, child, path);
             }
@@ -105,7 +105,7 @@ impl ConstructionFrontier {
         // Zero selects the first case, not every possible payload. Once its
         // actual children are established, a valid-zero transparent record
         // is whole even when that selected case has no children at all.
-        if !validation::type_requires_establishment(program, reference)
+        if !type_requires_establishment(program, reference)
             && (record_children(program, reference).is_some_and(|children| children.is_empty())
                 || self.complete(program, reference, path))
         {
@@ -118,7 +118,7 @@ impl ConstructionFrontier {
         program: &dyn ::validation::CheckingInput,
         path: &[PlaceSegment],
     ) -> bool {
-        validation::project_type_reference_from_segments(program, self.reference, path).is_some_and(
+        project_type_reference_from_segments(program, self.reference, path).is_some_and(
             |reference| program.type_multiplicity(reference) == Multiplicity::Unrestricted,
         )
     }
@@ -158,7 +158,7 @@ impl ConstructionFrontier {
         for length in (0..path.len()).rev() {
             let prefix = &path[..length];
             let Some(reference) =
-                validation::project_type_reference_from_segments(program, self.reference, prefix)
+                project_type_reference_from_segments(program, self.reference, prefix)
             else {
                 break;
             };
@@ -271,13 +271,12 @@ pub(super) fn transparent_storage(
                 )
             })
         || (program.type_multiplicity(reference) == Multiplicity::Unrestricted
-            && validation::reference_shell(program, reference).is_none()
+            && reference_shell(program, reference).is_none()
             && program.primitive_type_reference(reference).is_none()
             && program
                 .closed_data_definition(reference)
                 .is_some_and(|data| {
-                    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                        && data.quotient.is_none()
+                    data.supply_mode == DataSupplyMode::CheckedShape && data.quotient.is_none()
                 }))
 }
 
@@ -288,7 +287,7 @@ pub(super) fn requires_owned_establishment(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    validation::type_requires_establishment(program, reference)
+    type_requires_establishment(program, reference)
         || super::type_carries_linear_obligation(program, reference)
 }
 

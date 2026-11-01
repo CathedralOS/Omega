@@ -25,7 +25,10 @@
 
 use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place, invocation_fact};
+use crate::checks::contracts::return_values::completed_return_operand;
+use crate::checks::contracts::return_values::exit_return_call;
 use crate::checks::unsigned;
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::ValueObservation;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
@@ -78,19 +81,16 @@ pub(in crate::checks) fn proves_at_exit(
     if caller.machine_symbol != exit.machine_symbol || caller.state_symbol != exit.state_symbol {
         return false;
     }
-    let frontier =
-        if crate::checks::contracts::return_values::completed_return_operand(program, facts, exit)
-            .is_some()
-            || crate::checks::contracts::return_values::exit_return_call(program, facts, exit)
-                .is_some()
-        {
-            // This capture is published after evaluating the selected return, not
-            // at entry to the statement that contains it. Live context ownership
-            // still authenticates every imported normal-return guarantee.
-            super::GuaranteeUse::EvaluatedContext(exit.statement_index)
-        } else {
-            super::GuaranteeUse::StatementEntry(exit.statement_index)
-        };
+    let frontier = if completed_return_operand(program, facts, exit).is_some()
+        || exit_return_call(program, facts, exit).is_some()
+    {
+        // This capture is published after evaluating the selected return, not
+        // at entry to the statement that contains it. Live context ownership
+        // still authenticates every imported normal-return guarantee.
+        super::GuaranteeUse::EvaluatedContext(exit.statement_index)
+    } else {
+        super::GuaranteeUse::StatementEntry(exit.statement_index)
+    };
     let hypotheses = super::available(program, facts, caller, frontier, contexts, frames)
         .into_iter()
         .filter_map(|guarantee| {
@@ -774,11 +774,7 @@ fn bind_occurrences(
     mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, expression, &mut occurrences);
     // Storage-dependency discovery deliberately records a measure's receiver.
     // The arithmetic roster also needs the metadata observation itself; it is
     // not a scalar read of that receiver's bytes.
@@ -825,7 +821,7 @@ fn bind_occurrences(
             _ => return None,
         };
         bindings.push(ScopedArithmeticBinding {
-            binder,
+            binder: binder.clone(),
             value: match binder {
                 ScopedArithmeticBinder::Symbol(symbol)
                     if program

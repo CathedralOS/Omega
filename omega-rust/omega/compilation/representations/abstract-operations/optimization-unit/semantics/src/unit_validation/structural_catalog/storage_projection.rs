@@ -7,11 +7,13 @@
 //! call presentation borrows. Formation, bounds evidence and access remain the
 //! owning operation's checks.
 
+use super::paths::structural_projection_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, ByteSequencePredicateSet, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape,
 };
+use terminal_semantics::borrowed_referent_matches;
 
 #[cfg(test)]
 mod tests;
@@ -53,7 +55,7 @@ impl StructuralStorageProjection {
     ) -> bool {
         match (self, expected) {
             (Self::Endpoint(actual), Self::Endpoint(expected)) => {
-                terminal_semantics::borrowed_referent_matches(declarations, actual, expected)
+                borrowed_referent_matches(declarations, actual, expected)
             }
             (
                 Self::ByteWindow {
@@ -69,7 +71,7 @@ impl StructuralStorageProjection {
             ) => {
                 offset == expected_offset
                     && length == expected_length
-                    && terminal_semantics::borrowed_referent_matches(declarations, actual, expected)
+                    && borrowed_referent_matches(declarations, actual, expected)
             }
             (actual @ Self::ByteField { .. }, expected @ Self::ByteField { .. }) => {
                 actual == expected
@@ -91,16 +93,12 @@ pub fn structural_storage_projection<'types>(
         let window =
             terminal_semantics::fixed_byte_storage_window(declarations.clone(), root, path)?;
         Some(StructuralStorageProjection::ByteWindow {
-            backing: super::paths::structural_projection_type(
-                declarations,
-                root,
-                window.backing_path,
-            )?,
+            backing: structural_projection_type(declarations, root, window.backing_path)?,
             offset: window.offset,
             length: window.length,
         })
     } else {
-        super::paths::structural_projection_type(declarations.clone(), root, path)
+        structural_projection_type(declarations.clone(), root, path)
             .map(StructuralStorageProjection::Endpoint)
             .or_else(|| byte_field(declarations, root, path))
     }
@@ -143,7 +141,7 @@ fn byte_field<'types>(
         Some((StructuralPathSegment::Case(case), container)) => (container, Some(case)),
         _ => (container, None),
     };
-    let owner = super::paths::structural_projection_type(declarations.clone(), root, container)?;
+    let owner = structural_projection_type(declarations.clone(), root, container)?;
     let shape = &declarations
         .into_iter()
         .find(|declaration| declaration.id == owner)?

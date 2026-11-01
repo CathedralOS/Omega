@@ -8,6 +8,7 @@
 
 use crate::value_custody::type_references::substituted_identity;
 use numerics::arithmetic::ArithmeticDomain;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Primitive delivery reads a completed reference; reference forwarding keeps
@@ -16,7 +17,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// to their independent checks. Every readable crossing remains required.
 pub(super) fn primitive_delivery_matches(
     program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     required: TypeReferenceHandle,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -202,15 +203,10 @@ pub(crate) fn readable_observation_type_reference(
 /// its own selected operation before this observation can become a premise.
 pub(super) fn completed_observations_satisfy(
     program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     reference: Option<TypeReferenceHandle>,
-    expression_type: &mut dyn FnMut(
-        typed_trees::expression::ExpressionHandle,
-    ) -> Option<TypeReferenceHandle>,
-    accepts: &dyn Fn(
-        typed_trees::expression::ExpressionHandle,
-        Option<TypeReferenceHandle>,
-    ) -> Option<()>,
+    expression_type: &mut dyn FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
+    accepts: &dyn Fn(ExpressionHandle, Option<TypeReferenceHandle>) -> Option<()>,
 ) -> bool {
     if reference.is_some() {
         return accepts(expression, reference).is_some();

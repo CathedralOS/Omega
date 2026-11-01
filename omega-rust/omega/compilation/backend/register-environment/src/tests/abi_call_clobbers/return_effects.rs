@@ -6,10 +6,12 @@ use super::{
     units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
+use selected_instructions::MachineEffectCatalogValidationError::InvalidEncodedEffects;
+use selected_instructions::validate_machine_effect_catalog;
 use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 /// Every selected return rule key with the semantic family the effect
@@ -251,13 +253,8 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             encoded_mut(&mut corrupted, key, semantic, 0).control =
                 MachineEncodedControlEffect::FallThroughV1;
             assert_eq!(
-                selected_instructions::validate_machine_effect_catalog(
-                    environment.constraints(),
-                    corrupted,
-                ),
-                Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
-                    semantic
-                )),
+                validate_machine_effect_catalog(environment.constraints(), corrupted),
+                Err(InvalidEncodedEffects(semantic)),
                 "{key:?} fall-through return must reject"
             );
 
@@ -274,9 +271,7 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             encoded.implicit_unit_uses.remove(0);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+                Err(EffectRejection::Structural(InvalidEncodedEffects(semantic))),
                 "{key:?} lost return-address use must reject"
             );
 
@@ -290,13 +285,8 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
                 .implicit_unit_clobbers
                 .push(preserved);
             assert_eq!(
-                selected_instructions::validate_machine_effect_catalog(
-                    environment.constraints(),
-                    corrupted,
-                ),
-                Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
-                    semantic
-                )),
+                validate_machine_effect_catalog(environment.constraints(), corrupted),
+                Err(InvalidEncodedEffects(semantic)),
                 "{key:?} forged callee-saved clobber must reject"
             );
         }

@@ -2,21 +2,25 @@
 //!
 //! `lower_type_parameters` is shared by every parameterized declaration.
 //! Generic instances retain the derived const-argument origins of their
-//! application while their members lower. Case facts on generic data pass a
-//! narrow support gate before they are retained.
+//! application while their members lower. Whole-data predicates retain their
+//! ordinary declaration scope through generic substitution.
 
+use crate::lowering::domain::lower_proof_facts;
+use crate::lowering::expression::lower_static_machine_argument;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
-use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
+use crate::lowering::type_reference::{
+    lower_child_type_references, lower_generic_application_origin, lower_type_reference_handle,
+};
+use crate::preparation::machine_equations::DeclaredTypeOrigin;
 use crate::resolution::lowerer::Lowerer;
-use crate::tables::syntax_expressions;
+use crate::resolution::lowerer::PendingSignatureLocation;
 use crate::tables::syntax_items;
-use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
-    QuotientDefinition, TypeParameter, TypeParameterKind,
+    QuotientDefinition, QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -123,7 +127,6 @@ fn lower_data_definition_with_argument_origins(
     // (`Wrap<4>` in static position) remains a separate leg.
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
-    let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
     let mut members = HandleSpan::empty();
     for parameter in syntax_items(&syntax_trees).type_parameters(data_definition.type_parameters) {
         let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
@@ -132,7 +135,7 @@ fn lower_data_definition_with_argument_origins(
         let field = DataMember::Field(DataField {
             identity: None,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+            name: lower_name(syntax_trees, &parameter.name),
             relevance: language_core::BindingRelevance::default(),
             type_reference: lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?,
         });
@@ -151,7 +154,7 @@ fn lower_data_definition_with_argument_origins(
             syntax::item::DataMember::Field(field) => Some(field.type_reference),
             _ => None,
         };
-        let member = lower_data_member(lowerer, syntax_trees, member, &case_fact_gate)?;
+        let member = lower_data_member(lowerer, syntax_trees, member)?;
         let handle = lowerer
             .symbol_resolved_trees
             .tables
@@ -161,10 +164,9 @@ fn lower_data_definition_with_argument_origins(
         if let Some(authored_type) = authored_type
             && let Some(sources) = &mut lowerer.equation_sources
         {
-            sources.declared_types.push((
-                crate::preparation::machine_equations::DeclaredTypeOrigin::Field(handle),
-                authored_type,
-            ));
+            sources
+                .declared_types
+                .push((DeclaredTypeOrigin::Field(handle), authored_type));
         }
     }
     let retired_identities = syntax_items(&syntax_trees)
@@ -190,33 +192,23 @@ fn lower_data_definition_with_argument_origins(
                     .equivalence
                     .as_ref()
                     .map(|selection| {
-                        Ok::<_, Diagnostic>(
-                            symbol_resolved_trees::data::QuotientEquivalenceSelection {
-                                relation: syntax_items(&syntax_trees)
-                                    .identifier_path_members(selection.relation)
-                                    .iter()
-                                    .map(|name| {
-                                        crate::lowering::name::lower_name(syntax_trees, name)
-                                    })
-                                    .collect(),
-                                relation_symbol: SymbolHandle::invalid(),
-                                trait_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.trait_name,
-                                ),
-                                trait_symbol: SymbolHandle::invalid(),
-                                trait_arguments: lower_child_type_references(
-                                    lowerer,
-                                    syntax_trees,
-                                    selection.trait_arguments,
-                                )?,
-                                conformance_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.conformance_name,
-                                ),
-                                conformance_symbol: SymbolHandle::invalid(),
-                            },
-                        )
+                        Ok::<_, Diagnostic>(QuotientEquivalenceSelection {
+                            relation: syntax_items(&syntax_trees)
+                                .identifier_path_members(selection.relation)
+                                .iter()
+                                .map(|name| lower_name(syntax_trees, name))
+                                .collect(),
+                            relation_symbol: SymbolHandle::invalid(),
+                            trait_name: lower_name(syntax_trees, &selection.trait_name),
+                            trait_symbol: SymbolHandle::invalid(),
+                            trait_arguments: lower_child_type_references(
+                                lowerer,
+                                syntax_trees,
+                                selection.trait_arguments,
+                            )?,
+                            conformance_name: lower_name(syntax_trees, &selection.conformance_name),
+                            conformance_symbol: SymbolHandle::invalid(),
+                        })
                     })
                     .transpose()?,
             })
@@ -247,7 +239,7 @@ fn lower_data_definition_with_argument_origins(
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(syntax_trees, &data_definition.name),
+        name: lower_name(syntax_trees, &data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
             predicate_subject_symbol: SymbolHandle::invalid(),
@@ -262,13 +254,7 @@ fn lower_data_definition_with_argument_origins(
             )?,
             generic_instance: data_definition
                 .generic_instance
-                .map(|origin| {
-                    crate::lowering::type_reference::lower_generic_application_origin(
-                        lowerer,
-                        syntax_trees,
-                        origin,
-                    )
-                })
+                .map(|origin| lower_generic_application_origin(lowerer, syntax_trees, origin))
                 .transpose()?,
             properties: DataProperties {
                 carry: data_definition.properties.carry,
@@ -277,13 +263,7 @@ fn lower_data_definition_with_argument_origins(
             cleanup_selection: data_definition
                 .cleanup_selection
                 .as_ref()
-                .map(|selection| {
-                    crate::lowering::expression::lower_static_machine_argument(
-                        lowerer,
-                        syntax_trees,
-                        selection,
-                    )
-                })
+                .map(|selection| lower_static_machine_argument(lowerer, syntax_trees, selection))
                 .transpose()?,
             quotient,
             where_facts,
@@ -406,7 +386,7 @@ where_facts: contract.where_facts })?;
                 (
                     TypeParameterKind::Proposition {
                         contract: symbol_resolved_trees::data::PropositionParameterSignature {
-                            name: crate::lowering::name::lower_name(syntax_trees, &contract.name),
+                            name: lower_name(syntax_trees, &contract.name),
                             parameters: crate::lowering::state::lower_state_parameters(
                                 lowerer,
                                 syntax_trees,
@@ -421,7 +401,7 @@ where_facts: contract.where_facts })?;
         lowered.push((
             TypeParameter {
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+                name: lower_name(syntax_trees, &parameter.name),
                 kind,
                 bounds: DataProperties {
                     carry: parameter.bounds.carry,
@@ -456,10 +436,7 @@ where_facts: contract.where_facts })?;
                 .clone();
             lowerer.pending_signature_service_reaches.push(
                 crate::resolution::lowerer::PendingSignatureServiceReach {
-                    location:
-                        crate::resolution::lowerer::PendingSignatureLocation::MachineParameter(
-                            handle,
-                        ),
+                    location: PendingSignatureLocation::MachineParameter(handle),
                     owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
                     reaches:
                         crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
@@ -478,13 +455,12 @@ fn lower_data_member(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     member: &syntax::item::DataMember,
-    case_fact_gate: &GenericCaseFactGate,
 ) -> Result<DataMember, Diagnostic> {
     match member {
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             identity: field.identity,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, &field.name),
+            name: lower_name(syntax_trees, &field.name),
             relevance: field.relevance,
             type_reference: lower_type_reference_handle(
                 lowerer,
@@ -498,7 +474,7 @@ fn lower_data_member(
                 let lowered = DataField {
                     identity: field.identity,
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(syntax_trees, &field.name),
+                    name: lower_name(syntax_trees, &field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_handle(
                         lowerer,
@@ -513,450 +489,21 @@ fn lower_data_member(
                     .data_payload_fields
                     .append_to_span(&mut payload, lowered);
                 if let Some(sources) = &mut lowerer.equation_sources {
-                    sources.declared_types.push((
-                        crate::preparation::machine_equations::DeclaredTypeOrigin::Payload(handle),
-                        field.type_reference,
-                    ));
+                    sources
+                        .declared_types
+                        .push((DeclaredTypeOrigin::Payload(handle), field.type_reference));
                 }
             }
-            // CASE-CONSTRAINTS generic case-data synthesis: a generic case's
-            // `where` facts deep-copy onto each synthesized instance
-            // (generic_data/substitution.rs). The copy is faithful for facts
-            // over payload fields, literals, and top-level bindings, and a
-            // `const` binder mention is rewritten to its literal argument in
-            // expression position. A `type` binder survives only inside a
-            // decidable `T == name` / `T != name` conjunct, which synthesis
-            // decides against the closed argument identity; any other binder
-            // with no fact-position substitution (machine,
-            // proposition) or a `const` binder inside a membership
-            // value/domain path still refuses rather than drop the fact or
-            // dangle a name on the instance. Value binders are ordinary
-            // descriptor fields installed above, so case facts resolve them
-            // through the same common-field scope as type-wide facts.
-            if generic_case_facts_unsupported(syntax_trees, variant.where_facts, case_fact_gate) {
-                return Err(Diagnostic::error(
-                    "case constraints on generic data may not mention generic parameters yet",
-                ));
-            }
-            let where_facts = crate::lowering::domain::lower_proof_facts(
-                lowerer,
-                syntax_trees,
-                variant.where_facts,
-            )?;
+            let where_facts = lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
             Ok(DataMember::Variant(DataVariant {
                 identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(syntax_trees, &variant.name),
+                name: lower_name(syntax_trees, &variant.name),
                 payload,
                 where_facts,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
             }))
         }
         syntax::item::DataMember::Retired(_) => unreachable!("retired identities are metadata"),
-    }
-}
-
-/// Which template parameter names a case `where` fact may still not mention.
-/// Generic-instance synthesis deep-copies each case fact onto the instance
-/// (`generic_data/substitution.rs`); a `const` binder mention survives as its
-/// literal argument only in expression position, while a type, machine,
-/// or proposition binder has no fact-position substitution at all.
-#[derive(Default)]
-struct GenericCaseFactGate {
-    /// Binder names with no fact-position substitution. A mention anywhere in
-    /// a case fact refuses the case -- except a `type` binder standing in a
-    /// decided type-equality conjunct (see `case_fact_type_equality`).
-    unsubstituted: HashSet<String>,
-    /// `type` binder names: a subset of `unsubstituted` that may appear on one
-    /// side of a top-level `==`/`!=` conjunct, where synthesis decides the
-    /// equation against the closed argument identity.
-    types: HashSet<String>,
-    /// `const` binder names: rewritten to their literal argument inside
-    /// expression position and inside a membership fact's indexed domain
-    /// arguments, so a mention in a membership value or domain path, or in a
-    /// nested type reference's name position, still refuses.
-    consts: HashSet<String>,
-    /// Runtime-capable indices are common descriptor fields, not names to
-    /// substitute away. They may occur as values but cannot stand for a
-    /// declaration path or the closed type opposite a type equation.
-    values: HashSet<String>,
-}
-
-impl GenericCaseFactGate {
-    fn new(
-        syntax_trees: &SyntaxTrees,
-        parameters: HandleSpan<syntax::item::TypeParameter>,
-    ) -> Self {
-        let mut gate = Self::default();
-        for parameter in syntax_trees.items.type_parameters(parameters) {
-            let name = parameter.name.as_str(syntax_trees).to_owned();
-            match parameter.kind {
-                syntax::item::TypeParameterKind::Const { .. } => {
-                    gate.consts.insert(name);
-                }
-                syntax::item::TypeParameterKind::Type => {
-                    gate.types.insert(name.clone());
-                    gate.unsubstituted.insert(name);
-                }
-                syntax::item::TypeParameterKind::Value { .. } => {
-                    gate.values.insert(name);
-                }
-                _ => {
-                    gate.unsubstituted.insert(name);
-                }
-            }
-        }
-        gate
-    }
-
-    /// A name position the literal rewrite cannot reach: every binder refuses.
-    fn mentions(&self, name: &str) -> bool {
-        self.unsubstituted.contains(name)
-            || self.consts.contains(name)
-            || self.values.contains(name)
-    }
-
-    /// An expression `Name` leaf: only binders without a substitution refuse;
-    /// `const` binders arrive on the instance as their literal argument.
-    fn expression_mentions(&self, name: &str, const_mentions_allowed: bool) -> bool {
-        self.unsubstituted.contains(name) || (!const_mentions_allowed && self.consts.contains(name))
-    }
-}
-
-/// Whether any of a case's `where` facts names a parameter the synthesis copy
-/// cannot carry honestly. Monomorphic definitions build an empty gate, so this
-/// always admits them.
-fn generic_case_facts_unsupported(
-    syntax_trees: &SyntaxTrees,
-    facts: HandleSpan<syntax::item::ProofFact>,
-    gate: &GenericCaseFactGate,
-) -> bool {
-    if gate.unsubstituted.is_empty() && gate.consts.is_empty() && gate.values.is_empty() {
-        return false;
-    }
-    syntax_items(&syntax_trees)
-        .proof_facts(facts)
-        .iter()
-        .any(|fact| match fact {
-            syntax::item::ProofFact::Expression(expression) => {
-                // Each top-level `and` conjunct stands alone: a decided
-                // type-parameter equality (`T == i32`) is carried by its
-                // instance as a decided literal witness, so it admits a `type`
-                // binder where a value-position mention would dangle.
-                let mut conjuncts = Vec::new();
-                flatten_case_fact_conjuncts(syntax_trees, *expression, &mut conjuncts);
-                conjuncts.iter().any(|conjunct| {
-                    !case_fact_type_equality(syntax_trees, *conjunct, gate)
-                        && case_fact_expression_mentions(syntax_trees, *conjunct, gate, true)
-                })
-            }
-            // The membership value must stay a place/name the
-            // construction-side domain check can own, and the domain path is
-            // a fixed declaration spelling: no binder may appear in either.
-            // The domain's index arguments substitute like type-reference
-            // positions, so `type`/`const` binders admit there.
-            syntax::item::ProofFact::Membership(membership) => {
-                case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                    || syntax_items(&syntax_trees)
-                        .identifier_path_members(membership.domain)
-                        .iter()
-                        .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                    || syntax_type_references(&syntax_trees)
-                        .type_reference_handles(membership.domain_arguments)
-                        .iter()
-                        .any(|argument| membership_argument_mentions(syntax_trees, *argument, gate))
-            }
-        })
-}
-
-/// An indexed application's argument substitutes like a type position on the
-/// instance copy: a named `type` binder lands as the closed type argument and
-/// a named `const` binder as its literal. Value indices remain common
-/// descriptor fields; machine/proposition binders still refuse. An expression
-/// argument carries descriptor reads and rewrites fresh const-name leaves.
-fn membership_argument_mentions(
-    syntax_trees: &SyntaxTrees,
-    argument: syntax::types::TypeReferenceHandle,
-    gate: &GenericCaseFactGate,
-) -> bool {
-    match syntax_trees.type_references.type_reference(argument) {
-        syntax::types::TypeReferenceNode::Named(name) => {
-            gate.unsubstituted.contains(name.as_str(syntax_trees))
-                && !gate.types.contains(name.as_str(syntax_trees))
-        }
-        syntax::types::TypeReferenceNode::ConstExpression(expression) => {
-            case_fact_expression_mentions(syntax_trees, *expression, gate, true)
-        }
-        _ => false,
-    }
-}
-
-/// Split a case-fact expression into its top-level `and` conjuncts.
-fn flatten_case_fact_conjuncts(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax::expression::ExpressionHandle,
-    conjuncts: &mut Vec<syntax::expression::ExpressionHandle>,
-) {
-    use syntax::expression::ExpressionNode;
-    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression)
-        && binary.operator == syntax::expression::BinaryOperator::And
-    {
-        flatten_case_fact_conjuncts(syntax_trees, binary.left, conjuncts);
-        flatten_case_fact_conjuncts(syntax_trees, binary.right, conjuncts);
-        return;
-    }
-    conjuncts.push(expression);
-}
-
-/// Whether a case-fact conjunct is a decidable type-parameter equality:
-/// `T == name`, `name == T`, or the `!=` form, where `T` is a `type` binder
-/// and the other side is a single-segment name that mentions no binder at
-/// all. Generic-instance synthesis decides the equation against the closed
-/// argument identity (`generic_data/substitution.rs`), so the parameter name
-/// never reaches an instance. A binder on BOTH sides (`T == U`), a nested or
-/// negated equality, or a non-name opposite side cannot be decided honestly
-/// and stays refused.
-fn case_fact_type_equality(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax::expression::ExpressionHandle,
-    gate: &GenericCaseFactGate,
-) -> bool {
-    use syntax::expression::ExpressionNode;
-    let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
-        return false;
-    };
-    if !matches!(
-        binary.operator,
-        syntax::expression::BinaryOperator::Equal | syntax::expression::BinaryOperator::NotEqual
-    ) {
-        return false;
-    }
-    let binder_side = |side| -> Option<bool> {
-        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(side) else {
-            return None;
-        };
-        let members = syntax_trees.expressions.identifier_path_members(*path);
-        let [member] = members else {
-            return None;
-        };
-        if gate.types.contains(member.as_str(syntax_trees)) {
-            Some(true)
-        } else if !gate.mentions(member.as_str(syntax_trees)) {
-            Some(false)
-        } else {
-            None
-        }
-    };
-    matches!(
-        (binder_side(binary.left), binder_side(binary.right)),
-        (Some(true), Some(false)) | (Some(false), Some(true))
-    )
-}
-
-fn case_fact_expression_mentions(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax::expression::ExpressionHandle,
-    gate: &GenericCaseFactGate,
-    const_mentions_allowed: bool,
-) -> bool {
-    use syntax::expression::ExpressionNode;
-    macro_rules! mention_child {
-        ($expression:expr $(,)?) => {
-            case_fact_expression_mentions(syntax_trees, $expression, gate, const_mentions_allowed)
-        };
-    }
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
-            .identifier_path_members(*path)
-            .iter()
-            .any(|member| {
-                gate.expression_mentions(member.as_str(syntax_trees), const_mentions_allowed)
-            }),
-        ExpressionNode::Binary(binary) => {
-            mention_child!(binary.left) || mention_child!(binary.right)
-        }
-        ExpressionNode::Unary(unary) => mention_child!(unary.operand),
-        ExpressionNode::Member(member) => mention_child!(member.receiver),
-        ExpressionNode::Borrow(borrow) => mention_child!(borrow.target),
-        ExpressionNode::Indexed(indexed) => {
-            mention_child!(indexed.collection) || mention_child!(indexed.index)
-        }
-        ExpressionNode::Range(range) => mention_child!(range.start) || mention_child!(range.end),
-        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax_trees)
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| mention_child!(*element)),
-        ExpressionNode::Membership(membership) => {
-            case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                || syntax_expressions(&syntax_trees)
-                    .identifier_path_members(membership.domain)
-                    .iter()
-                    .any(|member| gate.mentions(member.as_str(syntax_trees)))
-        }
-        ExpressionNode::Cast(cast) => {
-            mention_child!(cast.value)
-                || case_fact_type_mentions(syntax_trees, cast.target_type, gate)
-                || syntax_expressions(&syntax_trees)
-                    .identifier_path_members(cast.semantic_domain)
-                    .iter()
-                    .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                || syntax_type_references(&syntax_trees)
-                    .type_reference_handles(cast.semantic_domain_arguments)
-                    .iter()
-                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
-        }
-        ExpressionNode::ZeroValue(type_reference)
-        | ExpressionNode::TypeExpression(type_reference) => {
-            case_fact_type_mentions(syntax_trees, *type_reference, gate)
-        }
-        ExpressionNode::Call(call) => {
-            // The syntax copier retains the complete call and fresh argument
-            // expressions. Examine their substitution positions rather than
-            // rejecting all calls, including total mathematical embeddings.
-            // Declaration/static paths are not expression-name rewrite sites.
-            call.target
-                .as_str(syntax_trees)
-                .split("::")
-                .any(|name| gate.mentions(name))
-                || (call.receiver.is_valid() && mention_child!(call.receiver))
-                || syntax_expressions(&syntax_trees)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| mention_child!(*argument))
-                || call.machine_arguments.iter().any(|argument| {
-                    case_fact_static_argument_mentions(syntax_trees, argument, gate)
-                })
-                || call
-                    .evidence_arguments
-                    .iter()
-                    .any(|name| gate.mentions(name.as_str(syntax_trees)))
-        }
-        ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::String(_) => false,
-        // Matches, struct literals, and atomics have
-        // no generic-instance case-fact carriage yet: refuse rather than copy
-        // a shape the seeded replay does not compare.
-        ExpressionNode::Match(_)
-        | ExpressionNode::SavedSubject(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Atomic(_) => true,
-    }
-}
-
-fn case_fact_static_argument_mentions(
-    syntax_trees: &SyntaxTrees,
-    argument: &syntax::expression::StaticMachineArgument,
-    gate: &GenericCaseFactGate,
-) -> bool {
-    (argument.type_reference.is_valid()
-        && case_fact_type_mentions(syntax_trees, argument.type_reference, gate))
-        || argument
-            .path
-            .iter()
-            .any(|name| gate.mentions(name.as_str(syntax_trees)))
-        || argument
-            .evidence_projection
-            .as_ref()
-            .is_some_and(|projection| {
-                gate.mentions(projection.term.as_str(syntax_trees))
-                    || gate.mentions(projection.member.as_str(syntax_trees))
-            })
-        || argument.application.as_ref().is_some_and(|application| {
-            application
-                .arguments
-                .iter()
-                .any(|child| case_fact_static_argument_mentions(syntax_trees, child, gate))
-        })
-}
-
-/// A type reference nested inside a case fact (`x as T`, `zero<T>()`). Name
-/// positions are not rewritten by the `const` literal pass, so every binder
-/// mention refuses; embedded expression positions (range bounds, const
-/// arguments) do participate in the rewrite.
-fn case_fact_type_mentions(
-    syntax_trees: &SyntaxTrees,
-    reference: syntax::types::TypeReferenceHandle,
-    gate: &GenericCaseFactGate,
-) -> bool {
-    use syntax::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
-    match syntax_trees.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => gate.mentions(name.as_str(syntax_trees)),
-        TypeReferenceNode::Reference { referee, .. } => {
-            case_fact_type_mentions(syntax_trees, *referee, gate)
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            case_fact_type_mentions(syntax_trees, *element_type, gate)
-        }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            case_fact_type_mentions(syntax_trees, *element_type, gate)
-                || match length {
-                    FixedArrayLength::Literal(_) => false,
-                    FixedArrayLength::Expression(value) => {
-                        case_fact_type_mentions(syntax_trees, *value, gate)
-                    }
-                    FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
-                        gate.mentions(name.as_str(syntax_trees))
-                    }
-                }
-        }
-        TypeReferenceNode::Generic {
-            base_name,
-            arguments,
-            ..
-        } => {
-            gate.mentions(base_name.as_str(syntax_trees))
-                || syntax_type_references(&syntax_trees)
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            case_fact_type_mentions(syntax_trees, *base_type, gate)
-                || syntax_type_references(&syntax_trees)
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| match constraint {
-                        TypeConstraintNode::Named(name) => gate.mentions(name.as_str(syntax_trees)),
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            case_fact_expression_mentions(syntax_trees, *minimum, gate, true)
-                                || case_fact_expression_mentions(syntax_trees, *maximum, gate, true)
-                        }
-                        TypeConstraintNode::ArithmeticDomain(_) => false,
-                        TypeConstraintNode::Domain(domain) => {
-                            gate.mentions(domain.name.as_str(syntax_trees))
-                                || syntax_type_references(&syntax_trees)
-                                    .type_reference_handles(domain.arguments)
-                                    .iter()
-                                    .any(|argument| {
-                                        case_fact_type_mentions(syntax_trees, *argument, gate)
-                                    })
-                        }
-                    })
-        }
-        TypeReferenceNode::ConstExpression(expression) => {
-            case_fact_expression_mentions(syntax_trees, *expression, gate, true)
-        }
-        TypeReferenceNode::DynamicTrait {
-            trait_name,
-            trait_arguments,
-        } => {
-            gate.mentions(trait_name.as_str(syntax_trees))
-                || syntax_type_references(&syntax_trees)
-                    .type_reference_handles(*trait_arguments)
-                    .iter()
-                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
-        }
-        TypeReferenceNode::Unit => false,
     }
 }

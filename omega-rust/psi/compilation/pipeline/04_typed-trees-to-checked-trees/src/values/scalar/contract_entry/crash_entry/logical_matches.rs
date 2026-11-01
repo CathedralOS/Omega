@@ -4,9 +4,13 @@
 //! Its arm contains only the ordinary predicate algebra, so nothing can write
 //! between that observation and an alias read. Ambient producers are not replayed.
 
+use super::super::super::structural_fields::readable_entry_parameter_path;
+use super::super::super::structural_fields::structural_projection_path;
 use super::{ComparisonOperand, FieldPath, LogicalMatchBinding, Reader};
 use checked_trees::CheckedBooleanExpression;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use validation::logical_record_match_capture;
+use validation::logical_saved_subject_projection;
 
 impl Reader<'_> {
     fn pure_match_subject(&mut self, expression: ExpressionHandle, depth: usize) -> Option<()> {
@@ -34,8 +38,7 @@ impl Reader<'_> {
         };
         self.pure_match_subject(dispatch.subject, depth + 1)?;
         let observed = self.subject(dispatch.subject, depth + 1)?;
-        let capture =
-            validation::logical_record_match_capture(program, expression, observed.type_reference)?;
+        let capture = logical_record_match_capture(program, expression, observed.type_reference)?;
         Some(LogicalMatchBinding { capture, observed })
     }
 
@@ -90,25 +93,18 @@ impl Reader<'_> {
         depth: usize,
     ) -> Option<FieldPath> {
         self.charge(depth)?;
-        let (mut observed, segments) = validation::logical_saved_subject_projection(
+        let (mut observed, segments) =
+            logical_saved_subject_projection(self.program, expression, &self.logical_captures)?;
+        observed
+            .path
+            .extend(structural_projection_path(self.program, &segments)?);
+        observed.type_reference = readable_entry_parameter_path(
             self.program,
-            expression,
-            &self.logical_captures,
+            self.parameters,
+            u32::try_from(observed.parameter_position).ok()?,
+            &observed.path,
+            &mut self.remaining,
         )?;
-        observed.path.extend(
-            super::super::super::structural_fields::structural_projection_path(
-                self.program,
-                &segments,
-            )?,
-        );
-        observed.type_reference =
-            super::super::super::structural_fields::readable_entry_parameter_path(
-                self.program,
-                self.parameters,
-                u32::try_from(observed.parameter_position).ok()?,
-                &observed.path,
-                &mut self.remaining,
-            )?;
         Some(observed)
     }
 }

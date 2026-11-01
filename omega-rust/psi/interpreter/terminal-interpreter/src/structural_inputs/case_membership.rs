@@ -4,25 +4,15 @@ use crate::custody::{project_structural_value, resolve_structural_path_type};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::{StructuralFieldNamespace, StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
 };
 use std::collections::BTreeMap;
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    Operation, StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
 };
-
-/// Initialized payloadless case contents below one structural entry argument.
-/// The path selects the sum itself, not its case payload. Neither an opaque
-/// identity nor an integer discriminator is evidence of these contents.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalStructuralCaseValue {
-    pub argument_index: u32,
-    pub path: Vec<StructuralPathSegment>,
-    pub case: StructuralCaseId,
-}
 
 /// Runtime contents retain nominal type independently of the observing view.
 #[derive(Debug, Clone, Copy)]
@@ -61,13 +51,8 @@ impl TerminalExecution<'_> {
         parent_type: StructuralTypeId,
         parent: &StructuralRuntimePlace,
         case: Option<StructuralCaseId>,
-    ) -> Result<
-        (
-            &[terminal_psi::StructuralFieldDeclaration],
-            crate::values::StructuralFieldNamespace,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(&[StructuralFieldDeclaration], StructuralFieldNamespace), TerminalInterpretError>
+    {
         let declaration = self.structural_declaration(parent_type)?;
         if let Some(case) = case {
             let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
@@ -80,14 +65,11 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let selected = terminal_psi::find_structural_case(cases, case).ok_or_else(malformed)?;
-            Ok((
-                &selected.fields,
-                crate::values::StructuralFieldNamespace::CasePayload,
-            ))
+            Ok((&selected.fields, StructuralFieldNamespace::CasePayload))
         } else {
             Ok((
                 declaration.shape.direct_fields().ok_or_else(malformed)?,
-                crate::values::StructuralFieldNamespace::Member,
+                StructuralFieldNamespace::Member,
             ))
         }
     }
@@ -176,13 +158,8 @@ impl TerminalExecution<'_> {
         &self,
         root: &TerminalStructuralValue,
         target: &StructuralRuntimePlace,
-    ) -> Result<
-        (
-            StructuralTypeId,
-            Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(StructuralTypeId, Vec<CanonicalStructuralPathSegment>), TerminalInterpretError>
+    {
         let mut path = Vec::new();
         let selected = self.walk_actual_storage_path(root, target, |segment| path.push(segment))?;
         Ok((selected, path))
@@ -192,7 +169,7 @@ impl TerminalExecution<'_> {
         &self,
         root: &TerminalStructuralValue,
         target: &StructuralRuntimePlace,
-        mut emit: impl FnMut(semantic_vocabulary::CanonicalStructuralPathSegment),
+        mut emit: impl FnMut(CanonicalStructuralPathSegment),
     ) -> Result<StructuralTypeId, TerminalInterpretError> {
         if target.opaque_identity != root.opaque_identity || !target.path.starts_with(&root.path) {
             return Err(malformed());
@@ -205,7 +182,7 @@ impl TerminalExecution<'_> {
                 StructuralPathSegment::Field(identity) => {
                     let common = match &declaration.shape {
                         terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                            terminal_psi::field_by_identity(fields, *identity)
+                            field_by_identity(fields, *identity)
                         }
                         _ => None,
                     };
@@ -221,20 +198,15 @@ impl TerminalExecution<'_> {
                         if actual.structural_type != structural_type {
                             return Err(malformed());
                         }
-                        emit(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                            actual.case,
-                        ));
+                        emit(CanonicalStructuralPathSegment::Case(actual.case));
                         let case = terminal_psi::find_structural_case(cases, actual.case)
                             .ok_or_else(malformed)?;
-                        terminal_psi::field_by_identity(&case.fields, *identity)
-                            .ok_or_else(malformed)?
+                        field_by_identity(&case.fields, *identity).ok_or_else(malformed)?
                     };
                     let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
-                    emit(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                        field.id,
-                    ));
+                    emit(CanonicalStructuralPathSegment::Field(field.id));
                     structural_type = child;
                 }
                 StructuralPathSegment::FixedIndex(index) => {
@@ -248,7 +220,7 @@ impl TerminalExecution<'_> {
                     if *index >= length {
                         return Err(malformed());
                     }
-                    emit(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index));
+                    emit(CanonicalStructuralPathSegment::FixedIndex(*index));
                     structural_type = element;
                 }
                 _ => return Err(malformed()),
@@ -383,62 +355,6 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok((leaf, projection))
-    }
-
-    pub(crate) fn bind_structural_cases(
-        &mut self,
-        cases: &[TerminalStructuralCaseValue],
-    ) -> Result<(), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or(malformed())?;
-        for contents in cases {
-            let parameter = machine
-                .structural_parameters
-                .get(contents.argument_index as usize)
-                .ok_or(malformed())?;
-            let root = crate::custody::verified_structural_place(
-                &self.structural_values,
-                parameter.place,
-            )?;
-            let selected_type = resolve_structural_path_type(
-                &self.structural_types(),
-                root.structural_type,
-                &contents.path,
-            )?;
-            let declaration = self.structural_declaration(selected_type)?;
-            // This input form establishes a complete empty-payload case. It
-            // cannot claim that a missing payload satisfies its declaration.
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return Err(malformed());
-            };
-            if !cases
-                .iter()
-                .any(|case| case.id == contents.case && case.fields.is_empty())
-            {
-                return Err(malformed());
-            }
-            let mut selected = StructuralRuntimePlace::from(root);
-            selected.path.extend_from_slice(&contents.path);
-            if self
-                .structural_cases
-                .insert(
-                    selected,
-                    StructuralCaseContents {
-                        structural_type: selected_type,
-                        case: contents.case,
-                    },
-                )?
-                .is_some()
-            {
-                return Err(malformed());
-            }
-        }
-        Ok(())
     }
 
     pub(crate) fn observe_structural_case(

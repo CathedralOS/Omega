@@ -109,11 +109,15 @@ fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation
     let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
     let boundary = &module(meaning).boundary_machines[0];
     let mut writer = super::wire::Writer::default();
-    super::structural_signature_wire::encode_boundary_machine(&mut writer, boundary).unwrap();
+    <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
+        &mut writer,
+        boundary,
+    )
+    .unwrap();
     let bytes = writer.finish();
     for length in 0..bytes.len() {
         assert!(
-            super::structural_signature_wire::decode_boundary_machine(
+            <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::read(
                 &mut super::wire::Reader::new(&bytes[..length])
             )
             .is_err()

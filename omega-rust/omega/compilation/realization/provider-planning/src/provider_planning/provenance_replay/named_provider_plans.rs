@@ -6,7 +6,6 @@ use super::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
     satisfies_plan_name,
 };
-use crate::ProviderPlanningContext;
 use crate::provider_planning::entry_state;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use build_time_evaluation::provider_declarations::{
@@ -22,21 +21,42 @@ pub(super) fn derive(
 ) -> Vec<DerivedProviderPlan> {
     let context = services.context();
     let typed = context.typed;
-    prepared_named_provider_applications(context)
+    let debug = std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
+    let applications = prepared_named_provider_applications(context);
+    if debug {
+        eprintln!("[named] applications={}", applications.len());
+    }
+    applications
         .into_iter()
         .filter_map(|application| {
             let implementation = application.declaration;
             let rows = &implementation.rows;
+            if debug {
+                eprintln!(
+                    "[named] map={} rows={} trait_sym={:?}",
+                    typed.symbols.display_path(implementation.symbol, "::"),
+                    rows.len(),
+                    implementation.trait_symbol,
+                );
+            }
             let definition = typed.traits().iter().find(|definition| {
                 definition.symbol == implementation.trait_symbol
                     && definition.is_boundary
                     && context.contains(definition.symbol)
-            })?;
+            });
+            if debug && definition.is_none() {
+                eprintln!("[named]   skip: no boundary-trait definition in scope");
+            }
+            let definition = definition?;
             let prepared = services.named_application(
                 implementation.symbol,
                 application.capture,
                 definition.symbol,
-            )?;
+            );
+            if debug && prepared.is_none() {
+                eprintln!("[named]   skip: no named application in service catalog");
+            }
+            let prepared = prepared?;
             let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
             let package = typed.symbols.symbol_package_identity(implementation.symbol);
@@ -79,21 +99,53 @@ pub(super) fn derive(
             for row in rows {
                 // The row binds the entry of the machine resolution named; a
                 // family head's entry stands for every member's.
-                let named = typed.machine_by_symbol(row.realization_machine)?;
-                if entry_state(typed, named)?.symbol != row.realization_state {
+                let Some(named) = typed.machine_by_symbol(row.realization_machine) else {
+                    if debug {
+                        eprintln!("[named]   skip: row machine unresolved");
+                    }
+                    return None;
+                };
+                let Some(named_entry) = entry_state(typed, named) else {
+                    if debug {
+                        eprintln!("[named]   skip: row machine has no entry state");
+                    }
+                    return None;
+                };
+                if named_entry.symbol != row.realization_state {
+                    if debug {
+                        eprintln!("[named]   skip: entry-state mismatch");
+                    }
                     return None;
                 }
                 let realization = if application.capture.is_valid() {
-                    prepared_named_provider_member(typed, &application, row.realization_machine)?
+                    let Some(realization) = prepared_named_provider_member(
+                        typed,
+                        &application,
+                        row.realization_machine,
+                    ) else {
+                        if debug {
+                            eprintln!("[named]   skip: captured member not prepared");
+                        }
+                        return None;
+                    };
+                    realization
                 } else {
                     row.realization_machine
                 };
-                let machine = crate::target_machines::realized_row_machine(
+                let Some(machine) = crate::target_machines::realized_row_machine(
                     context,
                     realization,
                     selected_target,
-                )?;
+                ) else {
+                    if debug {
+                        eprintln!("[named]   skip: row machine not realized for target");
+                    }
+                    return None;
+                };
                 if typed.symbols.symbol_package_identity(machine.symbol) != origin_package {
+                    if debug {
+                        eprintln!("[named]   skip: mixed origin packages");
+                    }
                     return None;
                 }
                 let identity = exact_satisfied_requirement_identity(
@@ -183,12 +235,7 @@ pub(super) fn derive(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
-                provenance.row_requirements.push(row.requirement);
-                provenance
-                    .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
-                provenance.row_target_machine_origins.push(origin);
-                provenance.row_accessors.push(None);
+                provenance.push_authored_row(row.requirement, machine.symbol, origin);
             }
             Some(DerivedProviderPlan { plan, provenance })
         })

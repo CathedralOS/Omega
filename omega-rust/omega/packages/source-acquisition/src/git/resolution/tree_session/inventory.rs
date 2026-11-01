@@ -6,6 +6,7 @@ use super::{GitWorkspaceSession, source_error};
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::executable::selection::resolver_package_controlled_roots;
 use crate::git::objects::GitTreeEntryKind;
+use crate::git::objects::tree::git_path_from_bytes;
 use crate::git::resolution::acquisition::with_git_repository_from_retained_cache;
 use crate::git::resolution::selection::GitRevisionSelection;
 use crate::limits::CANONICAL_DIRECTORY_MODE;
@@ -114,9 +115,7 @@ impl GitWorkspaceSession {
                         }
                         GitTreeEntryKind::Symlink { target_bytes } => {
                             source::CapturedSourceNode::Symlink {
-                                target: crate::git::objects::tree::git_path_from_bytes(
-                                    target_bytes.as_slice(),
-                                )?,
+                                target: git_path_from_bytes(target_bytes.as_slice())?,
                             }
                         }
                         GitTreeEntryKind::Gitlink => {

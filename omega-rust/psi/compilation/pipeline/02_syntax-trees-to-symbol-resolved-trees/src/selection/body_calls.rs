@@ -8,7 +8,16 @@ use crate::tables::body_expressions;
 use crate::tables::body_statements;
 use crate::tables::resolved_declarations;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::domain::ProofFact;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::signature::SignatureContract;
+use symbol_resolved_trees::statement::StatementNode;
+use symbol_resolved_trees::statement::TransitionGuardNode;
+use symbol_resolved_trees::statement::TransitionTargetHandle;
+use symbol_resolved_trees::statement::TransitionTargetNode;
+use symbol_resolved_trees::types::TypeReference;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
@@ -16,7 +25,7 @@ use symbols::SymbolHandle;
 /// call routing. They never populate executable state bodies.
 pub(crate) struct CallSelectionInput {
     pub(crate) machine: SymbolHandle,
-    pub(crate) expression: symbol_resolved_trees::expression::ExpressionHandle,
+    pub(crate) expression: ExpressionHandle,
 }
 
 /// One call the traversal offers to a decision.
@@ -32,7 +41,7 @@ pub(crate) struct CallSite<'a> {
     /// The complete authored trait application before `::`. Declaration-only
     /// routing cannot replace it with a lexical implementation of that trait;
     /// typed application formation owns the argument correspondence.
-    pub(crate) requirement_application: arena::Handle<symbol_resolved_trees::types::TypeReference>,
+    pub(crate) requirement_application: arena::Handle<TypeReference>,
     /// The call is unqualified: it names no receiver declaration.
     pub(crate) local_receiver: bool,
     /// Authored operands, excluding any receiver.
@@ -89,16 +98,16 @@ pub(crate) fn retarget_machine_calls(
 
 fn append_contract_expressions(
     program: &SymbolResolvedTrees,
-    contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
-    expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
+    contracts: arena::HandleSpan<SignatureContract>,
+    expressions: &mut Vec<ExpressionHandle>,
 ) {
     for contract in program.signature_contracts(contracts) {
         for fact in program.proof_facts(contract.facts) {
             match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                ProofFact::Expression(expression) => {
                     expressions.push(*expression);
                 }
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                ProofFact::Membership(membership) => {
                     expressions.push(membership.value);
                 }
             }
@@ -108,14 +117,14 @@ fn append_contract_expressions(
 
 fn retarget_statement_span(
     program: &mut SymbolResolvedTrees,
-    statements: arena::HandleSpan<symbol_resolved_trees::statement::StatementNode>,
+    statements: arena::HandleSpan<StatementNode>,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     for handle in statements.handles() {
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
         match statement {
-            symbol_resolved_trees::statement::StatementNode::Assembly(handle) => {
+            StatementNode::Assembly(handle) => {
                 let graph = program.tables.declarations.assembly_graphs.get(handle);
                 let blocks = resolved_declarations(&program)
                     .assembly_blocks
@@ -135,19 +144,19 @@ fn retarget_statement_span(
                     retarget_statement_span(program, block.statement_nodes, decide);
                 }
             }
-            symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
+            StatementNode::RootBinding(binding) => {
                 expressions.push(binding.receiver);
                 if binding.implementation_operand.is_valid() {
                     expressions.push(binding.implementation_operand);
                 }
             }
-            symbol_resolved_trees::statement::StatementNode::AssemblyFact(fact) => {
+            StatementNode::AssemblyFact(fact) => {
                 expressions.push(fact.expression);
             }
-            symbol_resolved_trees::statement::StatementNode::Assignment(assignment) => {
+            StatementNode::Assignment(assignment) => {
                 expressions.extend([assignment.target, assignment.value]);
             }
-            symbol_resolved_trees::statement::StatementNode::Call(call) => {
+            StatementNode::Call(call) => {
                 expressions.extend_from_slice(
                     body_statements(&program).expression_handles(call.arguments),
                 );
@@ -163,27 +172,23 @@ fn retarget_statement_span(
                         .len(),
                 };
                 if let Some(target) = decide(&site)
-                    && let symbol_resolved_trees::statement::StatementNode::Call(call) =
+                    && let StatementNode::Call(call) =
                         program.tables.bodies.statements.statement_mut(handle)
                 {
                     call.target_symbol = target;
                 }
             }
-            symbol_resolved_trees::statement::StatementNode::ProofOutputBindingStatement(
-                package,
-            ) => {
+            StatementNode::ProofOutputBindingStatement(package) => {
                 expressions.push(package.call);
             }
-            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+            StatementNode::Expression(expression) => {
                 expressions.push(expression);
             }
-            symbol_resolved_trees::statement::StatementNode::LocalData(local) => {
+            StatementNode::LocalData(local) => {
                 expressions.push(local.initial_value);
             }
-            symbol_resolved_trees::statement::StatementNode::Transition(transition) => {
-                if let symbol_resolved_trees::statement::TransitionGuardNode::When(guard) =
-                    transition.guard
-                {
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
                     expressions.push(guard);
                 }
                 retarget_transition_target(program, transition.target, decide, &mut expressions);
@@ -206,13 +211,13 @@ fn retarget_statement_span(
 
 fn retarget_transition_target(
     program: &mut SymbolResolvedTrees,
-    target: symbol_resolved_trees::statement::TransitionTargetHandle,
+    target: TransitionTargetHandle,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
-    expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
+    expressions: &mut Vec<ExpressionHandle>,
 ) {
     let node = body_statements(&program).transition_target(target).clone();
     match node {
-        symbol_resolved_trees::statement::TransitionTargetNode::Named {
+        TransitionTargetNode::Named {
             path,
             arguments,
             source_span,
@@ -234,10 +239,7 @@ fn retarget_transition_target(
                 })
             });
             if let Some(replacement) = replacement
-                && let symbol_resolved_trees::statement::TransitionTargetNode::Named {
-                    path: retained,
-                    ..
-                } = program
+                && let TransitionTargetNode::Named { path: retained, .. } = program
                     .tables
                     .bodies
                     .statements
@@ -250,18 +252,18 @@ fn retarget_transition_target(
             }
             expressions.extend_from_slice(body_statements(&program).expression_handles(arguments));
         }
-        symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
+        TransitionTargetNode::Value(value) => {
             expressions.push(value);
         }
-        symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }
 
 fn retarget_expression(
     program: &mut SymbolResolvedTrees,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
-    visited: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
+    visited: &mut Vec<ExpressionHandle>,
 ) {
     if !expression.is_valid() || visited.contains(&expression) {
         return;
@@ -270,28 +272,28 @@ fn retarget_expression(
     let node = body_expressions(&program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
-        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+        ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
                 children.extend(body_expressions(&program).match_pattern_dependencies(arm.pattern));
                 children.push(arm.value);
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
-        symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        ExpressionNode::SavedSubject(_) => {}
+        ExpressionNode::ArrayLiteral(values) => {
             children
                 .extend_from_slice(program.tables.bodies.expressions.expression_handles(values));
         }
-        symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+        ExpressionNode::Atomic(atomic) => {
             children.extend([atomic.value, atomic.result]);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+        ExpressionNode::Binary(binary) => {
             children.extend([binary.left, binary.right]);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+        ExpressionNode::Cast(cast) => {
             children.push(cast.value);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+        ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 children.push(call.receiver);
             }
@@ -299,11 +301,7 @@ fn retarget_expression(
                 .extend_from_slice(body_expressions(&program).expression_handles(call.arguments));
             let receiver_symbol = match program.tables.bodies.expressions.expression(call.receiver)
             {
-                symbol_resolved_trees::expression::ExpressionNode::Name(path)
-                    if call.receiver.is_valid() =>
-                {
-                    path.symbol
-                }
+                ExpressionNode::Name(path) if call.receiver.is_valid() => path.symbol,
                 _ => SymbolHandle::invalid(),
             };
             let site = CallSite {
@@ -318,28 +316,28 @@ fn retarget_expression(
                     .len(),
             };
             if let Some(target) = decide(&site)
-                && let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+                && let ExpressionNode::Call(call) =
                     program.tables.bodies.expressions.expression_mut(expression)
             {
                 call.target_symbol = target;
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        ExpressionNode::Indexed(indexed) => {
             children.extend([indexed.collection, indexed.index]);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+        ExpressionNode::Membership(membership) => {
             children.push(membership.value);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        ExpressionNode::Member(member) => {
             children.push(member.receiver);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        ExpressionNode::Borrow(inner) => {
             children.push(inner.target);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+        ExpressionNode::Range(range) => {
             children.extend([range.start, range.end]);
         }
-        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+        ExpressionNode::StructLiteral(literal) => {
             children.extend(
                 body_expressions(&program)
                     .struct_fields(literal.fields)
@@ -347,17 +345,17 @@ fn retarget_expression(
                     .map(|field| field.value),
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+        ExpressionNode::Unary(unary) => {
             children.push(unary.operand);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Float(_)
-        | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Name(_)
-        | symbol_resolved_trees::expression::ExpressionNode::String(_)
-        | symbol_resolved_trees::expression::ExpressionNode::TypeExpression(_)
-        | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {
         retarget_expression(program, child, decide, visited);

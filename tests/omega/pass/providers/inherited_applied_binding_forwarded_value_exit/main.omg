@@ -1,11 +1,11 @@
 public boundary trait Parent<Value> { machine echo(value: Value) -> Value reaches; }
 public boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
-    Parent::echo = echo;
-    Child::choose = choose;
+    machine echo(value: i32) -> i32 { echo_realization(value) }
+    machine choose() -> i32 { choose_realization() }
 }
-machine echo(value: i32) -> i32 { value }
-machine choose() -> i32 { 19 }
+machine echo_realization(value: i32) -> i32 { value }
+machine choose_realization() -> i32 { 19 }
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);

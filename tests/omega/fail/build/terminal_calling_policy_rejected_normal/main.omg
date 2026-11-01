@@ -1,0 +1,16 @@
+use omega_language_std::calling;
+
+public boundary trait Input: Calling<RejectedCalling> {
+    machine value(input: u64) -> u64 reaches;
+}
+InputMap satisfies Input { machine value(input: u64) -> u64 { input } }
+public RejectedCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "normal Terminal rejection" }
+        }
+    }
+}
+machine main() reaches Input {
+    let observed: u64 = Input::value(73u64);
+}

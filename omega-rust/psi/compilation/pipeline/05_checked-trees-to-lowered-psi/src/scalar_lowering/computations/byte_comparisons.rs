@@ -15,6 +15,7 @@ use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment,
 };
 use crate::expression_preparation::bindings::ScalarBindings;
+use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedStorageRoot,
     CheckedStructuralPredicatePathSegment as Predicate, CheckedUnitStructuralArgumentPlan,
@@ -280,12 +281,7 @@ impl Expansion<'_> {
                 "call byte view lost its checked result",
             ))?;
         let request =
-            crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
-                identities,
-                self.checked,
-                root.root,
-                self.structural_types,
-            )?;
+            ValueRequest::prepare(identities, self.checked, root.root, self.structural_types)?;
         Ok(request.finish(input_types, entry, self))
     }
 }

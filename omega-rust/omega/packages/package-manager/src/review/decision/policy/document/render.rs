@@ -2,9 +2,12 @@ use super::output::Output;
 use super::sources::{package_key, path, resolution};
 use super::{PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError};
 use crate::Hex;
+use crate::lock::PackageAcceptanceRow;
+use crate::lock::PackageCheckedContext;
 use crate::review::{
     PackagePolicyChangeKind, PackagePolicyChangeSet, PackagePolicyReplacementSite,
 };
+use package_compilation::build_execution::RestrictedBuildRequest;
 use std::fmt::{self, Write};
 
 pub(super) fn template(
@@ -130,7 +133,7 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
 fn checked_context(
     output: &mut Output,
     prefix: &str,
-    context: Option<crate::lock::PackageCheckedContext>,
+    context: Option<PackageCheckedContext>,
 ) -> fmt::Result {
     match context {
         Some(context) => writeln!(
@@ -146,11 +149,7 @@ fn checked_context(
     }
 }
 
-fn purposes(
-    output: &mut Output,
-    prefix: &str,
-    values: &[crate::lock::PackageCheckedContext],
-) -> fmt::Result {
+fn purposes(output: &mut Output, prefix: &str, values: &[PackageCheckedContext]) -> fmt::Result {
     write!(output, "{prefix} purposes")?;
     if values.is_empty() {
         write!(output, " none")?;
@@ -162,10 +161,7 @@ fn purposes(
     writeln!(output)
 }
 
-fn build_request(
-    output: &mut Output,
-    request: &package_compilation::build_execution::RestrictedBuildRequest,
-) -> fmt::Result {
+fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::Result {
     use package_compilation::build_execution::{
         RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
     };
@@ -259,11 +255,7 @@ fn role(role: crate::declarations::BuildDeclarationKind) -> &'static str {
     }
 }
 
-fn policy(
-    output: &mut Output,
-    prefix: &str,
-    row: Option<&crate::lock::PackageAcceptanceRow>,
-) -> fmt::Result {
+fn policy(output: &mut Output, prefix: &str, row: Option<&PackageAcceptanceRow>) -> fmt::Result {
     match row {
         Some(row) => {
             // The evidence codec owns readable policy syntax and escaping.

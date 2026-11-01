@@ -3,46 +3,68 @@
 // as the other arm, and the returned window publishes length 2.
 // Invalid control: `items[2..3]` in the arm that does not pin `which` publishes length 1
 // in every target body, so no target publishes the promised 2.
-linux_x86_64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
-    ensures result.len == 2
-{
-    match which {
-        0 -> &mut items[0..which + 2]
-        _ -> &mut items[2..3]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-linux_arm64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
-    ensures result.len == 2
-{
-    match which {
-        0 -> &mut items[0..which + 2]
-        _ -> &mut items[2..3]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-macos_arm64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
-    ensures result.len == 2
-{
-    match which {
-        0 -> &mut items[0..which + 2]
-        _ -> &mut items[2..3]
+boundary trait SelectedFromTarget {
+    machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2;
+}
+
+X86FromTarget satisfies SelectedFromTarget {
+    machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        match which {
+            0 -> &mut items[0..which + 2]
+            _ -> &mut items[2..3]
+        }
     }
 }
 
-windows_x86_64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
-    ensures result.len == 2
-{
-    match which {
-        0 -> &mut items[0..which + 2]
-        _ -> &mut items[2..3]
+ArmFromTarget satisfies SelectedFromTarget {
+    machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.len == 2
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        match which {
+            0 -> &mut items[0..which + 2]
+            _ -> &mut items[2..3]
+        }
     }
 }
+
 
 machine main() crashes Trap {
     let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    let window: &mut [u8] = from_target(&mut bytes, 0);
+    let window: &mut [u8] = SelectedFromTarget::from_target(&mut bytes, 0);
     transition window.len == 2 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

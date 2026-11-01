@@ -14,7 +14,11 @@ use super::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
-    error::WholeFunctionExitContractError::{self, NonReturnControlEffect, NonReturnStackEffect},
+    error::WholeFunctionExitContractError::{
+        self, BlockRosterMismatch, FunctionRosterMismatch, InstructionRosterMismatch,
+        InvalidConvention, MissingInstruction, NonReturnControlEffect, NonReturnStackEffect,
+        OffsetOverflow, RootMismatch,
+    },
     identity::contract_identity,
     validation_rules::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
@@ -50,11 +54,11 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         || layout.target() != machine.target
         || machine.physical_register_model != physical.identity()
     {
-        return Err(WholeFunctionExitContractError::RootMismatch);
+        return Err(RootMismatch);
     }
 
     if encoding.program().frame.as_ref() != frame_inputs.map(|(frame, _)| frame.plan()) {
-        return Err(WholeFunctionExitContractError::RootMismatch);
+        return Err(RootMismatch);
     }
     let target = machine.target;
     let (frameless_policy, convention, stack_name, link_name, entry_assumption) =
@@ -69,7 +73,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 || protocol.receipt().frame_layout() != frame.receipt().identity()
                 || protocol.receipt().target() != target
             {
-                return Err(WholeFunctionExitContractError::RootMismatch);
+                return Err(RootMismatch);
             }
             let policy = match frameless_policy {
                 WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => {
@@ -96,7 +100,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         }
     };
     if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
-        return Err(WholeFunctionExitContractError::InvalidConvention);
+        return Err(InvalidConvention);
     }
     let stack_pointer = view(physical, stack_name)?.id;
     let result_view = convention.result_views[0];
@@ -110,7 +114,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         (EntryAssumptionKind::LinkRegister, Some(link_register)) => {
             WholeFunctionEntryAssumption::CallerLinkRegisterV1 { link_register }
         }
-        _ => return Err(WholeFunctionExitContractError::InvalidConvention),
+        _ => return Err(InvalidConvention),
     };
 
     let encoding_rows = unique_encoding_rows(selected_plan, encoding.program())?;
@@ -130,7 +134,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
     if machine_functions.len() != selected_plan.functions.len()
         || layout_functions.len() != selected_plan.functions.len()
     {
-        return Err(WholeFunctionExitContractError::RootMismatch);
+        return Err(RootMismatch);
     }
 
     let callee_saved = convention
@@ -172,30 +176,29 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         && (frame_functions.len() != selected_plan.functions.len()
             || protocol_functions.len() != selected_plan.functions.len())
     {
-        return Err(WholeFunctionExitContractError::RootMismatch);
+        return Err(RootMismatch);
     }
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for function in &selected_plan.functions {
         let function_frame = frame_inputs
             .map(|_| {
-                frame_functions.get(&function.machine).copied().ok_or(
-                    WholeFunctionExitContractError::FunctionRosterMismatch(function.machine),
-                )
+                frame_functions
+                    .get(&function.machine)
+                    .copied()
+                    .ok_or(FunctionRosterMismatch(function.machine))
             })
             .transpose()?;
         if frame_inputs.is_some() && !protocol_functions.contains_key(&function.machine) {
-            return Err(WholeFunctionExitContractError::FunctionRosterMismatch(
-                function.machine,
-            ));
+            return Err(FunctionRosterMismatch(function.machine));
         }
         let (allowed_callee_saved, allow_link_write) = frame_permissions(physical, function_frame)?;
         let mut modified_callee_saved = BTreeSet::new();
-        let machine_function = machine_functions.get(&function.machine).ok_or(
-            WholeFunctionExitContractError::FunctionRosterMismatch(function.machine),
-        )?;
-        let layout_function = layout_functions.get(&function.machine).ok_or(
-            WholeFunctionExitContractError::FunctionRosterMismatch(function.machine),
-        )?;
+        let machine_function = machine_functions
+            .get(&function.machine)
+            .ok_or(FunctionRosterMismatch(function.machine))?;
+        let layout_function = layout_functions
+            .get(&function.machine)
+            .ok_or(FunctionRosterMismatch(function.machine))?;
         let machine_blocks = machine_function
             .blocks
             .iter()
@@ -209,25 +212,21 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         if machine_blocks.len() != function.blocks.len()
             || layout_blocks.len() != function.blocks.len()
         {
-            return Err(WholeFunctionExitContractError::FunctionRosterMismatch(
-                function.machine,
-            ));
+            return Err(FunctionRosterMismatch(function.machine));
         }
 
         let mut returns = Vec::new();
         let mut process_exits = Vec::new();
         let mut crashes = Vec::new();
         for block in &function.blocks {
-            let machine_block = machine_blocks.get(&block.id).ok_or(
-                WholeFunctionExitContractError::BlockRosterMismatch(block.id),
-            )?;
-            let _layout_block = layout_blocks.get(&block.id).ok_or(
-                WholeFunctionExitContractError::BlockRosterMismatch(block.id),
-            )?;
+            let machine_block = machine_blocks
+                .get(&block.id)
+                .ok_or(BlockRosterMismatch(block.id))?;
+            let _layout_block = layout_blocks
+                .get(&block.id)
+                .ok_or(BlockRosterMismatch(block.id))?;
             if machine_block.instructions.len() != block.instructions.len() + 1 {
-                return Err(WholeFunctionExitContractError::BlockRosterMismatch(
-                    block.id,
-                ));
+                return Err(BlockRosterMismatch(block.id));
             }
             for (index, machine_instruction) in machine_block.instructions.iter().enumerate() {
                 let (instruction, return_edge) = if index < block.instructions.len() {
@@ -239,17 +238,15 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     )
                 };
                 if machine_instruction.instruction != instruction.id {
-                    return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                        instruction.id,
-                    ));
+                    return Err(InstructionRosterMismatch(instruction.id));
                 }
                 let instruction_key = (function.machine, instruction.id);
-                let encoding_row = encoding_rows.get(&instruction_key).ok_or(
-                    WholeFunctionExitContractError::MissingInstruction(instruction.id),
-                )?;
-                let (resolved_block, resolved_row) = layout_rows.get(&instruction_key).ok_or(
-                    WholeFunctionExitContractError::MissingInstruction(instruction.id),
-                )?;
+                let encoding_row = encoding_rows
+                    .get(&instruction_key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let (resolved_block, resolved_row) = layout_rows
+                    .get(&instruction_key)
+                    .ok_or(MissingInstruction(instruction.id))?;
                 let relaxed_less_than_alternative = matches!(
                     layout_custody,
                     WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
@@ -272,9 +269,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     || (resolved_row.alternative != machine_instruction.alternative.key
                         && !relaxed_less_than_alternative)
                 {
-                    return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                        instruction.id,
-                    ));
+                    return Err(InstructionRosterMismatch(instruction.id));
                 }
                 validate_preservation_writes(
                     machine_instruction,
@@ -295,7 +290,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     super::validation_rules::trap::validate_trap(
                         physical,
                         instruction,
@@ -340,7 +335,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     validate_process_exit(
                         physical,
                         function,
@@ -364,7 +359,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     let layout_block_end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     returns.push(validate_return(
                         target,
                         stack_pointer,

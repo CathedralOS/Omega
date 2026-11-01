@@ -12,6 +12,7 @@ use super::{
     LoweredScalarBranchTerminator, LoweringError, QualifiedScalarType, ScalarType, Site, parameter,
     parameters, unsupported,
 };
+use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 
 impl Expansion<'_> {
@@ -21,7 +22,7 @@ impl Expansion<'_> {
     pub(super) fn claim_continuation(
         &mut self,
         expression: typed_trees::expression::ExpressionHandle,
-        route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
+        route: Vec<SelectedDecision>,
         types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
@@ -121,13 +122,11 @@ impl Expansion<'_> {
             ));
             let when_true_completion = self.claim_continuation(
                 expression,
-                vec![
-                    crate::emission::claim_bindings::selections::SelectedDecision {
-                        expression,
-                        decision: 0,
-                        selected: true,
-                    },
-                ],
+                vec![SelectedDecision {
+                    expression,
+                    decision: 0,
+                    selected: true,
+                }],
                 &result_types,
                 completion,
                 site,
@@ -160,13 +159,11 @@ impl Expansion<'_> {
             } else {
                 let when_false_completion = self.claim_continuation(
                     expression,
-                    vec![
-                        crate::emission::claim_bindings::selections::SelectedDecision {
-                            expression,
-                            decision: 0,
-                            selected: false,
-                        },
-                    ],
+                    vec![SelectedDecision {
+                        expression,
+                        decision: 0,
+                        selected: false,
+                    }],
                     &result_types,
                     completion,
                     site,

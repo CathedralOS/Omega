@@ -16,6 +16,8 @@ use crate::monomorphization::{
     TypedTrees,
 };
 use crate::tables::{expressions_of, expressions_of_mut};
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees::references::StaticArgumentCall;
 
 pub(crate) fn statement_span_handles(
     span: HandleSpan<StatementNode>,
@@ -222,8 +224,7 @@ pub(crate) fn rewrite_cloned_calls(
             );
             let application = call.authored_machine_application;
             let target = call.target.clone();
-            let applications =
-                typed_trees::references::StaticArgumentCall::Statement(call).applications();
+            let applications = StaticArgumentCall::Statement(call).applications();
             for application in applications {
                 substitute_application!(application);
             }
@@ -337,8 +338,7 @@ pub(crate) fn rewrite_cloned_calls(
         );
         let application = call.authored_machine_application;
         let target = call.target.clone();
-        let applications =
-            typed_trees::references::StaticArgumentCall::Expression(handle, call).applications();
+        let applications = StaticArgumentCall::Expression(handle, call).applications();
         for application in applications {
             substitute_application!(application);
         }
@@ -551,18 +551,15 @@ pub(crate) fn rewrite_clone_transition_subjects(
 fn apply_evidence_dispatch_rewrite(
     target_symbol: SymbolHandle,
     static_requirement_dispatch: &mut Option<typed_trees::typed_trees::StaticRequirementDispatch>,
-    machine_arguments: &mut Box<[typed_trees::expression::StaticMachineArgument]>,
+    machine_arguments: &mut Box<[StaticMachineArgument]>,
     arguments: &mut HandleSpan<ExpressionHandle>,
     evidence_dispatch: Option<&super::evidence_rewrites::EvidenceRequirementRewrite>,
-    static_argument_rewrites: &[(SymbolHandle, typed_trees::expression::StaticMachineArgument)],
+    static_argument_rewrites: &[(SymbolHandle, StaticMachineArgument)],
     argument_rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
     state_symbols: &[(SymbolHandle, SymbolHandle)],
     clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
     mut invalidate_receiver: impl FnMut(),
-) -> Option<(
-    SymbolHandle,
-    Box<[typed_trees::expression::StaticMachineArgument]>,
-)> {
+) -> Option<(SymbolHandle, Box<[StaticMachineArgument]>)> {
     if evidence_dispatch.is_some() {
         invalidate_receiver();
     }

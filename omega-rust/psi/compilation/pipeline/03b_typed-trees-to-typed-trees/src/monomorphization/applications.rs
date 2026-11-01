@@ -9,6 +9,7 @@ use super::{
 };
 use crate::monomorphization::const_arguments;
 use crate::tables::{expressions_of, expressions_of_mut};
+use typed_trees::data::TypeParameterKind;
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
@@ -90,6 +91,55 @@ pub(super) fn candidate_bindings(
         }
     }
     bindings
+}
+
+/// Bind a candidate from a recorded tuple, the inverse of `candidate_bindings`.
+/// A runtime operand is no part of an instance's static tuple, so a record that
+/// holds one cannot stand in for the provider and binds nothing usable.
+pub(super) fn bind_recorded_tuple(
+    program: &TypedTrees,
+    candidate: &mut Candidate<'_>,
+    tuple: StaticMachineApplicationHandle,
+) -> bool {
+    for binding in expressions_of(program).static_machine_application_bindings(tuple) {
+        let parameter = binding.parameter;
+        match &binding.value {
+            StaticMachineBindingValue::Type(actual) => {
+                let Some(slot) = (candidate.template.type_parameters.iter())
+                    .position(|(symbol, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.type_bindings[slot] = Some(*actual);
+            }
+            StaticMachineBindingValue::Const(actual) => {
+                let Some(slot) = (candidate.template.const_parameters.iter())
+                    .position(|(symbol, _, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.const_bindings[slot] = Some(*actual);
+            }
+            StaticMachineBindingValue::Machine(argument) => {
+                let Some(slot) = (candidate.template.machine_parameters.iter())
+                    .position(|(symbol, _, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.machine_bindings[slot] = Some(argument.clone());
+            }
+            StaticMachineBindingValue::Conformance(argument) => {
+                let Some(slot) = (candidate.template.evidence_parameters.iter())
+                    .position(|bound| bound.binder == parameter)
+                else {
+                    return false;
+                };
+                candidate.evidence_bindings[slot] = Some(argument.clone());
+            }
+            StaticMachineBindingValue::RuntimeValue { .. } => return false,
+        }
+    }
+    true
 }
 
 pub(super) fn retain_authored_call(
@@ -210,12 +260,10 @@ pub(super) fn retain_call(
         .static_machine_application_arguments(application)
         .to_vec();
     for (parameter, argument) in parameters.iter().zip(&arguments) {
-        if !matches!(
-            parameter.kind,
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) || bindings
-            .iter()
-            .any(|binding| binding.parameter == parameter.symbol)
+        if !matches!(parameter.kind, TypeParameterKind::Const { .. })
+            || bindings
+                .iter()
+                .any(|binding| binding.parameter == parameter.symbol)
         {
             continue;
         }
@@ -264,14 +312,17 @@ pub(super) fn retain_instance(
     // Preserve the representative source application's lexical region scope;
     // every other source edge still owns its separate admission. Roster-only
     // instances have no source call and retain their declaration context.
-    let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
+    let (lexical_owner, lifetime_declaration, lifetimes) = if candidate
+        .binding_application
+        .is_valid()
+    {
         let origin = source.unwrap_or(program);
         let source_application =
             expressions_of(origin).static_machine_application(candidate.binding_application);
         let mut lifetimes = expressions_of(origin)
             .static_machine_application_lifetimes(candidate.binding_application)
             .to_vec();
-        let source_declaration = source_application.binding_declaration;
+        let source_declaration = source_application.lifetime_binding_declaration;
         let target_declaration = candidate.template.template_symbol;
         if source_declaration != target_declaration
             && origin.target_machine_families.iter().any(|family| {
@@ -314,10 +365,22 @@ pub(super) fn retain_instance(
                     })?;
                 binding.parameter = target_machine.lifetime_parameters[ordinal].clone();
             }
+        } else {
+            lifetimes = origin
+                .static_application_lifetimes_for_declaration(
+                    candidate.binding_application,
+                    target_declaration,
+                )
+                .map_err(|reason| vec![super::Diagnostic::error(reason)])?
+                .into_owned();
         }
-        (source_application.lexical_owner, lifetimes)
+        (
+            source_application.lexical_owner,
+            target_declaration,
+            lifetimes,
+        )
     } else {
-        (instance, Vec::new())
+        (instance, candidate.template.template_symbol, Vec::new())
     };
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
@@ -347,6 +410,10 @@ pub(super) fn retain_instance(
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
     expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
-    expressions_of_mut(program).set_static_machine_application_lifetimes(application, &lifetimes);
+    expressions_of_mut(program).set_static_machine_application_lifetimes(
+        application,
+        lifetime_declaration,
+        &lifetimes,
+    );
     Ok(application)
 }

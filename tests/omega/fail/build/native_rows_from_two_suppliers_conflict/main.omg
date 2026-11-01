@@ -1,0 +1,9 @@
+// Two packages bind the same requirement natively for the selected target.
+// Rows keyed to one target at the same precedence conflict; neither wins by
+// declaration order, and no checked implementation settles the choice.
+use distance_library::distance::Distance;
+machine main() crashes Trap reaches Distance {
+ let seen: i32 = Distance::absolute(-73);
+ transition seen == 73 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

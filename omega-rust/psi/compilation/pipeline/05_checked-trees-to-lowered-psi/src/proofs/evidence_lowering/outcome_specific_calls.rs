@@ -28,6 +28,7 @@ use crate::proofs::{
     OperationResult, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity, Proposition,
     PropositionApplicationIdentity, PropositionDeclaration,
 };
+use crate::scalar_lowering::computations::fields::field_path_identity;
 
 /// The caller places one validity roster of checked occurrences names,
 /// sorted and deduplicated as the codec's canonical order requires.
@@ -496,10 +497,7 @@ pub(super) fn lower_argument_subject(
                 let path = fields
                     .iter()
                     .map(|field| {
-                        crate::scalar_lowering::computations::fields::field_path_identity(
-                            checked, *field,
-                        )
-                        .map(|identity| {
+                        field_path_identity(checked, *field).map(|identity| {
                             terminal_psi::StructuralPathSegment::Field(
                                 identities.intern(&identity.spelling()),
                             )

@@ -6,6 +6,7 @@ use crate::typed_trees::type_system::type_identity::identity_context::TypeIdenti
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_index_expression;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
+use crate::types::FixedArrayLength;
 use crate::{
     TypedTrees,
     expression::ExpressionNode,
@@ -538,14 +539,12 @@ impl TypedTrees {
     /// carrier or constraints. Unknown, cyclic and unrepresentable extents fail.
     pub fn closed_array_extent(
         &self,
-        length: &crate::types::FixedArrayLength,
+        length: &FixedArrayLength,
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<usize> {
         let (mut symbol, mut spelling) = match length {
-            crate::types::FixedArrayLength::Literal(length) => return Some(*length),
-            crate::types::FixedArrayLength::ConstParameter { symbol, name }
-                if symbol.is_valid() =>
-            {
+            FixedArrayLength::Literal(length) => return Some(*length),
+            FixedArrayLength::ConstParameter { symbol, name } if symbol.is_valid() => {
                 (*symbol, name.as_str())
             }
             _ => return None,

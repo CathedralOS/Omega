@@ -6,6 +6,7 @@ use super::RowSite;
 use super::aggregate_results::established_home;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::scalar::descriptor_operands::observes_count;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::IntegerSign;
 use target_operations::TargetUnitOperation;
@@ -57,9 +58,7 @@ pub(super) fn lower(
                             terminal_psi::StructuralTypeShape::ByteSequence(_)
                         )
                     })
-                    || !crate::lowering::scalar::descriptor_operands::observes_count(
-                        function, &values, *length, source, true,
-                    )
+                    || !observes_count(function, &values, *length, source, true)
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

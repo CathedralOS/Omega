@@ -10,7 +10,6 @@
 //! question from the checked write frames of the operand calls: it grants
 //! nothing and consults no source shape.
 
-use crate::flow::expressions;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::FactPayload;
 use symbols::SymbolHandle;
@@ -293,70 +292,22 @@ fn collect_root_mentions(
     expression: ExpressionHandle,
     mentioned: &mut Vec<SymbolHandle>,
 ) {
-    if !expression.is_valid() {
-        return;
-    }
-    let mut recurse = |child| collect_root_mentions(program, child, mentioned);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let root = if path.head_symbol.is_valid() {
-                path.head_symbol
-            } else {
-                path.symbol
-            };
-            if root.is_valid() && !mentioned.contains(&root) {
-                mentioned.push(root);
-            }
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection);
-            recurse(indexed.index);
-        }
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Borrow(inner) => recurse(inner.target),
-        ExpressionNode::Binary(binary) => {
-            recurse(binary.left);
-            recurse(binary.right);
-        }
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Range(range) => {
-            recurse(range.start);
-            recurse(range.end);
-        }
-        ExpressionNode::Match(dispatch) => {
-            recurse(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    recurse(pattern);
+    program.subtree_for_each(
+        expression,
+        typed_trees::SubtreeEdges::SAVED_SOURCES,
+        |_, node| {
+            if let ExpressionNode::Name(path) = node {
+                let root = if path.head_symbol.is_valid() {
+                    path.head_symbol
+                } else {
+                    path.symbol
+                };
+                if root.is_valid() && !mentioned.contains(&root) {
+                    mentioned.push(root);
                 }
-                recurse(arm.value);
             }
-        }
-        ExpressionNode::Call(call) => {
-            recurse(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                recurse(*argument);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                recurse(*value);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                recurse(field.value);
-            }
-        }
-        ExpressionNode::SavedSubject(saved) => {
-            if let Some(source) = program.saved_value_source(saved) {
-                recurse(source);
-            }
-        }
-        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
-    }
+        },
+    );
 }
 
 /// Whether `needle` occurs anywhere inside `expression`.
@@ -365,43 +316,15 @@ fn expression_contains(
     expression: ExpressionHandle,
     needle: ExpressionHandle,
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    if expression == needle {
-        return true;
-    }
-    let recurse = |child| expression_contains(program, child, needle);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::TypeExpression(_)
-        | typed_trees::spelled_literal_expression_pattern!() => false,
-        ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Borrow(inner) => recurse(inner.target),
-        ExpressionNode::Binary(binary) => recurse(binary.left) || recurse(binary.right),
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
-        ExpressionNode::Match(dispatch) => {
-            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::VALUES
+    };
+    program.subtree_any(expression, edges, |handle, _| {
+        if handle == needle {
+            typed_trees::SubtreeVisit::Found
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        ExpressionNode::Call(call) => {
-            recurse(call.receiver)
-                || expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| recurse(*argument))
-        }
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| recurse(*value)),
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| recurse(field.value)),
-    }
+    })
 }

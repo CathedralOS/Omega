@@ -1,6 +1,7 @@
 //! Scalar helper catalogs embedded beneath an existing source-owned root.
 use super::super::MachineId;
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::emission::claim_bindings::PublishedClaims;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 
 mod discovery;
@@ -86,13 +87,11 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
             domain_ids: &self.domain_ids,
             domain_declarations: self.domain_declarations,
             scalar_qualifications: self.scalar_qualifications,
-            claims: crate::emission::claim_bindings::ClaimBindings::Fixed(
-                crate::emission::claim_bindings::PublishedClaims {
-                    bindings: &self.claim_bindings,
-                    unreceived_results: &self.unreceived_results,
-                    completed_values: &self.completed_values,
-                },
-            ),
+            claims: crate::emission::claim_bindings::ClaimBindings::Fixed(PublishedClaims {
+                bindings: &self.claim_bindings,
+                unreceived_results: &self.unreceived_results,
+                completed_values: &self.completed_values,
+            }),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
             signatures: &self.signatures,
@@ -106,10 +105,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
 
     /// Composed source graphs publish their claim roster before emitting any
     /// evaluation. Every temporary and ordinary call borrows that same roster.
-    pub(crate) fn bind_claim_namespace(
-        &mut self,
-        published: crate::emission::claim_bindings::PublishedClaims<'_>,
-    ) {
+    pub(crate) fn bind_claim_namespace(&mut self, published: PublishedClaims<'_>) {
         self.claim_bindings.clear();
         self.claim_bindings.extend_from_slice(published.bindings);
         self.completed_values.clear();

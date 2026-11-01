@@ -81,4 +81,7 @@ public boundary trait WindowsGuiHost {
             SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
             FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
             FilesystemNamespaceMutation;
+    // Asynchronous virtual-key state. One means the key was down at call time;
+    // the raw pressed-since-last-call latch of GetAsyncKeyState is discarded.
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation;
 }

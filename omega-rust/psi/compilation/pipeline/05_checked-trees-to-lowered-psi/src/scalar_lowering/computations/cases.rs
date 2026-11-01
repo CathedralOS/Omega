@@ -17,6 +17,7 @@ use super::{
 };
 use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
+use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -27,6 +28,7 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
@@ -127,7 +129,8 @@ pub(crate) fn reserve(
     types: &[StructuralTypeDeclaration],
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
-    let identity = checked.normalized_type_identity(source.type_reference);
+    let identity =
+        validation::stored_structural_type_identity(checked, source.type_reference, &[], &[]);
     let declaration = crate::terminal_identities::structural_declaration_by_identity(
         types,
         identities,
@@ -138,14 +141,9 @@ pub(crate) fn reserve(
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed case requires a plain sum");
     };
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
-        .type_reference_table
-        .type_reference(source.type_reference)
-    else {
-        return unsupported("computed case has no nominal owner");
-    };
+    let carrier = validation::structural_storage_type(checked, source.type_reference, &[]);
     let owner = checked
-        .data_definition_by_symbol(*symbol)
+        .closed_data_definition(carrier)
         .ok_or(LoweringError::Unsupported("computed case owner is absent"))?;
     let mut case_bindings = Vec::new();
     let mut selected = None;
@@ -272,13 +270,19 @@ pub(crate) fn type_roots(
             && receiver_value.is_valid()
         {
             let root = observed_values::unique_root(checked, *receiver_value)?;
-            let identity = checked.normalized_type_identity(root.type_reference);
+            let identity =
+                validation::stored_structural_type_identity(checked, root.type_reference, &[], &[]);
             if !types.contains(&identity) {
                 types.push(identity);
             }
         }
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            let identity = checked.normalized_type_identity(subject.type_reference);
+            let identity = validation::stored_structural_type_identity(
+                checked,
+                subject.type_reference,
+                &[],
+                &[],
+            );
             if !types.contains(&identity) {
                 types.push(identity);
             }
@@ -482,11 +486,7 @@ impl Expansion<'_> {
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 cleanup_actions: if slot.multiplicity == StructuralMultiplicity::Affine {
-                    vec![
-                        crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root(
-                            slot.place,
-                        ),
-                    ]
+                    vec![PreparedNormalCleanupAction::discard_root(slot.place)]
                 } else {
                     Vec::new()
                 },
@@ -571,10 +571,7 @@ pub(crate) fn emit(
             multiplicity: effect.multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-            claims: crate::emission::claim_bindings::emit_establishment_claims(
-                &effect.claims,
-                &mut calls.claims,
-            )?,
+            claims: emit_establishment_claims(&effect.claims, &mut calls.claims)?,
         }),
         if fields.is_empty() {
             // Payloadless cases remain pure tag establishments. Guarded exit

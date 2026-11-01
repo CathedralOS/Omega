@@ -7,6 +7,10 @@ use crate::record::{
     PackageReviewContractUnaryOperator,
 };
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelection;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use typed_trees::expression::UnaryOperator;
+use typed_trees::operator::declaration_by_symbol;
 
 pub(crate) fn exact_checked_contract_operator_meaning(
     compilation: &PackageReviewInput<'_>,
@@ -41,11 +45,9 @@ pub(crate) fn exact_checked_contract_operator_meaning(
         ) => Ok(PackageReviewContractOperatorMeaning::Builtin),
         AuthoredDeclarationSelectionTarget::Resolved(target) => {
             let symbol = target.selected_symbol();
-            let declaration = typed_trees::operator::declaration_by_symbol(compilation, symbol)
-                .ok_or_else(|| {
-                    context
-                        .rejected("contract selected an operator without one retained declaration")
-                })?;
+            let declaration = declaration_by_symbol(compilation, symbol).ok_or_else(|| {
+                context.rejected("contract selected an operator without one retained declaration")
+            })?;
             Ok(PackageReviewContractOperatorMeaning::Declared(
                 project_operator_coordinate(compilation, declaration)?,
             ))
@@ -65,11 +67,8 @@ pub(in crate::capture) fn exact_checked_operator_selection(
     compilation: &PackageReviewInput<'_>,
     program: &dyn validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
-    expected_exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
-) -> Result<language_semantics::declaration_selection::AuthoredDeclarationSelection, Vec<Diagnostic>>
-{
+    expected_exposure: Option<AuthoredDeclarationSelectionExposure>,
+) -> Result<AuthoredDeclarationSelection, Vec<Diagnostic>> {
     exact_checked_expression_selection(
         compilation,
         program,
@@ -84,11 +83,8 @@ pub(in crate::capture) fn exact_checked_expression_selection(
     program: &dyn validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
-    expected_exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
-) -> Result<language_semantics::declaration_selection::AuthoredDeclarationSelection, Vec<Diagnostic>>
-{
+    expected_exposure: Option<AuthoredDeclarationSelectionExposure>,
+) -> Result<AuthoredDeclarationSelection, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     for occurrence in program
         .expression_table
@@ -175,14 +171,10 @@ pub(crate) const fn project_contract_binary_operator(
 }
 
 pub(crate) const fn project_contract_unary_operator(
-    operator: typed_trees::expression::UnaryOperator,
+    operator: UnaryOperator,
 ) -> PackageReviewContractUnaryOperator {
     match operator {
-        typed_trees::expression::UnaryOperator::BitwiseNot => {
-            PackageReviewContractUnaryOperator::BitwiseNot
-        }
-        typed_trees::expression::UnaryOperator::LogicalNot => {
-            PackageReviewContractUnaryOperator::LogicalNot
-        }
+        UnaryOperator::BitwiseNot => PackageReviewContractUnaryOperator::BitwiseNot,
+        UnaryOperator::LogicalNot => PackageReviewContractUnaryOperator::LogicalNot,
     }
 }

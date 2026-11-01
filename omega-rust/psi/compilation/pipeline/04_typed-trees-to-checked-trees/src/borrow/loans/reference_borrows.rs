@@ -5,6 +5,7 @@ use super::super::tracker::StateLoanTracker;
 use super::StatementBorrowLoan;
 use super::call_views::*;
 use super::types::{is_reference_type, reference_borrow_access_kind};
+use crate::borrow::view_link::ViewReturnSource::NotApplicable;
 use crate::borrow::view_link::is_borrow_carrying_data;
 use crate::flow::expressions;
 use checked_trees::expression::ExpressionHandle;
@@ -54,10 +55,7 @@ pub(super) fn reference_local_borrow_loans(
     if let checked_trees::expression::ExpressionNode::Call(call) =
         expressions(program).expression(local_data.initial_value)
         && let Some(contract) = call_view_return_contract(program, state.symbol, call)
-        && matches!(
-            contract.source(program),
-            crate::borrow::view_link::ViewReturnSource::NotApplicable
-        )
+        && matches!(contract.source(program), NotApplicable)
         && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
     {
         return vec![StatementBorrowLoan {

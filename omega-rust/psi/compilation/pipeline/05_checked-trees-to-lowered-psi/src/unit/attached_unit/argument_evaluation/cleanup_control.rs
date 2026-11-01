@@ -10,6 +10,7 @@ use super::{
     Evaluation, LoweringError, OperationBuffer, Terminator, ValueDeclaration, allocate_dense,
     block_id, declarations, edge_id, value_id,
 };
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use crate::unit::unit_cleanup::CleanupRegion;
 use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ScalarType};
 use terminal_psi::{
@@ -874,12 +875,11 @@ impl CleanupEmission<'_> {
                 parameters: std::mem::take(self.parameters),
                 structural_parameters: std::mem::take(self.structural_parameters),
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
-                erased_proof_formals:
-                    crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                        identities,
-                        self.checked,
-                        self.erased_proof_formals,
-                    ),
+                erased_proof_formals: erased_proof_formal_declarations(
+                    identities,
+                    self.checked,
+                    self.erased_proof_formals,
+                ),
                 operations: operations[*self.operation_start..].to_vec(),
                 terminator: Terminator::Conditional {
                     condition: observation.id,
@@ -943,12 +943,11 @@ impl CleanupEmission<'_> {
             parameters: std::mem::take(self.parameters),
             structural_parameters: std::mem::take(self.structural_parameters),
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
-            erased_proof_formals:
-                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                    identities,
-                    self.checked,
-                    self.erased_proof_formals,
-                ),
+            erased_proof_formals: erased_proof_formal_declarations(
+                identities,
+                self.checked,
+                self.erased_proof_formals,
+            ),
             operations: operations[*self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 edge,

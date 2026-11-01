@@ -38,6 +38,30 @@ use typed_trees::TypedTrees;
 
 mod applied_results;
 mod plan_installation;
+
+/// Whether `span` names a declaration of the sealed toolchain layout module.
+/// Without a source map the toolchain is the only source, so every span does.
+pub(super) fn toolchain_layout_declaration(
+    sources: Option<&source::SourceMap>,
+    span: source::SourceSpan,
+) -> bool {
+    sources.is_none_or(|sources| {
+        sources.file_at(span).is_some_and(|source| {
+            source.origin == source::SourceOrigin::Toolchain
+                && source.path.strip_prefix(&source.package_root).ok()
+                    == Some(std::path::Path::new("layout.omg"))
+        })
+    })
+}
+
+/// Whether `forest` holds the sealed `Accessor` template the synthesis clones.
+fn has_accessor_template(forest: &SyntaxTrees, sources: Option<&source::SourceMap>) -> bool {
+    forest.root_items().any(|item| {
+        matches!(item, Item::Data(data)
+            if data.name.as_str(forest).rsplit("::").next() == Some("Accessor")
+                && toolchain_layout_declaration(sources, data.name.source_span()))
+    })
+}
 mod record_synthesis;
 mod template_applications;
 
@@ -135,6 +159,23 @@ pub fn desugar_access_views(
     let sources = context.sources.clone();
     let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
     let selection_authority = context.selection_authority.clone();
+    // The sealed `Access`/`Accessor` templates come from the toolchain layout
+    // module. A cohort that extends a retained source may import that module
+    // without parsing it again; its declarations then live only in the
+    // retained predecessor's parsed forest, which supplies template syntax and
+    // declaration identity here without adding work roots or authority.
+    let retained_templates: Option<&SyntaxTrees> =
+        if has_accessor_template(syntax, sources.as_deref()) {
+            None
+        } else {
+            [
+                context.declaration_syntax,
+                context.retained_declaration_syntax,
+            ]
+            .into_iter()
+            .flatten()
+            .find(|forest| has_accessor_template(forest, sources.as_deref()))
+        };
     let owner_requests = syntax
         .root_items()
         .filter_map(|item| match item {
@@ -146,8 +187,9 @@ pub fn desugar_access_views(
         })
         .collect::<Vec<_>>();
     let owner_declarations =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations_with_retained(
             syntax,
+            retained_templates,
             sources.clone(),
             source_scoped_top_level_bindings.to_vec(),
             &owner_requests
@@ -205,8 +247,9 @@ pub fn desugar_access_views(
         })
         .collect::<Vec<_>>();
     let declarations =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations_with_retained(
             syntax,
+            retained_templates,
             sources.clone(),
             source_scoped_top_level_bindings.to_vec(),
             &names
@@ -223,6 +266,7 @@ pub fn desugar_access_views(
     }
     let (applications, rewrites, schemas) = discover_applications(
         syntax,
+        retained_templates,
         sources.as_deref(),
         selection_authority.as_deref(),
         &selected_arguments,
@@ -241,6 +285,7 @@ pub fn desugar_access_views(
     let mut probe = syntax.clone();
     synthesize_probe_records(
         &mut probe,
+        retained_templates,
         &applications,
         &rewrites,
         &schemas,
@@ -251,6 +296,10 @@ pub fn desugar_access_views(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
     )?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::resolve_deferred(context.resolution_request(probe))?;
@@ -311,6 +360,7 @@ pub fn desugar_access_views(
 
     synthesize_exact_records(
         syntax,
+        retained_templates,
         &applications,
         &rewrites,
         &schemas,
@@ -478,6 +528,7 @@ fn admit_policy_invocations(
 
 fn discover_applications(
     syntax: &SyntaxTrees,
+    retained_templates: Option<&SyntaxTrees>,
     sources: Option<&source::SourceMap>,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     selected_arguments: &[applied_results::SelectedArgument],
@@ -518,6 +569,29 @@ fn discover_applications(
                 });
             }
             _ => {}
+        }
+    }
+    // Toolchain declarations the cohort imports without parsing again, such
+    // as the sealed `Access` view, are candidates by exact span and name. No
+    // field syntax crosses forests: these candidates can be the view or its
+    // templates, never a schema whose fields this cohort would project.
+    if let Some(forest) = retained_templates {
+        for item in forest.root_items() {
+            let Item::Data(definition) = item else {
+                continue;
+            };
+            if !toolchain_layout_declaration(sources, definition.name.source_span()) {
+                continue;
+            }
+            data.push(DataCandidate {
+                name: definition.name.as_str(forest).to_owned(),
+                source: definition.name.source_span(),
+                is_public: definition.is_public,
+                plain: definition.type_parameters.is_empty(),
+                supply_mode: definition.supply_mode,
+                fields: Vec::new(),
+                member_count: forest.tables.items.data_members(definition.members).len(),
+            });
         }
     }
 

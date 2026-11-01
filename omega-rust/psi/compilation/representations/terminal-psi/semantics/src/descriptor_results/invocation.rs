@@ -3,6 +3,8 @@
 //! descriptor's backing and supplies no implementation-private guarantees.
 use super::*;
 use crate::descriptor_lifetimes::descriptor_location;
+use terminal_psi::BoundaryMachineResult;
+use terminal_psi::TerminalDynamicReferenceOrigin;
 
 pub fn public_invocation(
     operation: semantic_vocabulary::OperationId,
@@ -43,7 +45,7 @@ pub fn public_invocation(
     }
     let mut results = Vec::new();
     if let Some(result) = result {
-        let terminal_psi::BoundaryMachineResult::Structural(expected) = &slot.result else {
+        let BoundaryMachineResult::Structural(expected) = &slot.result else {
             return None;
         };
         if result.structural_type != expected.structural_type
@@ -54,10 +56,7 @@ pub fn public_invocation(
             return None;
         }
         results = public_result_slots(types, slot_kind, slot, result.place)?;
-    } else if matches!(
-        slot.result,
-        terminal_psi::BoundaryMachineResult::Structural(_)
-    ) {
+    } else if matches!(slot.result, BoundaryMachineResult::Structural(_)) {
         return None;
     }
     Some(DescriptorInvocation {
@@ -85,7 +84,7 @@ pub fn public_result_slots(
     slot: &terminal_psi::TerminalDynamicSlot,
     place: PlaceId,
 ) -> Option<Vec<DescriptorResultSlot>> {
-    let terminal_psi::BoundaryMachineResult::Structural(result) = &slot.result else {
+    let BoundaryMachineResult::Structural(result) = &slot.result else {
         return Some(Vec::new());
     };
     let mut results = Vec::new();
@@ -124,10 +123,8 @@ pub fn public_result_slots(
                 continue;
             }
             let index = match region.origin {
-                terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
-                    argument_index
-                }
-                terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
+                TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
                     let mut projection = Projection::new(&region.source_path);
                     projection.forget_address();
                     origins.push(DescriptorStoredOrigin::Invocation {

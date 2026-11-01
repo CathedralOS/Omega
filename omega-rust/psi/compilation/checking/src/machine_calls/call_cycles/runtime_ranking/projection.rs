@@ -1,8 +1,5 @@
 use crate::frozen_program::expression_table;
-use crate::{
-    MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
-    find_declared_measure, measure_body_shape,
-};
+use crate::{RankingRangeMeasure, ScalarViewComputation, declared_scalar_view};
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
@@ -42,17 +39,9 @@ pub(super) enum RankOrder {
     /// measure and carrier, never an inferred global monotonicity property.
     DeclaredComputation {
         measure: SymbolHandle,
-        primitive: PrimitiveType,
+        input_type: TypeReferenceHandle,
+        result_primitive: PrimitiveType,
         computation: ScalarViewComputation,
-    },
-    /// A declared measure whose body projects a `u64` field of its record
-    /// parameter (`measure_body_shape`'s `FieldProjection`). The produced rank
-    /// is that exact coordinate of the subject's record, reached through at
-    /// most one reference boundary. Members share this order only through the
-    /// same measure; each call edge re-resolves the chain against the exact
-    /// formals' declarations and walks the actual's forward or literal.
-    CustomStructView {
-        measure: SymbolHandle,
     },
     Lexicographic {
         measure_index: usize,
@@ -63,10 +52,6 @@ pub(super) enum RankOrder {
 
 pub(super) struct RankProjection {
     pub(super) order: RankOrder,
-    /// The entry formal the produced rank reads: the subject formal for a
-    /// bare subject, or the carrier formal a member-chain subject's
-    /// coordinate is rooted at.
-    pub(super) parameter: SymbolHandle,
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
@@ -105,11 +90,10 @@ impl RankProjection {
             let (argument_position, parameter) = entry_parameter(program, entry, *lower)?;
             // The cursor has an exact storage carrier. Its bound is an
             // expression, not necessarily another formal: the call judgment
-            // independently proves its meaning, formation and conservation.
+            // independently proves its meaning and formation after exact substitution.
             let primitive = integer_subject_carrier(program, machine, entry, *lower, parameter)?;
             return Some(Self {
                 order: RankOrder::BoundedDistance(primitive),
-                parameter: parameter.symbol,
                 argument_position,
                 subject: *lower,
                 paired_subject: *upper,
@@ -138,7 +122,6 @@ impl RankProjection {
                 return None;
             }
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 RankOrder::SliceLength,
@@ -166,7 +149,6 @@ impl RankProjection {
             }
             let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 if increasing {
@@ -197,15 +179,17 @@ impl RankProjection {
         // the same admission covers both readers; an optional authored range
         // then transports through the scalar range judgment.
         if let Some(view) = declared_scalar_view(program, entry, *subject, &witness.view_path) {
-            let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             let order = match view.computation {
                 None => RankOrder::DeclaredIdentity {
                     measure: view.measure,
-                    primitive,
+                    primitive: integer_subject_carrier(
+                        program, machine, entry, *subject, parameter,
+                    )?,
                 },
                 Some(computation) => RankOrder::DeclaredComputation {
                     measure: view.measure,
-                    primitive,
+                    input_type: view.input_type,
+                    result_primitive: PrimitiveType::from_builtin_atom(view.result_carrier)?,
                     computation,
                 },
             };
@@ -215,69 +199,16 @@ impl RankProjection {
                     subject: *subject,
                     parameter: computation.parameter,
                     body: computation.body,
-                    carrier: view.carrier,
+                    carrier: view.result_carrier,
                 },
             };
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 order,
                 measure,
                 custody.rank_range.unwrap_or_default(),
             ));
-        }
-        // A declared field view produces the exact `u64` projection its
-        // measure body declares. The subject must be the entry formal whose
-        // (possibly referenced) record the chain starts at; the call judgment
-        // re-resolves that chain against each formal's own declaration, so
-        // this selection never supplies the coordinate itself. A member-chain
-        // subject already names projected storage; it cannot also be the
-        // record a field view reads.
-        if member_subject(program, *subject) {
-            return None;
-        }
-        let declared_path = witness
-            .view_path
-            .split("::")
-            .filter(|member| !member.is_empty())
-            .collect::<Vec<_>>();
-        if let Some(measure) = find_declared_measure(program, &declared_path)
-            && !measure.lexicographic
-            && let Some(MeasureBodyShape::FieldProjection { path, owner, .. }) =
-                measure_body_shape(program, measure)
-        {
-            let root = path.first().map_or(owner, |step| step.owner);
-            let mut reference = program
-                .type_reference_table
-                .unconstrained_type_reference(parameter.type_reference);
-            if let TypeReferenceNode::Reference { referee, .. } =
-                program.type_reference_table.type_reference(reference)
-            {
-                reference = program
-                    .type_reference_table
-                    .unconstrained_type_reference(*referee);
-            }
-            if !matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { symbol, .. } if *symbol == root
-            ) {
-                return None;
-            }
-            return Some(Self {
-                order: RankOrder::CustomStructView {
-                    measure: measure.symbol,
-                },
-                parameter: parameter.symbol,
-                argument_position,
-                subject: *subject,
-                paired_subject: ExpressionHandle::invalid(),
-                range: custody.rank_range.unwrap_or_default(),
-                measure: Some(RankingRangeMeasure::Field {
-                    subject: *subject,
-                    measure: measure.symbol,
-                }),
-            });
         }
         if custody.rank_range.is_some() || member_subject(program, *subject) {
             return None;
@@ -344,12 +275,9 @@ impl RankProjection {
                 || !field.symbol.is_valid()
                 || fields.contains(&field.symbol)
                 || (component.symbol.is_valid() && component.symbol != field.symbol)
-                || !matches!(
-                    program
-                        .type_reference_table
-                        .primitive_type(field.type_reference),
-                    Some(typed_trees::unsigned_integer_primitive_pattern!())
-                )
+                || !program
+                    .primitive_type_reference(field.type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
             {
                 return None;
             }
@@ -361,7 +289,6 @@ impl RankProjection {
                 data: *data,
                 fields,
             },
-            parameter: parameter.symbol,
             argument_position,
             subject: *subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -374,7 +301,6 @@ impl RankProjection {
     /// fills: `order`/`measure` vary per view; the subject's carrier formal
     /// also names the record when the subject is a member chain.
     fn for_subject(
-        parameter: &StateParameter,
         subject: ExpressionHandle,
         argument_position: usize,
         order: RankOrder,
@@ -383,7 +309,6 @@ impl RankProjection {
     ) -> Self {
         Self {
             order,
-            parameter: parameter.symbol,
             argument_position,
             subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -392,79 +317,69 @@ impl RankProjection {
         }
     }
 
-    pub(super) fn captured_scalar(
+    pub(super) fn captured_components(
         &self,
-    ) -> Option<crate::proof_contracts::contract_entailment::CapturedScalarRank> {
-        let (primitive, measure) = match self.order {
-            RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
-            RankOrder::DeclaredIdentity { measure, primitive }
-            | RankOrder::DeclaredComputation {
-                measure, primitive, ..
-            } => (primitive, measure),
+        program: &dyn crate::CheckingInput,
+    ) -> Option<Vec<crate::proof_contracts::contract_entailment::CapturedRankComponent>> {
+        use crate::proof_contracts::contract_entailment::CapturedRankComponent;
+        if let RankOrder::Lexicographic { data, fields, .. } = &self.order {
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *data)?;
+            return fields
+                .iter()
+                .map(|symbol| {
+                    let field =
+                        program.data_members(definition).iter().find_map(
+                            |member| match member {
+                                DataMember::Field(field) if field.symbol == *symbol => Some(field),
+                                _ => None,
+                            },
+                        )?;
+                    let primitive = program.primitive_type_reference(field.type_reference)?;
+                    Some(CapturedRankComponent {
+                        subject: self.subject,
+                        projection: vec![facts::PlaceSegment::Field { symbol: *symbol }],
+                        primitive: Some(primitive),
+                        minimum: numerics::bignum::BigInt::from_i128(primitive.integer_bounds()?.0),
+                        measure: SymbolHandle::invalid(),
+                    })
+                })
+                .collect();
+        }
+        let (primitive, result_primitive, measure) = match self.order {
+            RankOrder::Natural(primitive) => (Some(primitive), primitive, SymbolHandle::invalid()),
+            RankOrder::DeclaredIdentity { measure, primitive } => {
+                (Some(primitive), primitive, measure)
+            }
+            RankOrder::DeclaredComputation {
+                measure,
+                input_type,
+                result_primitive,
+                ..
+            } => (
+                program.primitive_type_reference(input_type),
+                result_primitive,
+                measure,
+            ),
             _ => return None,
         };
-        Some(
-            crate::proof_contracts::contract_entailment::CapturedScalarRank {
-                subject: self.subject,
-                primitive,
-                measure,
+        Some(vec![CapturedRankComponent {
+            subject: self.subject,
+            projection: Vec::new(),
+            primitive,
+            minimum: if measure.is_valid() {
+                numerics::bignum::BigInt::from_i128(result_primitive.integer_bounds()?.0)
+            } else {
+                numerics::bignum::BigInt::zero()
             },
-        )
+            measure,
+        }])
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
         self.order == other.order
-    }
-
-    /// Whether the expression spells the retained ranked subject. `role`
-    /// translates a spelled symbol to the entry parameter it carries at the
-    /// issuing site -- a subordinate state's formal answers to its
-    /// discovered role while every other symbol stands for itself, so an
-    /// entry-state call reads the same identity mapping it always had.
-    pub(super) fn is_subject(
-        &self,
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        role: &dyn Fn(SymbolHandle) -> SymbolHandle,
-    ) -> bool {
-        matches!(expression_table(program).expression(unwrapped(program, expression)),
-            ExpressionNode::Name(path) if role(path.symbol) == self.parameter)
-    }
-
-    pub(super) fn is_component(
-        &self,
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        field: SymbolHandle,
-        role: &dyn Fn(SymbolHandle) -> SymbolHandle,
-    ) -> bool {
-        let RankOrder::Lexicographic { data: owner, .. } = self.order else {
-            return false;
-        };
-        let ExpressionNode::Member(member) =
-            expression_table(program).expression(unwrapped(program, expression))
-        else {
-            return false;
-        };
-        if !self.is_subject(program, member.receiver, role) || member.case_variant.is_some() {
-            return false;
-        }
-        let Some(data) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
-        else {
-            return false;
-        };
-        // Ordinary typed member expressions can still lack their field
-        // symbol. Resolve that one hop under the exact retained parameter's
-        // nominal owner, using the same unique-member judgment as proof SCCs.
-        super::super::exact_data_member_field(
-            program,
-            data,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )
-        .is_some_and(|selected| selected.symbol == field)
     }
 }
 
@@ -551,27 +466,6 @@ fn integer_subject_carrier(
         .filter(|primitive| primitive.is_fixed_integer())
 }
 
-/// The slice carrier under any reference or constrained shells. A ranked
-/// subject without an exact slice base cannot carry a length projection.
-
-/// The unsigned primitive carrier under any constrained shells. A ranked
-/// subject or endpoint without an exact unsigned base cannot carry a
-/// natural-order projection.
-fn unsigned_carrier_type(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> Option<PrimitiveType> {
-    reference = program
-        .type_reference_table
-        .unconstrained_type_reference(reference);
-    let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
-    matches!(
-        primitive,
-        typed_trees::unsigned_integer_primitive_pattern!()
-    )
-    .then_some(primitive)
-}
-
 pub(super) use crate::expression_traversal::unwrapped;
 
 /// Publish only coordinates already selected by the component's filtered
@@ -586,8 +480,37 @@ pub(super) fn natural_component(
 ) -> Option<super::ValidatedRuntimeNaturalComponent> {
     let mut states = Vec::new();
     for ((machine_position, rank), mappings) in component.iter().zip(ranks).zip(mappings) {
-        let RankOrder::Natural(primitive_type) = rank.order else {
-            return None;
+        let inputs = match &rank.order {
+            RankOrder::Natural(primitive) => {
+                let coordinates = crate::ranking_range_required_coordinates(
+                    program,
+                    &program.machines()[*machine_position],
+                    rank.range,
+                    rank.measure?,
+                    crate::RankingRangePremises::RankInvariant,
+                )?;
+                let [coordinate] = coordinates.as_slice() else {
+                    return None;
+                };
+                vec![(coordinate.clone(), *primitive)]
+            }
+            RankOrder::Lexicographic { .. } => rank
+                .captured_components(program)?
+                .into_iter()
+                .map(|component| {
+                    let mut place =
+                        crate::canonical_place_from_expression(program, component.subject)?;
+                    place.segments.extend(component.projection);
+                    Some((
+                        crate::RankSubjectCoordinate {
+                            parameter: place.root.as_symbol()?,
+                            path: place.segments,
+                        },
+                        component.primitive?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?,
+            _ => return None,
         };
         for (state, roles) in program
             .machine_states(&program.machines()[*machine_position])
@@ -597,37 +520,39 @@ pub(super) fn natural_component(
             if !relevance.requires_rank(state.symbol) {
                 continue;
             }
-            let coordinates = crate::ranking_range_required_coordinates(
-                program,
-                &program.machines()[*machine_position],
-                rank.range,
-                rank.measure?,
-                crate::RankingRangePremises::RankInvariant,
-            )?;
-            let [entry_coordinate] = coordinates.as_slice() else {
-                return None;
-            };
-            let coordinate = roles.destination(entry_coordinate)?;
-            let (position, parameter) = program
-                .state_parameters(state)
+            let values = inputs
                 .iter()
-                .enumerate()
-                .find(|(_, parameter)| parameter.symbol == coordinate.parameter)?;
-            let coordinate_type = crate::ranking_coordinate_type(program, state, &coordinate)?;
-            if unsigned_carrier_type(program, coordinate_type) != Some(primitive_type) {
-                return None;
-            }
+                .map(|(entry, primitive_type)| {
+                    let coordinate = roles.destination(entry)?;
+                    let (position, parameter) = program
+                        .state_parameters(state)
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| parameter.symbol == coordinate.parameter)?;
+                    let reference = crate::ranking_coordinate_type(program, state, &coordinate)?;
+                    if crate::value_custody::recasts::exact_primitive_type(program, reference)
+                        != Some(*primitive_type)
+                    {
+                        return None;
+                    }
+                    Some(super::ValidatedRuntimeIntegerRank {
+                        application: None,
+                        application_bindings: Vec::new(),
+                        input_type: reference,
+                        measure: SymbolHandle::invalid(),
+                        parameter: parameter.symbol,
+                        coordinate,
+                        entry_indexes: Vec::new(),
+                        parameter_position: u32::try_from(position).ok()?,
+                        primitive_type: *primitive_type,
+                        observation: crate::RankPremiseObservation::Value.into(),
+                        function: checked_trees::CheckedNaturalRankFunction::Identity,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
             states.push(super::ValidatedRuntimeNaturalState {
-                application: None,
-                measure: SymbolHandle::invalid(),
                 state: state.symbol,
-                parameter: parameter.symbol,
-                coordinate,
-                entry_indexes: Vec::new(),
-                parameter_position: u32::try_from(position).ok()?,
-                primitive_type,
-                observation: crate::RankPremiseObservation::Value,
-                function: checked_trees::CheckedNaturalRankFunction::Identity,
+                values,
             });
         }
     }

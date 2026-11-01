@@ -9,7 +9,7 @@ mod logical_matches;
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment,
+    CheckedStructuralPredicatePathSegment as PathSegment,
 };
 use symbols::BuiltinTypeAtom;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -72,8 +72,8 @@ pub(crate) fn lower_current_state_predicate(
     .boolean(expression, 0)
 }
 
-type EntrySubjectResolver<'program> = dyn FnMut(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
-    + 'program;
+type EntrySubjectResolver<'program> =
+    dyn FnMut(ExpressionHandle) -> Option<(u32, Vec<PathSegment>)> + 'program;
 
 /// Read the same predicate algebra while the caller supplies authenticated
 /// invocation-entry subjects for observations made in a body state.
@@ -114,9 +114,7 @@ pub(crate) fn lower_entry_scalar(
     before_statement: usize,
     expression: ExpressionHandle,
     primitive_type: PrimitiveType,
-    subjects: &impl Fn(
-        &validation::CanonicalPlace,
-    ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
+    subjects: &impl Fn(&validation::CanonicalPlace) -> Option<(u32, Vec<PathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
         return lower_entry_predicate(
@@ -297,7 +295,7 @@ pub(crate) fn lower_operator_crash_contract_expression(
 #[derive(Clone)]
 struct FieldPath {
     parameter_position: usize,
-    path: Vec<CheckedStructuralPredicatePathSegment>,
+    path: Vec<PathSegment>,
     type_reference: TypeReferenceHandle,
 }
 

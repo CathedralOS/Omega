@@ -10,6 +10,7 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::operator::declaration_by_symbol;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -26,11 +27,8 @@ pub(super) fn project(
         {
             continue;
         }
-        let operator = typed_trees::operator::declaration_by_symbol(
-            compilation.checking_input,
-            demand.requirement_symbol,
-        )
-        .ok_or_else(|| rejected("a symbolic demand without its operator"))?;
+        let operator = declaration_by_symbol(compilation.checking_input, demand.requirement_symbol)
+            .ok_or_else(|| rejected("a symbolic demand without its operator"))?;
         let arguments = demand
             .arguments
             .iter()

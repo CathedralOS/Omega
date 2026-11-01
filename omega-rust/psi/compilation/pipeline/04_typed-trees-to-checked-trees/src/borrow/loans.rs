@@ -38,7 +38,7 @@
 //! Those leaves are facts, separate from local activation/lifecycle events.
 
 use crate::borrow::view_link::is_borrow_carrying_data;
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use crate::places::place_at;
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
@@ -275,8 +275,7 @@ pub(super) fn returned_value_loans(
     };
     let transition = match statement {
         StatementNode::Expression(expression)
-            if statement_index + 1
-                == crate::flow::state_statements(program, state.statement_nodes).len() =>
+            if statement_index + 1 == state_statements(program, state.statement_nodes).len() =>
         {
             return Ok(expression_loans(*expression)?
                 .into_iter()
@@ -414,7 +413,15 @@ fn binding_borrow_loans(
     {
         let mut loans = Vec::new();
         for arm in program.expression_table.match_arms(dispatch.arms) {
+            // Pattern effects have their own occurrence owner. No delivered
+            // value means no loan formation; a live value uses its independently
+            // proved arm-local carrier, including an ordinary type equation.
+            if program.static_type_context_is_unreachable(arm.value) {
+                continue;
+            }
             let mut selected = local_data.clone();
+            selected.type_reference =
+                program.statically_refined_type_reference(arm.value, selected.type_reference);
             selected.initial_value = arm.value;
             loans.extend(binding_borrow_loans(
                 program,

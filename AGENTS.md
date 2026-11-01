@@ -501,6 +501,9 @@ profiles bound to the actual binary digests. See
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
   exceeds the Windows command-line limit at this workspace's size.
+  `cargo fmt -p <package>` formats the whole package, so drift in files you did
+  not edit lands in your diff: check `git status` afterwards and restore the
+  extras, or check only your files with `rustfmt --edition 2024 --check <file>...`.
 - Compile a program: `mbx run -p omega -- --check <root.omg>`; run it:
   `mbx run -p omega -- run <root.omg>`. The CLI package is `omega` (binary
   `omega`) — there is no `omega-cli` package. The full flag surface:
@@ -509,15 +512,39 @@ profiles bound to the actual binary digests. See
   `python tools/corpus_gate.py --filter <group/name fragment>`; a crate's own
   Rust tests run by package and name filter
   (`mbx nextest run -p <crate> <filter>`).
-- **Full suites are manual triggers.** An agent never starts the unfiltered
-  corpus gate, the [full baseline](tools/testing.md#full-baseline), or any
-  other whole-corpus or whole-workspace sweep. Only the user starts those.
-  Agents doing work run focused checks: the change's own witnesses, the touched
-  fixture domains through `--filter`, and the affected crates' tests.
+- **Validate with witnesses, never with a sweep.** A check answers one
+  question: did this change move the behavior it touches? The answer comes
+  from the few programs that can move: the change's own fact places and their
+  reject twins, the fixtures named for the touched behavior, and the touched
+  crates' tests. That is tens of fixtures and minutes of execution, not
+  thousands of fixtures and hours. More fixtures do not add confidence about
+  this change; they add drift, timeouts and false alarms to chase.
+  - Count before running. Write the fixture count, the expected build time and
+    the expected execution time in the claim note. Past about 200 fixtures or
+    15 minutes, the selection is a sweep: narrow it before starting.
+  - A domain is not a focus. `--filter facts/` selects nearly 14,000 fixtures
+    and `--filter fail/` about 11,000. Filter by fact or fixture name:
+    `--filter facts/saved_observation_snapshot` selects 105.
+  - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
+    and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A comparison must reach the code it compares. Before trusting base and
+    candidate agreeing, confirm a fixture got past parsing, admission and
+    package review into the stage the change touched. Two builds failing the
+    same way earlier prove nothing.
+  - Stored outcomes are history. A row that disagrees with today's run is
+    attributed with `--compare <base>` on that fixture, not chased.
+  - If a single fixture takes minutes to check or a build takes most of an
+    hour, that is a workflow defect to measure and report, not a reason to
+    wait longer.
 - Validation policy — what a change must run, baseline gates, corpus and
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Reuse valid completed evidence when its inputs and affected consumers still
+  apply; retain its revision, command and outcome. A broader run needs a concrete
+  change-specific obligation that focused affected-path tests and relevant
+  positive/rejection controls cannot establish. This does not authorize the
+  user-triggered sweeps above or replace required GitHub `compiler-check`.
 - **Keep progress PRs bounded.** Name the changed behavior and its necessary
   checks before building. Reuse unchanged results; finish and enqueue once
   those checks and required review pass. Full Product builds, self-hosting,
@@ -729,7 +756,13 @@ are byte-sensitive.
   ignore unrelated `main` regressions and keep their warm base. The regressing
   PR's author owns repair/revert; otherwise at most **one** unassigned session
   claims the regression (`python tools/claims.py claim --item REGRESSION-<sha>`)
-  and drives a focused repair or revert through the queue. Once a live claim
+  and drives a focused repair or revert through the queue. A missing claim is
+  not enough: before claiming, read open pull requests whose title, body or
+  diff names the failing fixtures or touches the file the repair would edit,
+  the commits on `main` since the newest red run, and any smoke run still in
+  progress. A repair may already be queued, or landed and not yet verified.
+  Repeat that check before pushing. When a candidate repair exists, verify it
+  against the failure instead of writing a second one. Once a live claim
   exists for a regression, every other session skips it and takes normal
   unassigned work. Never `git bisect` or check out historical `main` commits in
   a warm worktree to attribute a regression (inspect the diff or CI log instead

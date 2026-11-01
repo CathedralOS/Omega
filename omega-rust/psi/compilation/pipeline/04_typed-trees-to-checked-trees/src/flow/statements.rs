@@ -2,6 +2,19 @@
 //! records entry contexts, runs a transition's arms (`exits`) or its calls
 //! (`expression`), retires and activates borrow loans, drops facts over written
 //! places, adds operator `ensures`, and propagates the written value's facts.
+use super::call_phases::finish_statement_reference_custody;
+use super::entry_origins::extend_invocation_observations;
+use super::exits::append_transition_flow_facts;
+use super::expression::append_statement_calls;
+use super::mutation::close_storage_places_over_origins;
+use super::operand_contexts::binding_origin_is_stable;
+use super::reference_spans::appended_span_since;
+use super::reference_spans::filter_constraint_refs;
+use super::storage_footprints::assignment;
+use super::stored_values::append_place_writes;
+use super::stored_values::append_store;
+use super::transfers::narrow_pinned_selectors;
+use super::transfers::statement_write;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts_for_points;
@@ -75,10 +88,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             execution_order,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
-        let previous_statements = super::reference_spans::appended_span_since(
-            &build.control.statements,
-            build.state_statements_start,
-        );
+        let previous_statements =
+            appended_span_since(&build.control.statements, build.state_statements_start);
         let storage_snapshot = build
             .control
             .statements
@@ -137,7 +148,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let mut fallthrough_constraints = *active_constraints;
         if let Some(transition) = statement.as_transition() {
             let writes = phase_profile::scope("05.d.3.b.flow.stmt.1_transition", || {
-                super::exits::append_transition_flow_facts(
+                append_transition_flow_facts(
                     program,
                     borrow,
                     proof,
@@ -166,7 +177,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         }
         if !matches!(statement, StatementNode::Transition(_)) {
             let evaluated = phase_profile::scope("05.d.3.b.flow.stmt.2_expression", || {
-                super::expression::append_statement_calls(
+                append_statement_calls(
                     program,
                     borrow,
                     proof,
@@ -198,7 +209,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // Invalidation and establishment must consume the same captured
         // address, including a view's base and a pinned selector. A coarse
         // frame path remains a may-write set, never an exact value origin.
-        let mut write = super::transfers::statement_write(
+        let mut write = statement_write(
             program,
             semantic,
             build,
@@ -240,7 +251,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 } else {
                     Vec::new()
                 };
-                super::transfers::narrow_pinned_selectors(
+                narrow_pinned_selectors(
                     program,
                     semantic,
                     state.symbol,
@@ -358,13 +369,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .collect::<Vec<_>>()
         };
         if !retired.is_empty() {
-            *active_constraints = super::reference_spans::filter_constraint_refs(
+            *active_constraints = filter_constraint_refs(
                 &mut build.contexts.constraint_refs,
                 *active_constraints,
                 |reference| !retired.contains(&reference.kind),
             );
         }
-        super::call_phases::finish_statement_reference_custody(borrow, build, active_constraints);
+        finish_statement_reference_custody(borrow, build, active_constraints);
         for loan_index in loan_ranges[statement_index].clone() {
             let loan = &borrow_loans[loan_index];
             if loan.established_by_call.is_valid() {
@@ -373,10 +384,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
 
             let formation_value = {
-                let captures_span = super::reference_spans::appended_span_since(
-                    &build.control.operands,
-                    operand_capture_start,
-                );
+                let captures_span =
+                    appended_span_since(&build.control.operands, operand_capture_start);
                 let mut captures = build
                     .control
                     .operands
@@ -415,7 +424,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         }
 
         let final_storage_writes = if statement.as_assignment().is_some() {
-            super::storage_footprints::assignment(
+            assignment(
                 program,
                 machine,
                 statement,
@@ -488,18 +497,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .get(statement_fact)
                 .completed_writes;
             for place in writes.iter() {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed, place);
             }
             build
                 .control
@@ -531,7 +529,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                                     return false;
                                 };
                                 alias.segments.extend_from_slice(segments);
-                                super::operand_contexts::binding_origin_is_stable(
+                                binding_origin_is_stable(
                                     program,
                                     &build.control,
                                     operand_writes,
@@ -542,7 +540,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                         )
                     })
                     .and_then(|origins| {
-                        super::mutation::close_storage_places_over_origins(
+                        close_storage_places_over_origins(
                             program,
                             state,
                             statement_index,
@@ -577,18 +575,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // operand content effects already retain their alias-expanded prefix.
         if let Some(places) = &storage_writes {
             for place in places {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed_contents,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed_contents, place);
             }
         }
         if let Some(places) = &content_writes {
@@ -597,18 +584,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     .as_ref()
                     .is_none_or(|physical| !physical.contains(place))
             }) {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed_contents,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed_contents, place);
             }
         }
         let completed = build.control.statements.get_mut(statement_fact);
@@ -693,7 +669,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         drop(_writes_guard);
         if !mutated_places.is_empty() {
             let _inv_guard = phase_profile::guard("05.d.3.b.flow.stmt.4_invalidation");
-            super::entry_origins::extend_invocation_observations(
+            extend_invocation_observations(
                 program,
                 build,
                 machine,
@@ -767,7 +743,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     .statements
                     .get(statement_fact)
                     .storage_snapshot;
-                let snapshot = super::stored_values::append_place_writes(
+                let snapshot = append_place_writes(
                     &mut build.control,
                     snapshot,
                     Some(std::slice::from_ref(&destination)),
@@ -788,12 +764,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .statements
                 .get(statement_fact)
                 .storage_snapshot;
-            let snapshot = super::stored_values::append_place_writes(
-                &mut build.control,
-                snapshot,
-                bindings,
-                contents,
-            );
+            let snapshot = append_place_writes(&mut build.control, snapshot, bindings, contents);
             build
                 .control
                 .statements
@@ -811,13 +782,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         {
             let snapshot = completed.storage_snapshot;
             let value = completed.stored_value;
-            let snapshot = super::stored_values::append_store(
-                &mut build.control,
-                snapshot,
-                &destination,
-                value,
-                &[],
-            );
+            let snapshot = append_store(&mut build.control, snapshot, &destination, value, &[]);
             build
                 .control
                 .statements

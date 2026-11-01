@@ -14,6 +14,7 @@
 //! static residual API uses the same walk but accepts no runtime conditions.
 //! Count before array enumeration and reject recursive by-value complements;
 //! an output bound must apply before a huge dimension can allocate or expand.
+use checked_trees::CheckedMemberIdentity;
 use checked_trees::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
@@ -38,7 +39,7 @@ pub enum CleanupCaseReachability {
 pub struct CleanupCaseCondition {
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: TypeIdentityId,
-    pub case_identity: checked_trees::CheckedMemberIdentity,
+    pub case_identity: CheckedMemberIdentity,
 }
 
 /// Invocation-owned geometry scratch, not another durable checked IR. The
@@ -54,7 +55,7 @@ struct ResidualTraversal<'selection> {
     select_case: &'selection dyn Fn(
         &[CheckedUnitStructuralPathSegment],
         TypeIdentityId,
-        &checked_trees::CheckedMemberIdentity,
+        &CheckedMemberIdentity,
     ) -> Option<CleanupCaseReachability>,
     /// Exact conditional-transfer cuts refine otherwise maximal cleanup-free
     /// regions. They supply no hook/disposition authority and dispose nothing.
@@ -147,6 +148,7 @@ fn validate_type(
         CheckedUnitStructuralTypeShape::Reference {
             referent_identity,
             access,
+            ..
         } if *access != checked_trees::CheckedStructuralAccess::Owned
             && referent_identity.is_valid() => {}
         CheckedUnitStructuralTypeShape::ByteSequence(carrier)
@@ -595,7 +597,7 @@ pub fn reconstruct(
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let select_case = |prefix: &[CheckedUnitStructuralPathSegment],
                        _: TypeIdentityId,
-                       case: &checked_trees::CheckedMemberIdentity| {
+                       case: &CheckedMemberIdentity| {
         let mut selected = None;
         for (path, _) in moved_paths.iter().chain(boundaries) {
             let Some([CheckedUnitStructuralPathSegment::Case(identity), ..]) =
@@ -603,9 +605,7 @@ pub fn reconstruct(
             else {
                 continue;
             };
-            if selected
-                .is_some_and(|earlier: &checked_trees::CheckedMemberIdentity| earlier != identity)
-            {
+            if selected.is_some_and(|earlier: &CheckedMemberIdentity| earlier != identity) {
                 return None;
             }
             selected = Some(identity);
@@ -650,7 +650,7 @@ pub fn reconstruct_case_selected_regions(
     select_case: &dyn Fn(
         &[CheckedUnitStructuralPathSegment],
         TypeIdentityId,
-        &checked_trees::CheckedMemberIdentity,
+        &CheckedMemberIdentity,
     ) -> Option<CleanupCaseReachability>,
 ) -> Option<Vec<CaseSelectedCleanupRegion>> {
     if boundaries.iter().enumerate().any(|(position, (path, _))| {

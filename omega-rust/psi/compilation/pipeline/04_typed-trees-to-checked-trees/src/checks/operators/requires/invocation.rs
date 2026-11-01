@@ -16,6 +16,7 @@
 //! versions of the same source place. Conjunctions are proved leaf by leaf by
 //! the ordinary requires checker; they do not need all premises at one time.
 
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use arena::Handle;
 use checked_trees::{
     CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowCallFact, FlowFacts,
@@ -245,11 +246,7 @@ impl<'facts> InvocationContexts<'facts> {
         };
         let mut occurrences = Vec::new();
         for expression in expressions {
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                program,
-                expression,
-                &mut occurrences,
-            );
+            append_expression_occurrences(program, expression, &mut occurrences);
         }
         let (operands, requires_constraints, receiver_offset) = match invocation {
             CapturedInvocation::Operator(invocation) => {

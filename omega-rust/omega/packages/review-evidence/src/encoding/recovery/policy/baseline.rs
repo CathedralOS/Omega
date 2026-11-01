@@ -11,6 +11,7 @@ use super::{
     terminal_permissions,
 };
 use crate::encoding::{PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION};
+use crate::record::PackagePolicyNativeBinding;
 
 impl PackagePolicyBaseline {
     /// Recover comparison meaning without old source, proof, or native replay.
@@ -64,10 +65,8 @@ impl PackagePolicyBaseline {
     }
 }
 
-fn native_binding(
-    reader: &mut Reader<'_>,
-) -> Result<crate::record::PackagePolicyNativeBinding, Error> {
-    Ok(crate::record::PackagePolicyNativeBinding {
+fn native_binding(reader: &mut Reader<'_>) -> Result<PackagePolicyNativeBinding, Error> {
+    Ok(PackagePolicyNativeBinding {
         method: selected_providers::service_method(reader)?,
         binding: selected_providers::bindings::binding(reader)?,
     })

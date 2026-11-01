@@ -9,7 +9,9 @@
 //! without proving any additional semantic obligation.
 
 use crate::frozen_program::expression_table;
+use crate::value_custody::storage_contents::ContentsRequirement;
 use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -139,7 +141,7 @@ pub fn unit_result_initializer_call_is_admitted(
         // linear custody retain their separate receiving contracts.
         || (local.is_mutable
             && (program.type_multiplicity(local.type_reference)
-                == language_semantics::Multiplicity::Linear
+                == Multiplicity::Linear
                 || program.primitive_type_reference(local.type_reference).is_some()))
         || (statement_index != 0
             && program
@@ -167,12 +169,12 @@ fn boundary_structural_initializer(
     // The existing exact target resolver also covers boundary-trait requirements
     // and this caller's nominal machine parameters. This is not a new receiver,
     // qualification, reference, or linear-result realization route.
-    program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Linear
+    program.type_multiplicity(local.type_reference) != Multiplicity::Linear
         && crate::has_contents(
             program,
             local.type_reference,
             &[],
-            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+            ContentsRequirement::PlainOwned,
         )
         && initializer_target_is_admitted(
             program,
@@ -212,25 +214,24 @@ fn ordinary_structural_initializer(
 /// The same statement sequence owns these results in Unit and structural-return
 /// bodies. Classifying a linear destination does not establish its claims:
 /// ordinary call/return custody must still reconstruct the exact input lineage.
-/// Reference destinations reject here; boundary results retain their existing
-/// target admission and separate custody validation.
+/// Stored reference descriptors retain independent call/return loan custody.
+/// Boundary results keep their target admission and separate custody validation.
 fn ordinary_structural_result_type(
     program: &dyn crate::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
+    // An ordinary call produces the same stored descriptor as any other
+    // reference producer. Carrier classification does not establish its loan;
+    // call admission and result custody retain that independent obligation.
+    if crate::reference_result_custody::stored_loan_parts(program, reference).is_some() {
+        return true;
+    }
     match program.type_multiplicity(reference) {
-        language_semantics::Multiplicity::Linear => {
-            crate::structural_result_qualifications(program, reference).is_ok()
+        Multiplicity::Linear => crate::structural_result_qualifications(program, reference).is_ok(),
+        Multiplicity::Affine => {
+            crate::has_contents(program, reference, &[], ContentsRequirement::PlainOwned)
         }
-        language_semantics::Multiplicity::Affine => crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
-        ),
-        language_semantics::Multiplicity::Unrestricted => {
-            crate::is_closed_primitive_array_type(program, reference)
-        }
+        Multiplicity::Unrestricted => crate::is_closed_primitive_array_type(program, reference),
     }
 }
 

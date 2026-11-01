@@ -42,11 +42,13 @@ public data StartOutcome<T, Arguments> {
 
 // Cancellation requests retain the linear claim. `finish` is the terminal
 // operation: it may park while the provider reaches a lifecycle outcome and
-// consumes the claim exactly once.
-public boundary requirement Task::request_cancel<T>(task: &Task<T>);
+// consumes the claim exactly once. The claim is an ordinary explicit argument
+// of both rows.
+public boundary trait TaskLifecycle {
+    machine request_cancel<T>(task: &Task<T>) reaches;
 
-public boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
-suspends blocks;
+    machine finish<T>(task: Task<T>) -> TaskOutcome<T> reaches suspends blocks;
+}
 
 // Runtime authority is a public selected boundary capability: callers invoke
 // `TaskRuntime` requirements directly and provider admission picks one realization. Public start outcomes let callers settle either

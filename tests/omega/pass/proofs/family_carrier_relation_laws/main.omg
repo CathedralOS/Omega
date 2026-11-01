@@ -55,9 +55,9 @@ ensures chained<Low, High>(low, high)
 }
 
 ChainEquivalence satisfies Equivalence<Chain, chained> {
-    Reflexive::reflexive = chained_reflexive;
-    Symmetric::symmetric = chained_symmetric;
-    Transitive::transitive = chained_transitive;
+    machine reflexive(value: Chain) ensures chained(value, value) { chained_reflexive(value) }
+    machine symmetric(left: Chain, right: Chain) requires chained(left, right) ensures chained(right, left) { chained_symmetric(left, right) }
+    machine transitive(left: Chain, middle: Chain, right: Chain) requires chained(left, middle), chained(middle, right) ensures chained(left, right) { chained_transitive(left, middle, right) }
 }
 
 machine main() {

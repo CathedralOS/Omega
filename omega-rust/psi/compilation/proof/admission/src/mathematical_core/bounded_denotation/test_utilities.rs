@@ -6,6 +6,7 @@ use semantic_vocabulary::{
     PropositionError, ScalarTerm, ScalarType, ValueId,
 };
 use std::collections::BTreeSet;
+use std::slice::from_ref;
 
 macro_rules! v {
     ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
@@ -28,7 +29,7 @@ pub(crate) fn denote_via_assumption_premise(
             premise: Box::new(assumption_proof(premise.clone(), 0)),
         },
     };
-    v!(context => goal => std::slice::from_ref(premise) => &[] => &proof => &mut Budget::default())
+    v!(context => goal => from_ref(premise) => &[] => &proof => &mut Budget::default())
         .expect(message)
 }
 
@@ -69,14 +70,13 @@ pub(crate) fn open_operation_preserves_skipped_numeric_resource_refusals(
     );
     let goal = Proposition::IntegerMathEqual(open.clone(), open);
     let proof = assumption_proof(goal.clone(), 0);
-    v!(&context => &goal => std::slice::from_ref(&goal) => &[] => &proof => &mut Budget::default())
-        .unwrap();
+    v!(&context => &goal => from_ref(&goal) => &[] => &proof => &mut Budget::default()).unwrap();
     let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
     let closed_proof = assumption_proof(closed_goal.clone(), 0);
     assert_refused(
         &context,
         &closed_goal,
-        std::slice::from_ref(&closed_goal),
+        from_ref(&closed_goal),
         &[],
         &closed_proof,
     );
@@ -88,8 +88,7 @@ pub(super) fn direct_fixture(
     premise: &Proposition,
     proof: &ProofNode,
 ) -> Denotation {
-    v!(context => goal => std::slice::from_ref(premise) => &[] => proof => &mut Budget::default())
-        .unwrap();
+    v!(context => goal => from_ref(premise) => &[] => proof => &mut Budget::default()).unwrap();
     let parameters = BTreeSet::new();
     let assumptions = [premise.clone()];
     let mut elaboration = Elaboration::new(context, goal, &assumptions, &[], &parameters).unwrap();

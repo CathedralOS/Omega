@@ -13,6 +13,9 @@ use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinua
 use super::{lookup_type_id, unsupported};
 use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::LoanAccess;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_paths::structural_access_can_supply;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, prepare_structural_argument_path,
 };
@@ -84,14 +87,12 @@ impl Emission<'_, '_, '_> {
                 ))?;
             crate::expression_preparation::bindings::retain_completed_structural_homes(
                 &mut self.evaluation.structural_locals,
-                &[
-                    crate::expression_preparation::bindings::StructuralLocalBinding {
-                        result_binding_ordinal: None,
-                        root,
-                        argument: completed.argument.clone(),
-                        structural_type: root_type,
-                    },
-                ],
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root,
+                    argument: completed.argument.clone(),
+                    structural_type: root_type,
+                }],
             )?;
         }
         let evaluations = value_facts(&self.checked)
@@ -171,9 +172,7 @@ impl Emission<'_, '_, '_> {
                     formation.expression,
                     argument.place,
                     prepared,
-                    crate::expression_preparation::bindings::structural_paths::terminal_access(
-                        source.access,
-                    ),
+                    terminal_access(source.access),
                 )?
             }
         };
@@ -197,10 +196,7 @@ impl Emission<'_, '_, '_> {
             ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
         if self.result_access != terminal_psi::StructuralAccess::Owned && same_representation {
             if self.structural_type != referent_type {
-                if !crate::expression_preparation::bindings::structural_paths::structural_access_can_supply(
-                    argument.access,
-                    self.result_access,
-                ) {
+                if !structural_access_can_supply(argument.access, self.result_access) {
                     return unsupported("reference alias changes its referent carrier");
                 }
                 // Present the destination ceiling. The place remains the

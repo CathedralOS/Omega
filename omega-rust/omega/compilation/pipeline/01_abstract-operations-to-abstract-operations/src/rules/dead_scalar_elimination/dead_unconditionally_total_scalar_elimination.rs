@@ -1,7 +1,11 @@
 //! Exact unused unconditionally-total scalar elimination: the rule and its
 //! closed total-operation admission.
 
-use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
+use abstract_operations::{
+    AbstractOperation as O, IntegerShiftPolicy, bitwise_not_and_pair_pattern,
+    bitwise_or_xor_pair_pattern, boolean_not_or_equal_pair_pattern,
+    integer_equal_less_pair_pattern,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
     OptimizationSafetyClass,
@@ -29,25 +33,17 @@ psi_rule_contract!(
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {
-        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
-        | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
+        boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
+        | integer_equal_less_pair_pattern!(psi_operation, result, ..)
         | O::IntegerLessOrEqual {
             psi_operation,
             result,
             ..
         } => (*psi_operation, *result, ScalarType::Boolean),
-        abstract_operations::bitwise_not_and_pair_pattern!(
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        )
-        | abstract_operations::bitwise_or_xor_pair_pattern!(
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        ) => (*psi_operation, *result, ScalarType::Integer(*scalar_type)),
+        bitwise_not_and_pair_pattern!(psi_operation, result, scalar_type, ..)
+        | bitwise_or_xor_pair_pattern!(psi_operation, result, scalar_type, ..) => {
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
         O::IntegerWiden {
             psi_operation,
             result,

@@ -1,6 +1,16 @@
+mod declarations;
+
 use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
+use crate::execution::terminal_unit::cleanup::projected_temporary_cleanup;
+use crate::execution::terminal_unit::strips_erased_parameter;
+use crate::execution::terminal_unit::structural_computation_argument;
+use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+use crate::flow::CapturedSubjectFacts;
+use crate::semantic::calls::shared_argument_referent;
+use crate::values::mutable_scalar_parameter_type;
 use crate::values::scalar::call_lowering::call_is_boundary;
 use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
+use crate::values::scalar_expression_type;
 
 #[derive(Clone, Copy)]
 pub(super) enum CallOperandCustody {
@@ -41,7 +51,7 @@ impl Builder<'_, '_> {
             value
         } else {
             let operand = self.integer_operand(expression, None)?;
-            if !crate::values::scalar_expression_type(&operand.value)
+            if !scalar_expression_type(&operand.value)
                 .is_some_and(|primitive| primitive.is_fixed_integer())
             {
                 return None;
@@ -131,7 +141,7 @@ impl Builder<'_, '_> {
         for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
             // An erased parameter position has no scalar ordinal: the callee
             // plan (`execution::unit::calls`) skips it the same way.
-            match crate::execution::terminal_unit::strips_erased_parameter(parameter) {
+            match strips_erased_parameter(parameter) {
                 Some(true) => continue,
                 Some(false) => {}
                 None => return,
@@ -169,8 +179,7 @@ impl Builder<'_, '_> {
             };
             if parameter.is_const
                 || (parameter.is_mutable
-                    && crate::values::mutable_scalar_parameter_type(self.program, parameter)
-                        .is_none())
+                    && mutable_scalar_parameter_type(self.program, parameter).is_none())
             {
                 return;
             }
@@ -238,8 +247,7 @@ impl Builder<'_, '_> {
                             .program
                             .primitive_type_reference(parameter.type_reference)
                             .is_some()
-                        && crate::values::mutable_scalar_parameter_type(self.program, parameter)
-                            .is_none())
+                        && mutable_scalar_parameter_type(self.program, parameter).is_none())
             })
         {
             return None;
@@ -263,7 +271,7 @@ impl Builder<'_, '_> {
             // argument as proof material only: no scalar operand and
             // no structural argument, matching the callee's stripped
             // signature plan (`execution::unit::calls::signatures`).
-            if crate::execution::terminal_unit::strips_erased_parameter(parameter)? {
+            if strips_erased_parameter(parameter)? {
                 continue;
             }
             if let Some(primitive_type) = self
@@ -274,39 +282,45 @@ impl Builder<'_, '_> {
                 self.plans.nodes.get_mut(root).authored_root = *argument;
                 computed_arguments.push(root);
             } else {
-                // Structural arguments require their actual loan/owner capture;
-                // a declaration's scalar input binding cannot manufacture it.
-                let source_call = statement_call?;
-                let operand = operand?;
-                let state =
-                    validation::find_state_in_machine(self.program, self.machine, self.state)?;
-                // Value planning owns both snapshots and loans. A borrowed
-                // operand retains its occurrence and source evidence without
-                // becoming an owned copy of the referent.
-                let retained = self.retain_structural_argument(*argument, parameter.type_reference);
-                let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
-                let argument_plan = if let Some(value) = retained {
-                    self.retained_call_argument(
-                        source_call,
-                        operand,
-                        *argument,
-                        parameter,
-                        value,
-                        argument_ordinal,
-                        &mut temporary_cleanups,
-                    )?
-                } else if self.uses_captured_dispatch_value(*argument) {
-                    // A selected saved value cannot fall back to a recipe
-                    // through its source's current storage when retention
-                    // fails. Ordinary place arguments retain their own route.
-                    return None;
+                let argument_plan = if let CallOperandCustody::Declaration { application, call } =
+                    custody
+                {
+                    self.declaration_structural_argument(application, call, *argument, parameter)?
                 } else {
-                    (|| {
+                    // Structural arguments require their actual loan/owner capture;
+                    // a declaration's scalar input binding cannot manufacture it.
+                    let source_call = statement_call?;
+                    let operand = operand?;
+                    let state =
+                        validation::find_state_in_machine(self.program, self.machine, self.state)?;
+                    // Value planning owns both snapshots and loans. A borrowed
+                    // operand retains its occurrence and source evidence without
+                    // becoming an owned copy of the referent.
+                    let retained =
+                        self.retain_structural_argument(*argument, parameter.type_reference);
+                    let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
+                    let argument_plan = if let Some(value) = retained {
+                        self.retained_call_argument(
+                            source_call,
+                            operand,
+                            *argument,
+                            parameter,
+                            value,
+                            argument_ordinal,
+                            &mut temporary_cleanups,
+                        )?
+                    } else if self.uses_captured_dispatch_value(*argument) {
+                        // A selected saved value cannot fall back to a recipe
+                        // through its source's current storage when retention
+                        // fails. Ordinary place arguments retain their own route.
+                        return None;
+                    } else {
+                        (|| {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
-                        let mut argument_plan = crate::execution::terminal_unit::structural_computation_argument(
+                        let mut argument_plan = structural_computation_argument(
                             self.program,
                             &mut self.shapes,
-                            crate::flow::CapturedSubjectFacts {
+                            CapturedSubjectFacts {
                                 semantic: self.semantic,
                                 flow: self.flow,
                                 borrow: self.borrow,
@@ -333,7 +347,7 @@ impl Builder<'_, '_> {
                             self.operators,
                             self.pure,
                             self.plans,
-                            crate::flow::CapturedSubjectFacts {
+                            CapturedSubjectFacts {
                                 semantic: self.semantic,
                                 flow: self.flow,
                                 borrow: self.borrow,
@@ -358,6 +372,8 @@ impl Builder<'_, '_> {
                         )
                     })
                     ?
+                    };
+                    argument_plan
                 };
                 structural_actuals.push(*argument);
                 structural_arguments.push(
@@ -382,7 +398,10 @@ impl Builder<'_, '_> {
                     .collect::<Option<Vec<_>>>()?,
             )?
         } else {
-            if !structural_arguments.is_empty() || !temporary_cleanups.is_empty() {
+            // Every declaration structural operand above has an exact checked
+            // reusable-copy receipt. It consumes no source claim or temporary;
+            // borrowed/affine operands require their own ordinary custody.
+            if !temporary_cleanups.is_empty() {
                 return None;
             }
             Vec::new()
@@ -438,10 +457,7 @@ impl Builder<'_, '_> {
             let (_, supplied) =
                 validation::reference_result_custody::stored_loan_parts(self.program, actual)?;
             let required =
-                crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                    self.program,
-                    parameter.type_reference,
-                )?;
+                structural_access_for_type_reference(self.program, parameter.type_reference)?;
             if supplied != checked_trees::CheckedStructuralAccess::MutableBorrow
                 && supplied != required
             {
@@ -462,12 +478,7 @@ impl Builder<'_, '_> {
                     ..
                 } => (
                     checked_trees::CheckedStructuralAccess::SharedBorrow,
-                    crate::semantic::calls::shared_argument_referent(
-                        self.program,
-                        argument,
-                        parameter.type_reference,
-                    )?
-                    .1,
+                    shared_argument_referent(self.program, argument, parameter.type_reference)?.1,
                 ),
                 TypeReferenceNode::Reference {
                     access, referee, ..
@@ -562,20 +573,23 @@ impl Builder<'_, '_> {
                     discards = Some(vec![
                         checked_trees::CheckedNormalCleanupAction::RetireHome {
                             source: argument_plan.source.clone(),
-                            type_identity: self.program.normalized_type_identity(owner_type),
+                            type_identity: validation::stored_structural_type_identity(
+                                self.program,
+                                owner_type,
+                                &[],
+                                &[],
+                            ),
                         },
                     ]);
                 }
                 language_semantics::Multiplicity::Unrestricted => {}
             }
         } else if !argument_plan.path.is_empty() {
-            discards = Some(
-                crate::execution::terminal_unit::cleanup::projected_temporary_cleanup(
-                    self.program,
-                    owner_type,
-                    &argument_plan,
-                )?,
-            );
+            discards = Some(projected_temporary_cleanup(
+                self.program,
+                owner_type,
+                &argument_plan,
+            )?);
         }
         if let Some(discards) = discards {
             temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {

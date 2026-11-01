@@ -4,21 +4,66 @@
 //! Dynamic trait references and fixed array lengths lower here as well.
 
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::types::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayLength,
+    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, DomainConstraint, FixedArrayLength,
     FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
     GenericTypeReferenceStorage, ReferenceTypeReference, ReferenceTypeReferenceStorage,
     SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint, TypeReference,
 };
 use symbols::SymbolHandle;
+use syntax::types::TypeReferenceNode;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_type_reference_handle(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    type_reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
+    let aliases = syntax_trees
+        .type_references
+        .type_alias_applications(type_reference)
+        .cloned()
+        .collect::<Vec<_>>();
+    // The definition owns RHS selections. The use owns its original alias
+    // head and supplied arguments; expanded copies are derived occurrences.
+    let prior_exposure = if aliases.is_empty() {
+        None
+    } else {
+        Some(lowerer.current_authored_expression_exposure.take())
+    };
+    let result = lower_type_reference_contents(lowerer, syntax_trees, type_reference);
+    if let Some(exposure) = prior_exposure {
+        lowerer.current_authored_expression_exposure = exposure;
+    }
+    let mut lowered = result?;
+    for alias in aliases {
+        let application = lower_alias_application(lowerer, syntax_trees, alias.application)?;
+        // A substituted RHS operand keeps its more specific supplier; the
+        // original alias tuple separately owns its own lifetime arguments.
+        let expanded_owner = lowered.supplied_operand_owner();
+        let supplied_operand_owner = if expanded_owner.is_valid() {
+            expanded_owner
+        } else {
+            application.supplied_operand_owner()
+        };
+        lowered = TypeReference::AliasUse {
+            expansion: Box::new(lowered),
+            application: Box::new(application),
+            declaration_source: alias.declaration,
+            definition_references: alias.definition_references,
+            supplied_operand_owner,
+        };
+    }
+    Ok(lowered)
+}
+
+fn lower_type_reference_contents(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
@@ -160,6 +205,39 @@ pub(crate) fn lower_type_reference_handle(
     Ok(lowered)
 }
 
+/// The original alias head is source formation, not a closed nominal-data
+/// synthesis request. Arguments still use the ordinary lowering and const
+/// custody checks; alias-own carrier/bound admission occurs at the use site.
+fn lower_alias_application(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
+    let syntax::types::TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(reference)
+    else {
+        return lower_type_reference_node(lowerer, syntax, reference);
+    };
+    let arguments = lower_indexed_application_arguments(lowerer, syntax, *arguments)?;
+    let owner = syntax
+        .type_references
+        .supplied_operand_owner(reference)
+        .map_err(Diagnostic::error)?;
+    let supplied_operand_owner = crate::resolution::operand_owners::retain(lowerer, owner);
+    Ok(TypeReference::Generic(GenericTypeReference {
+        storage: GenericTypeReferenceStorage {
+            supplied_operand_owner,
+            base_symbol: SymbolHandle::invalid(),
+            base_name: crate::lowering::name::lower_name(syntax, base_name),
+            lifetime_arguments: lower_names(syntax, lifetime_arguments),
+            arguments,
+        },
+    }))
+}
+
 /// An already synthesized instance retains its generic tuple as identity
 /// metadata, not as an unspecialized application. Its argument types still
 /// take ordinary lowering and checking; only this outer metadata node bypasses
@@ -171,7 +249,7 @@ pub(crate) fn lower_generic_application_origin(
 ) -> Result<TypeReference, Diagnostic> {
     if !matches!(
         syntax_trees.type_references.type_reference(origin),
-        syntax::types::TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::Generic { .. }
     ) {
         return Err(Diagnostic::error(
             "generic instance origin must retain a generic application",
@@ -186,7 +264,7 @@ fn lower_type_reference_node(
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
     let mut lowered = match syntax_trees.type_references.type_reference(type_reference) {
-        syntax::types::TypeReferenceNode::Reference {
+        TypeReferenceNode::Reference {
             referee,
             access,
             lifetime,
@@ -195,12 +273,10 @@ fn lower_type_reference_node(
                 supplied_operand_owner: Default::default(),
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 access: *access,
-                lifetime: lifetime
-                    .as_ref()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                lifetime: lifetime.as_ref().map(|name| lower_name(syntax_trees, name)),
             },
         })),
-        syntax::types::TypeReferenceNode::Constrained {
+        TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => Ok(TypeReference::Constrained(ConstrainedTypeReference {
@@ -210,7 +286,7 @@ fn lower_type_reference_node(
                 constraints: lower_type_constraint_handles(lowerer, syntax_trees, *constraints)?,
             },
         })),
-        syntax::types::TypeReferenceNode::FixedArray {
+        TypeReferenceNode::FixedArray {
             element_type,
             length,
         } => Ok(TypeReference::FixedArray(FixedArrayTypeReference {
@@ -220,15 +296,13 @@ fn lower_type_reference_node(
                 length: lower_fixed_array_length(lowerer, syntax_trees, length)?,
             },
         })),
-        syntax::types::TypeReferenceNode::Slice { element_type } => {
-            Ok(TypeReference::Slice(SliceTypeReference {
-                storage: SliceTypeReferenceStorage {
-                    supplied_operand_owner: Default::default(),
-                    element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
-                },
-            }))
-        }
-        syntax::types::TypeReferenceNode::Generic {
+        TypeReferenceNode::Slice { element_type } => Ok(TypeReference::Slice(SliceTypeReference {
+            storage: SliceTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
+                element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
+            },
+        })),
+        TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
             arguments,
@@ -245,33 +319,33 @@ fn lower_type_reference_node(
                 storage: GenericTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
-                    base_name: crate::lowering::name::lower_name(syntax_trees, base_name),
+                    base_name: lower_name(syntax_trees, base_name),
                     lifetime_arguments: lower_names(syntax_trees, &lifetime_arguments),
                     arguments: lowered_arguments,
                 },
             }))
         }
-        syntax::types::TypeReferenceNode::ConstExpression(expression) => {
+        TypeReferenceNode::ConstExpression(expression) => {
             let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
             Ok(TypeReference::ConstExpression(
                 symbol_resolved_trees::types::ConstExpressionTypeReference::new(expression),
             ))
         }
-        syntax::types::TypeReferenceNode::DynamicTrait {
+        TypeReferenceNode::DynamicTrait {
             trait_name,
             trait_arguments,
         } => Ok(TypeReference::DynamicTrait {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, trait_name),
+            name: lower_name(syntax_trees, trait_name),
             arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
         }),
-        syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
+        TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         }),
-        syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
+        TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }?;
     let input = syntax_type_references(&syntax_trees)
         .supplied_operand_owner(type_reference)
@@ -311,11 +385,11 @@ pub(crate) fn lower_fixed_array_length(
         syntax::types::FixedArrayLength::Literal(value) => FixedArrayLength::Literal(*value),
         syntax::types::FixedArrayLength::ConstParameter(name) => FixedArrayLength::ConstParameter {
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         },
         syntax::types::FixedArrayLength::ConstCall(name) => FixedArrayLength::ConstCall {
             machine: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         },
     })
 }
@@ -389,18 +463,16 @@ fn lower_type_constraint_handle(
     constraint: &syntax::types::TypeConstraintNode,
 ) -> Result<TypeConstraint, Diagnostic> {
     match constraint {
-        syntax::types::TypeConstraintNode::Named(name) => Ok(TypeConstraint::Named(
-            crate::lowering::name::lower_name(syntax_trees, name),
-        )),
+        syntax::types::TypeConstraintNode::Named(name) => {
+            Ok(TypeConstraint::Named(lower_name(syntax_trees, name)))
+        }
         syntax::types::TypeConstraintNode::Domain(domain) => {
             let arguments =
                 lower_indexed_application_arguments(lowerer, syntax_trees, domain.arguments)?;
-            Ok(TypeConstraint::Domain(
-                symbol_resolved_trees::types::DomainConstraint {
-                    name: crate::lowering::name::lower_name(syntax_trees, &domain.name),
-                    arguments,
-                },
-            ))
+            Ok(TypeConstraint::Domain(DomainConstraint {
+                name: lower_name(syntax_trees, &domain.name),
+                arguments,
+            }))
         }
         syntax::types::TypeConstraintNode::Range {
             minimum,

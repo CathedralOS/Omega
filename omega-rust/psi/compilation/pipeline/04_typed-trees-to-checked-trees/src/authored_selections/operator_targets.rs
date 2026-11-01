@@ -1,36 +1,55 @@
 //! Checked operator targets and authored operator selection candidates.
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+type HashMap<K, V> = std::collections::HashMap<K, V, BuildSymbolHasher>;
 
 use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
     expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
 };
 use crate::flow::expressions;
-use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
+use checked_trees::{
+    CheckFacts, CheckedOperatorOccurrence, CheckedOperatorResolutionStatus as ResolutionStatus,
+    CheckedValueOrigin,
+};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionIntrinsic as SelectionIntrinsic,
+    AuthoredDeclarationSelectionOccurrenceId,
 };
-use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use validation::declaration_type_reference;
-use validation::expression_owners::reachable_expressions;
+use symbols::{BuildSymbolHasher, SymbolHandle};
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+};
+use typed_trees::operator::OperatorDefinition;
+use typed_trees::operator::SpelledOperator;
+use typed_trees::operator::binary_operator_spelling;
+use typed_trees::operator::resolve_spelling;
+use typed_trees::operator::resolve_spelling_for_operand_types;
+use typed_trees::operator::resolve_spelling_for_operands;
+use typed_trees::types::TypeReferenceHandle;
+use validation::expression_owners::{
+    OwnerEnvironmentIndex, expression_contains, reachable_expressions,
+};
 use validation::selection_resolution::AuthoredSelectionResolutionTarget;
 use validation::selection_resolution::{declaration_target, exact_named_operator_call};
+use validation::{
+    declaration_type_reference, effective_member_symbol, expression_type_reference_for_origin,
+    generic_bound_operator_requirement,
+};
 
 fn intrinsic_operator_operand_is_primitive(
     program: &dyn ::validation::CheckingInput,
     node: &ExpressionNode,
-    origin: checked_trees::CheckedValueOrigin,
+    origin: CheckedValueOrigin,
 ) -> bool {
     let operand = match node {
         ExpressionNode::Binary(binary) => binary.left,
         ExpressionNode::Unary(unary) => unary.operand,
         _ => return false,
     };
-    validation::expression_type_reference_for_origin(program, operand, origin)
+    expression_type_reference_for_origin(program, operand, origin)
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
         || expression_is_intrinsic_primitive_without_origin(program, operand, None)
@@ -46,14 +65,12 @@ fn intrinsic_operator_operand_is_primitive(
 /// a fact naming an origin already recorded for that expression adds
 /// nothing, exactly as the receiving roster's own membership test did.
 pub(crate) struct GenericOperatorValueOrigins {
-    by_expression:
-        HashMap<typed_trees::expression::ExpressionHandle, Vec<checked_trees::CheckedValueOrigin>>,
+    by_expression: HashMap<ExpressionHandle, Vec<CheckedValueOrigin>>,
 }
 
 impl GenericOperatorValueOrigins {
     pub(crate) fn index(program: &dyn ::validation::CheckingInput, facts: &CheckFacts) -> Self {
-        let mut by_expression: HashMap<_, Vec<checked_trees::CheckedValueOrigin>> =
-            HashMap::default();
+        let mut by_expression: HashMap<_, Vec<CheckedValueOrigin>> = HashMap::default();
         for (_, value) in facts.values.values.iter() {
             for reached in reachable_expressions(program, value.expression) {
                 let origins = by_expression.entry(reached).or_default();
@@ -63,10 +80,7 @@ impl GenericOperatorValueOrigins {
         Self { by_expression }
     }
 
-    fn origins(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> &[checked_trees::CheckedValueOrigin] {
+    fn origins(&self, expression: ExpressionHandle) -> &[CheckedValueOrigin] {
         self.by_expression
             .get(&expression)
             .map_or(&[][..], Vec::as_slice)
@@ -77,7 +91,7 @@ pub(crate) fn checked_generic_operator_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     value_origins: &GenericOperatorValueOrigins,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Result<Option<AuthoredSelectionResolutionTarget>, Diagnostic> {
     if let Some(operation) = program.expression_table.open_index_operation(expression)
         && let Some(target) = declaration_target(operation.operator)
@@ -94,7 +108,7 @@ pub(crate) fn checked_generic_operator_target(
     // An open generic requirement has no selected concrete provider, so the
     // executable operator fact producer may not emit a row for this expression.
     if let Some(binary) = program.expression_table.binary_node(expression)
-        && let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+        && let Some(spelling) = binary_operator_spelling(binary.operator)
     {
         for origin in value_origins.origins(expression) {
             let selected_use = (spelling, *origin);
@@ -103,15 +117,10 @@ pub(crate) fn checked_generic_operator_target(
     }
     for (spelling, origin) in uses {
         let machine_symbol = match origin {
-            checked_trees::CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
-            | checked_trees::CheckedValueOrigin::MachineOwnedDataInitializer {
-                machine_symbol,
-                ..
-            }
-            | checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } => {
-                machine_symbol
-            }
-            checked_trees::CheckedValueOrigin::NestedExpression { .. } => continue,
+            CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
+            | CheckedValueOrigin::MachineOwnedDataInitializer { machine_symbol, .. }
+            | CheckedValueOrigin::StateStatement { machine_symbol, .. } => machine_symbol,
+            CheckedValueOrigin::NestedExpression { .. } => continue,
         };
         let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             continue;
@@ -127,17 +136,11 @@ pub(crate) fn checked_generic_operator_target(
         };
         let operand_types = operands
             .into_iter()
-            .map(|operand| {
-                validation::expression_type_reference_for_origin(program, operand, origin)
-            })
+            .map(|operand| expression_type_reference_for_origin(program, operand, origin))
             .collect::<Vec<_>>();
-        let requirement = validation::generic_bound_operator_requirement(
-            program,
-            machine,
-            spelling,
-            &operand_types,
-        )
-        .map_err(Diagnostic::error)?;
+        let requirement =
+            generic_bound_operator_requirement(program, machine, spelling, &operand_types)
+                .map_err(Diagnostic::error)?;
         let Some(requirement) = requirement else {
             continue;
         };
@@ -155,9 +158,9 @@ pub(crate) fn checked_generic_operator_target(
 fn checked_operator_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<AuthoredSelectionResolutionTarget> {
     // These operators have no authored declaration/spelling surface. Once
     // ordinary checking accepts their operand types, their exact meaning is
@@ -178,7 +181,7 @@ fn checked_operator_target(
             )
     ) {
         return Some(AuthoredSelectionResolutionTarget::Intrinsic(
-            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            SelectionIntrinsic::BuiltinOperator,
         ));
     }
 
@@ -186,22 +189,22 @@ fn checked_operator_target(
     facts
         .operators
         .for_each_expression_use(expression, |_, operator_use| {
-            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
+            if operator_use.occurrence == CheckedOperatorOccurrence::Expression {
                 uses.push(*operator_use);
             }
         });
 
     uses.iter()
         .find_map(|operator_use| {
-            (operator_use.status == CheckedOperatorResolutionStatus::Resolved)
+            (operator_use.status == ResolutionStatus::Resolved)
                 .then(|| declaration_target(operator_use.selected_operator_symbol))
                 .flatten()
         })
         .or_else(|| {
             uses.iter()
                 .any(|operator_use| {
-                    operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
-                        || (operator_use.status == CheckedOperatorResolutionStatus::Missing
+                    operator_use.status == ResolutionStatus::BuiltinFallback
+                        || (operator_use.status == ResolutionStatus::Missing
                             && intrinsic_operator_operand_is_primitive(
                                 program,
                                 node,
@@ -209,7 +212,7 @@ fn checked_operator_target(
                             ))
                 })
                 .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    SelectionIntrinsic::BuiltinOperator,
                 ))
         })
         .or_else(|| {
@@ -226,7 +229,7 @@ fn checked_operator_target(
                 }
                 contract_resolution::CheckedContractOperatorResolution::Builtin => {
                     Some(AuthoredSelectionResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        SelectionIntrinsic::BuiltinOperator,
                     ))
                 }
             })
@@ -264,14 +267,12 @@ fn checked_operator_target(
                     owner_index,
                 ))
             .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                SelectionIntrinsic::BuiltinOperator,
             ))
         })
         .or_else(|| {
             operator_has_no_authored_spelling_candidate(program, expression, node).then_some(
-                AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                ),
+                AuthoredSelectionResolutionTarget::Intrinsic(SelectionIntrinsic::BuiltinOperator),
             )
         })
 }
@@ -279,10 +280,10 @@ fn checked_operator_target(
 pub(crate) fn checked_operator_target_for_occurrence(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     node: &ExpressionNode,
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<AuthoredSelectionResolutionTarget> {
     let is_rooted = |candidate| {
         owner_index.is_none_or(|owners| owners.contains_expression(candidate)) || {
@@ -322,14 +323,14 @@ pub(crate) fn checked_operator_target_for_occurrence(
 
 fn checked_operator_expression_is_intrinsic_primitive(
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> bool {
     let mut is_fallback = false;
     facts
         .operators
         .for_each_expression_use(expression, |_, operator_use| {
-            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+            if operator_use.occurrence == CheckedOperatorOccurrence::Expression
+                && operator_use.status == ResolutionStatus::BuiltinFallback
             {
                 is_fallback = true;
             }
@@ -344,8 +345,8 @@ fn checked_operator_expression_is_intrinsic_primitive(
 pub(crate) fn checked_structural_equality_call(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    expression: ExpressionHandle,
+    call: &TableCallExpression,
 ) -> bool {
     if !call.target_symbol.is_valid() {
         return false;
@@ -381,15 +382,14 @@ pub(crate) fn checked_structural_equality_call(
 /// reconstruction remains unresolved and therefore rejects package custody.
 fn resolve_authored_operator_without_use_fact<'program>(
     program: &'program dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     node: &ExpressionNode,
-) -> Option<&'program typed_trees::operator::OperatorDefinition> {
+) -> Option<&'program OperatorDefinition> {
     use language_core::OperatorSpelling;
 
     let (spelling, operand_types) = match node {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
                 return None;
             };
             (
@@ -419,7 +419,7 @@ fn resolve_authored_operator_without_use_fact<'program>(
         }
         _ => return None,
     };
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+    let candidates = resolve_spelling_for_operands(
         program,
         spelling,
         &operand_types,
@@ -441,7 +441,7 @@ fn resolve_authored_operator_without_use_fact<'program>(
 /// as a candidate and could not be recognized as the builtin it is.
 pub(crate) fn authored_operand_descriptor(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> typed_trees::operator::OperandType {
     use typed_trees::operator::OperandType;
     if let Some(type_reference) = authored_operand_type(program, expression) {
@@ -463,7 +463,7 @@ pub(crate) fn authored_operand_descriptor(
 /// builtin operation.
 fn authored_operand_carrier(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
     use typed_trees::operator::OperandType;
@@ -534,8 +534,8 @@ fn authored_operand_carrier(
 
 pub(crate) fn authored_operand_type(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
     if !expression.is_valid() {
         return None;
     }
@@ -553,7 +553,7 @@ pub(crate) fn authored_operand_type(
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::Member(member) => declaration_type_reference(
             program,
-            validation::effective_member_symbol(program, member.receiver, member),
+            effective_member_symbol(program, member.receiver, member),
         ),
         ExpressionNode::Call(call) => {
             exact_named_operator_call(program, call).map(|operator| operator.return_type)
@@ -566,9 +566,9 @@ pub(crate) fn authored_operand_type(
 
 fn operator_contract_value_type(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    expression: ExpressionHandle,
+    path: &TableNamePath,
+) -> Option<TypeReferenceHandle> {
     let name = expressions(program)
         .name_path_members(path.members)
         .last()?
@@ -595,19 +595,13 @@ fn operator_contract_value_type(
                     .span_or_empty(contract.facts)
                     .iter()
                     .any(|fact| match fact {
-                        typed_trees::domain::ProofFact::Expression(root) => {
-                            validation::expression_owners::expression_contains(
-                                program, *root, expression,
-                            )
+                        ProofFact::Expression(root) => {
+                            expression_contains(program, *root, expression)
                         }
-                        typed_trees::domain::ProofFact::Membership(membership) => {
-                            validation::expression_owners::expression_contains(
-                                program,
-                                membership.value,
-                                expression,
-                            )
+                        ProofFact::Membership(membership) => {
+                            expression_contains(program, membership.value, expression)
                         }
-                        typed_trees::domain::ProofFact::Proposition(_) => false,
+                        ProofFact::Proposition(_) => false,
                     })
             })
             .then_some(type_reference)
@@ -620,14 +614,13 @@ fn operator_contract_value_type(
 
 fn operator_has_no_authored_spelling_candidate(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     node: &ExpressionNode,
 ) -> bool {
     use language_core::OperatorSpelling;
     let spelling = match node {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
                 return true;
             };
             spelling
@@ -646,7 +639,7 @@ fn operator_has_no_authored_spelling_candidate(
         ExpressionNode::Unary(_) => return true,
         _ => return false,
     };
-    typed_trees::operator::resolve_spelling(
+    resolve_spelling(
         program,
         spelling,
         None,
@@ -660,7 +653,7 @@ fn operator_has_no_authored_spelling_candidate(
 /// rejecting a semantically invalid builtin use.
 pub(crate) fn typed_operator_has_no_authored_selection(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> bool {
     let node = program.expression_table.expression(expression);
     operator_has_no_authored_spelling_candidate(program, expression, node)
@@ -674,38 +667,28 @@ pub(crate) fn typed_operator_has_no_authored_selection(
 
 pub(crate) fn typed_operator_authored_selection_candidates(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Vec<SymbolHandle> {
-    typed_operator_authored_selection_candidate_operators(program, expression)
+    candidate_operators(program, expression, &[])
         .into_iter()
         .map(|candidate| candidate.operator.symbol)
         .collect()
 }
 
-/// [`typed_operator_authored_selection_candidates`] with the declarations
-/// themselves, for a caller that needs what a selected candidate would return.
-fn typed_operator_authored_selection_candidate_operators<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
-    candidate_operators(program, expression, &[])
-}
-
-/// [`typed_operator_authored_selection_candidate_operators`] for a caller that
+/// The declared operator candidates of `expression`, for a caller that
 /// already holds a BINARY expression's two operand descriptors. Deriving them
 /// again would walk each operand once per enclosing operation, which turns a
 /// nested arithmetic expression's carrier into an exponential walk.
 fn candidate_operators<'program>(
     program: &'program dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     binary_operands: &[typed_trees::operator::OperandType],
-) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
+) -> Vec<SpelledOperator<'program>> {
     use language_core::OperatorSpelling;
 
     let (spelling, operand_types) = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
                 return Vec::new();
             };
             (
@@ -743,7 +726,7 @@ fn candidate_operators<'program>(
         _ => return Vec::new(),
     };
 
-    typed_trees::operator::resolve_spelling_for_operand_types(
+    resolve_spelling_for_operand_types(
         program,
         spelling,
         &operand_types,

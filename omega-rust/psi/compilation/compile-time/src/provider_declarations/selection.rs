@@ -2,6 +2,7 @@ use super::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
+use checked_trees::typed_trees::operator::{OperatorDefinition, declaration_by_symbol};
 pub use language_semantics::declaration_selection::CompositionMode;
 
 /// One exact declaration identity participating in a provider selection.
@@ -16,71 +17,6 @@ pub struct ProviderSelectionIdentity {
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
-}
-
-impl ProviderSelectionIdentity {
-    /// Exact prepared member bodies of this selected implementation. Generic
-    /// providers retain their whole applied telescope, including phantom inputs;
-    /// a declaration symbol alone cannot select one of its captured instances.
-    pub fn prepared_implementation_members(
-        &self,
-        program: &TypedTrees,
-    ) -> Result<Vec<SymbolHandle>, &'static str> {
-        let Some(identity) = &self.application_identity else {
-            return Ok(match program.conformance_by_symbol(self.symbol) {
-                Some(implementation) => implementation
-                    .rows
-                    .iter()
-                    .map(|row| row.realization_machine)
-                    .collect(),
-                // Attached member identity is retained independently from its
-                // data owner; selecting the owner does not select its methods.
-                None => program
-                    .machines()
-                    .iter()
-                    .filter(|machine| machine.attached_data_symbol == self.symbol)
-                    .map(|machine| machine.symbol)
-                    .collect(),
-            });
-        };
-        if !program
-            .product_operand_applications
-            .is_valid(self.application)
-        {
-            return Err("selected provider lost its prepared application custody");
-        }
-        let application = program.product_operand_applications.get(self.application);
-        if application.declaration != self.symbol {
-            return Err("selected provider application differs from its declaration");
-        }
-        let actual = program
-            .product_operand_application_identity(self.application)?
-            .and_then(|identity| program.type_identity_text(identity));
-        if actual.as_ref() != Some(identity) {
-            return Err(
-                "selected provider application differs from its complete canonical telescope",
-            );
-        }
-        let mut members = Vec::new();
-        for (_, capture) in program.captured_machine_applications.iter() {
-            if capture.conformance_application.declaration != self.symbol {
-                continue;
-            }
-            let actual = program
-                .portable_conformance_application_identity(
-                    &capture.conformance_application,
-                    capture.supplying_application,
-                )
-                .and_then(|identity| program.type_identity_text(identity));
-            if actual.as_ref() == Some(identity) && !members.contains(&capture.instance) {
-                members.push(capture.instance);
-            }
-        }
-        if members.is_empty() {
-            return Err("selected generic provider has no completed exact member applications");
-        }
-        Ok(members)
-    }
 }
 
 /// One exact boundary-operator overload coordinate belonging to an authored
@@ -152,9 +88,7 @@ impl ProviderOperatorFamilySelection {
         authored_path: String,
     ) -> Result<Self, String> {
         let typed = context.typed;
-        let Some(representative) =
-            checked_trees::typed_trees::operator::declaration_by_symbol(typed, operator_symbol)
-        else {
+        let Some(representative) = declaration_by_symbol(typed, operator_symbol) else {
             return Err(format!(
                 "provider selection subject `{authored_path}` has no exact retained operator declaration"
             ));
@@ -194,10 +128,7 @@ impl ProviderOperatorFamilySelection {
                 .iter()
                 .find(|current| current.requirement_identity == coordinate.requirement_identity)
             else {
-                let reason = match checked_trees::typed_trees::operator::declaration_by_symbol(
-                    typed,
-                    coordinate.symbol,
-                ) {
+                let reason = match declaration_by_symbol(typed, coordinate.symbol) {
                     None => "no longer resolves to a boundary operator declaration",
                     Some(_) => "resolves to a declaration outside the family",
                 };
@@ -239,10 +170,7 @@ impl ProviderOperatorFamilySelection {
     }
 }
 
-fn operator_canonical_path(
-    typed: &TypedTrees,
-    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
-) -> String {
+fn operator_canonical_path(typed: &TypedTrees, operator: &OperatorDefinition) -> String {
     typed.operator_path_string(operator.name)
 }
 

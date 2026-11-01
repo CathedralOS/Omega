@@ -6,7 +6,8 @@
 //! and every nested invocation. Their exact call roster retains formation
 //! obligations until the ordinary selected-provider evaluator admits them.
 
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{EvaluationDomain, expression_table};
+use crate::machine_execution::admission::expression_children;
 use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::ConstantExpressionContext;
 use typed_trees::domain::ProofFact;
@@ -18,10 +19,7 @@ pub(super) struct ContractRoot {
     pub invocations: Vec<super::range_endpoints::PendingEndpoint>,
 }
 
-pub(super) fn roots(
-    program: &TypedTrees,
-    domain: &crate::build_time_evaluation::EvaluationDomain,
-) -> Vec<ContractRoot> {
+pub(super) fn roots(program: &TypedTrees, domain: &EvaluationDomain) -> Vec<ContractRoot> {
     let mut pending = Vec::new();
     for (owner, _, fact) in typed_trees::references::program_scoped_proof_facts(program) {
         if !domain.contains(owner) {
@@ -47,7 +45,7 @@ pub(super) fn roots(
             continue;
         }
         pending.extend(
-            crate::machine_execution::admission::expression_children(program, expression)
+            expression_children(program, expression)
                 .into_iter()
                 .map(|child| (owner, child)),
         );
@@ -163,9 +161,7 @@ fn subtree(program: &TypedTrees, expression: ExpressionHandle) -> Vec<Expression
             continue;
         }
         result.push(expression);
-        pending.extend(crate::machine_execution::admission::expression_children(
-            program, expression,
-        ));
+        pending.extend(expression_children(program, expression));
     }
     result
 }
@@ -189,11 +185,9 @@ fn closed(
         ExpressionNode::Call(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Unary(_)
-        | ExpressionNode::Cast(_) => {
-            crate::machine_execution::admission::expression_children(program, expression)
-                .into_iter()
-                .all(|child| closed(program, child, active))
-        }
+        | ExpressionNode::Cast(_) => expression_children(program, expression)
+            .into_iter()
+            .all(|child| closed(program, child, active)),
         _ => false,
     };
     active.pop();
@@ -229,11 +223,11 @@ mod tests {
             .symbol;
         super::super::constant_recipes::retain_deferred_constant_recipes(
             &mut program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
+            &EvaluationDomain::all(),
         )
         .expect("retain contract jobs");
         assert!(!program.constant_recipes.is_empty());
-        let projected = crate::build_time_evaluation::EvaluationDomain::all()
+        let projected = EvaluationDomain::all()
             .demanded_roots(&program, &[extent])
             .execution_program(&program);
         assert!(projected.realized_machine_named("unrelated").is_none());
@@ -277,7 +271,7 @@ mod tests {
             .symbol;
         super::super::constant_recipes::retain_deferred_constant_recipes(
             &mut program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
+            &EvaluationDomain::all(),
         )
         .expect("retain requirement root");
         let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
@@ -312,7 +306,7 @@ mod tests {
             typed("trait Geometry { machine check<T>() requires size_of<T>() >= 8; }");
         super::super::constant_recipes::retain_deferred_constant_recipes(
             &mut program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
+            &EvaluationDomain::all(),
         )
         .expect("retain generic requirement root");
         assert!(!program.constant_recipes.is_empty());
@@ -348,7 +342,7 @@ mod tests {
             .symbol;
         super::super::constant_recipes::retain_deferred_constant_recipes(
             &mut program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
+            &EvaluationDomain::all(),
         )
         .expect("retain complete roots");
         let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
@@ -366,11 +360,15 @@ mod tests {
             })
             .copied()
             .collect::<Vec<_>>();
+        // `size_of<Cell>() + align_of<Cell>() == 24` mentions no binder of
+        // `require_geometry<T>`: a closed expression inside a generic owner
+        // still owes its own entry, beside the two concrete applications.
         assert!(
             contexts
                 .iter()
                 .filter(|context| context.owner == template)
-                .all(|context| !context.evaluation_entry.is_valid())
+                .all(|context| context.evaluation_entry.is_valid()),
+            "the closed template contract owns an entry of its own"
         );
         let entries = contexts
             .iter()
@@ -378,14 +376,15 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             entries.len(),
-            2,
-            "both concrete applications own complete entries"
+            3,
+            "the closed template and both concrete applications own complete entries"
         );
-        assert_ne!(entries[0].evaluation_entry, entries[1].evaluation_entry);
-        assert_ne!(
-            entries[0].evaluation_expression,
-            entries[1].evaluation_expression
-        );
+        for (position, left) in entries.iter().enumerate() {
+            for right in &entries[position + 1..] {
+                assert_ne!(left.evaluation_entry, right.evaluation_entry);
+                assert_ne!(left.evaluation_expression, right.evaluation_expression);
+            }
+        }
         let checked = typed_trees_to_checked_trees::lower_typed_trees(
             prepared,
             preparation,
@@ -428,10 +427,7 @@ mod tests {
                 machine.contracts = first.contracts;
             }
         });
-        let roots = roots(
-            &program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
-        );
+        let roots = roots(&program, &EvaluationDomain::all());
         assert_eq!(
             roots.len(),
             2,
@@ -446,7 +442,7 @@ mod tests {
                 Some(typed_trees::types::PrimitiveType::U64),
             );
         }
-        let domain = crate::build_time_evaluation::EvaluationDomain::all();
+        let domain = EvaluationDomain::all();
         let plan = super::super::range_endpoints::integer_root_plan(&program, &domain)
             .expect("shared root plan");
         assert_eq!(
@@ -492,7 +488,7 @@ mod tests {
             .realized_machine_named("second")
             .expect("second")
             .symbol;
-        let domain = crate::build_time_evaluation::EvaluationDomain::all();
+        let domain = EvaluationDomain::all();
         let initial = roots(&program, &domain);
         let outer = initial
             .iter()

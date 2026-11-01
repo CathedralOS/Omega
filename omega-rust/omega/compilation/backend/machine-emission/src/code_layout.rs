@@ -186,17 +186,14 @@ mod tests {
         let regions = canonical_regions(
             machine,
             vec![
-                super::code_region(40, 3),
-                super::code_region(10, 2),
-                super::code_region(12, 4),
-                super::code_region(11, 3),
+                code_region(40, 3),
+                code_region(10, 2),
+                code_region(12, 4),
+                code_region(11, 3),
             ],
         )
         .unwrap();
-        assert_eq!(
-            regions,
-            vec![super::code_region(10, 6), super::code_region(40, 3),]
-        );
+        assert_eq!(regions, vec![code_region(10, 6), code_region(40, 3),]);
     }
 
     #[test]
@@ -260,7 +257,7 @@ mod tests {
         append_fragment_spans(&fragment, &frame, 122, &mut spans).unwrap();
         assert_eq!(
             canonical_regions(machine, spans).unwrap(),
-            vec![super::code_region(100, 8), super::code_region(118, 4),]
+            vec![code_region(100, 8), code_region(118, 4),]
         );
         // A stale function/section coordinate join must reject, even if the
         // section coordinate alone happens to stay inside the envelope.
@@ -275,7 +272,7 @@ mod tests {
     fn overflowing_native_span_rejects() {
         let machine = MachineId::new(1).unwrap();
         assert_eq!(
-            canonical_regions(machine, vec![super::code_region(u64::MAX, 1)]),
+            canonical_regions(machine, vec![code_region(u64::MAX, 1)]),
             Err(NativeCodeLayoutError::InvalidInstructionSpan(machine))
         );
     }

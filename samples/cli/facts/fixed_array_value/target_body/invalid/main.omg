@@ -1,34 +1,54 @@
 // A fixed-extent array [u64; 2] preserves its in-bounds index contract index < 2 and independent element values across all nine places.
 // Invalid: all target bodies weaken the index bound to index <= 2, so the index may exceed length 2.
 // Expected exit: 0
-linux_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index <= 2
-{
-    values[index]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index <= 2
-{
-    values[index]
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index <= 2
-{
-    values[index]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index <= 2
-{
-    values[index]
+boundary trait SelectedReadElement {
+    machine read_element(values: [u64; 2], index: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires index <= 2;
 }
+
+X86ReadElement satisfies SelectedReadElement {
+    machine read_element(values: [u64; 2], index: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires index <= 2
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        values[index]
+    }
+}
+
+ArmReadElement satisfies SelectedReadElement {
+    machine read_element(values: [u64; 2], index: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires index <= 2
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        values[index]
+    }
+}
+
 
 machine probe(values: [u64; 2], index: u64) -> u64
 requires index <= 2
 {
-    read_element(values, index)
+    SelectedReadElement::read_element(values, index)
 }
 
 machine main() crashes Trap {
@@ -39,4 +59,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

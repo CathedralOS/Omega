@@ -122,6 +122,22 @@ pub(crate) fn type_multiplicity(
     program.type_multiplicity(type_reference)
 }
 
+/// The access kind of a possibly-constrained reference type, walking
+/// `Constrained` shells to the reference node underneath. `None` when the type
+/// bottoms out at anything other than a reference.
+pub(crate) fn reference_access(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<language_core::ReferenceAccess> {
+    match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            reference_access(program, *base_type)
+        }
+        _ => None,
+    }
+}
+
 pub(crate) fn literal_variant<'program>(
     program: &'program dyn ::validation::CheckingInput,
     literal: &typed_trees::expression::TableStructLiteral,

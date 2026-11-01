@@ -7,7 +7,7 @@ use super::{
     resolve_machine_witness_view_arguments,
 };
 use crate::places::place_at;
-use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
+use checked_trees::{CheckedNaturalRankMeasure as RankMeasure, CheckedStateNaturalRank};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
 
@@ -41,23 +41,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     };
     let subject = *subjects.first()?;
     let input = coordinate(subject)?;
-    let mut entry = input.clone();
-    if let RankingOrder::CustomStructView {
-        path, field_symbol, ..
-    } = &order
-    {
-        entry
-            .path
-            .extend(path.iter().map(|step| facts::PlaceSegment::Field {
-                symbol: step.field_symbol,
-            }));
-        entry.path.push(facts::PlaceSegment::Field {
-            symbol: *field_symbol,
-        });
-        // The resolved measure owns the declaration path; the ordinary typed
-        // coordinate query authenticates its composition with this subject.
-        validation::ranking_coordinate_type(program, root, &entry)?;
-    }
+    let entry = input.clone();
     let mut observations = Vec::new();
     for state in states
         .iter()
@@ -89,19 +73,33 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         let measure = match (&order, subjects.as_slice()) {
             (
                 RankingOrder::CustomNatDescending { measure }
-                | RankingOrder::CustomScalarView { measure, .. }
-                | RankingOrder::CustomStructView { measure, .. },
+                | RankingOrder::CustomScalarView { measure, .. },
                 [_],
             ) => {
                 let declaration = program
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
-                let formal = declaration.parameter.as_ref()?;
-                let inputs = selected.declaration_bindings(formal.symbol, &input);
-                if inputs.is_empty() {
-                    return None;
-                }
+                let shape = validation::declared_input_shape(program, declaration)?;
+                let inputs = shape
+                    .reads
+                    .iter()
+                    .map(|read| {
+                        let entry = validation::RankSubjectCoordinate {
+                            parameter: input.parameter,
+                            path: input
+                                .path
+                                .iter()
+                                .chain(&read.coordinate.path)
+                                .cloned()
+                                .collect(),
+                        };
+                        Some(validation::RankCoordinateBinding {
+                            entry: read.coordinate.clone(),
+                            destination: selected.destination(&entry)?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
@@ -144,6 +142,16 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     {
                         return None;
                     }
+                    let whole_input = retain_coordinate(admitted, destination.clone(), Vec::new());
+                    let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::owned_copy(
+                            program,
+                            admitted,
+                            state,
+                            formal.symbol,
+                            whole_input,
+                        )
+                    });
                     admitted.application_formations.insert(
                         checked_trees::CheckedRankApplicationFormation {
                             machine: machine.symbol,
@@ -151,12 +159,13 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
+                            owned_copy,
                         },
                     )
                 } else {
                     Default::default()
                 };
-                CheckedNaturalRankMeasure::DeclaredMeasure {
+                RankMeasure::DeclaredMeasure {
                     formation,
                     measure: *measure,
                     bindings,
@@ -173,7 +182,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             path,
                             entry_indexes: Default::default(),
                         });
-                CheckedNaturalRankMeasure::SequenceLength { coordinate }
+                RankMeasure::SequenceLength { coordinate }
             }
             (RankingOrder::NatDescending, [_]) => {
                 let primitive_type = primitive()?;
@@ -193,38 +202,85 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 };
                 let coordinate =
                     retain_observed_coordinate(admitted, destination.clone(), inputs.as_ref())?;
-                CheckedNaturalRankMeasure::IntegerValue {
+                RankMeasure::IntegerValue {
                     coordinate,
                     primitive_type,
                 }
             }
-            (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
-            (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
+            (RankingOrder::BoundedDistance, [lower, upper]) => {
+                exact_distance_measure(program, admitted, root.symbol, *lower, *upper)?
+            }
+            (RankingOrder::IncreasingTo(upper), [_]) => {
+                increasing_to_measure(primitive()?, *upper)?
+            }
             _ => return None,
         };
+        let components = admitted.observation_components.insert_many([
+            checked_trees::CheckedIntegerRankObservation {
+                function: checked_trees::CheckedNaturalRankFunction::Identity,
+                parameter: destination.parameter,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+                measure,
+                observation: Default::default(),
+            },
+        ]);
         observations.push(CheckedStateNaturalRank {
-            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
-            parameter: destination.parameter,
-            parameter_position: u32::try_from(parameter_position).ok()?,
-            measure,
-            observation: Default::default(),
+            components,
         });
     }
     Some(observations)
 }
 
-fn distance_measure(
+fn exact_distance_measure(
+    program: &dyn validation::CheckingInput,
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    state: symbols::SymbolHandle,
+    lower: ExpressionHandle,
+    upper: ExpressionHandle,
+) -> Option<RankMeasure> {
+    let primitive = |expression| {
+        program.primitive_type_reference(
+            validation::mathematical_applications::operand_type_reference(program, expression)?,
+        )
+    };
+    let lower_type = primitive(lower)?;
+    let upper_type = primitive(upper)?;
+    if !matches!(
+        lower_type,
+        typed_trees::unsigned_integer_primitive_pattern!()
+    ) || !upper_type.is_fixed_integer()
+    {
+        return None;
+    }
+    let lower = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: lower,
+            primitive_type: lower_type,
+        });
+    let upper = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: upper,
+            primitive_type: upper_type,
+        });
+    Some(RankMeasure::Distance { lower, upper })
+}
+
+fn increasing_to_measure(
     primitive_type: PrimitiveType,
     upper: ExpressionHandle,
-) -> Option<CheckedNaturalRankMeasure> {
+) -> Option<RankMeasure> {
     if !matches!(
         primitive_type,
         typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }
-    Some(CheckedNaturalRankMeasure::BoundedDistance {
+    Some(RankMeasure::IncreasingTo {
         primitive_type,
         upper,
     })

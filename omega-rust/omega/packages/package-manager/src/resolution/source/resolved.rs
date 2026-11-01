@@ -5,8 +5,9 @@ use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
 use crate::resolution::source::PackageSourceSelectionEvidence;
-use package_source::ImmutableSourceResolution;
-use package_source::LocalSourceLimits;
+use crate::resolution::source::ResolvePackageSourceError;
+use package_source::{ImmutableSourceResolution, ResolvedLocalSnapshot};
+use package_source::{LocalSourceLimits, SourceLineage};
 use std::path::PathBuf;
 
 /// An immutable source snapshot after its package-owned declaration has been
@@ -85,15 +86,12 @@ impl<S> ResolvedPackageSource<S> {
 /// root navigation/selection evidence; provenance (lineage + resolution)
 /// arrives already formed per source kind.
 pub(super) fn resolve_local_snapshot_source(
-    source: package_source::ResolvedLocalSnapshot,
+    source: ResolvedLocalSnapshot,
     declaration: super::projection::ProjectedPackageBuild,
-    lineage: package_source::SourceLineage,
+    lineage: SourceLineage,
     resolution: ImmutableSourceResolution,
     limits: LocalSourceLimits,
-) -> Result<
-    ResolvedPackageSource<package_source::ResolvedLocalSnapshot>,
-    crate::resolution::source::ResolvePackageSourceError,
-> {
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let materialization = PackageSourceMaterialization::from_local(source.normalized());
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),

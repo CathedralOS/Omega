@@ -9,6 +9,7 @@ use language_semantics::declaration_selection::{
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
+use validation::CheckingInput;
 use validation::selection_resolution::{
     AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, authored_data_member,
     collect_checked_transition_target_selections, declaration_target, exact_named_operator_call,
@@ -151,10 +152,7 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
     }
 }
 
-fn has_region_telescope(
-    program: &dyn validation::CheckingInput,
-    target: symbols::SymbolHandle,
-) -> bool {
+fn has_region_telescope(program: &dyn CheckingInput, target: symbols::SymbolHandle) -> bool {
     validation::call_target_state(program, target)
         .and_then(|state| validation::find_state(program, state.symbol))
         .is_some_and(|(machine, _)| !machine.lifetime_parameters.is_empty())

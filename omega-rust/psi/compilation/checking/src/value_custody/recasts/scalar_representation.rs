@@ -1,4 +1,5 @@
 use symbols::SymbolHandle;
+use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,15 +106,13 @@ pub(super) fn mutable_scalar_representation_facts(
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
                     match constraint {
-                        typed_trees::types::TypeConstraintNode::Domain(domain)
-                            if domain.symbol.is_valid() =>
-                        {
+                        TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
                             if !domains.contains(&domain.symbol) {
                                 domains.push(domain.symbol);
                             }
                         }
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
-                        typed_trees::types::TypeConstraintNode::Range {
+                        TypeConstraintNode::ArithmeticDomain(_) => {}
+                        TypeConstraintNode::Range {
                             minimum,
                             maximum,
                             end_inclusive,
@@ -133,8 +132,7 @@ pub(super) fn mutable_scalar_representation_facts(
                                 None => (minimum, maximum),
                             });
                         }
-                        typed_trees::types::TypeConstraintNode::Domain(_)
-                        | typed_trees::types::TypeConstraintNode::Named(_) => {
+                        TypeConstraintNode::Domain(_) | TypeConstraintNode::Named(_) => {
                             return None;
                         }
                     }
@@ -390,15 +388,15 @@ pub(super) fn narrow_by_field_representation_bounds(
         return None;
     };
     for bound in bounds {
-        let FieldRepresentationBound::Integer {
-            minimum, maximum, ..
-        } = bound
-        else {
+        let FieldRepresentationBound::Integer { interval, .. } = bound else {
             return None;
         };
         let (carrier_minimum, carrier_maximum) = primitive_integer_extent(primitive)?;
-        let minimum = minimum.unwrap_or(carrier_minimum).max(carrier_minimum);
-        let maximum = maximum.unwrap_or(carrier_maximum).min(carrier_maximum);
+        let minimum = interval.low.unwrap_or(carrier_minimum).max(carrier_minimum);
+        let maximum = interval
+            .high
+            .unwrap_or(carrier_maximum)
+            .min(carrier_maximum);
         let interval = integer_range_bit_patterns(primitive, (minimum, maximum))?;
         *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
     }

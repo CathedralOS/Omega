@@ -7,8 +7,9 @@
 use super::{build_machine_call_graph, runtime_ranking};
 use crate::machine_calls::graph_components::strongly_connected_components;
 use checked_trees::{
-    CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
-    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
+    CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeIntegerRank,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember,
 };
 use symbols::SymbolHandle;
 
@@ -139,19 +140,19 @@ pub fn retain_runtime_rank_component(
             }
         }));
     let (states, edges) = if let Some(natural) = natural {
-        let states = natural
-            .states
-            .into_iter()
-            .map(|state| {
-                let path = admitted.path_segments.insert_many(state.coordinate.path);
-                let entry_indexes = admitted.entry_indexes.insert_many(state.entry_indexes);
+        let mut states = Vec::with_capacity(natural.states.len());
+        for state in natural.states {
+            let mut values = Vec::with_capacity(state.values.len());
+            for value in state.values {
+                let path = admitted.path_segments.insert_many(value.coordinate.path);
+                let entry_indexes = admitted.entry_indexes.insert_many(value.entry_indexes);
                 let coordinate = admitted.coordinates.insert(CheckedRankCoordinate {
-                    parameter: state.coordinate.parameter,
+                    parameter: value.coordinate.parameter,
                     path,
                     entry_indexes,
                 });
                 let (application_measure, application_body, application_casts, application_calls) =
-                    match state.application {
+                    match value.application {
                         Some(application) => (
                             application.measure(),
                             application.body(),
@@ -169,23 +170,36 @@ pub fn retain_runtime_rank_component(
                             Default::default(),
                         ),
                     };
-                CheckedRuntimeNaturalState {
+                values.push(CheckedRuntimeIntegerRank {
                     application: checked_trees::CheckedRankApplicationFacts {
                         measure: application_measure,
                         definition_body: application_body,
                         casts: application_casts,
                         calls: application_calls,
                     },
-                    measure: state.measure,
-                    state: state.state,
+                    application_bindings: {
+                        let bindings = value
+                            .application_bindings
+                            .iter()
+                            .map(|binding| binding.retain(admitted))
+                            .collect::<Vec<_>>();
+                        admitted.bindings.insert_many(bindings)
+                    },
+                    input_type: value.input_type,
+                    measure: value.measure,
                     coordinate,
-                    parameter_position: state.parameter_position,
-                    primitive_type: state.primitive_type,
-                    observation: state.observation,
-                    function: state.function,
-                }
-            })
-            .collect::<Vec<_>>();
+                    parameter_position: value.parameter_position,
+                    primitive_type: value.primitive_type,
+                    observation: value.observation.retain(admitted),
+                    function: value.function,
+                });
+            }
+            let values = admitted.runtime_values.insert_many(values);
+            states.push(CheckedRuntimeNaturalState {
+                state: state.state,
+                values,
+            });
+        }
         let states = admitted.runtime_states.insert_many(states);
         let edges = admitted
             .runtime_edges
@@ -247,47 +261,71 @@ pub fn retained_runtime_natural_components(
                 .span(row.states)?
                 .iter()
                 .map(|state| {
-                    let coordinate = admitted.coordinates.get(state.coordinate);
+                    let values = admitted
+                        .runtime_values
+                        .span(state.values)?
+                        .iter()
+                        .map(|value| {
+                            let coordinate = admitted.coordinates.get(value.coordinate);
+                            Some(super::ValidatedRuntimeIntegerRank {
+                                application: if value.application.definition_body.is_valid() {
+                                    if value.application.measure != value.measure {
+                                        return None;
+                                    }
+                                    Some(crate::IntegerApplicationFormation::from_retained(
+                                        value.application.measure,
+                                        value.application.definition_body,
+                                        admitted
+                                            .application_casts
+                                            .span(value.application.casts)?
+                                            .to_vec(),
+                                        admitted
+                                            .application_calls
+                                            .span(value.application.calls)?
+                                            .to_vec(),
+                                    )?)
+                                } else {
+                                    if value.application.measure.is_valid()
+                                        || !value.application.casts.is_empty()
+                                    {
+                                        return None;
+                                    }
+                                    None
+                                },
+                                application_bindings: admitted
+                                    .bindings
+                                    .span(value.application_bindings)?
+                                    .iter()
+                                    .map(|binding| {
+                                        super::RuntimeRankApplicationBinding::from_checked(
+                                            admitted, binding,
+                                        )
+                                    })
+                                    .collect::<Option<Vec<_>>>()?,
+                                input_type: value.input_type,
+                                measure: value.measure,
+                                parameter: coordinate.parameter,
+                                coordinate: crate::RankSubjectCoordinate {
+                                    parameter: coordinate.parameter,
+                                    path: admitted.path_segments.span(coordinate.path)?.to_vec(),
+                                },
+                                entry_indexes: admitted
+                                    .entry_indexes
+                                    .span(coordinate.entry_indexes)?
+                                    .to_vec(),
+                                parameter_position: value.parameter_position,
+                                primitive_type: value.primitive_type,
+                                observation: super::RuntimeRankInput::from_checked(
+                                    admitted,
+                                    value.observation,
+                                )?,
+                                function: value.function,
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()?;
                     Some(super::ValidatedRuntimeNaturalState {
-                        application: if state.application.definition_body.is_valid() {
-                            if state.application.measure != state.measure {
-                                return None;
-                            }
-                            Some(crate::IntegerApplicationFormation::from_retained(
-                                state.application.measure,
-                                state.application.definition_body,
-                                admitted
-                                    .application_casts
-                                    .span(state.application.casts)?
-                                    .to_vec(),
-                                admitted
-                                    .application_calls
-                                    .span(state.application.calls)?
-                                    .to_vec(),
-                            )?)
-                        } else {
-                            if state.application.measure.is_valid()
-                                || !state.application.casts.is_empty()
-                            {
-                                return None;
-                            }
-                            None
-                        },
-                        measure: state.measure,
                         state: state.state,
-                        parameter: coordinate.parameter,
-                        coordinate: crate::RankSubjectCoordinate {
-                            parameter: coordinate.parameter,
-                            path: admitted.path_segments.span(coordinate.path)?.to_vec(),
-                        },
-                        entry_indexes: admitted
-                            .entry_indexes
-                            .span(coordinate.entry_indexes)?
-                            .to_vec(),
-                        parameter_position: state.parameter_position,
-                        primitive_type: state.primitive_type,
-                        observation: state.observation,
-                        function: state.function,
+                        values,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;

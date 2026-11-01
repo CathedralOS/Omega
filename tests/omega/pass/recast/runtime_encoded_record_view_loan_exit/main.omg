@@ -29,17 +29,17 @@ data NarrowByte [copy] where -128 <= value, value <= 127 { value: i64; }
 data ByteView { value: u8; }
 data Main { encoded: LayoutStorage<NarrowByte, SignedByte>; }
 
-machine read(value: &u8) -> u8 { value }
+machine read_byte(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }
-machine write(value: &mut u8) { value = 255u8; }
+machine write_byte(value: &mut u8) { value = 255u8; }
 
 machine Main::main(main: &mut Main) crashes Trap {
     main.encoded.value = -9i64;
     let view: &mut ByteView = &mut main.encoded as &mut ByteView;
-    let before: u8 = read(&view.value);
-    write(&mut view.value);
+    let before: u8 = read_byte(&view.value);
+    write_byte(&mut view.value);
     let returned: &u8 = identity(&view.value);
-    let after: u8 = read(returned);
+    let after: u8 = read_byte(returned);
     transition before == 247u8 && after == 255u8 && main.encoded.value == -1i64 {
         true -> done()
         _ -> bad()

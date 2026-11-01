@@ -16,10 +16,11 @@ use super::{
     scalar_abi_cases, stack_pointer_view, validate_effects, validated_effects,
 };
 use register_model::RegisterViewId;
+use selected_instructions::MachineEffectCatalogValidationError::InvalidEncodedEffects;
+use selected_instructions::validate_machine_effect_catalog;
 use selected_instructions::{
-    MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineSemanticKind,
+    MachineCleanupEffect, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
 };
 
 /// Which side of the activation-stack lifecycle a selected semantic owns —
@@ -334,13 +335,8 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, 0).stack = stack;
                 assert_eq!(
-                    selected_instructions::validate_machine_effect_catalog(
-                        environment.constraints(),
-                        corrupted,
-                    ),
-                    Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
-                        semantic
-                    )),
+                    validate_machine_effect_catalog(environment.constraints(), corrupted),
+                    Err(InvalidEncodedEffects(semantic)),
                     "{key:?} {label} must reject"
                 );
             }
@@ -352,13 +348,8 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                 encoded_mut(&mut corrupted, key, semantic, 0).trap =
                     MachineEncodedTrapBehavior::NeverV1;
                 assert_eq!(
-                    selected_instructions::validate_machine_effect_catalog(
-                        environment.constraints(),
-                        corrupted,
-                    ),
-                    Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
-                        semantic
-                    )),
+                    validate_machine_effect_catalog(environment.constraints(), corrupted),
+                    Err(InvalidEncodedEffects(semantic)),
                     "{key:?} understated lifecycle fault must reject"
                 );
             }

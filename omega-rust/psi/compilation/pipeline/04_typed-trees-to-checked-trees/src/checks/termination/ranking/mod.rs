@@ -7,14 +7,12 @@
 
 mod current_values;
 mod entry_requirements;
-mod lexicographic;
 mod nat;
 mod observations;
 mod patterns;
 mod ranges;
 pub(in crate::checks::termination) use ranges::RankArrivalAdmission;
 mod slice;
-mod struct_view;
 mod write_preservation;
 
 pub(crate) use entry_requirements::proves_ranked_entry_requirement;
@@ -34,6 +32,9 @@ pub(super) enum DecreaseOutcome {
     Proven(Option<ranges::RankArrivalAdmission>),
     /// The order resolved, but the decrease could not be proven.
     Unproven,
+    /// No local proof is granted: only complete invocation-component admission
+    /// can judge this relation. Ordinary body queries must remain unproven.
+    RequiresComponent,
     /// A plain `terminates by value` clause whose decreasing value has no single
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
@@ -184,13 +185,16 @@ pub(super) fn machine_decrease_outcome_with(
         }
     }
 
-    // Erased structural recursion and lexicographic orders have their genuine
-    // source proof vocabulary. Executable natural views instead need the one
-    // complete coordinate witness above; the former spelling/shape probes
-    // cannot supply a second scalar arrival route.
-    let structural_order = matches!(order, RankingOrder::Lexicographic(_))
-        || (!matches!(order, RankingOrder::CustomScalarView { .. })
-            && validation::proof_only_classification(program).is_proof_machine(program, machine));
+    // Logical recursive calls belong to the complete invocation component.
+    // Lexical state containment supplies no tuple proof: that owner captures
+    // and compares every actual edge, including self-calls and local aliases.
+    if matches!(order, RankingOrder::Lexicographic) {
+        return DecreaseOutcome::RequiresComponent;
+    }
+    // Erased structural recursion retains its separate source proof theory.
+    // Executable integer views need the complete coordinate witness above.
+    let structural_order = !matches!(order, RankingOrder::CustomScalarView { .. })
+        && validation::proof_only_classification(program).is_proof_machine(program, machine);
     if structural_order {
         let adjacency = graph::machine_adjacency(program, machine);
         let components = graph::strongly_connected_components(&adjacency);
@@ -208,7 +212,6 @@ pub(super) fn machine_decrease_outcome_with(
                     component,
                     measure,
                     &order,
-                    call_frames,
                     &mut bound_lookup,
                 )
             })
@@ -298,8 +301,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
         RankingOrder::CustomNatDescending { .. }
         | RankingOrder::CustomScalarView { .. }
-        | RankingOrder::CustomStructView { .. }
-        | RankingOrder::Lexicographic(_) => None,
+        | RankingOrder::Lexicographic => None,
     }
 }
 
@@ -315,7 +317,6 @@ fn component_has_proven_decrease<'p>(
     component: &[usize],
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let states = program.machine_states(machine);
@@ -328,23 +329,13 @@ fn component_has_proven_decrease<'p>(
     // supported orders. Genuine multi-state cycles are proven edge-by-edge with
     // the Nat-descending prover, which is the order whose decrease is defined
     // pointwise across differing source/target states.
-    // Struct views enumerate every occurrence themselves. Other custom orders
-    // still have single-occurrence recognizers and must retain that restriction.
-    let single_state_self_loop = component.len() == 1
-        && (edges.len() == 1 || matches!(order, RankingOrder::CustomStructView { .. }));
+    // Declared applications use the completed-value edge owner above.
+    let single_state_self_loop = component.len() == 1 && edges.len() == 1;
 
     if single_state_self_loop {
         return edges.iter().all(|edge| {
             states.get(edge.from).is_some_and(|source| {
-                state_has_provable_self_loop(
-                    program,
-                    machine,
-                    source,
-                    measure,
-                    order,
-                    call_frames,
-                    bound_lookup,
-                )
+                state_has_provable_self_loop(program, machine, source, measure, order, bound_lookup)
             })
         });
     }
@@ -412,10 +403,9 @@ fn state_has_provable_self_loop<'p>(
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
-    // Slice-length, struct-view and lexicographic orders rank a single
+    // Slice-length and lexicographic orders rank a single
     // decreasing value; a two-subject distance belongs to `current_values`.
     match (order, measure) {
         // A declared computation needs its produced-value proof, including
@@ -431,29 +421,7 @@ fn state_has_provable_self_loop<'p>(
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
             slice::state_has_proven_self_loop(program, machine, state, decreases, bound_lookup)
         }
-        (
-            RankingOrder::CustomStructView {
-                path,
-                field,
-                field_symbol,
-                owner,
-                ..
-            },
-            DecreaseMeasure::Single(decreases),
-        ) => struct_view::state_has_proven_self_loop(
-            program,
-            machine,
-            state,
-            decreases,
-            path,
-            field,
-            *field_symbol,
-            *owner,
-            call_frames,
-        ),
-        (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
-            lexicographic::state_has_proven_self_loop(program, state, decreases, fields)
-        }
+        (RankingOrder::Lexicographic, _) => false,
         (_, DecreaseMeasure::Distance { .. }) => false,
     }
 }

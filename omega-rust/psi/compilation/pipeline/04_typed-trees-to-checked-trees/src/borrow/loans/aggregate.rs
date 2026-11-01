@@ -1,3 +1,4 @@
+use crate::borrow::view_link::substituted_returns_borrow;
 use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
@@ -197,12 +198,8 @@ fn aggregate_value_initializer(
         ExpressionNode::Cast(cast) => !cast.form.is_recast(),
         _ => false,
     };
-    if !crate::borrow::view_link::substituted_returns_borrow(
-        program,
-        type_reference,
-        substitutions,
-        &[0],
-    ) || !is_direct_aggregate_value
+    if !substituted_returns_borrow(program, type_reference, substitutions, &[0])
+        || !is_direct_aggregate_value
     {
         return None;
     }

@@ -9,8 +9,12 @@
 //! carrier proves no membership and preserves their invariant-window custody.
 //! Unknown qualifications and mutation-capable loans stay opaque.
 
+use crate::declarations::data_queries::DataDefinitionLookup;
+use access_plans::FieldAccess;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -43,6 +47,9 @@ enum ContentType {
     ConstValue,
     /// An admitted value index is an application operand, never a stored type.
     RuntimeIndex,
+    /// A declared implementation slot retains code/evidence, not storage.
+    /// Complete tuple/region admission is independent of contents checking.
+    ImplementationSelection,
     /// An existing provider handle; borrowing it neither installs a provider
     /// nor authorizes erasure. Shape collection retains that separate receipt.
     Provider,
@@ -55,6 +62,7 @@ impl ContentType {
             | Self::Atomic(_)
             | Self::ConstValue
             | Self::RuntimeIndex
+            | Self::ImplementationSelection
             | Self::View
             | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
@@ -179,7 +187,7 @@ pub fn has_contents(
 /// do not become arguments of the data application.
 pub fn data_has_contents(
     program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
+    data: &DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     requirement: ContentsRequirement,
 ) -> bool {
@@ -377,11 +385,10 @@ fn resolve_parameter_argument(
         // Argument admission and captured-subject equality are separate
         // checks. Contents follow the substituted fields, so this marker
         // cannot supply a field type, extent, loan, or cleanup permission.
-        typed_trees::data::TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
-        typed_trees::data::TypeParameterKind::Type => {
-            resolve(program, reference, arguments, requirement)
-        }
-        typed_trees::data::TypeParameterKind::Const { .. }
+        TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
+        TypeParameterKind::Implementation => Some(ContentType::ImplementationSelection),
+        TypeParameterKind::Type => resolve(program, reference, arguments, requirement),
+        TypeParameterKind::Const { .. }
             if matches!(program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()) =>
         {
@@ -408,16 +415,17 @@ fn resolve(
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {
-                return Some(argument);
+                // A code operand may fill another implementation slot, but it
+                // cannot become a field's type, including an erased field.
+                return (!matches!(argument, ContentType::ImplementationSelection))
+                    .then_some(argument);
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
                 let atomic = match program.symbols.builtin_type_atom(*symbol) {
                     Some(atom) => atom.is_atomic(),
                     None => program
                         .access_field_plan_for_type_reference(reference)
-                        .is_some_and(|field| {
-                            matches!(field.access, access_plans::FieldAccess::Atomic { .. })
-                        }),
+                        .is_some_and(|field| matches!(field.access, FieldAccess::Atomic { .. })),
                 };
                 if atomic {
                     return Some(ContentType::Atomic(primitive));
@@ -764,17 +772,12 @@ fn is_boundary_provider(program: &dyn crate::CheckingInput, symbol: SymbolHandle
         .any(|definition| definition.symbol == symbol && definition.is_boundary)
 }
 
-fn definition(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+fn definition(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<&DataDefinition> {
     if !symbol.is_valid() {
         return None;
     }
     match crate::declarations::data_queries::memoized_data_definition_lookup(program, symbol) {
-        crate::declarations::data_queries::DataDefinitionLookup::Unique(position) => {
-            program.data_definitions().get(position as usize)
-        }
+        DataDefinitionLookup::Unique(position) => program.data_definitions().get(position as usize),
         _ => None,
     }
 }
@@ -820,9 +823,10 @@ fn check_contents(
             // A view descriptor is a terminal leaf — the member's custody is
             // the descriptor alone.
             ContentType::View | ContentType::Provider => true,
-            // A const parameter named where a member type belongs is not
-            // storage the classifier understands.
-            ContentType::ConstValue | ContentType::RuntimeIndex => false,
+            // Compile-time/application operands are not a member's storage.
+            ContentType::ConstValue
+            | ContentType::RuntimeIndex
+            | ContentType::ImplementationSelection => false,
             ContentType::Data { .. } => unreachable!(),
         };
     };

@@ -22,6 +22,23 @@ fn parameter_mut(
     }
 }
 
+/// The retained application of one machine. Every control below mutates the
+/// application its fixture already publishes, so an absent record is a broken
+/// fixture rather than a shape to report.
+fn application_of(module: &TerminalModule, machine: usize) -> &ClosedReachApplication {
+    module.machines[machine]
+        .closed_reach_application
+        .as_ref()
+        .unwrap()
+}
+
+fn application_of_mut(module: &mut TerminalModule, machine: usize) -> &mut ClosedReachApplication {
+    module.machines[machine]
+        .closed_reach_application
+        .as_mut()
+        .unwrap()
+}
+
 pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
     let module = artifact.semantic_module();
     let (owner, dependency) = module
@@ -40,10 +57,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 .map(|binder| (owner, binder))
         })
         .ok_or("reach controls need a pure original nominal callback dependency")?;
-    let application = module.machines[owner]
-        .closed_reach_application
-        .as_ref()
-        .unwrap();
+    let application = application_of(module, owner);
     let mut controls: Vec<(&str, &str, TerminalModule)> = Vec::new();
     macro_rules! control {
         ($label:literal => $needle:literal => $module:expr) => {
@@ -52,11 +66,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     }
 
     let mut bad = module.clone();
-    let fixed = &mut bad.machines[owner]
-        .closed_reach_application
-        .as_mut()
-        .unwrap()
-        .fixed;
+    let fixed = &mut application_of_mut(&mut bad, owner).fixed;
     if let Some(service) = module
         .services
         .iter()
@@ -72,32 +82,21 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     controls.push(("changed fixed contribution", "finite union", bad));
 
     let mut bad = module.clone();
-    bad.machines[owner]
-        .closed_reach_application
-        .as_mut()
-        .unwrap()
+    application_of_mut(&mut bad, owner)
         .dependencies
         .insert(0, dependency);
     controls.push(("duplicate dependency binder", "dependency binders", bad));
 
     let mut bad = module.clone();
-    bad.machines[owner]
-        .closed_reach_application
-        .as_mut()
-        .unwrap()
+    application_of_mut(&mut bad, owner)
         .dependencies
         .push(u32::MAX);
     control!("incomplete dependency telescope" => "outside its machine telescope" => bad);
 
     let mut bad = module.clone();
-    let ClosedReachParameter::Machine(binding) = parameter_mut(
-        bad.machines[owner]
-            .closed_reach_application
-            .as_mut()
-            .unwrap(),
-        dependency,
-    )
-    .unwrap() else {
+    let ClosedReachParameter::Machine(binding) =
+        parameter_mut(application_of_mut(&mut bad, owner), dependency).unwrap()
+    else {
         return Err("dependency is not a machine".to_owned());
     };
     binding.selected_contract_commitment = [0; 32];
@@ -105,12 +104,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
 
     if !application.calls.is_empty() {
         let mut bad = module.clone();
-        bad.machines[owner]
-            .closed_reach_application
-            .as_mut()
-            .unwrap()
-            .calls
-            .remove(0);
+        application_of_mut(&mut bad, owner).calls.remove(0);
         control!("removed original call occurrence" => "no exact call occurrence" => bad);
 
         // This control specifically duplicates an operation owner. Retain a
@@ -168,14 +162,9 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 continue;
             }
             let mut bad = module.clone();
-            let ClosedReachParameter::Machine(binding) = parameter_mut(
-                bad.machines[position]
-                    .closed_reach_application
-                    .as_mut()
-                    .unwrap(),
-                binder as u32,
-            )
-            .unwrap() else {
+            let ClosedReachParameter::Machine(binding) =
+                parameter_mut(application_of_mut(&mut bad, position), binder as u32).unwrap()
+            else {
                 unreachable!()
             };
             binding.selected_reach.clear();
@@ -216,10 +205,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         });
     if let Some((position, call, binder, alternative)) = redirected {
         let mut bad = module.clone();
-        let application = bad.machines[position]
-            .closed_reach_application
-            .as_mut()
-            .unwrap();
+        let application = application_of_mut(&mut bad, position);
         if let Some(expected) = &mut application.calls[call].application {
             expected.callee = alternative;
         } else {
@@ -247,11 +233,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 .is_some_and(|application| !application.arguments.is_empty())
         }) {
             let mut bad = module.clone();
-            bad.machines[position]
-                .closed_reach_application
-                .as_mut()
-                .unwrap()
-                .calls[call]
+            application_of_mut(&mut bad, position).calls[call]
                 .application
                 .as_mut()
                 .unwrap()
@@ -267,12 +249,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         };
         if !application.telescope.is_empty() {
             let mut bad = module.clone();
-            bad.machines[position]
-                .closed_reach_application
-                .as_mut()
-                .unwrap()
-                .telescope
-                .pop();
+            application_of_mut(&mut bad, position).telescope.pop();
             // Omit the corresponding consumer coordinates too: the independent
             // declaration roster, rather than tuple disagreement, must reject.
             for consumer in &mut bad.machines {
@@ -292,9 +269,11 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             matches!(parameter, ClosedReachParameter::Machine(binding) if !binding.requirement_arguments.is_empty())
         }) {
             let mut bad = module.clone();
-            let ClosedReachParameter::Machine(binding) = parameter_mut(
-                bad.machines[position].closed_reach_application.as_mut().unwrap(), binder as u32,
-            ).unwrap() else { unreachable!() };
+            let ClosedReachParameter::Machine(binding) =
+                parameter_mut(application_of_mut(&mut bad, position), binder as u32).unwrap()
+            else {
+                unreachable!()
+            };
             binding.requirement_arguments.pop();
             controls.push(("omitted nominal requirement argument", "full declaration telescope", bad));
         }
@@ -325,11 +304,7 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
     }
     for position in owners {
         let mut bad = module.clone();
-        bad.machines[position]
-            .closed_reach_application
-            .as_mut()
-            .unwrap()
-            .capture = None;
+        application_of_mut(&mut bad, position).capture = None;
         super::reject_module_at_ingress(
             &bad,
             "omitted whole capture prefix",
@@ -356,19 +331,10 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
             "missing independent capture declaration",
             "independent checked declaration",
         )?;
-        let capture = module.machines[position]
-            .closed_reach_application
-            .as_ref()
-            .unwrap()
-            .capture
-            .as_ref()
-            .unwrap();
+        let capture = application_of(module, position).capture.as_ref().unwrap();
         if !capture.telescope.is_empty() {
             let mut bad = module.clone();
-            bad.machines[position]
-                .closed_reach_application
-                .as_mut()
-                .unwrap()
+            application_of_mut(&mut bad, position)
                 .capture
                 .as_mut()
                 .unwrap()
@@ -396,11 +362,7 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
             })
         {
             let mut bad = module.clone();
-            bad.machines[position]
-                .closed_reach_application
-                .as_mut()
-                .unwrap()
-                .capture = Some(other.clone());
+            application_of_mut(&mut bad, position).capture = Some(other.clone());
             super::reject_module_at_ingress(
                 &bad,
                 "redirected capture selection",

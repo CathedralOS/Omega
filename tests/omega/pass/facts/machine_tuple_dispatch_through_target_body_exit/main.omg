@@ -1,0 +1,92 @@
+// A complete machine-valued static tuple supplied through generic dispatch
+// is those selected declarations. The call records that result, and the
+// caller reads the record.
+// Place: target_body.
+// Expected exit: 0
+machine left(kept: bool) -> bool { kept }
+
+machine right(kept: bool) -> bool { true }
+
+machine pair<machine A, machine B>(kept: bool) -> bool
+requires machine A(kept: bool) -> bool;
+requires machine B(kept: bool) -> bool;
+{
+    transition A(kept) {
+        true -> B(kept)
+        _ -> false
+    }
+}
+
+machine apply<machine Observe>(kept: bool) -> bool
+requires machine Observe(kept: bool) -> bool;
+{
+    Observe(kept)
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86RunBody satisfies SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let direct: bool = apply<pair<left, right>>(true);
+        hold(direct)
+    }
+}
+
+ArmRunBody satisfies SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let direct: bool = apply<pair<left, right>>(true);
+        hold(direct)
+    }
+}
+
+machine main() crashes Trap {
+    transition SelectedRunBody::run_body() {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

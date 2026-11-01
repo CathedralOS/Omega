@@ -9,6 +9,8 @@ use crate::emission::operation_emission::calls::{
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::contracts::checked_proof_term;
 use crate::scalar_lowering::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, scalar_carriers,
     unsupported,
@@ -48,15 +50,9 @@ pub(crate) fn lower_scalar_call(
         })
         .transpose()?;
     let target = if structural_arguments.is_empty() {
-        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
-            checked,
-            target_machine,
-        )?
+        CheckedScalarCallee::find(checked, target_machine)?
     } else {
-        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-            checked,
-            target_machine,
-        )?
+        CheckedScalarCallee::find_for_unit_call(checked, target_machine)?
     };
     // Field selectors must already have been captured in the authored operand
     // stream. Emission only resolves those carried values; it never reads fields.
@@ -138,12 +134,7 @@ pub(crate) fn lower_scalar_call(
                 .ok_or(LoweringError::Unsupported(
                     "scalar call erased proof actual is absent",
                 ))?;
-            crate::scalar_lowering::contracts::checked_proof_term(
-                identities,
-                checked,
-                term,
-                caller_erased_proof_parameters,
-            )
+            checked_proof_term(identities, checked, term, caller_erased_proof_parameters)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let checked_identity = if let Some((statement_ordinal, call_ordinal)) = statement_site {

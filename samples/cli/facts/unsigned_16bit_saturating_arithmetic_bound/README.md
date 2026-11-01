@@ -119,3 +119,15 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
 - `sample_native_gate.py --filter cli/facts/unsigned_16bit_saturating_arithmetic_bound`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
 - Discrimination: modifying transition conditions in `verify_sum` causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
 - What remains open in the parent outcome: the other numeric-policy fact rows (other widths and policy carriers) at their own nine places; `ARITHMETIC-POLICY-REALIZATION` keeps the underlying numeric-policy realization.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

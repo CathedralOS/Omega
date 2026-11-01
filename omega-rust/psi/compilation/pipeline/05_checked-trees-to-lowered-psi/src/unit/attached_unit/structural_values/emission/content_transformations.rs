@@ -3,6 +3,7 @@
 //! alone consumes the live parent accounts and publishes the derived result;
 //! a later local binding or return never backdates authority to construction.
 
+use crate::terminal_identities::lookup_claim_id;
 mod boundary_correspondence;
 
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
@@ -181,10 +182,7 @@ impl Emission<'_, '_, '_> {
                 let projection = self.content_projection(binding.semantic_domain)?;
                 algebra = Some(projection.algebra.clone());
                 let input = ContentClaimProjection {
-                    claim: crate::terminal_identities::lookup_claim_id(
-                        self.calls.claims.bindings(),
-                        binding.claim_identity,
-                    )?,
+                    claim: lookup_claim_id(self.calls.claims.bindings(), binding.claim_identity)?,
                     projection: projection.identity,
                     subject: ContentStructuralPlace {
                         version: ContentPlaceVersion::Current,
@@ -232,10 +230,7 @@ impl Emission<'_, '_, '_> {
                     }
                 }
                 let output = ContentClaimProjection {
-                    claim: crate::terminal_identities::lookup_claim_id(
-                        self.calls.claims.bindings(),
-                        binding.claim_identity,
-                    )?,
+                    claim: lookup_claim_id(self.calls.claims.bindings(), binding.claim_identity)?,
                     projection: projection.identity,
                     subject: ContentStructuralPlace {
                         version: ContentPlaceVersion::Current,
@@ -266,10 +261,7 @@ impl Emission<'_, '_, '_> {
                         .span_or_empty(derived.lineage_roots)
                         .iter()
                         .map(|binding| {
-                            crate::terminal_identities::lookup_claim_id(
-                                self.calls.claims.bindings(),
-                                binding.claim_identity,
-                            )
+                            lookup_claim_id(self.calls.claims.bindings(), binding.claim_identity)
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     roots.sort();
@@ -365,10 +357,7 @@ impl Emission<'_, '_, '_> {
                         .span_or_empty(bindings)
                         .iter()
                         .map(|binding| {
-                            crate::terminal_identities::lookup_claim_id(
-                                self.calls.claims.bindings(),
-                                binding.claim_identity,
-                            )
+                            lookup_claim_id(self.calls.claims.bindings(), binding.claim_identity)
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     claims.sort();

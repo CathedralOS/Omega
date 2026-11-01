@@ -19,14 +19,31 @@
 //! ordinary representation-view replay.
 //! Passing such an alias onward still requires its backing storage to be
 //! established by lowering; admitting the read does not fabricate that home.
+use super::super::super::atomic_operations::once_event;
+use super::super::super::atomic_operations::result_placeholder;
+use super::super::super::cleanup::anonymous::insert_continuation;
+use super::super::super::reference_results::local_owes_record_loans;
+use super::super::super::reference_results::local_record_loans;
+use super::super::super::reference_results::mutable_borrowed_parts;
+use super::super::super::reference_results::shared_place_borrowed_parts;
+use super::bounded_byte_values::value_plan;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Construction,
     ExpressionNode, Multiplicity, ShapeCollector, SymbolHandle, checked_structural_result_type,
-    is_record_pattern_marker, scalar_computation_local_at, structural_operands,
+    scalar_computation_local_at, structural_operands,
 };
+use crate::execution::terminal_unit::borrowed_windows::OpenWindows;
+use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
+use crate::execution::terminal_unit::calls::projected_evaluated_path;
+use crate::execution::terminal_unit::calls::value_index_segment;
+use crate::execution::terminal_unit::calls::view_subslice::admit;
+use crate::execution::terminal_unit::calls::view_subslice::view_kind;
+use crate::execution::terminal_unit::calls::view_subslice::whole_extent;
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
+use crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field;
+use crate::execution::terminal_unit::types::borrowed_slice_view_element;
 use crate::execution::terminal_unit::types::{
     parameter_qualifications, supports_primitive_storage,
 };
@@ -43,7 +60,7 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) scalar_count: &'a mut usize,
     pub(super) structural_count: &'a mut usize,
     pub(super) structural_local_symbols: &'a mut Vec<SymbolHandle>,
-    pub(super) windows: &'a mut crate::execution::terminal_unit::borrowed_windows::OpenWindows,
+    pub(super) windows: &'a mut OpenWindows,
     pub(super) array_bindings: &'a mut Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) atomic_result: &'a mut Option<CheckedUnitScalarResultBindingPlan>,
     pub(super) structural_results:
@@ -60,17 +77,9 @@ pub(super) enum LocalPlan {
     StructuralCall(CheckedUnitStructuralResultBindingPlan),
 }
 
-/// Plan one `let`, and leave the construction trace where it found it when the
-/// local is declined.
-///
-/// The trace's phase is what the diagnostic names when a body has no executable
-/// plan. A `None` from this function is a *decline*: the caller (`?` in the
-/// statement sequence) abandons the state, and the refusal surfaced later is
-/// raised by whoever actually could not plan it. Setting the phase on the way
-/// out blamed the last sub-phase tried here instead — a witness whose refusing
-/// construct was elsewhere reported `local data: structural call binding`
-/// because the ternary in that sub-phase declined for an unrelated local.
-/// Restoring the entry mark keeps the phase naming the site that refused.
+/// Restore the primary construction site when this local is declined. Its last
+/// attempted step is secondary diagnostic context, not proof of the cause.
+/// The note is tied to this state/statement and cleared by any later builder.
 pub(super) fn plan(
     planner: Planner<'_, '_, '_>,
     index: usize,
@@ -78,10 +87,10 @@ pub(super) fn plan(
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<LocalPlan> {
     let trace = planner.construction.trace;
-    let entry = trace.mark();
+    let entry = trace.decline_mark();
     let planned = plan_inner(planner, index, statement_index, local);
     if planned.is_none() {
-        trace.restore(&entry);
+        trace.restore_with_declined_step(&entry);
     }
     planned
 }
@@ -178,17 +187,13 @@ fn plan_inner(
     if (reference_capture.is_none()
         && structural_root.is_none()
         && erased_locals.contains(&local.symbol))
-        || is_record_pattern_marker(local)
+        || local.role == language_core::LocalBindingRole::RecordPattern
     {
         return Some(LocalPlan::Planned);
     }
     if !local.is_mutable
         && let Some(argument) =
-            crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
-                program,
-                local.type_reference,
-                local.initial_value,
-            )
+            byte_sequence_literal_argument(program, local.type_reference, local.initial_value)
     {
         local_phase("statement sequence: local data: byte literal");
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
@@ -224,13 +229,7 @@ fn plan_inner(
         return Some(LocalPlan::Planned);
     }
     // A bounded owner snapshots its initializer's bytes and live length.
-    if let Some(value) = super::bounded_byte_values::value_plan(
-        program,
-        &facts.operators,
-        state,
-        statement_index,
-        local,
-    ) {
+    if let Some(value) = value_plan(program, &facts.operators, state, statement_index, local) {
         local_phase("statement sequence: local data: bounded byte literal");
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
@@ -263,7 +262,7 @@ fn plan_inner(
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         result.local = initialized_local(program, machine, state, local);
-        let access = super::super::super::atomic_operations::once_event(
+        let access = once_event(
             program,
             facts,
             machine,
@@ -281,7 +280,7 @@ fn plan_inner(
         return Some(LocalPlan::Planned);
     }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
-        && super::super::super::atomic_operations::result_placeholder(program, state, index, local)
+        && result_placeholder(program, state, index, local)
     {
         local_phase("statement sequence: local data: atomic result placeholder");
         *atomic_result = Some(CheckedUnitScalarResultBindingPlan {
@@ -324,17 +323,8 @@ fn plan_inner(
     // its element (`let v: u8 = main.bytes[0..2]`): the binding's target
     // is the subslice's own result type in both spellings, and the
     // element spelling must agree with the view's element below.
-    let declared_is_view = crate::execution::terminal_unit::calls::view_subslice::view_kind(
-        program,
-        local.type_reference,
-    )
-    .is_some()
-        || crate::execution::terminal_unit::types::borrowed_slice_view_element(
-            program,
-            local.type_reference,
-            &[],
-        )
-        .is_some();
+    let declared_is_view = view_kind(program, local.type_reference).is_some()
+        || borrowed_slice_view_element(program, local.type_reference, &[]).is_some();
     let subslice_target = if declared_is_view {
         local.type_reference
     } else {
@@ -348,7 +338,7 @@ fn plan_inner(
     let subslice = structural_root
         .is_none()
         .then(|| {
-            crate::execution::terminal_unit::calls::view_subslice::admit(
+            admit(
                 program,
                 facts,
                 machine,
@@ -366,7 +356,7 @@ fn plan_inner(
             // binding at all, so only a view-declared local qualifies here.
             .or_else(|| {
                 declared_is_view.then(|| {
-                    crate::execution::terminal_unit::calls::view_subslice::whole_extent(
+                    whole_extent(
                         program,
                         machine,
                         state,
@@ -480,17 +470,8 @@ fn plan_inner(
     // local directly; argument roots stay with the ordinary call planner.
     if let Some(root) = structural_root {
         local_phase("statement sequence: local data: structural value: reference record loans");
-        if super::super::super::reference_results::local_owes_record_loans(
-            program,
-            local.type_reference,
-        ) {
-            super::super::super::reference_results::local_record_loans(
-                program,
-                facts,
-                machine.symbol,
-                state,
-                statement_index,
-            )?;
+        if local_owes_record_loans(program, local.type_reference) {
+            local_record_loans(program, facts, machine.symbol, state, statement_index)?;
         }
         local_phase("statement sequence: local data: structural value: root identity");
         if root.machine != machine.symbol
@@ -572,7 +553,7 @@ fn plan_inner(
             // A call-valued local owns the same normal operand continuation
             // as a statement call. The result remains with the local; only
             // the exact anonymous argument owners retire here.
-            super::super::super::cleanup::anonymous::insert_continuation(
+            insert_continuation(
                 program,
                 facts,
                 shapes,
@@ -806,19 +787,13 @@ fn place_loan(
             if formation.access != language_core::ReferenceAccess::Shared {
                 return None;
             }
-            super::super::super::reference_results::shared_place_borrowed_parts(
-                program,
-                local.type_reference,
-            )?
+            shared_place_borrowed_parts(program, local.type_reference)?
         }
         CheckedStructuralAccess::MutableBorrow => {
             if formation.access != language_core::ReferenceAccess::Mutable {
                 return None;
             }
-            super::super::super::reference_results::mutable_borrowed_parts(
-                program,
-                local.type_reference,
-            )?
+            mutable_borrowed_parts(program, local.type_reference)?
         }
         CheckedStructuralAccess::Owned | CheckedStructuralAccess::WriteOnlyBorrow => return None,
     };
@@ -886,20 +861,14 @@ fn place_loan(
     };
     // The declaration owns this evaluation. Consume the same checked scalar
     // source used by ordinary value operands, including established storage.
-    let projected = crate::execution::terminal_unit::calls::projected_evaluated_path(
+    let projected = projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
         statement,
         &place,
         Some(&|expression| {
-            crate::execution::terminal_unit::calls::value_index_segment(
-                program,
-                &facts.operators,
-                state,
-                statement,
-                expression,
-            )
+            value_index_segment(program, &facts.operators, state, statement, expression)
         }),
     );
     let path = match projected {
@@ -985,15 +954,11 @@ fn establish_declared_home(
     *structural_count = structural_count.checked_add(1)?;
     // A descriptor home declares the local's byte domains; every store into
     // it then proves them. Other homes keep their members' own invariants.
-    let qualifications =
-        if crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field(
-            program,
-            local.type_reference,
-        ) {
-            parameter_qualifications(program, shapes, local.type_reference, binders)?
-        } else {
-            Vec::new()
-        };
+    let qualifications = if is_shared_view_field(program, local.type_reference) {
+        parameter_qualifications(program, shapes, local.type_reference, binders)?
+    } else {
+        Vec::new()
+    };
     operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::Structural {
             statement_index,

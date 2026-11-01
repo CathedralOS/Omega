@@ -28,12 +28,15 @@
 //! A repair store runs only after its value and destination selectors finish.
 
 use crate::checks::borrows::StorageSelectorFacts;
+use crate::checks::borrows::storage_path_compatibility;
+use crate::checks::reference_access;
+use crate::flow::reference_route_source;
+use crate::flow::reference_source_place;
 use validation::CanonicalPlace;
 
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) use arm_windows::{ArmWindowPlan, ArmWindowVerdict};
 pub(super) use boundary_checks::{
@@ -99,13 +102,8 @@ impl<'a> StorageWalk<'a> {
         right: (facts::PlaceRoot, &[facts::PlaceSegment]),
     ) -> bool {
         left.0 == right.0
-            && crate::checks::borrows::storage_path_compatibility(
-                self.program,
-                captures,
-                left.1,
-                right.1,
-            )
-            .1 == checked_trees::CapturedPlaceContainment::Same
+            && storage_path_compatibility(self.program, captures, left.1, right.1).1
+                == checked_trees::CapturedPlaceContainment::Same
     }
 
     /// Rebase a place written through a `&mut`-typed local onto the referent
@@ -125,7 +123,7 @@ impl<'a> StorageWalk<'a> {
             let Some(symbol) = root.as_symbol() else {
                 break;
             };
-            let Some(source) = crate::flow::reference_route_source(
+            let Some(source) = reference_route_source(
                 self.program,
                 self.state,
                 self.statements,
@@ -134,12 +132,9 @@ impl<'a> StorageWalk<'a> {
             ) else {
                 break;
             };
-            let Some(source) = crate::flow::reference_source_place(
-                self.program,
-                self.state.symbol,
-                statement_index,
-                source,
-            ) else {
+            let Some(source) =
+                reference_source_place(self.program, self.state.symbol, statement_index, source)
+            else {
                 break;
             };
             let facts::PlaceRoot::Symbol(..) = source.root else {
@@ -206,18 +201,6 @@ impl<'a> FrameWalk<'a> {
         operators: &'a checked_trees::CheckedOperatorFacts,
     ) -> Self {
         Self { program, operators }
-    }
-}
-
-/// The access of a possibly-constrained reference type.
-fn reference_access(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<ReferenceAccess> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { access, .. } => Some(*access),
-        TypeReferenceNode::Constrained { base_type, .. } => reference_access(program, *base_type),
-        _ => None,
     }
 }
 

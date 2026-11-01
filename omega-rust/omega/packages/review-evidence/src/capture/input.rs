@@ -1,7 +1,14 @@
 //! Semantic review candidates remain separate from compiler-issued custody.
 
 use checked_trees::CheckedTrees;
+use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedCompilation;
+use language_semantics::declaration_selection::AuthoredDeclarationSelection;
+use provider_planning::ProviderPlanningContext;
+use provider_planning::service_declarations::ServiceDeclarations;
+use psi_terminal_production::ExternalProviderDeclarations;
+use typed_trees::machine::Machine;
+use validation::expression_owners::OwnerEnvironmentIndex;
 
 /// Read-only inputs for producing inert package-review evidence.
 ///
@@ -22,10 +29,8 @@ pub struct PackageReviewInput<'a> {
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
     /// Scratch for one immutable callable-projection batch, never custody.
     pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
-    pub(crate) service_declarations:
-        Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
-    pub(crate) external_providers:
-        Option<&'a psi_terminal_production::ExternalProviderDeclarations>,
+    pub(crate) service_declarations: Option<&'a ServiceDeclarations>,
+    pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -60,12 +65,23 @@ impl<'a> PackageReviewInput<'a> {
         }
     }
 
+    /// The one checked machine a retained symbol names. Machine symbols form a
+    /// source-graph set, so a duplicate is not a choice: a caller that needs one
+    /// machine states its own refusal, both for absence and for ambiguity.
+    pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
+        let mut machines = self
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == symbol);
+        let only = machines.next()?;
+        machines.next().is_none().then_some(only)
+    }
+
     /// Prepare one independent candidate projection at review ingress. Custody
     /// already owns its projection from checked-provider binding.
     pub(super) fn project_external_providers(
         &self,
-    ) -> Result<psi_terminal_production::ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>>
-    {
+    ) -> Result<ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>> {
         psi_terminal_production::project_external_provider_declarations(
             self.program,
             self.custody.sources().exact_toolchain_sources(),
@@ -81,27 +97,17 @@ impl<'a> PackageReviewInput<'a> {
     /// in custody; source handles never cross between these namespaces.
     pub(super) fn project_service_declarations(
         &self,
-    ) -> Result<
-        provider_planning::service_declarations::ServiceDeclarations,
-        Vec<diagnostics::Diagnostic>,
-    > {
-        let context = provider_planning::ProviderPlanningContext::new(
-            self.checking_input,
-            source::DependencyScope::Product,
-        );
+    ) -> Result<ServiceDeclarations, Vec<diagnostics::Diagnostic>> {
+        let context =
+            ProviderPlanningContext::new(self.checking_input, source::DependencyScope::Product);
         // The supplied candidate is independent source, never the custody's
         // source-coordinate catalog. Keep the borrowed owner unchanged here.
-        let catalog =
-            checked_trees::typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-                context,
-            );
-        Ok(
-            provider_planning::service_declarations::ServiceDeclarations::prepare(
-                catalog.bind(context).map_err(|error| vec![error])?,
-                &self.custody.providers().boundary_calling_plan_realizations,
-                self.custody.sources().exact_toolchain_sources(),
-            ),
-        )
+        let catalog = PreparedServiceCatalog::prepare(context);
+        Ok(ServiceDeclarations::prepare(
+            catalog.bind(context).map_err(|error| vec![error])?,
+            &self.custody.providers().boundary_calling_plan_realizations,
+            self.custody.sources().exact_toolchain_sources(),
+        ))
     }
 
     /// Authored deployment scope must agree with immutable compiler custody.
@@ -143,9 +149,7 @@ impl<'a> PackageReviewInput<'a> {
     pub(crate) fn authored_selections(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
-    ) -> impl Iterator<
-        Item = &language_semantics::declaration_selection::AuthoredDeclarationSelection,
-    > + '_ {
+    ) -> impl Iterator<Item = &AuthoredDeclarationSelection> + '_ {
         self.authored_selection_occurrences(expression)
             .filter_map(|occurrence| self.authored_declaration_selections().get(occurrence))
     }
@@ -177,7 +181,7 @@ impl std::ops::Deref for PackageReviewInput<'_> {
 pub(crate) struct ContractOwnerQueries<'program> {
     program: &'program dyn validation::CheckingInput,
     facts: &'program checked_trees::CheckFacts,
-    owners: std::cell::OnceCell<validation::expression_owners::OwnerEnvironmentIndex>,
+    owners: std::cell::OnceCell<OwnerEnvironmentIndex>,
 }
 
 impl<'program> ContractOwnerQueries<'program> {
@@ -199,10 +203,7 @@ impl<'program> ContractOwnerQueries<'program> {
         // The old query's first guard remains before any forest setup.
         self.program.expression_table.call_node(expression)?;
         let owners = self.owners.get_or_init(|| {
-            validation::expression_owners::OwnerEnvironmentIndex::new(
-                self.program,
-                &self.facts.proof.contract_facts,
-            )
+            OwnerEnvironmentIndex::new(self.program, &self.facts.proof.contract_facts)
         });
         typed_trees_to_checked_trees::derive_checked_nominal_call_target(
             self.program,

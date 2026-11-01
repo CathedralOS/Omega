@@ -1,4 +1,5 @@
 use abstract_operations::ValueBinding;
+use selected_instructions::{SelectedAddressBase, SelectedScalarReferenceSource};
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedSuccessor, SelectedSuccessorRole,
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
@@ -210,24 +211,22 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             } => {
                 bytes.push(4);
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(register) => {
+                    SelectedAddressBase::Register(register) => {
                         bytes.push(0);
                         crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
-                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                    SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
                 }
                 crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
                 match source {
-                    selected_instructions::SelectedScalarReferenceSource::Canonical { codec } => {
+                    SelectedScalarReferenceSource::Canonical { codec } => {
                         bytes.push(0);
                         crate::codec_bytes::push_encoded(bytes, codec.to_le_bytes());
                     }
-                    selected_instructions::SelectedScalarReferenceSource::Descriptor => {
-                        bytes.push(1)
-                    }
+                    SelectedScalarReferenceSource::Descriptor => bytes.push(1),
                 }
                 destination.encode_identity(bytes);
             }
@@ -253,11 +252,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             } => {
                 bytes.push(3);
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(register) => {
+                    SelectedAddressBase::Register(register) => {
                         bytes.push(0);
                         crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
-                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                    SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
@@ -319,12 +318,8 @@ fn decode_successor(
             0 => selected_instructions::SelectedStructuralTransport::Unused,
             4 => {
                 let base = match cursor.byte()? {
-                    0 => selected_instructions::SelectedAddressBase::Register(VirtualRegisterId(
-                        cursor.u32()?,
-                    )),
-                    1 => selected_instructions::SelectedAddressBase::Local(
-                        super::structural::decode_local_slot(cursor)?,
-                    ),
+                    0 => SelectedAddressBase::Register(VirtualRegisterId(cursor.u32()?)),
+                    1 => SelectedAddressBase::Local(super::structural::decode_local_slot(cursor)?),
                     _ => return Err(FixedViewCopyDecodeError::InvalidStructuralTransport),
                 };
                 let byte_offset = cursor.u32()?;
@@ -334,9 +329,9 @@ fn decode_successor(
                         if runtime_abi::ScalarStorageCodec::decode(codec).is_none() {
                             return Err(FixedViewCopyDecodeError::InvalidStructuralTransport);
                         }
-                        selected_instructions::SelectedScalarReferenceSource::Canonical { codec }
+                        SelectedScalarReferenceSource::Canonical { codec }
                     }
-                    1 => selected_instructions::SelectedScalarReferenceSource::Descriptor,
+                    1 => SelectedScalarReferenceSource::Descriptor,
                     _ => return Err(FixedViewCopyDecodeError::InvalidStructuralTransport),
                 };
                 let destination = super::structural::decode_local_slot(cursor)?;
@@ -381,12 +376,8 @@ fn decode_successor(
             }
             3 => {
                 let base = match cursor.byte()? {
-                    0 => selected_instructions::SelectedAddressBase::Register(VirtualRegisterId(
-                        cursor.u32()?,
-                    )),
-                    1 => selected_instructions::SelectedAddressBase::Local(
-                        super::structural::decode_local_slot(cursor)?,
-                    ),
+                    0 => SelectedAddressBase::Register(VirtualRegisterId(cursor.u32()?)),
+                    1 => SelectedAddressBase::Local(super::structural::decode_local_slot(cursor)?),
                     _ => return Err(FixedViewCopyDecodeError::InvalidStructuralTransport),
                 };
                 let byte_offset = cursor.u32()?;

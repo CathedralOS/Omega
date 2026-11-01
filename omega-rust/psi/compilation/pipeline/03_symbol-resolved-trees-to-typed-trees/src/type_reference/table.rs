@@ -1,6 +1,7 @@
 use crate::tables::type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
@@ -14,9 +15,7 @@ fn lower_type_argument_handles(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     arguments: HandleSpan<resolved::types::TypeReferenceHandle>,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<HandleSpan<typed::types::TypeReferenceHandle>, Diagnostic> {
     let mut lowered_arguments = HandleSpan::empty();
     for argument in type_references(source_trees).type_reference_handles(arguments) {
@@ -37,9 +36,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: resolved::types::TypeReferenceHandle,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     let result: Result<_, Diagnostic> = match type_references(source_trees)
         .type_reference(type_reference)
@@ -165,6 +162,44 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         }
         resolved::types::TypeReferenceNode::Named { symbol, name } => {
             super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
+        }
+        resolved::types::TypeReferenceNode::AliasUse {
+            expansion,
+            application,
+            declaration_source,
+            ..
+        } => {
+            let expansion = lower_type_reference_handle_from_table_with_context(
+                source_trees,
+                typed_trees,
+                *expansion,
+                None,
+            )?;
+            let reference = match type_references(source_trees).type_reference(*application) {
+                resolved::types::TypeReferenceNode::Generic { base_name, .. } => {
+                    base_name.source_span()
+                }
+                resolved::types::TypeReferenceNode::Named { name, .. } => name.source_span(),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "type alias application lost its source declaration head",
+                    ));
+                }
+            };
+            let application = lower_type_reference_handle_from_table_with_context(
+                source_trees,
+                typed_trees,
+                *application,
+                exposure,
+            )?;
+            super::alias_uses::retain_application(
+                source_trees,
+                typed_trees,
+                expansion,
+                application,
+                *declaration_source,
+                reference,
+            )
         }
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table

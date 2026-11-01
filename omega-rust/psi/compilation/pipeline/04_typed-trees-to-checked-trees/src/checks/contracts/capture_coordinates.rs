@@ -9,25 +9,23 @@
 use crate::places::place_at;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
-use validation::CanonicalPlace;
+use validation::expression_traversal::collect_expression_tree;
+use validation::{
+    CanonicalPlace, CheckingInput, canonical_place_type_reference, find_state,
+    has_builtin_subslice_meaning,
+};
 
 pub(super) fn borrowed_bindings(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     capture: &FlowOperandFact,
     remaining: &[PlaceSegment],
 ) -> Option<Vec<CanonicalPlace>> {
     let mut sources = Vec::new();
-    validation::expression_traversal::collect_expression_tree(
-        program,
-        capture.expression,
-        &mut sources,
-    );
-    let (machine, body) = validation::find_state(program, capture.state_symbol)?;
+    collect_expression_tree(program, capture.expression, &mut sources);
+    let (machine, body) = find_state(program, capture.state_symbol)?;
     let produced_windows: Vec<_> = sources
         .iter()
-        .filter(|source| {
-            validation::has_builtin_subslice_meaning(program, machine, Some(body), **source)
-        })
+        .filter(|source| has_builtin_subslice_meaning(program, machine, Some(body), **source))
         .filter_map(|source| {
             place_at(
                 program,
@@ -70,7 +68,7 @@ pub(super) fn borrowed_bindings(
         {
             continue;
         }
-        let reference = validation::canonical_place_type_reference(
+        let reference = canonical_place_type_reference(
             program,
             capture.state_symbol,
             capture.statement_index,

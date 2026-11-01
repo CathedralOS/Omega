@@ -79,3 +79,15 @@ Check a twin with `omega --check samples/cli/facts/scalar_width_shifts/<place>/i
 - Pinned fixtures: `tests/omega/pass/facts/scalar_width_shifts_through_*` and `tests/omega/fail/facts/scalar_width_shifts_through_*` pin this row.
 - Remaining open: full interval-set proof propagation and theorem propagation for non-wrapping arithmetic on dynamic counts, and cross-carrier shift count reduction proofs on composite structures under `CONSERVATION-CONTRACT`.
 
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

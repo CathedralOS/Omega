@@ -1,0 +1,2 @@
+Const slot `N` conflicts: 8
+versus 7

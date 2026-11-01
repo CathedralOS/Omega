@@ -9,7 +9,9 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::signature::StateParameter;
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
-use super::structural_judgment::{StructuralJudge, StructuralJudgment};
+use super::structural_judgment::{
+    StructuralJudge, StructuralJudgment, data_application_static_bindings,
+};
 use super::structural_terms::{zero_constructor_operands, zero_value_structural_term};
 
 pub fn data_predicates_admit_zero(
@@ -21,6 +23,16 @@ pub fn data_predicates_admit_zero(
     }
     let mut parameters = Vec::new();
     let mut bindings = Vec::new();
+    // The default domain is judged over this application's own static actuals:
+    // `Gate<0>` zero-fills against `Number == 0` with `Number` the supplied 0,
+    // exactly the tuple an explicit constructor reads. The template's binder
+    // stays open otherwise, which can never prove the zero image established.
+    if let Some(application) = definition.generic_instance {
+        for (parameter, value) in data_application_static_bindings(program, application) {
+            bindings.push((parameter.name.to_string(), value));
+            parameters.push(parameter);
+        }
+    }
     for member in program.data_members(definition) {
         let DataMember::Field(field) = member else {
             continue;
@@ -91,4 +103,58 @@ pub fn data_predicates_admit_zero(
                 *expression,
             )
         })
+}
+
+/// Zero admission of an exact, predicate-only applied theory. The carrier's
+/// own establishment is checked separately by the enclosing type walk. No
+/// membership, route, semantic contribution or receiving annotation is a premise.
+pub(crate) fn domain_predicates_admit_zero(
+    program: &dyn crate::CheckingInput,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    constraint: &typed_trees::types::DomainConstraint,
+) -> bool {
+    let Some(domain) =
+        program.domain_definition_for_instance(constraint.symbol, constraint.semantic_id)
+    else {
+        return false;
+    };
+    if domain.alias.is_some()
+        || !domain.establishment_routes.is_empty()
+        || !domain.semantic_roles.is_empty()
+        || !constraint.establishment_routes.is_empty()
+        || !constraint.semantic_roles.is_empty()
+        || !typed_trees::domain::has_bound_symbol_only_proof(program, domain)
+    {
+        return false;
+    }
+    let Some(value) = zero_value_structural_term(program, carrier) else {
+        return false;
+    };
+    let parameters = [StateParameter {
+        symbol: domain.subject_symbol,
+        name: domain.subject_name.clone(),
+        type_reference: carrier,
+        ..Default::default()
+    }];
+    let bindings = [(domain.subject_name.to_string(), value)];
+    let judge =
+        StructuralJudge::from_declaration_requires(program, domain.symbol, &parameters, &[], false);
+    program.proof_facts(domain).iter().all(|fact| {
+        fact.as_expression().is_some_and(|expression| {
+            matches!(
+                instantiated_selected_fact_judgment(
+                    program,
+                    &judge,
+                    domain.symbol,
+                    &parameters,
+                    *expression,
+                    &bindings,
+                    &[],
+                    &[],
+                    None,
+                ),
+                StructuralJudgment::Proven
+            )
+        })
+    })
 }

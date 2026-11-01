@@ -3,6 +3,11 @@
 //! contracts and the prohibition on manufacturing routed authority.
 
 use super::*;
+use terminal_semantics::descriptor_results::{
+    DescriptorAnalysis, current_payload_contract, current_selected_payload_contract,
+    descriptor_contents_query, payload_memberships, terminal_graph, terminal_payload_contract,
+};
+use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
 
 /// The source checker owns predicate establishment; decoding owns the typed
 /// transfer shape and cannot reinterpret a receiving roster as routed issuance.
@@ -46,15 +51,11 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let root = structural_place_type(machine, source.place).ok_or(
         CodecError::MalformedStructuralFoundation("owned transfer source is absent"),
     )?;
-    let selected = terminal_semantics::canonical_static_projection(
-        module.structural_types.iter(),
-        root,
-        &source.path,
-    )
-    .map(|(_, selected)| selected)
-    .ok_or(CodecError::MalformedStructuralFoundation(
-        "owned transfer requires a finite owned path",
-    ))?;
+    let selected = canonical_static_projection(module.structural_types.iter(), root, &source.path)
+        .map(|(_, selected)| selected)
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "owned transfer requires a finite owned path",
+        ))?;
     if selected.id != result.structural_type {
         return malformed("owned value transfer changes its carrier");
     }
@@ -81,8 +82,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .ok_or(CodecError::MalformedStructuralFoundation(
             "owned transfer position is absent",
         ))?;
-    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
-    let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
+    let graph = terminal_graph(module);
+    let contract = current_selected_payload_contract(
         &module.structural_types,
         &module.structural_domains,
         &graph,
@@ -90,7 +91,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         position,
         source.place,
         &source.path,
-        &|place| terminal_semantics::descriptor_results::terminal_payload_contract(machine, place),
+        &|place| terminal_payload_contract(machine, place),
     )
     .map_err(CodecError::MalformedStructuralFoundation)?;
     if contract.carrier != result.structural_type
@@ -174,7 +175,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             // copyable. The copy retains backing and parent obligations;
             // ordinary affine payloads still require an owned transfer.
             && !(result.multiplicity == StructuralMultiplicity::Affine
-                && terminal_semantics::is_copyable_carrier(
+                && is_copyable_carrier(
                     module.structural_types.iter(), result.structural_type,
                 )))
             || !result.qualification_establishments.is_empty()
@@ -190,19 +191,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
             return malformed("case leaf copy does not authenticate memberships");
         };
-        let descriptors = terminal_semantics::descriptor_results::terminal_graph(module);
-        let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-            &module.structural_types,
-            &descriptors,
-        );
+        let descriptors = terminal_graph(module);
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &descriptors);
         let mut history_failures = Vec::new();
         let mut query_phase = "root";
         let memberships = (|| {
-            let root = terminal_semantics::descriptor_results::terminal_payload_contract(
-                machine, *source,
-            )?;
+            let root = terminal_payload_contract(machine, *source)?;
             query_phase = "query";
-            let query = terminal_semantics::descriptor_results::descriptor_contents_query(
+            let query = descriptor_contents_query(
                 &module.structural_types,
                 *source,
                 root.carrier,
@@ -224,23 +220,19 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             query_phase = "targets";
             let targets = analysis.payload_targets(machine.id, position, &query)?;
             query_phase = "memberships";
-            terminal_semantics::descriptor_results::payload_memberships(
+            payload_memberships(
                 &module.structural_types,
                 &module.structural_domains,
                 targets,
                 |place| {
-                    terminal_semantics::descriptor_results::current_payload_contract(
+                    current_payload_contract(
                         &module.structural_types,
                         &module.structural_domains,
                         &descriptors,
                         machine.id,
                         position,
                         place,
-                        &|source| {
-                            terminal_semantics::descriptor_results::terminal_payload_contract(
-                                machine, source,
-                            )
-                        },
+                        &|source| terminal_payload_contract(machine, source),
                     )
                     .map_err(|reason| history_failures.push((place, reason)))
                     .ok()

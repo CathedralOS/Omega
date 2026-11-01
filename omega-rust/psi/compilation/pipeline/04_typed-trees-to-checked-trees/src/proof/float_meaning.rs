@@ -13,23 +13,28 @@ use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
     CheckedDirectOperationFloatResult, CheckedDirectStructuralFloatLeaf,
-    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
-    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite,
-    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
-    CheckedProofValueId, ContractProofFactKind, ContractProofFactRef, ProofFacts,
+    CheckedFloatMeaningEqualityProposition as EqualityProposition,
+    CheckedFloatMeaningProjection as MeaningProjection, CheckedFloatMeaningProjectionOccurrence,
+    CheckedFloatMeaningProjectionOccurrenceId, CheckedFloatProjectionInput,
+    CheckedFloatProjectionInputId, CheckedFloatProjectionSource as ProjectionSource,
+    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationOperand as ApplicationOperand,
+    CheckedFloatUseSite, CheckedProofOnlyValueType, CheckedProofPropositionId as PropositionId,
+    CheckedProofValueDeclaration, CheckedProofValueId, ContractProofFactKind, ContractProofFactRef,
+    ProofFacts,
 };
 use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionOperation;
-use numerics::float_semantics_catalog::{FloatSemanticContractIdentity, FloatSemanticValueKind};
+use numerics::float_semantics_catalog::{
+    FloatSemanticContractIdentity, FloatSemanticValueKind as ValueKind,
+};
 use semantic_vocabulary::IeeeFloatFormat;
 use std::collections::{HashMap, HashSet};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::resolve_named_expression_call;
 use typed_trees::types::PrimitiveType;
 use validation::{
-    ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+    ValidatedFloatMeaningEqualityProposition,
+    ValidatedFloatMeaningProjectionInvocation as ProjectionInvocation,
     exact_toolchain_float_format_const, exact_toolchain_float_semantic_contract,
 };
 
@@ -84,14 +89,14 @@ enum CheckedFloatProjectionSourceKey {
     SemanticApplication {
         contract: FloatSemanticContractIdentity,
         format: IeeeFloatFormat,
-        operands: Vec<CheckedFloatSemanticApplicationOperand>,
+        operands: Vec<ApplicationOperand>,
     },
 }
 
 fn projection_source_key(
     program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
     match program.expression_table.expression(fact.source) {
         ExpressionNode::Name(path) => direct_machine_parameter_source(program, carriers, fact)
@@ -176,7 +181,7 @@ impl ContractCarriers {
     fn new(
         program: &dyn ::validation::CheckingInput,
         proof: &ProofFacts,
-        facts: &[ValidatedFloatMeaningProjectionInvocation],
+        facts: &[ProjectionInvocation],
     ) -> Self {
         let mut by_invocation = facts
             .iter()
@@ -235,7 +240,7 @@ impl ContractCarriers {
 /// machine parameters.
 fn direct_machine_contract_owner(
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, Option<symbols::SymbolHandle>)> {
     let [carrier] = carriers.of(fact.invocation) else {
         return None;
@@ -246,7 +251,7 @@ fn direct_machine_contract_owner(
 fn direct_structural_float_leaf_source(
     program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Option<(
     symbols::SymbolHandle,
     checked_trees::CheckedStructuralParameterField,
@@ -307,7 +312,7 @@ fn direct_structural_float_leaf_source(
 fn direct_machine_result_source(
     program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Option<symbols::SymbolHandle> {
     let path = program.expression_table.name_path_node(fact.source)?;
     let [name] = program.expression_table.name_path_members(path.members) else {
@@ -347,7 +352,7 @@ fn direct_machine_result_source(
 fn direct_machine_parameter_source(
     program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
     let path = program.expression_table.name_path_node(fact.source)?;
     if expressions(program).name_path_members(path.members).len() != 1 {
@@ -376,7 +381,7 @@ fn direct_machine_parameter_source(
 fn direct_block_parameter_source(
     program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Option<(
     symbols::SymbolHandle,
     symbols::SymbolHandle,
@@ -427,17 +432,20 @@ fn expression_children(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
-    crate::facts::push_every_expression_child(
-        program,
+    program.subtree_children(
         program.expression_table.expression(expression),
-        &mut children,
+        typed_trees::SubtreeEdges::STRUCTURAL,
+        |child| {
+            children.push(child);
+            false
+        },
     );
     children
 }
 
 fn replay_invocation(
     program: &dyn ::validation::CheckingInput,
-    fact: ValidatedFloatMeaningProjectionInvocation,
+    fact: ProjectionInvocation,
 ) -> Result<numerics::float_projection::FloatProjectionContractIdentity, Diagnostic> {
     let Some(call) = program.expression_table.call_node(fact.invocation) else {
         return Err(Diagnostic::error(
@@ -516,7 +524,7 @@ fn replay_invocation(
 }
 
 type FloatMeaningProjectionKey = (
-    CheckedFloatProjectionSource,
+    ProjectionSource,
     FloatProjectionOperation,
     numerics::float_projection::FloatProjectionContractIdentity,
 );
@@ -526,7 +534,7 @@ type FloatMeaningProjectionKey = (
 /// (source, operation, contract) so a repeated invocation names the same
 /// canonical proof value.
 fn push_float_meaning_projection(
-    projections: &mut Vec<CheckedFloatMeaningProjection>,
+    projections: &mut Vec<MeaningProjection>,
     projection_keys: &mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &mut Vec<CheckedFloatProjectionSourceKey>,
     source_key: CheckedFloatProjectionSourceKey,
@@ -536,10 +544,10 @@ fn push_float_meaning_projection(
 ) -> Result<CheckedProofValueId, Vec<Diagnostic>> {
     let source = match source_key {
         CheckedFloatProjectionSourceKey::Binary32Literal(bits) => {
-            CheckedFloatProjectionSource::ExactBinary32Literal(bits)
+            ProjectionSource::ExactBinary32Literal(bits)
         }
         CheckedFloatProjectionSourceKey::Binary64Literal(bits) => {
-            CheckedFloatProjectionSource::ExactBinary64Literal(bits)
+            ProjectionSource::ExactBinary64Literal(bits)
         }
         transitional => {
             let source_index = match transitional_source_keys
@@ -564,45 +572,37 @@ fn push_float_meaning_projection(
                 CheckedFloatProjectionSourceKey::DirectMachineParameter {
                     owner_machine,
                     parameter,
-                } => CheckedFloatProjectionSource::DirectMachineParameter(
-                    CheckedDirectMachineFloatParameter {
-                        owner_machine,
-                        parameter,
-                        fallback,
-                    },
-                ),
+                } => ProjectionSource::DirectMachineParameter(CheckedDirectMachineFloatParameter {
+                    owner_machine,
+                    parameter,
+                    fallback,
+                }),
                 CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine } => {
-                    CheckedFloatProjectionSource::DirectMachineResult(
-                        CheckedDirectMachineFloatResult {
-                            owner_machine,
-                            fallback,
-                        },
-                    )
+                    ProjectionSource::DirectMachineResult(CheckedDirectMachineFloatResult {
+                        owner_machine,
+                        fallback,
+                    })
                 }
                 CheckedFloatProjectionSourceKey::DirectBlockParameter {
                     owner_machine,
                     owner_state,
                     parameter,
-                } => CheckedFloatProjectionSource::DirectBlockParameter(
-                    CheckedDirectBlockFloatParameter {
-                        owner_machine,
-                        owner_state,
-                        parameter,
-                        fallback,
-                    },
-                ),
+                } => ProjectionSource::DirectBlockParameter(CheckedDirectBlockFloatParameter {
+                    owner_machine,
+                    owner_state,
+                    parameter,
+                    fallback,
+                }),
                 CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
                     owner_machine,
                     field,
-                } => CheckedFloatProjectionSource::DirectStructuralLeaf(
-                    CheckedDirectStructuralFloatLeaf {
-                        owner_machine,
-                        field,
-                        fallback,
-                    },
-                ),
+                } => ProjectionSource::DirectStructuralLeaf(CheckedDirectStructuralFloatLeaf {
+                    owner_machine,
+                    field,
+                    fallback,
+                }),
                 CheckedFloatProjectionSourceKey::DirectCallResult { use_site } => {
-                    CheckedFloatProjectionSource::DirectCallResult(CheckedDirectCallFloatResult {
+                    ProjectionSource::DirectCallResult(CheckedDirectCallFloatResult {
                         use_site,
                         fallback,
                     })
@@ -610,17 +610,15 @@ fn push_float_meaning_projection(
                 CheckedFloatProjectionSourceKey::DirectOperationResult {
                     use_site,
                     use_expression,
-                } => CheckedFloatProjectionSource::DirectOperationResult(
-                    CheckedDirectOperationFloatResult {
-                        use_site,
-                        use_expression,
-                        fallback,
-                    },
-                ),
+                } => ProjectionSource::DirectOperationResult(CheckedDirectOperationFloatResult {
+                    use_site,
+                    use_expression,
+                    fallback,
+                }),
                 CheckedFloatProjectionSourceKey::ResolvedSymbol(_)
                 | CheckedFloatProjectionSourceKey::TypedExpression(_)
                 | CheckedFloatProjectionSourceKey::SemanticApplication { .. } => {
-                    CheckedFloatProjectionSource::TransitionalInput(fallback)
+                    ProjectionSource::TransitionalInput(fallback)
                 }
                 CheckedFloatProjectionSourceKey::Binary32Literal(_)
                 | CheckedFloatProjectionSourceKey::Binary64Literal(_) => {
@@ -640,7 +638,7 @@ fn push_float_meaning_projection(
             let id = u32::try_from(projections.len()).map_err(|_| {
                 err!("float-meaning projection plan exceeds its dense identity space")
             })?;
-            let projection = CheckedFloatMeaningProjection {
+            let projection = MeaningProjection {
                 result: CheckedProofValueDeclaration {
                     id: CheckedProofValueId(id),
                     value_type: CheckedProofOnlyValueType::FloatMeaning,
@@ -667,7 +665,7 @@ fn push_float_meaning_projection(
 /// produces there.
 fn imported_call_operand_key(
     program: &dyn ::validation::CheckingInput,
-    invocation: &ValidatedFloatMeaningProjectionInvocation,
+    invocation: &ProjectionInvocation,
     use_site: CheckedFloatUseSite,
     target_parameters: Option<&[typed_trees::signature::StateParameter]>,
     argument_expressions: Option<&[typed_trees::expression::ExpressionHandle]>,
@@ -705,7 +703,7 @@ fn imported_call_operand_key(
 /// operation produces there.
 fn imported_operation_operand_key(
     program: &dyn ::validation::CheckingInput,
-    invocation: &ValidatedFloatMeaningProjectionInvocation,
+    invocation: &ProjectionInvocation,
     use_site: CheckedFloatUseSite,
     use_expression: typed_trees::expression::ExpressionHandle,
 ) -> CheckedFloatProjectionSourceKey {
@@ -725,21 +723,19 @@ fn imported_operation_operand_key(
 /// keeps the reflexivity rejoin's (owner, expression, use site) key disjoint
 /// from declaration rows.
 fn instantiate_equalities_at_use(
-    facts: &[ValidatedFloatMeaningProjectionInvocation],
+    facts: &[ProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
     expression: typed_trees::expression::ExpressionHandle,
     use_site: CheckedFloatUseSite,
-    operand_key: &dyn Fn(
-        &ValidatedFloatMeaningProjectionInvocation,
-    ) -> CheckedFloatProjectionSourceKey,
-    projections: &mut Vec<CheckedFloatMeaningProjection>,
+    operand_key: &dyn Fn(&ProjectionInvocation) -> CheckedFloatProjectionSourceKey,
+    projections: &mut Vec<MeaningProjection>,
     projection_keys: &mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &mut Vec<CheckedFloatProjectionSourceKey>,
     invocation_contracts: &[(
         typed_trees::expression::ExpressionHandle,
         numerics::float_projection::FloatProjectionContractIdentity,
     )],
-    equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
+    equalities: &mut Vec<EqualityProposition>,
 ) -> Result<(), Vec<Diagnostic>> {
     for equality_fact in equality_facts
         .iter()
@@ -777,8 +773,8 @@ fn instantiate_equalities_at_use(
         };
         let id = u32::try_from(equalities.len())
             .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
-        equalities.push(CheckedFloatMeaningEqualityProposition {
-            id: CheckedProofPropositionId(id),
+        equalities.push(EqualityProposition {
+            id: PropositionId(id),
             left: CheckedProofValueId(left.0.min(right.0)),
             right: CheckedProofValueId(left.0.max(right.0)),
             source_expression: equality_fact.expression,
@@ -797,16 +793,16 @@ fn instantiate_equalities_at_use(
 fn instantiate_transported_ensures(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
-    facts: &[ValidatedFloatMeaningProjectionInvocation],
+    facts: &[ProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
-    projections: &mut Vec<CheckedFloatMeaningProjection>,
+    projections: &mut Vec<MeaningProjection>,
     projection_keys: &mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &mut Vec<CheckedFloatProjectionSourceKey>,
     invocation_contracts: &[(
         typed_trees::expression::ExpressionHandle,
         numerics::float_projection::FloatProjectionContractIdentity,
     )],
-    equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
+    equalities: &mut Vec<EqualityProposition>,
     applications: &mut Vec<CheckedFloatSemanticApplication>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Transported `ensures` facts instantiate identically for a contract call
@@ -815,9 +811,7 @@ fn instantiate_transported_ensures(
     let mut instantiate_ensures_at_use =
         |ensures: arena::HandleSpan<ContractProofFactRef>,
          use_site: CheckedFloatUseSite,
-         operand_key: &dyn Fn(
-            &ValidatedFloatMeaningProjectionInvocation,
-        ) -> CheckedFloatProjectionSourceKey|
+         operand_key: &dyn Fn(&ProjectionInvocation) -> CheckedFloatProjectionSourceKey|
          -> Result<(), Vec<Diagnostic>> {
             for fact_ref in proof.contract_fact_refs.span_or_empty(ensures) {
                 let contract_fact = proof.contract_facts.get(fact_ref.fact);
@@ -882,7 +876,7 @@ fn instantiate_transported_ensures(
         .map(|site| validation::call_site_argument_expressions(program, &site));
         let target_parameters =
             validation::call_target_parameters(program, call.target_state_symbol);
-        let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
+        let operand_key = |invocation: &ProjectionInvocation| {
             imported_call_operand_key(
                 program,
                 invocation,
@@ -914,7 +908,7 @@ fn instantiate_transported_ensures(
             call_ordinal: 0,
         };
         let use_expression = operator_use.expression;
-        let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
+        let operand_key = |invocation: &ProjectionInvocation| {
             imported_operation_operand_key(program, invocation, use_site, use_expression)
         };
         instantiate_ensures_at_use(operator_use.ensures, use_site, &operand_key)?;
@@ -949,14 +943,12 @@ enum SemanticOperandSite<'a> {
         )],
     ),
     UseSite {
-        facts: &'a [ValidatedFloatMeaningProjectionInvocation],
+        facts: &'a [ProjectionInvocation],
         invocation_contracts: &'a [(
             typed_trees::expression::ExpressionHandle,
             numerics::float_projection::FloatProjectionContractIdentity,
         )],
-        operand_key: &'a dyn Fn(
-            &ValidatedFloatMeaningProjectionInvocation,
-        ) -> CheckedFloatProjectionSourceKey,
+        operand_key: &'a dyn Fn(&ProjectionInvocation) -> CheckedFloatProjectionSourceKey,
     },
 }
 
@@ -967,7 +959,7 @@ enum SemanticOperandSite<'a> {
 /// bound value within one binding context — reset per use site because the
 /// shared declaration text produces site-specific operand values there.
 struct SemanticApplicationTables<'a> {
-    projections: &'a mut Vec<CheckedFloatMeaningProjection>,
+    projections: &'a mut Vec<MeaningProjection>,
     projection_keys: &'a mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &'a mut Vec<CheckedFloatProjectionSourceKey>,
     applications: &'a mut Vec<CheckedFloatSemanticApplication>,
@@ -975,7 +967,7 @@ struct SemanticApplicationTables<'a> {
         typed_trees::expression::ExpressionHandle,
         CheckedProofValueId,
     )>,
-    equalities: &'a mut Vec<CheckedFloatMeaningEqualityProposition>,
+    equalities: &'a mut Vec<EqualityProposition>,
 }
 
 /// Resolve one `Meaning`-typed application argument to its bound proof value
@@ -1059,7 +1051,7 @@ fn bind_semantic_application_call(
     let Some((row, contract)) = exact_toolchain_float_semantic_contract(program, operator) else {
         return Ok(None);
     };
-    if row.result != FloatSemanticValueKind::Meaning {
+    if row.result != ValueKind::Meaning {
         return Ok(None);
     }
     let arguments = program.expression_table.expression_handles(call.arguments);
@@ -1073,14 +1065,14 @@ fn bind_semantic_application_call(
     let mut operand_format = None;
     for (kind, argument) in row.parameters.iter().zip(arguments.iter()) {
         match kind {
-            FloatSemanticValueKind::Format => {
+            ValueKind::Format => {
                 let Some(format) = exact_toolchain_float_format_const(program, *argument) else {
                     return Ok(None);
                 };
                 declared_format = Some(format);
-                operands.push(CheckedFloatSemanticApplicationOperand::Format(format));
+                operands.push(ApplicationOperand::Format(format));
             }
-            FloatSemanticValueKind::Meaning => {
+            ValueKind::Meaning => {
                 let Some((value, format)) = semantic_meaning_operand(*argument, site, tables)?
                 else {
                     return Ok(None);
@@ -1094,11 +1086,9 @@ fn bind_semantic_application_call(
                         ))]);
                     }
                 };
-                operands.push(CheckedFloatSemanticApplicationOperand::Meaning(value));
+                operands.push(ApplicationOperand::Meaning(value));
             }
-            FloatSemanticValueKind::Bool
-            | FloatSemanticValueKind::Class
-            | FloatSemanticValueKind::Integer(_) => return Ok(None),
+            ValueKind::Bool | ValueKind::Class | ValueKind::Integer(_) => return Ok(None),
         }
     }
     let Some(format) = declared_format.or(operand_format) else {
@@ -1177,15 +1167,13 @@ fn bind_semantic_application_equality(
     }
     let id = u32::try_from(tables.equalities.len())
         .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
-    tables
-        .equalities
-        .push(CheckedFloatMeaningEqualityProposition {
-            id: CheckedProofPropositionId(id),
-            left: CheckedProofValueId(left.0.min(right.0)),
-            right: CheckedProofValueId(left.0.max(right.0)),
-            source_expression: expression,
-            use_site,
-        });
+    tables.equalities.push(EqualityProposition {
+        id: PropositionId(id),
+        left: CheckedProofValueId(left.0.min(right.0)),
+        right: CheckedProofValueId(left.0.max(right.0)),
+        source_expression: expression,
+        use_site,
+    });
     Ok(())
 }
 
@@ -1274,7 +1262,7 @@ fn bind_declaration_semantic_applications(
 pub(crate) fn bind_float_meaning_projection_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
-    facts: &[ValidatedFloatMeaningProjectionInvocation],
+    facts: &[ProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut projections = Vec::with_capacity(facts.len());
@@ -1358,8 +1346,8 @@ pub(crate) fn bind_float_meaning_projection_facts(
             .ok_or_else(|| err!("validated float-meaning equality lost its right projection"))?;
         let id = u32::try_from(index)
             .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
-        equalities.push(CheckedFloatMeaningEqualityProposition {
-            id: CheckedProofPropositionId(id),
+        equalities.push(EqualityProposition {
+            id: PropositionId(id),
             left: CheckedProofValueId(left.min(right)),
             right: CheckedProofValueId(left.max(right)),
             source_expression: fact.expression,

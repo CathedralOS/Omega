@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
 use terminal_psi::{Block, StructuralArgument, TerminalMachine, TerminalNaturalCycle, Terminator};
@@ -91,10 +92,10 @@ pub fn reaches_by_case(block: &Block, target: BlockId) -> bool {
 /// that an invocation cannot return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionGraphError {
-    UnknownMachine(semantic_vocabulary::MachineId),
-    AmbiguousMachine(semantic_vocabulary::MachineId),
+    UnknownMachine(MachineId),
+    AmbiguousMachine(MachineId),
     InvalidControl {
-        machine: semantic_vocabulary::MachineId,
+        machine: MachineId,
         error: ControlGraphError,
     },
 }
@@ -108,10 +109,10 @@ pub enum CompletionGraphError {
 /// Each adapter authenticates its current graph before exposing an entry.
 pub trait NormalCompletionGraph {
     type Error;
-    fn entry(&mut self, machine: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error>;
+    fn entry(&mut self, machine: MachineId) -> Result<BlockId, Self::Error>;
     fn disposition(
         &self,
-        machine: semantic_vocabulary::MachineId,
+        machine: MachineId,
         block: BlockId,
     ) -> Result<NormalCompletionDisposition, Self::Error>;
 }
@@ -120,13 +121,13 @@ pub trait NormalCompletionGraph {
 pub enum NormalCompletionDisposition {
     Return,
     Stop,
-    Invoke(semantic_vocabulary::MachineId),
+    Invoke(MachineId),
     Successors(Vec<BlockId>),
 }
 
 pub fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
     graph: &mut Graph,
-    initial: semantic_vocabulary::MachineId,
+    initial: MachineId,
 ) -> Result<bool, Graph::Error> {
     let entry = graph.entry(initial)?;
     let mut visited = BTreeSet::new();
@@ -152,13 +153,10 @@ pub fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
 
 struct ModuleCompletionGraph<'a> {
     module: &'a terminal_psi::TerminalModule,
-    validated: BTreeSet<semantic_vocabulary::MachineId>,
+    validated: BTreeSet<MachineId>,
 }
 impl ModuleCompletionGraph<'_> {
-    fn machine(
-        &self,
-        identity: semantic_vocabulary::MachineId,
-    ) -> Result<&TerminalMachine, CompletionGraphError> {
+    fn machine(&self, identity: MachineId) -> Result<&TerminalMachine, CompletionGraphError> {
         let mut candidates = self
             .module
             .machines
@@ -175,7 +173,7 @@ impl ModuleCompletionGraph<'_> {
 }
 impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
     type Error = CompletionGraphError;
-    fn entry(&mut self, identity: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error> {
+    fn entry(&mut self, identity: MachineId) -> Result<BlockId, Self::Error> {
         if !self.validated.contains(&identity) {
             validate_control_graph(self.machine(identity)?).map_err(|error| {
                 CompletionGraphError::InvalidControl {
@@ -189,7 +187,7 @@ impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
     }
     fn disposition(
         &self,
-        machine: semantic_vocabulary::MachineId,
+        machine: MachineId,
         block: BlockId,
     ) -> Result<NormalCompletionDisposition, Self::Error> {
         use terminal_psi::Terminator;
@@ -221,7 +219,7 @@ impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
 
 pub fn normal_completion_possible(
     module: &terminal_psi::TerminalModule,
-    initial: semantic_vocabulary::MachineId,
+    initial: MachineId,
 ) -> Result<bool, CompletionGraphError> {
     normal_completion_possible_in(
         &mut ModuleCompletionGraph {

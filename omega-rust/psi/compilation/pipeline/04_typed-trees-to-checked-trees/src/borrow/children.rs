@@ -44,7 +44,17 @@ pub(super) fn recurse_shared_children(
         }
         ExpressionNode::Binary(binary) => {
             visit(binary.left);
-            visit(binary.right);
+            // Loan occurrences follow the same short-circuit prefix as flow.
+            // A proved false tag must not allocate a call ordinal for a guard
+            // that cannot execute; reachable guards retain their ordinary loans.
+            let skipped = matches!(
+                (binary.operator, program.static_boolean_value(binary.left)),
+                (typed_trees::expression::BinaryOperator::And, Some(false))
+                    | (typed_trees::expression::BinaryOperator::Or, Some(true))
+            );
+            if !skipped {
+                visit(binary.right);
+            }
         }
         ExpressionNode::Cast(cast) => visit(cast.value),
         ExpressionNode::Unary(unary) => visit(unary.operand),

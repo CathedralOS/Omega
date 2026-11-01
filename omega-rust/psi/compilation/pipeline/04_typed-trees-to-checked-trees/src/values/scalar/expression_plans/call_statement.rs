@@ -1,18 +1,17 @@
 //! A statement call's scalar arguments.
 
 use super::{StatementPlanner, lower_call_arguments, retain_call_arguments};
+use typed_trees::statement::TableCall;
+use validation::CallSite;
 
-pub(crate) fn plan(
-    planner: &mut StatementPlanner<'_, '_>,
-    call: &typed_trees::statement::TableCall,
-) {
+pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, call: &TableCall) {
     if let Some(arguments) = lower_call_arguments(
         planner.program,
         planner.operators,
         planner.state,
         planner.statement_ordinal,
         0,
-        &validation::CallSite::Statement(call),
+        &CallSite::Statement(call),
         planner.scalar_parameters,
         planner.parameters,
         planner.parameter_types,

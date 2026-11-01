@@ -7,6 +7,8 @@
 //! `typed_trees::proof_only`, not refused here.
 
 use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::proof_only::ProofOnlyClassification;
 
 pub(crate) fn validate_proof_only_consumption(
@@ -20,16 +22,10 @@ pub(crate) fn validate_proof_only_consumption(
     // carrier). A finite checked-shape record would otherwise let the static
     // argument appear to vary a runtime layout without a representation.
     for definition in program.data_definitions() {
-        let has_machine_parameter =
-            program
-                .data_type_parameters(definition)
-                .iter()
-                .any(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    )
-                });
+        let has_machine_parameter = program
+            .data_type_parameters(definition)
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }));
         if has_machine_parameter
             && definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
             && !classification.is_proof_only(definition.symbol)
@@ -45,9 +41,7 @@ pub(crate) fn validate_proof_only_consumption(
     // values in memory); a proof-only carrier cannot honor them.
     for definition in program.data_definitions() {
         let properties = definition.properties;
-        if !(properties.multiplicity != language_semantics::Multiplicity::Affine
-            || properties.carry.is_some())
-        {
+        if !(properties.multiplicity != Multiplicity::Affine || properties.carry.is_some()) {
             continue;
         }
         if let Some(reason) = classification.describe(definition.name.as_str(), definition.symbol) {

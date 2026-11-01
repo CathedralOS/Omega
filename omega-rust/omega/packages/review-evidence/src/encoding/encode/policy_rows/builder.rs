@@ -1,3 +1,4 @@
+use crate::encoding::PACKAGE_POLICY_BASELINE_VERSION;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::Encoder;
 use crate::encoding::encode::policy_rows::rejected;
@@ -205,10 +206,7 @@ pub(super) fn frame_row(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.fixed_bytes_field("binary_format", b"OMEGA-PACKAGE-POLICY-ROW\0")?;
     encoder.u16_field("row_schema", PACKAGE_POLICY_ROW_VERSION)?;
-    encoder.u16_field(
-        "baseline_schema",
-        crate::encoding::PACKAGE_POLICY_BASELINE_VERSION,
-    )?;
+    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
     encoder.package_identity_field("package", package)?;
     encoder.string_field("target", target.identity().as_str())?;
     encoder.tag_field("kind", kind.as_str(), kind.canonical_tag())?;

@@ -112,7 +112,6 @@ pub(super) fn reject_unprojected_dependency_syntax(
                                 accepted_statements,
                             )?;
                         }
-                        ConformanceMember::Reference { .. } => {}
                     }
                 }
             }

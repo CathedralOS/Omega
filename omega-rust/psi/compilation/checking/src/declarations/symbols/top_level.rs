@@ -1,4 +1,6 @@
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
 use std::sync::Mutex;
 use symbols::{SymbolHandle, SymbolKeyMap as HashMap, SymbolKind};
 use typed_trees::machine::Machine;
@@ -79,6 +81,12 @@ struct MachineSymbol<'program> {
     name: &'program str,
     machine: &'program Machine,
     symbol: SymbolHandle,
+    /// Declared inside another machine. Lexical scope alone makes such a name
+    /// visible (resolution has already stamped every in-scope use with its
+    /// symbol), so the bare-name lookups below must never select it: a
+    /// spelling that matches another machine's private helper is an unresolved
+    /// name here, exactly like a spelling that matches nothing.
+    nested: bool,
 }
 
 #[derive(Debug)]
@@ -95,10 +103,7 @@ struct TypeSymbol<'program> {
 }
 
 impl<'program> TopLevelSymbols<'program> {
-    pub fn build(
-        program: &'program dyn crate::CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) -> Self {
+    pub fn build(program: &'program dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();
         let trait_count = program.traits().len();
@@ -181,14 +186,12 @@ impl<'program> TopLevelSymbols<'program> {
                             || (machine.spelling.is_none() && previous.spelling.is_none()))
                 });
             let is_boundary_token_overload_family = machine.spelling.is_some()
-                && machine.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && machine.supply_mode == MachineSupplyMode::TopLevelRequirement
                 && identity.is_valid()
                 && same_named.iter().all(|previous| {
                     let previous_identity = program.machine_callable_identity(previous);
                     previous.spelling == machine.spelling
-                        && previous.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && previous.supply_mode == MachineSupplyMode::TopLevelRequirement
                         && program.callable_identities_share_path(previous_identity, identity)
                         && !program.callable_identities_share_family(previous_identity, identity)
                 });
@@ -202,10 +205,13 @@ impl<'program> TopLevelSymbols<'program> {
                 )));
             }
 
+            let parent = program.symbols.get(machine.symbol).parent;
             symbols.machines.push(MachineSymbol {
                 name: machine.name.as_str(),
                 machine,
                 symbol: machine.symbol,
+                nested: parent.is_valid()
+                    && program.symbols.get(parent).kind == SymbolKind::Machine,
             });
             machines_by_name
                 .entry(machine.name.as_str())
@@ -317,12 +323,20 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
-        super::named_value(&self.machines, name, |e| e.name, |e| e.machine)
+        self.nameable_machine(name).map(|entry| entry.machine)
+    }
+
+    /// The machine a bare spelling names from outside any enclosing machine:
+    /// free and attached declarations, never a nested helper.
+    fn nameable_machine(&self, name: &str) -> Option<&MachineSymbol<'program>> {
+        self.machines
+            .iter()
+            .find(|entry| !entry.nested && entry.name == name)
     }
 
     pub fn attached_machine_state(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         data_name: &str,
         state_name: &str,
     ) -> Option<(&'program Machine, &'program State)> {
@@ -343,7 +357,8 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     fn machine_symbol(&self, name: &str) -> SymbolHandle {
-        super::named_symbol(&self.machines, name, |e| e.name, |e| e.symbol)
+        self.nameable_machine(name)
+            .map_or_else(SymbolHandle::invalid, |entry| entry.symbol)
     }
 
     pub fn trait_definition(&self, name: &str) -> Option<&'program TraitDefinition> {
@@ -355,7 +370,7 @@ impl<'program> TopLevelSymbols<'program> {
     }
 }
 
-fn builtin_type_symbols(program: &dyn crate::CheckingInput) -> Vec<TypeSymbol<'_>> {
+fn builtin_type_symbols(program: &dyn CheckingInput) -> Vec<TypeSymbol<'_>> {
     let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
         return Vec::new();
     };

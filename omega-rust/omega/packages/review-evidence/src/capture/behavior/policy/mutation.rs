@@ -4,6 +4,7 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::record::{PackagePolicyMutation, PackageReviewWriteFrameCompleteness};
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
+use facts::WriteFrameCompleteness;
 use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn mutation<'program>(
@@ -59,10 +60,8 @@ pub(crate) fn mutation<'program>(
     }
     Ok(PackagePolicyMutation {
         completeness: match derived.completeness() {
-            facts::WriteFrameCompleteness::Complete => {
-                PackageReviewWriteFrameCompleteness::Complete
-            }
-            facts::WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
+            WriteFrameCompleteness::Complete => PackageReviewWriteFrameCompleteness::Complete,
+            WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
         },
         paths: derived.paths().to_vec(),
     })

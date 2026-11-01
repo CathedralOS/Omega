@@ -5,8 +5,7 @@ use super::super::BigInt;
 use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 
-mod bounds;
-pub(super) use bounds::DifferenceBounds;
+pub(super) use crate::proof_contracts::arithmetic_domains::DifferenceBounds;
 
 impl<'program> Engine<'program> {
     /// Integer disequality follows from a retained unequal difference or a
@@ -119,18 +118,7 @@ impl<'program> Engine<'program> {
     }
 
     fn matrix_bound_indices(&self, from: usize, to: usize) -> Option<BigInt> {
-        if from == to {
-            return Some(BigInt::zero());
-        }
-        if let Some(bound) = self.matrix.stored_bound_indices(from, to) {
-            return Some(bound.clone());
-        }
-        let zero = self.matrix.position(ZERO_ATOM)?;
-        if from == zero || to == zero {
-            return None;
-        }
-        let through_zero = self.matrix.stored_bound_indices(from, zero)?;
-        Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
+        self.matrix.bound_indices(from, to, ZERO_ATOM)
     }
 
     /// Seed a batch before closing its real dependency components. Independent
@@ -181,13 +169,9 @@ impl<'program> Engine<'program> {
     fn seed_matrix(&mut self) -> bool {
         let mut changed = false;
         for (from, to, bound) in self.difference_seeds() {
-            changed |= self.record_difference(&from, &to, bound);
+            changed |= self.matrix.record(&from, &to, bound);
         }
         changed
-    }
-
-    fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
-        self.matrix.record(from, to, bound)
     }
 
     /// Close connected components with zero, preserving lexical iteration.
@@ -196,74 +180,7 @@ impl<'program> Engine<'program> {
     /// already contradicts one component. Named and indexed queries therefore
     /// recover cross-component bounds through their two stored zero edges.
     pub(super) fn close_matrix(&mut self) {
-        let zero = self.matrix.position(ZERO_ATOM);
-        let atoms: Vec<usize> = self
-            .matrix
-            .lexical_indices()
-            .iter()
-            .copied()
-            .filter(|index| Some(*index) != zero)
-            .collect();
-        let mut lexical_position = vec![0; self.matrix.lexical_indices().len()];
-        for (position, atom) in atoms.iter().enumerate() {
-            lexical_position[*atom] = position;
-        }
-        let mut parents: Vec<usize> = (0..atoms.len()).collect();
-        fn component_root(parents: &mut [usize], mut index: usize) -> usize {
-            while parents[index] != index {
-                parents[index] = parents[parents[index]];
-                index = parents[index];
-            }
-            index
-        }
-        for from in &atoms {
-            let mut destinations: Vec<usize> = self
-                .matrix
-                .stored_targets(*from)
-                .filter(|index| Some(*index) != zero)
-                .collect();
-            destinations.sort_unstable_by_key(|index| lexical_position[*index]);
-            for to in destinations {
-                let left = component_root(&mut parents, lexical_position[*from]);
-                let right = component_root(&mut parents, lexical_position[to]);
-                if left != right {
-                    parents[left] = right;
-                }
-            }
-        }
-        let mut components = vec![Vec::new(); atoms.len()];
-        for (position, atom) in atoms.into_iter().enumerate() {
-            components[component_root(&mut parents, position)].push(atom);
-        }
-        for mut members in components.into_iter().filter(|members| !members.is_empty()) {
-            if let Some(zero) = zero {
-                members.push(zero);
-            }
-            self.close_members(&members);
-        }
-    }
-
-    fn close_members(&mut self, members: &[usize]) {
-        for via in members {
-            for from in members {
-                let Some(first) = self.matrix.stored_bound_indices(*from, *via).cloned() else {
-                    continue;
-                };
-                for to in members {
-                    let Some(second) = self.matrix.stored_bound_indices(*via, *to).cloned() else {
-                        continue;
-                    };
-                    let combined = first.add(&second);
-                    if from == to {
-                        if !combined.is_negative() && !combined.is_zero() {
-                            self.requires_unsatisfiable = true;
-                        }
-                        continue;
-                    }
-                    self.matrix.record_indices(*from, *to, combined);
-                }
-            }
-        }
+        self.requires_unsatisfiable |= self.matrix.close(ZERO_ATOM);
     }
 
     pub(super) fn harvest_substitution(&mut self, left: &Polynomial, right: &Polynomial) {

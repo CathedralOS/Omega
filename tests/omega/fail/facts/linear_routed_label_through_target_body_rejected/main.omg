@@ -13,19 +13,51 @@ machine consume(claim: Claim in Issued & Label) -> u64 {
     drop(claim);
     observed
 }
-macos_arm64 machine label(claim: Claim in Issued) -> Claim in Tagged {
-    claim as Claim in Tagged
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine label(claim: Claim in Issued) -> Claim in Tagged {
-    claim as Claim in Tagged
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_x86_64 machine label(claim: Claim in Issued) -> Claim in Tagged {
-    claim as Claim in Tagged
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine label(claim: Claim in Issued) -> Claim in Tagged {
-    claim as Claim in Tagged
+
+boundary trait SelectedLabel {
+    machine label(claim: Claim in Issued) -> Claim in Tagged
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
-machine exercise(select: bool) -> u64 { consume(label(Claim { value: 29 })) }
+
+X86Label satisfies SelectedLabel {
+    machine label(claim: Claim in Issued) -> Claim in Tagged
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        claim as Claim in Tagged
+    }
+}
+
+ArmLabel satisfies SelectedLabel {
+    machine label(claim: Claim in Issued) -> Claim in Tagged
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        claim as Claim in Tagged
+    }
+}
+
+
+machine exercise(select: bool) -> u64 { consume(SelectedLabel::label(Claim { value: 29 })) }
 
 machine main() crashes Trap {
     let first: u64 = exercise(true);
@@ -33,4 +65,12 @@ machine main() crashes Trap {
     transition first == 29 && second == 29 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

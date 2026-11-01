@@ -104,7 +104,9 @@ impl<'program> CompletedResolutions<'program> {
                 entry.kind == kind
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
-                    && entry.context.same_resolution_context(judge)
+                    && entry.context.specification_terms == judge.specification_terms
+                    && entry.context.same_returned_field_trace(judge)
+                    && entry.context.same_resolution_inputs(judge)
                     && entry.term.same_resolution_payload(term)
                     && entry.reads.iter().all(|read| {
                         judge.application_is_active_in_mode(
@@ -437,12 +439,6 @@ impl<'program> StructuralJudge<'program> {
             }
             observation = current.previous.as_deref();
         }
-    }
-
-    fn same_resolution_context(&self, other: &Self) -> bool {
-        self.specification_terms == other.specification_terms
-            && self.same_returned_field_trace(other)
-            && self.same_resolution_inputs(other)
     }
 
     fn same_returned_field_trace(&self, other: &Self) -> bool {

@@ -11,10 +11,13 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    BoundaryMachineResult, BoundaryStructuralResultDeclaration, ClaimTransfer, Operation,
-    OperationKind, OperationResult, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    Block, BoundaryDeclarationRole, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+    ClaimTransfer, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
+    RegisterCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, TerminalDynamicClaimPath, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, call_structural_pair_pattern, find_boundary_machine,
+    structural_type_has_borrowed_storage_by,
 };
 
 /// The shared ordinary-call tail: structural operands present against the
@@ -56,7 +59,7 @@ fn validate_call_tail(
 pub(super) fn validate_module_invocation_entry(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    invocation: terminal_psi::ModuleInvocationInputs<'_>,
+    invocation: ModuleInvocationInputs<'_>,
 ) -> Result<(), CodecError> {
     let callee =
         module
@@ -122,7 +125,7 @@ pub(super) fn validate_module_invocation_entry(
 
 pub(super) fn validate_no_normal_invocation(
     module: &TerminalModule,
-    block: &terminal_psi::Block,
+    block: &Block,
 ) -> Result<(), CodecError> {
     let Terminator::InvokeNoNormal { callee, .. } = block.terminator else {
         return Ok(());
@@ -249,7 +252,7 @@ pub(super) fn validate_call_dynamic(
         else {
             return malformed("dynamic slot claim has no structural formal");
         };
-        if formal.access != terminal_psi::StructuralAccess::Owned
+        if formal.access != StructuralAccess::Owned
             || formal.multiplicity == StructuralMultiplicity::Unrestricted
             || (expected.path.is_empty() && formal.multiplicity != StructuralMultiplicity::Linear)
             || expected.path.iter().any(|segment| {
@@ -274,7 +277,7 @@ pub(super) fn validate_call_dynamic(
         .iter()
         .enumerate()
         .any(|(argument_index, formal)| {
-            formal.access == terminal_psi::StructuralAccess::Owned
+            formal.access == StructuralAccess::Owned
                 && formal.multiplicity == StructuralMultiplicity::Linear
                 && !shape
                     .entry_claim_paths
@@ -332,7 +335,7 @@ pub(super) fn validate_call_dynamic(
             .entry_claims
             .iter()
             .map(|claim| {
-                Some(terminal_psi::TerminalDynamicClaimPath {
+                Some(TerminalDynamicClaimPath {
                     argument_index: u32::try_from(
                         callee
                             .structural_parameters
@@ -406,7 +409,7 @@ pub(super) fn validate_call_structural(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (terminal_psi::call_structural_pair_pattern!(
+    let (call_structural_pair_pattern!(
         callee,
         structural_arguments,
         claim_transfers,
@@ -422,9 +425,7 @@ pub(super) fn validate_call_structural(
         _ => &[],
     };
     let selected_evidence = match &operation.kind {
-        terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) => {
-            selected_evidence.as_slice()
-        }
+        call_structural_pair_pattern!(selected_evidence, ..) => selected_evidence.as_slice(),
         _ => &[],
     };
     let Some(callee) = module.machine(*callee) else {
@@ -440,11 +441,11 @@ pub(super) fn validate_call_structural(
     // unrestricted owned structural snapshots use ordinary argument validation;
     // the selected proposition path is declaration-relative metadata only.
     let exact_payloadless = callee.structural_parameters.iter().all(|parameter| {
-        parameter.access == terminal_psi::StructuralAccess::Owned
+        parameter.access == StructuralAccess::Owned
             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
-            && !terminal_psi::structural_type_has_borrowed_storage_by(
+            && !structural_type_has_borrowed_storage_by(
                 |id| module.structural_type(id),
                 parameter.structural_type,
             )
@@ -460,8 +461,8 @@ pub(super) fn validate_call_structural(
         && claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && crash_continuations.is_empty()
-        && actual_result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && expected_result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && actual_result.multiplicity == StructuralMultiplicity::Unrestricted
+        && expected_result.multiplicity == StructuralMultiplicity::Unrestricted
         && actual_result.qualifications.is_empty()
         && expected_result.qualifications.is_empty()
         && actual_result.claims.is_empty()
@@ -508,10 +509,26 @@ pub(super) fn validate_call_structural(
         let preserved = terminal_semantics::ReferenceResultMemberships::new(module)
             .for_operation(machine, operation)
             .map_err(CodecError::MalformedStructuralFoundation)?;
-        if actual_result.projected_qualifications.iter().any(|row| {
-            !expected_result.projected_qualifications.contains(row) && !preserved.contains(row)
-        }) {
-            return malformed("structural call adds an unpreserved caller membership");
+        let unpreserved = actual_result
+            .projected_qualifications
+            .iter()
+            .filter(|row| {
+                !expected_result.projected_qualifications.contains(row) && !preserved.contains(row)
+            })
+            .collect::<Vec<_>>();
+        if !unpreserved.is_empty() {
+            return Err(CodecError::MalformedStructuralOperation {
+                machine: format!("{:?}", machine.id),
+                operation: operation.id,
+                reason: format!(
+                    "structural call adds an unpreserved caller membership: callee {:?} {:?}, extra {unpreserved:?}, declared {:?}, preserved {preserved:?}",
+                    callee.id,
+                    callee.declaration.as_ref().and_then(|declaration| module
+                        .identities
+                        .text(declaration.machine.identity())),
+                    expected_result.projected_qualifications,
+                ),
+            });
         }
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
@@ -551,7 +568,7 @@ fn validate_structural_call_result_declaration(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
-    actual_result: &terminal_psi::StructuralOperationResult,
+    actual_result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
     let Some(StructuralPlaceDeclaration {
         kind:
@@ -584,7 +601,7 @@ fn validate_structural_call_result_declaration(
 /// portable check admits neither duplicate names nor overlapping paths.
 fn validate_result_claim_shape(
     module: &TerminalModule,
-    actual_result: &terminal_psi::StructuralOperationResult,
+    actual_result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
     let mut result_paths = Vec::with_capacity(actual_result.claims.len());
     for binding in &actual_result.claims {
@@ -627,7 +644,7 @@ fn validate_result_claim_shape(
 pub(super) fn validate_external_completion(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    block: &terminal_psi::Block,
+    block: &Block,
 ) -> Result<(), CodecError> {
     let Terminator::ExternalCompletion {
         boundary,
@@ -640,12 +657,10 @@ pub(super) fn validate_external_completion(
     else {
         return Ok(());
     };
-    let Some(declaration) =
-        terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
-    else {
+    let Some(declaration) = find_boundary_machine(&module.boundary_machines, *boundary) else {
         return malformed("external completion references an unknown boundary");
     };
-    if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+    if declaration.role != BoundaryDeclarationRole::Callable
         || declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
         || declaration.result != BoundaryMachineResult::Unit
         || declaration.scalar_parameters.len() != 1
@@ -711,14 +726,13 @@ pub(super) fn validate_boundary_call(
     else {
         unreachable!("dispatched validate_boundary_call")
     };
-    let Some(boundary) = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
-    else {
+    let Some(boundary) = find_boundary_machine(&module.boundary_machines, *boundary) else {
         return malformed("boundary call references an unknown boundary");
     };
     if boundary.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
         return malformed("external completion requires a closed terminal invocation");
     }
-    if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
+    if boundary.role != BoundaryDeclarationRole::Callable {
         return malformed("boundary call references contract evidence rather than a callable");
     }
     let actual_result = match &operation.result {
@@ -835,7 +849,7 @@ pub(super) fn validate_register_access(
     {
         return malformed("register access disagrees with its catalog service authority");
     }
-    let matches_carrier = |scalar, carrier: terminal_psi::RegisterCarrier| {
+    let matches_carrier = |scalar, carrier: RegisterCarrier| {
         matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
             if !integer.is_address() && integer.bits() == carrier.bits()
                 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)

@@ -16,6 +16,7 @@ use target_operations::CallSiteOwner;
 
 use super::super::unit::stack::{x86_64_stack_adjustment, x86_64_stack_release_preserving_flags};
 use super::call_stack::scalar_call_stack_at;
+use crate::object_artifact::call_sites::validate_internal_call_site;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 use target::Architecture;
 
@@ -167,12 +168,7 @@ pub(crate) fn claimed_mutations_and_call_sites(
     }
     let mut call_sites = BTreeMap::new();
     for call in calls {
-        crate::object_artifact::call_sites::validate_internal_call_site(
-            architecture,
-            machine,
-            bytes,
-            *call,
-        )?;
+        validate_internal_call_site(architecture, machine, bytes, *call)?;
         let call_start = match architecture {
             Architecture::X86_64 => call.offset - 1,
             Architecture::Aarch64 => call.offset,

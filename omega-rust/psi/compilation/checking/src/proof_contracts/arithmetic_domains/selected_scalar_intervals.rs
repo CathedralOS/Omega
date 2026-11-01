@@ -364,29 +364,17 @@ pub(crate) fn binary(
     ) {
         return quotient(&left, &right);
     }
-    let mut bounds = match kind {
-        Kind::ExactAdd | Kind::WrappingAdd | Kind::SaturatingAdd => IntegerRange {
-            minimum: left.minimum.add(&right.minimum),
-            maximum: left.maximum.add(&right.maximum),
-        },
-        Kind::ExactSubtract | Kind::WrappingSubtract | Kind::SaturatingSubtract => IntegerRange {
-            minimum: left.minimum.sub(&right.maximum),
-            maximum: left.maximum.sub(&right.minimum),
-        },
+    let operator = match kind {
+        Kind::ExactAdd | Kind::WrappingAdd | Kind::SaturatingAdd => BinaryOperator::Add,
+        Kind::ExactSubtract | Kind::WrappingSubtract | Kind::SaturatingSubtract => {
+            BinaryOperator::Subtract
+        }
         Kind::ExactMultiply | Kind::WrappingMultiply | Kind::SaturatingMultiply => {
-            let corners = [
-                left.minimum.mul(&right.minimum),
-                left.minimum.mul(&right.maximum),
-                left.maximum.mul(&right.minimum),
-                left.maximum.mul(&right.maximum),
-            ];
-            IntegerRange {
-                minimum: corners.iter().min()?.clone(),
-                maximum: corners.iter().max()?.clone(),
-            }
+            BinaryOperator::Multiply
         }
         _ => return None,
     };
+    let mut bounds = super::integer_binary_range(operator, left, right)?;
     let carrier = carrier_integer_range(primitive)?;
     match kind {
         Kind::ExactAdd | Kind::ExactSubtract | Kind::ExactMultiply => {
@@ -543,15 +531,9 @@ fn remainder(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerR
     if !excludes_zero(divisor) {
         return None;
     }
-    let one = BigInt::from_u64(1);
-    let bound = divisor.minimum.abs().max(divisor.maximum.abs()).sub(&one);
-    let minimum = dividend
-        .minimum
-        .clone()
-        .min(BigInt::zero())
-        .max(bound.negate());
-    let maximum = dividend.maximum.clone().max(BigInt::zero()).min(bound);
-    (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+    super::BigIntInterval::from_closed(dividend.clone())
+        .remainder(&super::BigIntInterval::from_closed(divisor.clone()))
+        .into_closed()
 }
 
 /// Truncated division is monotone in each operand within each sign region,
@@ -561,16 +543,9 @@ fn quotient(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerRa
     if !excludes_zero(divisor) {
         return None;
     }
-    let corners = [
-        dividend.minimum.div_rem(&divisor.minimum)?.0,
-        dividend.minimum.div_rem(&divisor.maximum)?.0,
-        dividend.maximum.div_rem(&divisor.minimum)?.0,
-        dividend.maximum.div_rem(&divisor.maximum)?.0,
-    ];
-    Some(IntegerRange {
-        minimum: corners.iter().min()?.clone(),
-        maximum: corners.iter().max()?.clone(),
-    })
+    super::BigIntInterval::from_closed(dividend.clone())
+        .divide(&super::BigIntInterval::from_closed(divisor.clone()))
+        .into_closed()
 }
 
 /// Read the declared `Range` constraints on an exact integer reference. Those

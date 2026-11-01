@@ -9,121 +9,150 @@
 mod tests;
 
 use terminal_psi::{
-    EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalMachine,
-    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    BoundaryParameterKind, EntryClaim, LoanCompletion, RegisterTargetApplicability,
+    StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalIntegerRankValue,
+    TerminalMachine, TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalRankedScc, ValueDeclaration,
 };
 
 use super::CodecError;
-use super::content_wire::{
-    decode_content_entry_claim, decode_content_identity_reshuffle,
-    decode_content_partition_composition, encode_content_entry_claim,
-    encode_content_identity_reshuffle, encode_content_partition_composition,
-};
-use super::contract_wire::{decode_contract, encode_contract};
 use super::scalar_wire::{
     decode_integer_type, decode_scalar_type, encode_integer_type, encode_scalar_type,
 };
+use super::structural_place_wire::{decode_structural_place_kind, encode_structural_place_kind};
 use super::structural_result_wire::{decode_function_result, encode_function_result};
-use super::structural_signature_wire::{
-    decode_structural_parameters, encode_service_ceiling, encode_structural_parameters,
-};
+use super::structural_signature_wire::StructuralParameter;
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_path, decode_structural_place_kind, encode_structural_path,
-    encode_structural_place_kind,
+use super::wire_fields::{
+    ClaimBinding, Field, Id, Ids, List, MachineDeclaration, Multiplicity, Optional, OptionalId,
+    Path, QualificationSet, Scalar, delegated_fields, wire_enum, wire_record,
 };
-use crate::sections::semantic_module::wire::{
-    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
-};
+use crate::sections::semantic_module::wire::decode_counted;
+
+wire_record! {
+    Machine: TerminalMachine {
+        id: Id,
+        assembly_target_requirement: AssemblyTarget,
+        declaration: Optional<MachineDeclaration>,
+        attachment: OptionalId,
+        nominal_cleanup_subject: OptionalId,
+        parameters: List<Declaration>,
+        parameter_order: List<ParameterKind>,
+        structural_parameters: List<StructuralParameter>,
+        ranked_scc: RankedScc,
+        result: MachineResult,
+        structural_places: List<Place>,
+        entry_claims: List<Claim>,
+        block_entry_claims: List<Claim>,
+        loan_completions: List<LoanCompletionRow>,
+        declared_service_reach: Ids,
+        published_service_ceiling: Ids,
+        closed_reach_application: ReachApplication,
+        content_entry_claims: List<super::content_wire::EntryClaim>,
+        content_identity_reshuffles: List<super::content_wire::Reshuffle>,
+        content_partition_compositions: List<super::content_wire::PartitionComposition>,
+        entry: Id,
+        blocks: List<BlockRow>,
+        contract: super::contract_wire::Contract,
+    }
+    Declaration: ValueDeclaration { id: Id, scalar_type: Scalar, qualifications: QualificationSet }
+    Place: StructuralPlaceDeclaration { id: Id, kind: PlaceKind }
+    Claim: EntryClaim { claim: Id, input: Id, path: Path }
+    LoanCompletionRow: LoanCompletion {
+        operation: Id,
+        place: Id,
+        path: Path,
+        multiplicity: Multiplicity,
+        claims: List<ClaimBinding>,
+    }
+}
+
+wire_enum! {
+    ParameterKind: BoundaryParameterKind, "machine parameter kind" { 0 => Scalar, 1 => Structural }
+    MachineResult: TerminalMachineResult, "TerminalMachineResult" {
+        0 => Unit,
+        1 => Scalar(declaration: Declaration),
+        2 => Structural(result: FunctionResult),
+    }
+}
+
+delegated_fields! {
+    FunctionResult: terminal_psi::StructuralResultDeclaration
+        => encode_function_result, decode_function_result;
+    BlockRow: terminal_psi::Block => super::block_wire::encode_block, super::block_wire::decode_block;
+}
+
+struct PlaceKind;
+impl Field<semantic_vocabulary::StructuralPlaceKind> for PlaceKind {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::StructuralPlaceKind,
+    ) -> Result<(), CodecError> {
+        encode_structural_place_kind(writer, *value);
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::StructuralPlaceKind, CodecError> {
+        decode_structural_place_kind(reader)
+    }
+}
+
+/// The register family an assembly body requires; an unknown byte is malformed.
+struct AssemblyTarget;
+impl Field<RegisterTargetApplicability> for AssemblyTarget {
+    fn write(writer: &mut Writer, value: &RegisterTargetApplicability) -> Result<(), CodecError> {
+        writer.u8(match value {
+            RegisterTargetApplicability::Any => 0,
+            RegisterTargetApplicability::X86_64 => 1,
+            RegisterTargetApplicability::Aarch64 => 2,
+        });
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<RegisterTargetApplicability, CodecError> {
+        Ok(match reader.u8()? {
+            0 => RegisterTargetApplicability::Any,
+            1 => RegisterTargetApplicability::X86_64,
+            2 => RegisterTargetApplicability::Aarch64,
+            _ => {
+                return crate::codec_error::malformed(
+                    "unknown machine assembly target requirement",
+                );
+            }
+        })
+    }
+}
+
+struct ReachApplication;
+impl Field<Option<terminal_psi::ClosedReachApplication>> for ReachApplication {
+    fn write(
+        writer: &mut Writer,
+        value: &Option<terminal_psi::ClosedReachApplication>,
+    ) -> Result<(), CodecError> {
+        super::reach_application_wire::encode(writer, value.as_ref())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<terminal_psi::ClosedReachApplication>, CodecError> {
+        super::reach_application_wire::decode(reader)
+    }
+}
+
+struct RankedScc;
+impl Field<Option<TerminalRankedScc>> for RankedScc {
+    fn write(writer: &mut Writer, value: &Option<TerminalRankedScc>) -> Result<(), CodecError> {
+        encode_ranked_scc(writer, value.as_ref())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
+        decode_ranked_scc(reader)
+    }
+}
 
 pub(crate) fn encode_machine(
     writer: &mut Writer,
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
-    writer.id(machine.id);
-    writer.u8(match machine.assembly_target_requirement {
-        terminal_psi::RegisterTargetApplicability::Any => 0,
-        terminal_psi::RegisterTargetApplicability::X86_64 => 1,
-        terminal_psi::RegisterTargetApplicability::Aarch64 => 2,
-    });
-    writer.boolean(machine.declaration.is_some());
-    if let Some(declaration) = &machine.declaration {
-        super::machine_declaration_wire::encode(writer, declaration)?;
-    }
-    encode_optional_id(writer, machine.attachment);
-    encode_optional_id(writer, machine.nominal_cleanup_subject);
-    encode_declarations(writer, "machine parameters", &machine.parameters)?;
-    writer.len("machine parameter order", machine.parameter_order.len())?;
-    for kind in &machine.parameter_order {
-        writer.u8(match kind {
-            terminal_psi::BoundaryParameterKind::Scalar => 0,
-            terminal_psi::BoundaryParameterKind::Structural => 1,
-        });
-    }
-    encode_structural_parameters(writer, &machine.structural_parameters)?;
-    encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
-    match &machine.result {
-        TerminalMachineResult::Unit => writer.u8(0),
-        TerminalMachineResult::Scalar(result) => {
-            writer.u8(1);
-            encode_declaration(writer, *result);
-        }
-        TerminalMachineResult::Structural(result) => {
-            writer.u8(2);
-            encode_function_result(writer, result)?;
-        }
-    }
-    writer.len("structural places", machine.structural_places.len())?;
-    for place in &machine.structural_places {
-        writer.id(place.id);
-        encode_structural_place_kind(writer, place.kind);
-    }
-    writer.len("entry claims", machine.entry_claims.len())?;
-    for claim in &machine.entry_claims {
-        writer.id(claim.claim);
-        writer.id(claim.input);
-        encode_structural_path(writer, "entry claim path", &claim.path)?;
-    }
-    writer.len("block entry claims", machine.block_entry_claims.len())?;
-    for claim in &machine.block_entry_claims {
-        writer.id(claim.claim);
-        writer.id(claim.input);
-        encode_structural_path(writer, "block entry claim path", &claim.path)?;
-    }
-    writer.len("loan completions", machine.loan_completions.len())?;
-    for completion in &machine.loan_completions {
-        writer.id(completion.operation);
-        writer.id(completion.place);
-        encode_structural_path(writer, "loan completion region", &completion.path)?;
-        super::structural_result_wire::encode_multiplicity(writer, completion.multiplicity);
-        writer.len("loan completion claims", completion.claims.len())?;
-        for claim in &completion.claims {
-            writer.id(claim.claim);
-            encode_structural_path(writer, "loan completion claim path", &claim.path)?;
-        }
-    }
-    encode_service_ceiling(writer, &machine.declared_service_reach)?;
-    encode_service_ceiling(writer, &machine.published_service_ceiling)?;
-    super::reach_application_wire::encode(writer, machine.closed_reach_application.as_ref())?;
-    writer.counted(
-        "content entry claims",
-        &machine.content_entry_claims,
-        encode_content_entry_claim,
-    )?;
-    writer.counted(
-        "content identity reshuffles",
-        &machine.content_identity_reshuffles,
-        encode_content_identity_reshuffle,
-    )?;
-    writer.counted(
-        "content partition compositions",
-        &machine.content_partition_compositions,
-        encode_content_partition_composition,
-    )?;
-    writer.id(machine.entry);
-    writer.counted("blocks", &machine.blocks, super::block_wire::encode_block)?;
-    encode_contract(writer, &machine.contract)
+    Machine::write(writer, machine)
 }
 
 pub(crate) fn encode_declarations(
@@ -145,103 +174,7 @@ pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
 }
 
 pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
-    let id = reader.id("MachineId")?;
-    let assembly_target_requirement = match reader.u8()? {
-        0 => terminal_psi::RegisterTargetApplicability::Any,
-        1 => terminal_psi::RegisterTargetApplicability::X86_64,
-        2 => terminal_psi::RegisterTargetApplicability::Aarch64,
-        _ => return crate::codec_error::malformed("unknown machine assembly target requirement"),
-    };
-    let declaration = if reader.boolean()? {
-        Some(super::machine_declaration_wire::decode(reader)?)
-    } else {
-        None
-    };
-    let attachment = decode_optional_id(reader, "StructuralTypeId")?;
-    let nominal_cleanup_subject = decode_optional_id(reader, "StructuralTypeId")?;
-    let parameters = decode_declarations(reader)?;
-    let parameter_order = decode_counted(reader, |reader| match reader.u8()? {
-        0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),
-        1 => Ok(terminal_psi::BoundaryParameterKind::Structural),
-        tag => Err(CodecError::InvalidTag("machine parameter kind", tag)),
-    })?;
-    let structural_parameters = decode_structural_parameters(reader)?;
-    let ranked_scc = decode_ranked_scc(reader)?;
-    let result = match reader.u8()? {
-        0 => TerminalMachineResult::Unit,
-        1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
-        2 => TerminalMachineResult::Structural(decode_function_result(reader)?),
-        tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
-    };
-    let structural_places = decode_counted(reader, |reader| {
-        Ok(StructuralPlaceDeclaration {
-            id: reader.id("PlaceId")?,
-            kind: decode_structural_place_kind(reader)?,
-        })
-    })?;
-    let entry_claims = decode_counted(reader, |reader| {
-        Ok(EntryClaim {
-            claim: reader.id("ClaimId")?,
-            input: reader.id("PlaceId")?,
-            path: decode_structural_path(reader)?,
-        })
-    })?;
-    let block_entry_claims = decode_counted(reader, |reader| {
-        Ok(EntryClaim {
-            claim: reader.id("ClaimId")?,
-            input: reader.id("PlaceId")?,
-            path: decode_structural_path(reader)?,
-        })
-    })?;
-    let loan_completions = decode_counted(reader, |reader| {
-        Ok(terminal_psi::LoanCompletion {
-            operation: reader.id("OperationId")?,
-            place: reader.id("PlaceId")?,
-            path: decode_structural_path(reader)?,
-            multiplicity: super::structural_result_wire::decode_multiplicity(reader)?,
-            claims: decode_counted(reader, |reader| {
-                Ok(terminal_psi::StructuralResultClaimBinding {
-                    claim: reader.id("ClaimId")?,
-                    path: decode_structural_path(reader)?,
-                })
-            })?,
-        })
-    })?;
-    let declared_service_reach = decode_ids(reader, "ServiceId")?;
-    let published_service_ceiling = decode_ids(reader, "ServiceId")?;
-    let closed_reach_application = super::reach_application_wire::decode(reader)?;
-    let content_entry_claims = decode_counted(reader, decode_content_entry_claim)?;
-    let content_identity_reshuffles = decode_counted(reader, decode_content_identity_reshuffle)?;
-    let content_partition_compositions =
-        decode_counted(reader, decode_content_partition_composition)?;
-    let entry = reader.id("BlockId")?;
-    let blocks = decode_counted(reader, super::block_wire::decode_block)?;
-    let contract = decode_contract(reader)?;
-    Ok(TerminalMachine {
-        assembly_target_requirement,
-        id,
-        declaration,
-        attachment,
-        nominal_cleanup_subject,
-        parameters,
-        parameter_order,
-        structural_parameters,
-        ranked_scc,
-        result,
-        structural_places,
-        entry_claims,
-        block_entry_claims,
-        loan_completions,
-        declared_service_reach,
-        published_service_ceiling,
-        closed_reach_application,
-        content_entry_claims,
-        content_identity_reshuffles,
-        content_partition_compositions,
-        entry,
-        blocks,
-        contract,
-    })
+    Machine::read(reader)
 }
 
 fn encode_ranked_scc(
@@ -254,21 +187,30 @@ fn encode_ranked_scc(
     };
     match ranking {
         TerminalRankedScc::Natural(components) => {
-            writer.u8(2);
-            writer.len("natural cycle components", components.len())?;
+            // Tag 3 is the uniform typed-tuple record, including singletons.
+            // The retired tag 2 encoded a single carrier/value per row.
+            if components.is_empty() {
+                return Err(CodecError::MalformedRanking(
+                    "empty ranked component roster",
+                ));
+            }
+            writer.u8(3);
+            writer.len("integer cycle components", components.len())?;
             for component in components {
-                encode_integer_type(writer, component.rank_type);
-                writer.len("natural block ranks", component.ranks.len())?;
+                if component.ranks.is_empty() {
+                    return Err(CodecError::MalformedRanking("empty cyclic rank roster"));
+                }
+                writer.len("integer block ranks", component.ranks.len())?;
                 for rank in &component.ranks {
                     writer.id(rank.block);
-                    writer.id(rank.value);
+                    encode_rank_values(writer, component, rank.values)?;
                 }
-                writer.len("natural rank edges", component.edges.len())?;
+                writer.len("integer rank edges", component.edges.len())?;
                 for edge in &component.edges {
                     writer.id(edge.edge);
                     writer.id(edge.source);
                     writer.id(edge.target);
-                    writer.id(edge.successor_rank);
+                    encode_rank_values(writer, component, edge.successor_ranks)?;
                     writer.u8(match edge.comparison {
                         TerminalNaturalRankComparison::Preserving => 1,
                         TerminalNaturalRankComparison::Strict => 2,
@@ -283,40 +225,101 @@ fn encode_ranked_scc(
 fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
     match reader.u8()? {
         0 => Ok(None),
-        2 => Ok(Some(TerminalRankedScc::Natural(decode_counted(
-            reader,
-            |reader| {
-                Ok(TerminalNaturalCycle {
-                    rank_type: decode_integer_type(reader)?,
-                    ranks: decode_counted(reader, |reader| {
-                        Ok(TerminalBlockNaturalRank {
-                            block: reader.id("BlockId")?,
-                            value: reader.id("ValueId")?,
-                        })
-                    })?,
-                    edges: decode_counted(reader, |reader| {
-                        Ok(TerminalNaturalRankEdge {
-                            edge: reader.id("EdgeId")?,
-                            source: reader.id("BlockId")?,
-                            target: reader.id("BlockId")?,
-                            successor_rank: reader.id("ValueId")?,
-                            comparison: match reader.u8()? {
-                                1 => TerminalNaturalRankComparison::Preserving,
-                                2 => TerminalNaturalRankComparison::Strict,
-                                tag => {
-                                    return Err(CodecError::InvalidTag(
-                                        "TerminalNaturalRankComparison",
-                                        tag,
-                                    ));
-                                }
-                            },
-                        })
-                    })?,
-                })
-            },
-        )?))),
+        3 => {
+            let components = decode_counted(reader, |reader| {
+                let mut observations = arena::Arena::new();
+                let ranks = decode_counted(reader, |reader| {
+                    let block = reader.id("BlockId")?;
+                    let values = decode_rank_values(reader, &mut observations)?;
+                    Ok(TerminalBlockNaturalRank { block, values })
+                })?;
+                let edges = decode_counted(reader, |reader| {
+                    let edge = reader.id("EdgeId")?;
+                    let source = reader.id("BlockId")?;
+                    let target = reader.id("BlockId")?;
+                    let successor_ranks = decode_rank_values(reader, &mut observations)?;
+                    let comparison = match reader.u8()? {
+                        1 => TerminalNaturalRankComparison::Preserving,
+                        2 => TerminalNaturalRankComparison::Strict,
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "TerminalNaturalRankComparison",
+                                tag,
+                            ));
+                        }
+                    };
+                    Ok(TerminalNaturalRankEdge {
+                        edge,
+                        source,
+                        target,
+                        successor_ranks,
+                        comparison,
+                    })
+                })?;
+                let component = TerminalNaturalCycle {
+                    observations,
+                    ranks,
+                    edges,
+                };
+                if component.ranks.is_empty()
+                    || component
+                        .ranks
+                        .iter()
+                        .any(|rank| component.rank_values(rank.values).is_none())
+                    || component
+                        .edges
+                        .iter()
+                        .any(|edge| component.rank_values(edge.successor_ranks).is_none())
+                {
+                    return Err(CodecError::MalformedRanking(
+                        "incomplete or differently typed rank tuple",
+                    ));
+                }
+                Ok(component)
+            })?;
+            if components.is_empty() {
+                return Err(CodecError::MalformedRanking(
+                    "empty ranked component roster",
+                ));
+            }
+            Ok(Some(TerminalRankedScc::Natural(components)))
+        }
         tag => Err(CodecError::InvalidTag("TerminalRankedScc", tag)),
     }
+}
+
+fn encode_rank_values(
+    writer: &mut Writer,
+    component: &TerminalNaturalCycle,
+    span: arena::HandleSpan<TerminalIntegerRankValue>,
+) -> Result<(), CodecError> {
+    let values = component
+        .rank_values(span)
+        .ok_or(CodecError::MalformedRanking(
+            "incomplete or differently typed rank tuple",
+        ))?;
+    writer.len("integer rank tuple", values.len())?;
+    for value in values {
+        encode_integer_type(writer, value.integer_type);
+        writer.id(value.value);
+    }
+    Ok(())
+}
+
+fn decode_rank_values(
+    reader: &mut Reader<'_>,
+    observations: &mut arena::Arena<TerminalIntegerRankValue>,
+) -> Result<arena::HandleSpan<TerminalIntegerRankValue>, CodecError> {
+    let values = decode_counted(reader, |reader| {
+        Ok(TerminalIntegerRankValue {
+            integer_type: decode_integer_type(reader)?,
+            value: reader.id("ValueId")?,
+        })
+    })?;
+    if values.is_empty() {
+        return Err(CodecError::MalformedRanking("empty rank tuple"));
+    }
+    Ok(observations.insert_many(values))
 }
 
 pub(crate) fn decode_declarations(

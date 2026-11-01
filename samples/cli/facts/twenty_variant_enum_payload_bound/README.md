@@ -111,3 +111,15 @@ All nine positive places and nine reject twins are pinned as canonical corpus fi
 - **Verification Evidence**: macOS arm64 at revision `9b001b8f6af` with generation producer `gen-9b001b8f6af` (`omega` sha256 `6d24393125b7847b2f46…`, opt-level 1): `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for the root and all nine places (10/10). All nine reject twins fail checked compilation carrying their authored fragments: `cannot prove requires contract for call verify_payload / consume / choose / forward_payload from probe:` (`from target_probe` for `target_body`) and `cannot prove ensures contract for exit from extract_payload at statement 39: result >= 40 && result <= 80`.
 - **Pinned Fixtures**: the nine pass fixtures and nine reject twins listed above are pinned under `tests/omega/{pass,fail}/facts/`; three golden legs are recorded for all 18 fixtures.
 - **Remaining Open**: none for this fact row; other variant counts and payload widths belong to their own fact folders.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

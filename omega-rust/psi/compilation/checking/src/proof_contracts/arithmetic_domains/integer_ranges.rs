@@ -5,6 +5,7 @@
 //! Queries may discard those decisions, but lowering never reconstructs them
 //! by re-running an expression under a different destination or branch scope.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
@@ -36,7 +37,7 @@ pub fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> b
 }
 
 pub(crate) fn validate_anonymous_integer_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     owner: &str,
@@ -47,7 +48,7 @@ pub(crate) fn validate_anonymous_integer_range(
 }
 
 pub(crate) fn validate_anonymous_integer_primitive_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     primitive: PrimitiveType,
     expression: ExpressionHandle,
     owner: &str,
@@ -142,7 +143,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
 /// own type and arithmetic policy across a store.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -171,7 +172,7 @@ pub(crate) fn validate_value_range(
 /// branch-local premises, even if the surrounding statement has not changed.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range_retaining_decisions(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -202,7 +203,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
 /// runtime prefixes for decisions the receiver will discard.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range_retaining_obligations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -254,7 +255,7 @@ impl ArithmeticDecisionSink<'_> {
 
 #[allow(clippy::too_many_arguments)]
 fn validate_value_range_with_decision_sink(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -312,7 +313,7 @@ fn validate_value_range_with_decision_sink(
 /// owner. Payload validation remains separate from symbolic model admission.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_anonymous_address_landing(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -464,7 +465,7 @@ pub(crate) fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
 /// representable by u64. This structural proof closes only that representation
 /// gap; arbitrary casts and mixed targets fail closed.
 pub(crate) fn exact_unsigned_widened_multiply_fits(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -525,14 +526,14 @@ pub(crate) fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> boo
 /// narrowed (the caller falls back to the full type range -- sound; the
 /// declaration check in type_references.rs rejects it loudly).
 pub(crate) fn literal_i64(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<i64> {
     expression_table(program).constant_integer_value(expression)
 }
 
 pub(crate) fn literal_u64(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<u64> {
     match expression_table(program).expression(expression) {
@@ -543,14 +544,19 @@ pub(crate) fn literal_u64(
 }
 
 pub(crate) fn known_u64_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<u64> {
-    literal_u64(program, expression).or_else(|| {
-        let path = place_path(program, expression)?;
-        environment.known_u64_values.get(&path).copied()
-    })
+    literal_u64(program, expression)
+        .or_else(|| {
+            let path = place_path(program, expression)?;
+            environment.known_u64_values.get(&path).copied()
+        })
+        .or_else(|| {
+            crate::value_custody::constants::completed_integer_constant(program, expression)
+                .and_then(|value| value.value.to_u64())
+        })
 }
 
 /// Source bounds at this use, through the ordinary arithmetic analysis and
@@ -558,7 +564,7 @@ pub(crate) fn known_u64_value(
 /// never with a coercion's receiving type. Exact unsigned snapshots retain
 /// values beyond the signed compatibility interval.
 pub(crate) fn integer_source_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -584,7 +590,7 @@ pub(crate) fn integer_source_bounds(
 /// unsigned snapshot. Abstract and executable coercion obligations share this
 /// endpoint completion; the receiving format supplies no source bound.
 pub(crate) fn integer_source_bounds_from_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
     primitive: PrimitiveType,
@@ -606,10 +612,7 @@ pub(crate) fn integer_source_bounds_from_interval(
 /// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
 /// whose arithmetic wraps by hardware semantics, through reference/constraint
 /// shells.
-pub(crate) fn is_atomic_type(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> bool {
+pub(crate) fn is_atomic_type(program: &dyn CheckingInput, handle: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { name, .. } => name.as_str().starts_with("Atomic"),
         TypeReferenceNode::Reference { referee, .. } => is_atomic_type(program, *referee),

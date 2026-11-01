@@ -5,9 +5,15 @@
 
 use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};
+use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::facts::domain_is_vacuous;
+use crate::flow::call_flows;
+use crate::values::evaluate_checked_scalar;
+use crate::values::mutable_scalar_parameter_type;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
@@ -17,10 +23,10 @@ use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
-    CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarComputationRoot,
-    CheckedScalarComputationStructuralArgument, CheckedStructuralValueHandle,
-    CheckedStructuralValueRoot, FlowFacts,
+    CheckedScalarComputation, CheckedScalarComputationHandle as ComputationHandle,
+    CheckedScalarComputationKind as ComputationKind, CheckedScalarComputationPlans,
+    CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
+    CheckedStructuralValueHandle, CheckedStructuralValueRoot, FlowFacts,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -41,7 +47,7 @@ pub(super) struct DeclarationScope<'program> {
 
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) shapes: crate::execution::terminal_unit::types::ShapeCollector<'program>,
+    pub(super) shapes: ShapeCollector<'program>,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,
@@ -59,7 +65,7 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) declaration_parameters: &'program [StateParameter],
     pub(super) declaration_scope: Option<DeclarationScope<'program>>,
     /// Completed declaration inputs, captured once before evaluating its body.
-    pub(super) declaration_values: Vec<(SymbolHandle, CheckedScalarComputationHandle)>,
+    pub(super) declaration_values: Vec<(validation::CanonicalPlace, ComputationHandle)>,
     pub(super) authored_parameters: &'program [StateParameter],
     pub(super) parameter_types: &'program [PrimitiveType],
     pub(super) locals: &'program [ScalarLocal],
@@ -69,11 +75,7 @@ pub(super) struct Builder<'program, 'plans> {
     /// A normalized source operand is one evaluation. Retain that identity for
     /// every scalar carrier within this statement; distinct authored handles
     /// and distinct contextual carriers remain separate computations.
-    pub(super) scalar_occurrences: Vec<(
-        ExpressionHandle,
-        PrimitiveType,
-        CheckedScalarComputationHandle,
-    )>,
+    pub(super) scalar_occurrences: Vec<(ExpressionHandle, PrimitiveType, ComputationHandle)>,
     /// One statement's normalized source DAG may reference an operand more
     /// than once. Retain its computation identity, including the contextual
     /// carrier for anonymous integers; never merge different authored handles.
@@ -85,70 +87,6 @@ pub(super) struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
-    pub(super) fn declaration_input(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<(CheckedScalarComputationHandle, TypeReferenceHandle)> {
-        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-        else {
-            return None;
-        };
-        let (_, value) = self
-            .declaration_values
-            .iter()
-            .find(|(formal, _)| *formal == name.symbol)?;
-        let formal = self
-            .declaration_parameters
-            .iter()
-            .find(|formal| formal.symbol == name.symbol)?;
-        (self.program.primitive_type_reference(formal.type_reference)
-            == Some(self.plans.nodes.get(*value).primitive_type))
-        .then_some((*value, formal.type_reference))
-    }
-
-    /// Pure lowering owns a scalar telescope, so a subtree that refers to
-    /// an explicitly rebound declaration input must first pass through the
-    /// computation graph. The shared typed-reference walk owns all expression
-    /// forms; independent literals and ordinary formals retain their fast path.
-    pub(super) fn has_declaration_binding(&self, expression: ExpressionHandle) -> bool {
-        if self.declaration_bindings.is_empty() {
-            return false;
-        }
-        struct Bindings<'bindings> {
-            bindings: &'bindings [(validation::CanonicalPlace, validation::CanonicalPlace)],
-            found: bool,
-            visited: Vec<ExpressionHandle>,
-        }
-        impl Extend<SymbolHandle> for Bindings<'_> {
-            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-                self.found |= symbols.into_iter().any(|symbol| {
-                    self.bindings
-                        .iter()
-                        .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
-                });
-            }
-        }
-        impl typed_trees::references::TypedReferences for Bindings<'_> {
-            fn expression(&mut self, expression: ExpressionHandle) -> bool {
-                if self.visited.contains(&expression) {
-                    return false;
-                }
-                self.visited.push(expression);
-                true
-            }
-            fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
-                false
-            }
-        }
-        let mut bindings = Bindings {
-            bindings: self.declaration_bindings,
-            found: false,
-            visited: Vec::new(),
-        };
-        typed_trees::references::visit_expression(self.program, &mut bindings, expression);
-        bindings.found
-    }
-
     pub(super) fn record_root(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
@@ -201,7 +139,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         cast: &TableCastExpression,
         expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         if !semantic_casts::requires_custody(self.program, self.state, expression) {
             return None;
         }
@@ -215,13 +153,9 @@ impl Builder<'_, '_> {
             // expression. Preserve its exact landing and source occurrence;
             // the qualification remains an authored cast with its own proof.
             let target = self.program.primitive_type_reference(cast.target_type)?;
-            let value = crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression(
-                self.program,
-                self.operators,
-                cast.value,
-                target,
-            )?;
-            let operand = self.insert(target, CheckedScalarComputationKind::Value(value));
+            let value =
+                land_anonymous_scalar_expression(self.program, self.operators, cast.value, target)?;
+            let operand = self.insert(target, ComputationKind::Value(value));
             self.plans.nodes.get_mut(operand).value_source = cast.value;
             operand
         };
@@ -239,7 +173,7 @@ impl Builder<'_, '_> {
         });
         Some(self.insert(
             expected_type,
-            CheckedScalarComputationKind::AuthoredCast {
+            ComputationKind::AuthoredCast {
                 source_expression: expression,
                 operand,
                 result_type,
@@ -286,7 +220,7 @@ impl Builder<'_, '_> {
     pub(super) fn push_scalar_root(
         &mut self,
         role: CheckedScalarExpressionRole,
-        root: CheckedScalarComputationHandle,
+        root: ComputationHandle,
     ) -> Option<()> {
         let statement_ordinal = u32::try_from(self.statement_index).ok()?;
         let mut published =
@@ -314,13 +248,13 @@ impl Builder<'_, '_> {
     pub(super) fn insert(
         &mut self,
         primitive_type: PrimitiveType,
-        kind: CheckedScalarComputationKind,
-    ) -> CheckedScalarComputationHandle {
+        kind: ComputationKind,
+    ) -> ComputationHandle {
         // Normalization can share one authored invocation across operands.
         // Its captured call identity owns evaluation and cleanup, regardless
         // of the result carrier or callee kind. Reuse that invocation's node;
         // equal-looking independently authored calls have different facts.
-        if let CheckedScalarComputationKind::Call {
+        if let ComputationKind::Call {
             source_call,
             callee,
             ..
@@ -336,7 +270,7 @@ impl Builder<'_, '_> {
                         (node.primitive_type == primitive_type
                             && matches!(
                                 &node.kind,
-                                CheckedScalarComputationKind::Call {
+                                ComputationKind::Call {
                                     source_call: previous,
                                     callee: previous_callee,
                                     ..
@@ -361,10 +295,10 @@ impl Builder<'_, '_> {
         })
     }
 
-    pub(super) fn boolean(&mut self, value: bool) -> CheckedScalarComputationHandle {
+    pub(super) fn boolean(&mut self, value: bool) -> ComputationHandle {
         self.insert(
             PrimitiveType::Bool,
-            CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
+            ComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(value),
             ))),
         )
@@ -375,13 +309,13 @@ impl Builder<'_, '_> {
     /// the ordinary logical-not path share this insertion.
     pub(super) fn boolean_negation(
         &mut self,
-        operand: CheckedScalarComputationHandle,
+        operand: ComputationHandle,
         source_expression: ExpressionHandle,
-    ) -> CheckedScalarComputationHandle {
+    ) -> ComputationHandle {
         let operands = self.plans.operands.insert_many([operand]);
         self.insert(
             PrimitiveType::Bool,
-            CheckedScalarComputationKind::Apply {
+            ComputationKind::Apply {
                 source_expression,
                 expression: CheckedScalarExpression::Boolean(Box::new(
                     CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Parameter {
@@ -407,10 +341,10 @@ impl Builder<'_, '_> {
         receiver_value: CheckedStructuralValueHandle,
         subject: CheckedScalarComputationStructuralArgument,
         case: SymbolHandle,
-    ) -> CheckedScalarComputationHandle {
+    ) -> ComputationHandle {
         self.insert(
             PrimitiveType::Bool,
-            CheckedScalarComputationKind::CaseMembership {
+            ComputationKind::CaseMembership {
                 source_expression,
                 completion_expression,
                 receiver_value,
@@ -430,7 +364,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         let operand = self.same_carrier_cast_operand(expression)?;
         let Some(cast) = self.program.expression_table.cast_node(expression) else {
             return None;
@@ -451,7 +385,7 @@ impl Builder<'_, '_> {
     pub(super) fn retained_constant(
         &mut self,
         expression: ExpressionHandle,
-    ) -> Option<(CheckedScalarComputationHandle, PrimitiveType)> {
+    ) -> Option<(ComputationHandle, PrimitiveType)> {
         let (root, primitive) = match self.program.expression_table.expression(expression) {
             ExpressionNode::Call(call) if call.layout_query.is_some() => {
                 (expression, PrimitiveType::U64)
@@ -477,7 +411,7 @@ impl Builder<'_, '_> {
         Some((
             self.insert(
                 primitive,
-                CheckedScalarComputationKind::RetainedConstant { expression: root },
+                ComputationKind::RetainedConstant { expression: root },
             ),
             primitive,
         ))
@@ -487,7 +421,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         if let Some((_, _, value)) = self
             .scalar_occurrences
             .iter()
@@ -504,7 +438,7 @@ impl Builder<'_, '_> {
             let operands = self.plans.operands.insert_many([value]);
             self.insert(
                 expected_type,
-                CheckedScalarComputationKind::Apply {
+                ComputationKind::Apply {
                     source_expression: expression,
                     expression: CheckedScalarExpression::Parameter {
                         position: 0,
@@ -526,8 +460,10 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        if let Some((value, _)) = self.declaration_input(expression) {
+    ) -> Option<ComputationHandle> {
+        // Only an unbound name permits ordinary lowering; a rejected binding
+        // makes this computation unavailable instead of selecting another input.
+        if let Some((value, _)) = self.declaration_input(expression).ok()? {
             return (self.plans.nodes.get(value).primitive_type == expected_type).then_some(value);
         }
         if let Some((constant, primitive)) = self.retained_constant(expression) {
@@ -547,7 +483,7 @@ impl Builder<'_, '_> {
             let operand = self.expression(expression, PrimitiveType::Bool)?;
             return Some(self.insert(
                 expected_type,
-                CheckedScalarComputationKind::BooleanToInteger {
+                ComputationKind::BooleanToInteger {
                     source_expression: expression,
                     operand,
                 },
@@ -569,23 +505,6 @@ impl Builder<'_, '_> {
             return Some(observation);
         }
 
-        if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-            && self
-                .program
-                .expression_table
-                .name_path_is_single_member(name)
-        {
-            let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
-                formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()
-            });
-            if let Some((_, coordinate)) = selected.next() {
-                if selected.next().is_some() {
-                    return None;
-                }
-                let coordinate = coordinate.clone();
-                return self.scalar_coordinate(expression, &coordinate, expected_type, &[]);
-            }
-        }
         if validation::atomic_load_carrier(self.program, expression).is_some() {
             return self.atomic_load(expression, expected_type);
         }
@@ -625,7 +544,7 @@ impl Builder<'_, '_> {
             let operand = self.expression(cast.value, expected_type)?;
             return Some(self.insert(
                 expected_type,
-                CheckedScalarComputationKind::Qualification {
+                ComputationKind::Qualification {
                     source_expression: expression,
                     operand,
                     result_type,
@@ -650,11 +569,7 @@ impl Builder<'_, '_> {
                 )
                 || cast.domain != ArithmeticDomain::Exact
                 || !cast.semantic_domain_id.is_valid()
-                || !crate::facts::domain_is_vacuous(
-                    self.program,
-                    cast.semantic_domain_symbol,
-                    &mut Vec::new(),
-                )
+                || !domain_is_vacuous(self.program, cast.semantic_domain_symbol, &mut Vec::new())
                 || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
                 || self.program.primitive_type_reference(cast.result_type) != Some(expected_type)
             {
@@ -663,7 +578,7 @@ impl Builder<'_, '_> {
             let operand = self.expression(cast.value, expected_type)?;
             return Some(self.insert(
                 expected_type,
-                CheckedScalarComputationKind::Qualification {
+                ComputationKind::Qualification {
                     source_expression: expression,
                     operand,
                     result_type: cast.result_type,
@@ -692,7 +607,7 @@ impl Builder<'_, '_> {
             let right = self.expression(operands[1], primitive)?;
             return Some(self.insert(
                 PrimitiveType::Bool,
-                CheckedScalarComputationKind::SelectedComparison {
+                ComputationKind::SelectedComparison {
                     operator_use,
                     left,
                     right,
@@ -732,8 +647,7 @@ impl Builder<'_, '_> {
                 self.exact_integer_casts,
             )
         {
-            let computation =
-                self.insert(expected_type, CheckedScalarComputationKind::Value(value));
+            let computation = self.insert(expected_type, ComputationKind::Value(value));
             self.plans.nodes.get_mut(computation).value_source = expression;
             return Some(computation);
         }
@@ -862,11 +776,7 @@ impl Builder<'_, '_> {
                                 .program
                                 .primitive_type_reference(parameter.type_reference)
                                 .is_some()
-                            && crate::values::mutable_scalar_parameter_type(
-                                self.program,
-                                parameter,
-                            )
-                            .is_none())
+                            && mutable_scalar_parameter_type(self.program, parameter).is_none())
                 }) {
                     return None;
                 }
@@ -915,7 +825,7 @@ impl Builder<'_, '_> {
                 )?;
                 Some(self.insert(
                     expected_type,
-                    CheckedScalarComputationKind::Call {
+                    ComputationKind::Call {
                         callee: checked_trees::CheckedScalarCallee::Body {
                             machine: target_machine.symbol,
                             state: target_state.symbol,
@@ -938,10 +848,9 @@ impl Builder<'_, '_> {
                 let condition = self.expression(binary.left, PrimitiveType::Bool)?;
                 let evaluate_when = binary.operator == BinaryOperator::And;
                 // A known skipped RHS has no FlowCallFact and must not need one.
-                if let CheckedScalarComputationKind::Value(value) =
-                    &self.plans.nodes.get(condition).kind
+                if let ComputationKind::Value(value) = &self.plans.nodes.get(condition).kind
                     && let Some(facts::ScalarValue::Boolean(value)) =
-                        crate::values::evaluate_checked_scalar(value, &mut |_| None)
+                        evaluate_checked_scalar(value, &mut |_| None)
                 {
                     return if value == evaluate_when {
                         self.expression(binary.right, PrimitiveType::Bool)
@@ -963,7 +872,7 @@ impl Builder<'_, '_> {
                 };
                 Some(self.insert(
                     PrimitiveType::Bool,
-                    CheckedScalarComputationKind::Select {
+                    ComputationKind::Select {
                         source_expression: expression,
                         condition,
                         when_true,
@@ -1013,7 +922,7 @@ impl Builder<'_, '_> {
                 }
                 Some(self.insert(
                     PrimitiveType::Bool,
-                    CheckedScalarComputationKind::Apply {
+                    ComputationKind::Apply {
                         source_expression: expression,
                         expression: CheckedScalarExpression::Boolean(Box::new(template)),
                         operands,
@@ -1121,7 +1030,7 @@ impl Builder<'_, '_> {
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
         let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
-        let mut matching = crate::flow::call_flows(&self.flow.control, state.calls)
+        let mut matching = call_flows(&self.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == self.statement_index

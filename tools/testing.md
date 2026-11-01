@@ -41,8 +41,8 @@ An unverified base alone does not force a routine task to establish a full basel
 
 Attribute unexpected failures with a focused baseline comparison or dependency
 and source-reader evidence. For corpus movement the comparison is
-`python3 tools/corpus_gate.py --compare <parent> --filter <groups the change can
-move>`; a diff against the checked-in golden mixes this change with other
+`python3 tools/corpus_gate.py --compare <parent> --filter <the fixtures that
+moved>`; a diff against the checked-in golden mixes this change with other
 lanes' drift and cannot attribute either. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
@@ -104,14 +104,30 @@ gh workflow run compiler-pilot.yml --ref work/NAME \
   -f fixtures=pass/float/named_integer_conversion_source_proofs_exit,fail/float/named_float_to_integer_no_context_unproven
 ```
 
+For a fact project, the optional `samples` input selects exact existing
+`samples/cli/facts/...` roots and their descendant projects. It runs the existing
+sample gate against the same retained compiler, including native/Terminal
+agreement for positives and authored refusal controls. For example:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f samples=samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor
+```
+
+Sample-only selection replaces the default smoke. Explicit `fixtures` and
+`samples` can share one producer when both are relevant. Selection validates
+before building; empty, unscored or check-only positives cannot pass. The
+artifact includes `samples.json` beside the corpus reports.
+
 Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
-or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must be existing normalized
-`pass/group/name` or `fail/group/name` directories containing `main.omg`.
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
+containing `main.omg`, including nested fact-place paths.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures
@@ -393,14 +409,17 @@ means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
 ```bash
-python3 tools/corpus_gate.py --filter termination   # one domain in the loop
-python3 tools/corpus_gate.py --filter wire/,fail/proofs
+python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
+python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
 An unfiltered run covers every fixture and takes a long time. It is a manual
-trigger: only the user starts it, never an agent. Agents always pass
-`--filter` with the domains their change can move.
+trigger: only the user starts it, never an agent. Agents filter to the
+fixtures their change can move, named by fact or behavior, and count the
+selection before running it. A whole domain is a sweep: `facts/` selects
+nearly 14,000 fixtures and `fail/` about 11,000. See
+[validate with witnesses](../AGENTS.md#commands).
 
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery

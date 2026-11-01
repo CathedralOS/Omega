@@ -4,18 +4,13 @@ use super::{
     RecoveryClassificationPolicy, SelectedLoweringOptimizationCompletionIdentity,
     SpillChoicePolicy,
 };
-use crate::LiteralFoldPolicy;
-use crate::OptimizedLiteralFoldCustodyError;
-use crate::StagedOptimizedAllocationLegality;
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
-use crate::StagedOptimizedLiteralFoldAttempt;
-use crate::StagedOptimizedLiteralFoldAttemptReceipt;
-use crate::StagedOptimizedLiteralFoldIterationReceipt;
-use crate::StagedOptimizedLiteralFoldStep;
-use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
-use crate::ValidatedLiteralFold;
-use crate::ValidatedRecoveryClassifications;
-use crate::ValidatedSpillChoices;
+use crate::{
+    LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, StagedOptimizedAllocationLegality,
+    StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiteralFoldAttempt,
+    StagedOptimizedLiteralFoldAttemptReceipt, StagedOptimizedLiteralFoldIterationReceipt,
+    StagedOptimizedLiteralFoldStep, StagedSelectedLoweringOptimizationCustodyReceipt,
+    ValidatedLiteralFold, ValidatedRecoveryClassifications, ValidatedSpillChoices,
+};
 /// The fold evidence row both literal-fold receipts carry: the three source
 /// identities the admitted fold receipt copies verbatim from its plan, then the
 /// choice, recovery, and fold triples with their policy tag and work usage.

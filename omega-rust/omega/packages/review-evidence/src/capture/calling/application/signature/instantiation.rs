@@ -5,6 +5,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
+use typed_trees::type_identity::lifetime_parameter_identity;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Instantiate declaration-local names after their telescope has been fixed.
@@ -25,8 +26,9 @@ pub(super) fn instantiate(
 }
 
 /// Normalize supplied operands by their original declaration and ordinal before
-/// they enter the receiving trait's telescope. Scratch cannot authenticate the
-/// owner: it deliberately lacks the original conformance and machine tables.
+/// they enter the receiving trait's telescope. Authenticate the owner against
+/// the original input; reduced scratch declarations provide type vocabulary,
+/// not the source's execution custody.
 pub(super) fn instantiate_application(
     compilation: &mut TypedTrees,
     source: &TypedTrees,
@@ -98,13 +100,9 @@ fn project(
                 supplying_owner,
                 lexical_owner,
                 binders,
-            } => typed_trees::type_identity::lifetime_parameter_identity(
-                source,
-                lexical_owner,
-                name.as_str(),
-            )
-            .filter(|identity| identity.declaration == supplying_owner)
-            .and_then(|identity| binders.get(identity.ordinal).cloned()),
+            } => lifetime_parameter_identity(source, lexical_owner, name.as_str())
+                .filter(|identity| identity.declaration == supplying_owner)
+                .and_then(|identity| binders.get(identity.ordinal).cloned()),
         }
         .ok_or_else(|| {
             rejected("calling signature has an unbound lifetime in its supplying declaration")

@@ -20,13 +20,18 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageS
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
+    AcceptedSemanticBinding, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs, derive_source_consumption_commitment,
 };
 use package_evidence::record::PackageReviewEvidence;
 use package_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 
+use super::super::review_cache::{PackageReviewCacheWrite, compiled_review_key};
 use super::PackageSourceBindings;
+use super::policy::{MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES, projection_failure, reserve};
+use std::collections::BTreeSet;
+use std::iter::empty;
 
 pub struct RetainedPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
@@ -109,10 +114,8 @@ impl OccurrenceCompile {
         match self {
             Self::Live(_) => Ok(()),
             Self::Cached(facts) => {
-                let commitment = package_compilation::derive_source_consumption_commitment(
-                    &facts.consumed_units,
-                    inputs,
-                )?;
+                let commitment =
+                    derive_source_consumption_commitment(&facts.consumed_units, inputs)?;
                 if commitment != facts.source_consumption_commitment {
                     return Err(vec![Diagnostic::error(
                         "a persisted review's retained source-consumption commitment does not re-derive over its retained consumed units and the live inputs",
@@ -262,7 +265,7 @@ impl<'pass> PackageReviewPass<'pass> {
     pub fn begin_round<'round>(
         &'round self,
         source_bindings: &'round mut PackageSourceBindings,
-        fresh_components: &'round std::collections::BTreeSet<(
+        fresh_components: &'round BTreeSet<(
             semantic_vocabulary::PackageKeyIdentity,
             DependencyPurpose,
         )>,
@@ -309,10 +312,7 @@ pub struct PackageReviewRound<'pass> {
     /// Dependency occurrences a consumer demanded a component description
     /// from that no carried record retained: they compile fresh and their
     /// replacement records carry the published description.
-    fresh_components: &'pass std::collections::BTreeSet<(
-        semantic_vocabulary::PackageKeyIdentity,
-        DependencyPurpose,
-    )>,
+    fresh_components: &'pass BTreeSet<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose)>,
     /// Completed work from interrupted attempts in this same pass. It remains
     /// usable only under the exact input comparisons of ordinary review reuse.
     recovered: &'pass [RetainedPackageReviews],
@@ -389,7 +389,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 closure: self.closure,
                 execution_profile: self.execution_profile,
             },
-            maximum_policy_canonical_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
+            maximum_policy_canonical_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
                 .saturating_sub(self.retained_policy_canonical_total),
         }))
     }
@@ -553,9 +553,7 @@ impl<'pass> PackageReviewRound<'pass> {
         } else {
             None
         }
-        .unwrap_or_else(|| {
-            build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
-        });
+        .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
         // Every package compiles as the root of its own component view, so
         // any of them — not only the graph root — may author `Independent`
         // selections over dependencies this loop already compiled. The
@@ -668,7 +666,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 }
                 let directory = custody.compiled_review_cache_dir()?;
                 let cache = super::super::review_cache::CompiledReviewCache::open(directory)?;
-                let record = cache.lookup(&super::super::review_cache::compiled_review_key(
+                let record = cache.lookup(&compiled_review_key(
                     key.identity(),
                     purpose,
                     checked_target,
@@ -694,13 +692,12 @@ impl<'pass> PackageReviewRound<'pass> {
                 },
             )?;
         self.retained_policy_canonical_total =
-            super::policy::reserve(self.retained_policy_canonical_total, policy_canonical_bytes)
-                .ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-                        package: key.clone(),
-                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                    }
-                })?;
+            reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
+                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                    package: key.clone(),
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )?;
         // Consumers need the same entry-schema offer whether this
         // dependency compiled now, in a prior pass, or in a prior
         // invocation. An offer is not an accepted binding: only the
@@ -780,10 +777,7 @@ impl<'pass> PackageReviewRound<'pass> {
         completion: PackageReviewCompletion<'_>,
         product: compiler::PackageReviewProduct,
         occurrence_inputs: PackageCompilationInputs,
-    ) -> Result<
-        Option<super::super::review_cache::PackageReviewCacheWrite>,
-        CompileResolvedPackageReviewsError,
-    > {
+    ) -> Result<Option<PackageReviewCacheWrite>, CompileResolvedPackageReviewsError> {
         let PackageReviewCompletion {
             occurrence,
             assembled,
@@ -825,13 +819,12 @@ impl<'pass> PackageReviewRound<'pass> {
             });
         }
         self.retained_policy_canonical_total =
-            super::policy::reserve(self.retained_policy_canonical_total, policy_canonical_bytes)
-                .ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-                        package: key.clone(),
-                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                    }
-                })?;
+            reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
+                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                    package: key.clone(),
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )?;
         let mut semantic_binding_candidates = service_binding_candidates;
         semantic_binding_candidates.extend(proposed_entry);
         if self.discovery == TargetEntryDiscovery::Dependencies {
@@ -902,7 +895,7 @@ impl<'pass> PackageReviewRound<'pass> {
                     target_entry_candidate,
                 },
                 policy_canonical_bytes,
-            ) && let Some(cache_key) = super::super::review_cache::compiled_review_key(
+            ) && let Some(cache_key) = compiled_review_key(
                 key.identity(),
                 purpose,
                 checked_target,
@@ -911,7 +904,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 &occurrence_inputs,
                 &build_snapshot,
             ) {
-                cache_write = Some(super::super::review_cache::PackageReviewCacheWrite {
+                cache_write = Some(PackageReviewCacheWrite {
                     cache,
                     key: cache_key,
                     record,
@@ -970,10 +963,10 @@ impl<'pass> PackageReviewRound<'pass> {
             } else {
                 occurrence.policy_canonical_bytes
             };
-            total = super::policy::reserve(total, length).ok_or_else(|| {
+            total = reserve(total, length).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
                     package: review.key.clone(),
-                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                 }
             })?;
             occurrence.policy_canonical_bytes = length;
@@ -1063,7 +1056,7 @@ impl PackageReviewCompletion<'_> {
                 self.compilation_failure(failure)
             }
             compiler::PackageReviewFailure::Projection(failure) => {
-                super::policy::projection_failure(self.occurrence.key, failure)
+                projection_failure(self.occurrence.key, failure)
             }
         }
     }
@@ -1071,5 +1064,5 @@ impl PackageReviewCompletion<'_> {
 
 pub enum PackageReviewComponent {
     Source(compiler::PackageReviewSource),
-    Description(package_compilation::IndependentComponentDescription),
+    Description(IndependentComponentDescription),
 }

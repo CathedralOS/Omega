@@ -64,7 +64,7 @@ machine Main::main(main: &mut Main) {
 }
 
 DesktopProviderDesktopImplementation satisfies Desktop {
-    Desktop::choose_folder = DesktopProvider::choose_folder;
+    machine choose_folder(prompt: &[u8] in Utf8) -> Folder ensures result in Folder::Writable { DesktopProvider::choose_folder(prompt) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

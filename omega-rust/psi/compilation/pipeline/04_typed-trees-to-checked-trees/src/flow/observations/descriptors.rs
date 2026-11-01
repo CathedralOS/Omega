@@ -3,6 +3,10 @@
 //! the actual carrier capture, its binding version and all live contents
 //! before lending that observation namespace to another completed read.
 
+use super::super::operand_contexts::operand_bindings_agree_in_state;
+use super::super::operand_contexts::operand_sources_agree_in_state;
+use super::super::operand_values::captured_retention_profiles_at_path;
+use super::super::value_origins::ValueObservation;
 use arena::HandleSpan;
 use checked_trees::{FlowControlFacts, FlowOperandFact};
 use facts::FactContextHandle;
@@ -177,7 +181,7 @@ fn same_retention(
         if !control.operands.is_valid(profile.stored_value) {
             return None;
         }
-        super::super::operand_values::captured_retention_profiles_at_path(
+        captured_retention_profiles_at_path(
             program,
             control,
             control.operands.get(profile.stored_value),
@@ -299,18 +303,8 @@ fn same_retention(
         agreed
     }
     let (Some(first), Some(second)) = (
-        super::super::operand_values::captured_retention_profiles_at_path(
-            program,
-            control,
-            first,
-            &[],
-        ),
-        super::super::operand_values::captured_retention_profiles_at_path(
-            program,
-            control,
-            second,
-            &[],
-        ),
+        captured_retention_profiles_at_path(program, control, first, &[]),
+        captured_retention_profiles_at_path(program, control, second, &[]),
     ) else {
         return false;
     };
@@ -421,7 +415,7 @@ fn observation_agrees(
             .ok_or(DescriptorObservationRefusal::UnavailableStatementCut)?
             .statements
     };
-    if !super::super::operand_contexts::operand_bindings_agree_in_state(
+    if !operand_bindings_agree_in_state(
         program, control, statements, observed, consumer, &namespace,
     ) {
         return Err(DescriptorObservationRefusal::ChangedBinding);
@@ -448,14 +442,14 @@ fn observation_agrees(
         });
     }
     for place in contents {
-        if !super::super::operand_contexts::operand_sources_agree_in_state(
+        if !operand_sources_agree_in_state(
             program,
             control,
             statements,
             &completed_read,
             consumer,
             &place,
-            super::super::value_origins::ValueObservation::Contents,
+            ValueObservation::Contents,
         ) {
             return Err(DescriptorObservationRefusal::ChangedContents);
         }

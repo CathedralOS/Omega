@@ -25,10 +25,15 @@ use crate::preparation::generic_data::normalize_generic_template_const_expressio
 use crate::preparation::generic_data::prepare_closed_application;
 use crate::preparation::generic_data::qualified_const_name;
 
+use super::module_constants::module_path;
+use super::substitution::fold_impossible_case_memberships;
+use super::substitution::variant_fact_verdict;
+use crate::preparation::declaration_selection::ConstantSelection;
 use crate::preparation::generic_data::replace_const_expression_names_from;
 use crate::preparation::generic_data::replace_machine_const_expression_names_from;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::generic_data::substitute_member;
+use crate::preparation::type_equations::normalized_boolean_argument;
 use arena::Handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -58,13 +63,7 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
         .root_items()
         .any(|item| matches!(item, Item::Module(_)))
     {
-        Some(
-            crate::preparation::declaration_selection::ConstantSelection::new(
-                syntax,
-                None,
-                Vec::new(),
-            )?,
-        )
+        Some(ConstantSelection::new(syntax, None, Vec::new())?)
     } else {
         None
     };
@@ -75,7 +74,7 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
 pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
     closed_roots: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     desugar_generic_data_instances_in(
@@ -91,7 +90,7 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
 pub(crate) fn desugar_generic_data_instances_in(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
     domain: GenericDataWorkDomain<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     // An empty completion owns no applications or declarations. Retained
@@ -151,11 +150,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         if matches!(
             definition.name.as_str(syntax),
             "IntervalSet" | "CountedQuantity"
-        ) && super::module_constants::module_path(
-            syntax,
-            definition.name.source_span().source_id,
-        )
-        .is_none()
+        ) && module_path(syntax, definition.name.source_span().source_id).is_none()
         {
             continue;
         }
@@ -545,7 +540,7 @@ fn synthesize_instance(
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     attached_machines: &HashMap<syntax_trees::item::ItemHandle, Vec<usize>>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
     instance: &Instantiation,
 ) -> Result<(), Vec<Diagnostic>> {
     if synthesized.iter().any(|prior| {
@@ -636,9 +631,7 @@ fn synthesize_instance(
         let Some(value) = syntax.type_references.type_reference(*argument).as_named() else {
             continue;
         };
-        if let Some(value) =
-            crate::preparation::type_equations::normalized_boolean_argument(value.as_str(syntax))
-        {
+        if let Some(value) = normalized_boolean_argument(value.as_str(syntax)) {
             const_parameter_scalars.insert(name.clone(), ConstScalarValue::Boolean(value));
             const_expressions.insert(name.clone(), ExpressionNode::Boolean(value));
         }
@@ -754,12 +747,12 @@ fn synthesize_instance(
         };
         // A carried expression fact decides its nested `type`-binder
         // equalities against this instance's arguments, folding each decided
-        // node to the literal witness the case `where` copy already uses: a
-        // decided-true equation reads `1`, a decided-false one `0`, so a
+        // node to a literal witness: a decided-true equation reads `1`,
+        // a decided-false one `0`, so a
         // case-dependent disjunct collapses on the impossible branch and the
         // surviving branch keeps its membership and value couplings. Binder
-        // spellings outside a decided equality stay symbolic -- the lowering
-        // gate already refused binder mentions in other positions.
+        // spellings outside a decided equality retain their ordinary lexical
+        // binding and remain obligations of the complete predicate.
         if let Some(copied_root) = copied_root {
             super::substitution::decide_instance_type_equalities(
                 syntax,
@@ -772,12 +765,7 @@ fn synthesize_instance(
             let type_name = base_info.origin_name.as_str(syntax);
             for variant_name in &template_variant_names {
                 if matches!(
-                    super::substitution::variant_fact_verdict(
-                        syntax,
-                        copied_root,
-                        type_name,
-                        variant_name,
-                    ),
+                    variant_fact_verdict(syntax, copied_root, type_name, variant_name,),
                     super::substitution::VariantFactVerdict::Refuted
                 ) {
                     impossible_variants.insert(variant_name.clone());
@@ -796,12 +784,7 @@ fn synthesize_instance(
     if !impossible_variants.is_empty() {
         let type_name = base_info.origin_name.as_str(syntax).to_owned();
         for copied_root in copied_fact_roots {
-            super::substitution::fold_impossible_case_memberships(
-                syntax,
-                copied_root,
-                &type_name,
-                &impossible_variants,
-            );
+            fold_impossible_case_memberships(syntax, copied_root, &type_name, &impossible_variants);
         }
     }
     let where_facts = HandleSpan::from_parts(first_fact, fact_count);
@@ -813,15 +796,14 @@ fn synthesize_instance(
         .tables
         .type_references
         .insert_type_reference_handles(instance.argument_handles.iter().copied());
-    let generic_instance =
-        syntax
-            .tables
-            .type_references
-            .insert(syntax_trees::types::TypeReferenceNode::Generic {
-                base_name: base_info.origin_name.clone(),
-                lifetime_arguments: Vec::new(),
-                arguments: origin_arguments,
-            });
+    let generic_instance = syntax
+        .tables
+        .type_references
+        .insert(TypeReferenceNode::Generic {
+            base_name: base_info.origin_name.clone(),
+            lifetime_arguments: Vec::new(),
+            arguments: origin_arguments,
+        });
 
     let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
     let properties = base_info.properties;
@@ -833,12 +815,8 @@ fn synthesize_instance(
             snapshot,
             member,
             &substitution,
-            &type_identities,
             &impossible_variants,
-            selection,
-            &instance.synthetic_name,
             const_values,
-            &const_parameter_scalars,
             warnings,
         )
         .map_err(|diagnostic| vec![diagnostic])?;

@@ -312,6 +312,7 @@ fn project_declarations(
         }
         project_roots!(const_declarations, const_declarations);
         project_roots!(data_definitions, data_definitions);
+        project_roots!(type_aliases, type_aliases);
         project_roots!(domain_definitions, domain_definitions);
         project_roots!(measures, measures);
         project_roots!(operators, operators);
@@ -343,6 +344,13 @@ fn project_declarations(
                 symbol = original.symbols.get(symbol).parent;
             }
         }
+        // A retained alias use still owes its source declaration's telescope,
+        // including arguments erased by expansion. Restore only those alias
+        // headers from descriptive dependencies, never a described machine body.
+        synthesized.extend(references.descriptor_symbols.into_iter().filter(|symbol| {
+            symbol.is_valid()
+                && original.symbols.get(*symbol).kind == symbols::SymbolKind::TypeAlias
+        }));
         // A selected concrete data instance owns its generated attached method
         // declarations, including obligations in methods not called by Build.
         for &(owner, child) in declaration_children {
@@ -480,6 +488,20 @@ pub fn retain_machine_roster(
     program
         .machine_specializations
         .retain(|row| !pruned.contains(&row.instance));
+    // A designated static type argument is validated against its owner
+    // machine. Rows whose owner left this executable roster belong to the
+    // owner's own checking context, not to a private projection that never
+    // lowers that body.
+    let designated = program
+        .tables
+        .designated_static_type_arguments
+        .iter()
+        .filter(|(_, row)| !pruned.contains(&row.owner))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut arguments = arena::Arena::default();
+    arguments.insert_many(designated);
+    program.tables.designated_static_type_arguments = arguments;
     // Capture records are keyed by their executable owner, just as invocation
     // records are. They have no inbound arena handles; backing state mappings
     // retain their handles. An unrelated private checking projection must not

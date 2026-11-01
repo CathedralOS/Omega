@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 
 use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
+use crate::mathematical_core::Term;
 use crate::{
     Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness, ProofError,
     ProofNode, ProofRule, correlated_step, proof_node, value_context,
@@ -262,10 +263,7 @@ fn check(fixture: &Fixture, laws: &[Law]) {
     // The evidence the elaboration produced is a real derivation, not a
     // constant naming the conclusion.
     let term = elaboration.denotation.arena.get(evidence);
-    assert!(!matches!(
-        term,
-        crate::mathematical_core::Term::Constant { .. }
-    ));
+    assert!(!matches!(term, Term::Constant { .. }));
 }
 
 /// `n = (r + 64)·(−2)`, `d = 2r + 1`, `−1 ≤ r ≤ 0`: the `d = 0` case

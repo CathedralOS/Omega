@@ -1,6 +1,8 @@
 use crate::frozen_program::expression_table;
 use std::collections::{BTreeSet, HashSet};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::proposition::ProofSubstitutions;
+use typed_trees::trait_definition::Conformance;
 
 use diagnostics::Diagnostic;
 use typed_trees::domain::ProofFact;
@@ -233,9 +235,7 @@ fn intake_proof_output_propositions(
         {
             continue;
         }
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            expression_table(program).expression(package.call)
-        else {
+        let ExpressionNode::Call(call) = expression_table(program).expression(package.call) else {
             continue;
         };
         let Some(callee) = program.machine_by_own_or_state_symbol(call.target_symbol) else {
@@ -332,10 +332,7 @@ pub fn select_named_evidence_implementation<'program>(
     conformance_symbol: symbols::SymbolHandle,
     source_name: &str,
     expected_interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
-) -> Option<(
-    &'program typed_trees::trait_definition::Conformance,
-    symbols::SymbolHandle,
-)> {
+) -> Option<(&'program Conformance, symbols::SymbolHandle)> {
     let conformance = program.conformance_by_symbol(conformance_symbol)?;
     if conformance.alias.as_ref()?.as_str() != source_name {
         return None;

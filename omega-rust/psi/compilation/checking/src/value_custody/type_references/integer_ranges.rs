@@ -6,6 +6,7 @@
 //! intermediates and cannot supply that semantic fact. Consumers with bounded
 //! storage convert only the final value, without changing its denotation.
 
+use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -146,9 +147,7 @@ pub fn declared_integer_range(
     program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2], bool)> {
-    if program.arithmetic_domain_for_type_reference(type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
+    if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
         return None;
     }
     let mut endpoints = None;

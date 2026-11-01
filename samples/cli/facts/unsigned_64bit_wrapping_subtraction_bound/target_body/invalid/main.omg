@@ -2,56 +2,67 @@
 // Invalid: target bodies compute with lhs 121u64 and rhs 20u64, causing 100u64 - diff to underflow. Place: target_body.
 // Expected diagnostic: may overflow `u64`
 
-linux_x86_64 machine verify_target() -> i32 {
-    let lhs: u64 = 121u64;
-    let rhs: u64 = 20u64;
-    let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
-    let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
-    let diff: u64 = diff_wrap as u64;
-    let headroom: u64 = 100u64 - diff;
-    let margin: u64 = diff - 40u64;
-    0i32
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: u64 = 121u64;
-    let rhs: u64 = 20u64;
-    let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
-    let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
-    let diff: u64 = diff_wrap as u64;
-    let headroom: u64 = 100u64 - diff;
-    let margin: u64 = diff - 40u64;
-    0i32
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: u64 = 121u64;
-    let rhs: u64 = 20u64;
-    let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
-    let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
-    let diff: u64 = diff_wrap as u64;
-    let headroom: u64 = 100u64 - diff;
-    let margin: u64 = diff - 40u64;
-    0i32
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: u64 = 121u64;
-    let rhs: u64 = 20u64;
-    let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
-    let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
-    let diff: u64 = diff_wrap as u64;
-    let headroom: u64 = 100u64 - diff;
-    let margin: u64 = diff - 40u64;
-    0i32
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86VerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let lhs: u64 = 121u64;
+        let rhs: u64 = 20u64;
+        let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
+        let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
+        let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
+        let diff: u64 = diff_wrap as u64;
+        let headroom: u64 = 100u64 - diff;
+        let margin: u64 = diff - 40u64;
+        0i32
+    }
+}
+
+ArmVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let lhs: u64 = 121u64;
+        let rhs: u64 = 20u64;
+        let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
+        let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
+        let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
+        let diff: u64 = diff_wrap as u64;
+        let headroom: u64 = 100u64 - diff;
+        let margin: u64 = diff - 40u64;
+        0i32
+    }
 }
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {
@@ -61,4 +72,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

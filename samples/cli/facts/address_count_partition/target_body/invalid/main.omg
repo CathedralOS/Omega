@@ -14,52 +14,59 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
     }
 }
 data Pieces { left: Region in Owned; right: Region in Owned; }
-macos_arm64 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
-{
-    let left: Region in Owned = Region { base: whole.base, length: length };
-    let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
-    drop(whole);
-    Pieces { left: left, right: right }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
-{
-    let left: Region in Owned = Region { base: whole.base, length: length };
-    let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
-    drop(whole);
-    Pieces { left: left, right: right }
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_x86_64 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
-{
-    let left: Region in Owned = Region { base: whole.base, length: length };
-    let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
-    drop(whole);
-    Pieces { left: left, right: right }
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
-{
-    let left: Region in Owned = Region { base: whole.base, length: length };
-    let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
-    drop(whole);
-    Pieces { left: left, right: right }
+boundary trait SelectedSplit {
+    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left));
 }
+
+X86Split satisfies SelectedSplit {
+    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left))
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let left: Region in Owned = Region { base: whole.base, length: length };
+        let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
+        drop(whole);
+        Pieces { left: left, right: right }
+    }
+}
+
+ArmSplit satisfies SelectedSplit {
+    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left))
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let left: Region in Owned = Region { base: whole.base, length: length };
+        let right: Region in Owned = Region { base: whole.base + length, length: whole.length - length };
+        drop(whole);
+        Pieces { left: left, right: right }
+    }
+}
+
+
 machine main() crashes Trap {
     let whole: Region in Owned = Region { base: 10, length: 80 };
-    let pieces: Pieces = split(whole, 20, 100);
+    let pieces: Pieces = SelectedSplit::split(whole, 20, 100);
     let correct: bool = pieces.left.base == 10 && pieces.left.length == 20
         && pieces.right.base == 30 && pieces.right.length == 60;
     let { left, right } = pieces;
@@ -68,4 +75,12 @@ machine main() crashes Trap {
     transition correct { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

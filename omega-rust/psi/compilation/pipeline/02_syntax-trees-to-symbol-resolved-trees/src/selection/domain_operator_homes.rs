@@ -16,6 +16,10 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::DomainDefinition;
 
 use crate::symbols::NamespaceDeclarations;
+use std::mem::take;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::operator::OperatorDefinition;
+use symbol_resolved_trees::types::TypeReference;
 use symbols::JoinedPath;
 use symbols::same_semantic_name;
 
@@ -183,7 +187,7 @@ pub(crate) fn normalize_domain_operator_homes(
         .map(|domain| program.operator_definitions(domain.operators).to_vec())
         .collect::<Vec<_>>();
 
-    let authored_roots = std::mem::take(&mut program.operators);
+    let authored_roots = take(&mut program.operators);
     let mut remaining_roots = OrderedRootArena::new();
 
     for operator in &authored_roots {
@@ -332,7 +336,7 @@ fn explicit_domain_homes(
 fn inferred_domain_homes(
     program: &SymbolResolvedTrees,
     scope: &NamespaceScope,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
+    operator: &OperatorDefinition,
     domain_names: &[String],
     domain_modules: &[String],
     domain_paths: &[String],
@@ -355,7 +359,7 @@ fn inferred_domain_homes(
 fn collect_type_domain_homes(
     program: &SymbolResolvedTrees,
     scope: &NamespaceScope,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
+    type_reference: &TypeReference,
     domain_names: &[String],
     domain_modules: &[String],
     domain_paths: &[String],
@@ -364,6 +368,15 @@ fn collect_type_domain_homes(
     use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 
     match type_reference {
+        TypeReference::AliasUse { expansion, .. } => collect_type_domain_homes(
+            program,
+            scope,
+            expansion,
+            domain_names,
+            domain_modules,
+            domain_paths,
+            matches,
+        ),
         TypeReference::Reference(reference) => collect_type_domain_homes(
             program,
             scope,
@@ -445,8 +458,8 @@ fn collect_type_domain_homes(
 
 fn domain_accepts_carrier(
     program: &SymbolResolvedTrees,
-    domain: &symbol_resolved_trees::domain::DomainDefinition,
-    carrier: &symbol_resolved_trees::types::TypeReference,
+    domain: &DomainDefinition,
+    carrier: &TypeReference,
     argument_count: usize,
 ) -> bool {
     let parameters = program.data_type_parameters(domain.type_parameters);
@@ -456,24 +469,22 @@ fn domain_accepts_carrier(
     let Some(parameter) = parameters.first() else {
         return false;
     };
-    if !matches!(
-        parameter.kind,
-        symbol_resolved_trees::data::TypeParameterKind::Type
-    ) || argument_count != parameters.len().saturating_sub(1)
+    if !matches!(parameter.kind, TypeParameterKind::Type)
+        || argument_count != parameters.len().saturating_sub(1)
     {
         return false;
     }
     matches!(
         &domain.target_type,
-        symbol_resolved_trees::types::TypeReference::Named { name, .. }
+        TypeReference::Named { name, .. }
             if name.as_str() == parameter.name.as_str()
     )
 }
 
 fn type_references_match(
     program: &SymbolResolvedTrees,
-    left: &symbol_resolved_trees::types::TypeReference,
-    right: &symbol_resolved_trees::types::TypeReference,
+    left: &TypeReference,
+    right: &TypeReference,
 ) -> bool {
     use symbol_resolved_trees::types::TypeReference;
 
@@ -543,9 +554,6 @@ fn type_references_match(
     }
 }
 
-fn operator_label(
-    program: &SymbolResolvedTrees,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
-) -> String {
+fn operator_label(program: &SymbolResolvedTrees, operator: &OperatorDefinition) -> String {
     program.operator_path_string(operator.name)
 }

@@ -4,15 +4,18 @@
 //! `ByteContents` leaf; the destination and the `u8` value are resolved by
 //! the same owners as every other store.
 use super::super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode, Multiplicity,
-    TypeReferenceNode,
+    CheckedStructuralAccess as StructuralAccess, CheckedUnitEffectOperationPlan as OperationPlan,
+    ExpressionNode, Multiplicity,
 };
 use super::destination::Root;
 use super::value::{self, AssignmentSource};
+use crate::checks::current_scalar_values::byte_length_bound;
+use crate::checks::reference_access;
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::places::place_at;
+use crate::values::operator_is_builtin;
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned home.
 /// Replacing a byte observes the current length, so a borrowed root needs an
@@ -21,7 +24,7 @@ use crate::places::place_at;
 /// borrowing its backing does not turn it into an unqualified byte view.
 /// Entry, state and local owners retain their declared binding mutability;
 /// where the home was established does not change the byte operation.
-pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffectOperationPlan> {
+pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<OperationPlan> {
     let super::Occurrence {
         program,
         state,
@@ -64,8 +67,8 @@ pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEf
     };
     let carrier = byte_sequence_carrier(program, declared_type, &[])?;
     let writable = match access {
-        CheckedStructuralAccess::MutableBorrow => true,
-        CheckedStructuralAccess::Owned => {
+        StructuralAccess::MutableBorrow => true,
+        StructuralAccess::Owned => {
             mutable_owner
                 && matches!(
                     carrier,
@@ -92,9 +95,7 @@ pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEf
 }
 
 /// A whole borrowed owner retains its caller's capacity and qualifications.
-pub(super) fn whole_store(
-    site: &super::Site<'_, '_, '_>,
-) -> Option<CheckedUnitEffectOperationPlan> {
+pub(super) fn whole_store(site: &super::Site<'_, '_, '_>) -> Option<OperationPlan> {
     let super::Occurrence {
         program,
         facts,
@@ -115,7 +116,7 @@ pub(super) fn whole_store(
         Root::Parameter { plan, parameter } => {
             if !matches!(
                 plan.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || plan.multiplicity != Multiplicity::Unrestricted
                 || plan.binding_carrier.is_some()
             {
@@ -128,7 +129,7 @@ pub(super) fn whole_store(
             if !local.is_mutable
                 || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
                 || structural_access_for_type_reference(program, local.type_reference)
-                    != Some(CheckedStructuralAccess::Owned)
+                    != Some(StructuralAccess::Owned)
             {
                 return None;
             }
@@ -177,7 +178,7 @@ pub(super) fn field_store(
     carrier_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     field: &typed_trees::data::DataField,
     capacity: Option<u64>,
-) -> Option<CheckedUnitEffectOperationPlan> {
+) -> Option<OperationPlan> {
     let super::Occurrence {
         program,
         facts,
@@ -300,8 +301,8 @@ fn contents_store(
     root: checked_trees::CheckedStoreRoot,
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     value: checked_trees::CheckedByteSequenceValuePlan,
-) -> CheckedUnitEffectOperationPlan {
-    CheckedUnitEffectOperationPlan::new_store(
+) -> OperationPlan {
+    OperationPlan::new_store(
         statement_index,
         root,
         path,
@@ -346,7 +347,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
         }
         ExpressionNode::Binary(binary)
             if binary.operator == typed_trees::expression::BinaryOperator::Add
-                && crate::values::operator_is_builtin(operators, expression) =>
+                && operator_is_builtin(operators, expression) =>
         {
             if !domains.iter().all(|domain| {
                 validation::field_domains::domain_is_concat_preserving(program, *domain)
@@ -402,12 +403,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     capacity
                 }
                 checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. } => {
-                    crate::checks::current_scalar_values::byte_length_bound(
-                        program,
-                        state,
-                        statement_index as usize,
-                        expression,
-                    )?
+                    byte_length_bound(program, state, statement_index as usize, expression)?
                 }
             };
             let source_domains =
@@ -432,7 +428,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     if !matches!(
                         structural_access_for_type_reference(program, local.type_reference),
                         Some(
-                            CheckedStructuralAccess::Owned
+                            StructuralAccess::Owned
                                 | checked_trees::checked_borrowed_access_pair_pattern!()
                         )
                     ) {
@@ -444,7 +440,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     || !matches!(
                         structural_access_for_type_reference(program, type_reference),
                         Some(
-                            CheckedStructuralAccess::Owned
+                            StructuralAccess::Owned
                                 | checked_trees::checked_borrowed_access_pair_pattern!()
                         )
                     )
@@ -482,7 +478,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     .state_local_declaration(state, symbol)
                     .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
                 if structural_access_for_type_reference(program, local.type_reference)
-                    != Some(CheckedStructuralAccess::Owned)
+                    != Some(StructuralAccess::Owned)
                     || !validation::has_contents(
                         program,
                         local.type_reference,
@@ -529,19 +525,10 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
 /// while the Reference node still exists.
 pub(super) fn field_view_is_mutable(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            TypeReferenceNode::Reference { access, .. } => {
-                return *access == language_semantics::ReferenceAccess::Mutable;
-            }
-            _ => return false,
-        }
-    }
+    reference_access(program, type_reference)
+        .is_some_and(|access| access == language_semantics::ReferenceAccess::Mutable)
 }
 
 /// The index, value and decisions an indexed byte store evaluates against one
@@ -560,8 +547,8 @@ impl IndexedByte {
         statement_index: u32,
         root: checked_trees::CheckedStoreRoot,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    ) -> CheckedUnitEffectOperationPlan {
-        CheckedUnitEffectOperationPlan::new_store(
+    ) -> OperationPlan {
+        OperationPlan::new_store(
             statement_index,
             root,
             path,

@@ -5,8 +5,10 @@
 //! independent replay; dynamic ELF never acquires direct-image authority.
 
 use super::{DynamicElfNativeArtifact, NativeArtifact, NativeArtifactEmissionParts};
+use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
+use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
 /// Source-free native result selected by the exact object-bound image request.
 /// Dynamic ELF remains a separate, non-installable authority class.
@@ -29,12 +31,8 @@ impl RequestedNativeArtifact {
         published: crate::PublishedFragmentObject,
         image: ExecutableImageEmissionRequest,
         selected: &effects::SelectedProviderPlanFacts,
-        providers: terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders<
-            '_,
-        >,
-        boundary_application_coverage: Option<
-            boundary_applications::TerminalBoundaryApplicationCoverage,
-        >,
+        providers: AdmittedNativeProviders<'_>,
+        boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let terminal_authority_closure_review =
             providers.terminal_authority_closure_review().clone();

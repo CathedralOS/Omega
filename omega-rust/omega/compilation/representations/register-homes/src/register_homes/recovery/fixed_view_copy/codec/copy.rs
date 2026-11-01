@@ -1,12 +1,10 @@
-use register_model::RegisterViewId;
+use register_model::{RegisterViewId, encode_constraint_key};
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::{MachineId, ValueId};
 
 use crate::{FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination};
 
 use optimization_unit::encode_value_definition_site_identity;
-
-use register_model::encode_constraint_key;
 
 use super::{
     primitives::{Cursor, decode_id, decode_list, length},

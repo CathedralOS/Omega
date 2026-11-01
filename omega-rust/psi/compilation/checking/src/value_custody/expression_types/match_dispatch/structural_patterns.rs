@@ -7,9 +7,9 @@ use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
+use typed_trees::data::DataVariant;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionNode, MatchFieldAction, MatchPattern, TableBinaryExpression,
-    TableMatchExpression,
+    ExpressionNode, MatchFieldAction, MatchPattern, TableMatchExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -44,17 +44,19 @@ pub fn structural_match_pattern_case(
     };
     if let Some(name) = expression_table(program).name_path_node(head) {
         if name.symbol.is_valid() && program.symbols.get(name.symbol).kind == SymbolKind::Variant {
-            return crate::applied_case_membership_variant(
-                program,
-                machine,
-                Some(state),
-                head,
-                &TableBinaryExpression {
-                    left: dispatch.subject,
-                    operator: BinaryOperator::CaseMembership,
-                    right: head,
-                },
-            );
+            // A case pattern selects a declaration, not a Boolean operation.
+            // Authenticate the retained path and translate that selector only
+            // through this receiver's complete semantic application.
+            let owner = crate::exact_case_reference_owner(program, head)?;
+            return program
+                .data_constructor_case(
+                    program
+                        .type_reference_table
+                        .peeled_type_reference(reference),
+                    owner.symbol,
+                    name.symbol,
+                )
+                .map(|variant| variant.symbol);
         }
         // A record head names the subject's exact declaration. Case payloads
         // cannot be extracted under their sum owner without selecting a case.
@@ -90,7 +92,13 @@ pub fn structural_match_pattern_case(
             .struct_fields(literal.fields)
             .is_empty()
         && let Some(case) = literal.case_symbol
-        && let Some(selected) = program.data_constructor_case(reference, literal.type_symbol, case)
+        && let Some(selected) = program.data_constructor_case(
+            program
+                .type_reference_table
+                .peeled_type_reference(reference),
+            literal.type_symbol,
+            case,
+        )
         && selected.payload.is_empty()
     {
         return Some(selected.symbol);
@@ -266,6 +274,7 @@ pub(super) fn validate(
 pub fn structural_match_cases_are_covered(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     cases: &[SymbolHandle],
 ) -> bool {
     let Some(data) = crate::value_custody::places::data_definition_for_type(program, reference)
@@ -281,7 +290,12 @@ pub fn structural_match_cases_are_covered(
         return cases.contains(&SymbolHandle::invalid());
     }
     variants
-        .filter(|variant| !variant_is_impossible(program, variant))
+        .filter(|variant| {
+            !variant_is_impossible(program, variant)
+                && program
+                    .admitted_match_cases(expression)
+                    .is_none_or(|cases| cases.contains(&variant.symbol))
+        })
         .all(|variant| cases.contains(&variant.symbol))
 }
 
@@ -290,10 +304,7 @@ pub fn structural_match_cases_are_covered(
 /// authored `where false` -- can never be established, so it is not an
 /// obligation the match must cover. Facts needing evaluation are not
 /// contradictions and stay counted.
-fn variant_is_impossible(
-    program: &dyn crate::CheckingInput,
-    variant: &typed_trees::data::DataVariant,
-) -> bool {
+fn variant_is_impossible(program: &dyn crate::CheckingInput, variant: &DataVariant) -> bool {
     program
         .proof_facts
         .span_or_empty(variant.where_facts)

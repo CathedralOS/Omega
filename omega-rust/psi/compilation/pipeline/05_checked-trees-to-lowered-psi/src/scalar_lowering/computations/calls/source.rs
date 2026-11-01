@@ -63,6 +63,11 @@ impl<'a> Expansion<'a> {
                 let (_, retained) = origin
                     .declaration(plan, self.machine, site.state)
                     .map_err(LoweringError::Unsupported)?;
+                let (observation_block, observation) =
+                    self.declaration_observation
+                        .ok_or(LoweringError::Unsupported(
+                            "declaration invocation has no captured observation scope",
+                        ))?;
                 Ok(CallSource {
                     expression,
                     arguments: plan
@@ -75,11 +80,8 @@ impl<'a> Expansion<'a> {
                         state: site.state,
                         application,
                         call,
-                        observation: self.declaration_observation.ok_or(
-                            LoweringError::Unsupported(
-                                "declaration invocation has no captured observation scope",
-                            ),
-                        )?,
+                        observation_block,
+                        observation,
                     },
                 })
             }

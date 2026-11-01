@@ -12,6 +12,7 @@ use crate::preparation::declaration_selection::{
 use crate::tables::syntax_type_references;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -268,11 +269,19 @@ pub(crate) fn pending_const_initializer_leaves(
                     ),
                 }
             }
-            // A constrained carrier keeps its declared constraints for
-            // downstream discharge; the leaf itself evaluates at the base
-            // carrier, matching canonicalization's `Constrained` recursion.
+            // Scalar leaves use the base carrier's evaluator. A complete
+            // structured computation must instead return its exact qualified
+            // destination: erasing that type here would make the probe forget
+            // the very membership its authored cast or call establishes.
             TypeReferenceNode::Constrained { base_type, .. } => {
-                collect(syntax, selection, expression, *base_type, substitution, leaves)
+                let start = leaves.len();
+                collect(syntax, selection, expression, *base_type, substitution, leaves)?;
+                for leaf in &mut leaves[start..] {
+                    if leaf.structured && leaf.expression == expression {
+                        leaf.destination = type_reference;
+                    }
+                }
+                Ok(())
             }
             _ => Err(
                 "computed constant requires a closed array, nominal literal, or builtin scalar carrier"
@@ -281,7 +290,7 @@ pub(crate) fn pending_const_initializer_leaves(
         }
     }
 
-    /// A call, match, or evaluated constant reference is one structured leaf at
+    /// A call, match, cast, or evaluated constant reference is one structured leaf at
     /// a closed destination: the checked interpreter supplies its result and
     /// admission checks it against the exact destination carrier. A bare case
     /// or an unresolved spelling is not this leaf and keeps its literal route.
@@ -291,7 +300,7 @@ pub(crate) fn pending_const_initializer_leaves(
         expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Call(_) | ExpressionNode::Match(_) => true,
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) | ExpressionNode::Cast(_) => true,
             ExpressionNode::Name(path) => name_selects_const(syntax, selection, *path),
             _ => false,
         }
@@ -309,6 +318,55 @@ pub(crate) fn pending_const_initializer_leaves(
         });
     }
 
+    // Materialization can spell the prepared closed instance while this
+    // receiver still owns the generic template and its complete substitution.
+    // Rejoin the producer's exact template/argument identity; neither pointer
+    // equality nor a generated instance name describes that semantic join.
+    fn same_constructor_application(
+        syntax: &SyntaxTrees,
+        selection: &crate::preparation::declaration_selection::ConstantSelection,
+        declared: &DataDefinition,
+        constructed: &DataDefinition,
+        substitution: &GenericApplicationSubstitution,
+    ) -> bool {
+        use crate::preparation::generic_data::{
+            ClosedArgumentIdentity, closed_argument_identity, closed_parameter_argument_identity,
+        };
+        if std::ptr::eq(declared, constructed) {
+            return true;
+        }
+        let Some(origin) = constructed.generic_instance else {
+            return false;
+        };
+        let Some(ClosedArgumentIdentity::Instance(template, actual)) =
+            closed_argument_identity(syntax, Some(selection), origin, false)
+        else {
+            return false;
+        };
+        if !syntax
+            .root_item(template)
+            .as_data()
+            .is_some_and(|template| std::ptr::eq(template, declared))
+        {
+            return false;
+        }
+        let expected = syntax
+            .items
+            .type_parameters(declared.type_parameters)
+            .iter()
+            .map(|parameter| {
+                let argument = *substitution.get(parameter.name.as_str(syntax))?;
+                closed_parameter_argument_identity(
+                    syntax,
+                    Some(selection),
+                    argument,
+                    &parameter.kind,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        expected.as_ref() == Some(&actual)
+    }
+
     fn collect_literal_fields(
         syntax: &SyntaxTrees,
         selection: &crate::preparation::declaration_selection::ConstantSelection,
@@ -318,7 +376,7 @@ pub(crate) fn pending_const_initializer_leaves(
         leaves: &mut Vec<PendingConstInitializerLeaf>,
     ) -> Result<(), String> {
         let (constructed, case) = selection.constructor(syntax, &literal.constructor_name)?;
-        if !std::ptr::eq(declared, constructed) {
+        if !same_constructor_application(syntax, selection, declared, constructed, substitution) {
             return Err(
                 "computed constant constructor differs from its declared nominal carrier"
                     .to_owned(),
@@ -422,7 +480,7 @@ pub(crate) fn pending_const_initializer_leaves(
 fn require_closed_data<'syntax>(
     selection: &crate::preparation::declaration_selection::ConstantSelection,
     syntax: &'syntax SyntaxTrees,
-    name: &syntax_trees::identifier::Identifier,
+    name: &Identifier,
 ) -> Result<&'syntax syntax_trees::item::DataDefinition, String> {
     let declared = selection.data(syntax, name)?;
     if !declared.type_parameters.is_empty() || !declared.lifetime_parameters.is_empty() {
@@ -437,7 +495,7 @@ fn require_closed_data<'syntax>(
 fn name_selects_const(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::declaration_selection::ConstantSelection,
-    path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    path: arena::HandleSpan<Identifier>,
 ) -> bool {
     let members = syntax.expressions.identifier_path_members(path);
     let (Some(first), Some(last)) = (members.first(), members.last()) else {
@@ -448,8 +506,5 @@ fn name_selects_const(
         Span::new(first.source_span().span.start, last.source_span().span.end),
     );
     let name = members.joined_path_in(syntax);
-    selection.selects_const(
-        syntax,
-        &syntax_trees::identifier::Identifier::new(name, reference),
-    )
+    selection.selects_const(syntax, &Identifier::new(name, reference))
 }

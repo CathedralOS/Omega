@@ -97,3 +97,15 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` binds across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`); unsigned 16-bit integers (`u16` / `u16 in Wrapping`) settle into 2-byte layouts (`size_of = 2`, `align_of = 2`) with parameters in 16-bit register lanes (`CX`/`DX` on Windows `x86_64`, `DI`/`SI` on Linux `x86_64`, `W0`/`W1` on `arm64`) and return values in `AX` / `W0` ([calling plans](../../../../wiki/spec/build/calling_plans.md), [layout plans](../../../../wiki/spec/layouts/plans.md)).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** On `x86_64`, backend lowering selects 16-bit `add` instructions on 16-bit register halves (`ax`, `cx`, `dx`) or zero-extended 32-bit registers, relying on hardware modular arithmetic; on `arm64`, 32-bit `add` on `W` registers with 16-bit halfword truncation/masking (`uxth`). Register homes and activation frames stay within the `StatePlan` ceiling ([storage](../../../../wiki/spec/resources/storage.md), [machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md)).
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O image emission resolves all displacements, emits valid native machine code, and executes with exit code 0 matching Terminal Psi simulation (`omega run --both` `native exit 0` and `interp exit: 0`) across all hosted targets ([executable installation](../../../../wiki/spec/build/executable_installation.md)).
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

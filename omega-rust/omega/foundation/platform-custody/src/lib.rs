@@ -15,9 +15,7 @@ pub mod lock_file;
 pub mod record_file;
 pub mod temporary_directory;
 
-use std::fs::File;
-use std::io;
-use std::path::Path;
+use std::{fs::File, io, path::Path};
 
 /// Whether an ACL query follows a symbolic link or inspects the link itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,9 +200,7 @@ mod platform {
 #[cfg(not(target_os = "macos"))]
 mod platform {
     use super::SymbolicLinkBehavior;
-    use std::fs::File;
-    use std::io;
-    use std::path::Path;
+    use std::{fs::File, io, path::Path};
 
     pub(super) fn extended_acl_has_allow_entry(
         _path: &Path,
@@ -226,9 +222,7 @@ mod platform {
 
 #[cfg(unix)]
 mod link_custody {
-    use std::io;
-    use std::os::unix::fs::MetadataExt;
-    use std::path::Path;
+    use std::{io, os::unix::fs::MetadataExt, path::Path};
 
     pub(super) fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
         let metadata = path.metadata()?;
@@ -313,8 +307,7 @@ mod link_custody {
 
 #[cfg(not(any(unix, windows)))]
 mod link_custody {
-    use std::io;
-    use std::path::Path;
+    use std::{io, path::Path};
 
     pub(super) fn has_single_hard_link(_path: &Path) -> io::Result<bool> {
         Err(io::Error::new(

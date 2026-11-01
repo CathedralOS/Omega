@@ -5,6 +5,7 @@
 //! the conversion's own bound instead of dissolving into the destination's
 //! carrier or vanishing entirely. A step that cannot describe a normal-return
 //! value fails the capture, never a widened guess.
+use super::captured::CapturedValue;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::IntegerRange;
 use typed_trees::types::PrimitiveType;
@@ -36,17 +37,14 @@ pub(super) enum ConversionKind {
 
 impl SelectedCall<'_> {
     /// Fold the captured call result through each authored conversion.
-    pub(super) fn convert<Value: super::captured::CapturedValue>(
-        &self,
-        value: Value,
-    ) -> Option<Value> {
+    pub(super) fn convert<Value: CapturedValue>(&self, value: Value) -> Option<Value> {
         convert_through(&self.conversions, value)
     }
 }
 
 /// The authored-conversion fold both selected operands share: peel each
 /// conversion in order, failing on the first that cannot apply.
-fn convert_through<Value: super::captured::CapturedValue>(
+fn convert_through<Value: CapturedValue>(
     conversions: &[SelectedConversion],
     mut value: Value,
 ) -> Option<Value> {
@@ -68,10 +66,7 @@ pub(super) struct SelectedOperand {
 }
 
 impl SelectedOperand {
-    pub(super) fn convert<Value: super::captured::CapturedValue>(
-        &self,
-        value: Value,
-    ) -> Option<Value> {
+    pub(super) fn convert<Value: CapturedValue>(&self, value: Value) -> Option<Value> {
         convert_through(&self.conversions, value)
     }
 }

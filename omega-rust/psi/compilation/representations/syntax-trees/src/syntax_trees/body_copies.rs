@@ -3,9 +3,11 @@
 
 use super::item_copies::SyntaxCopy;
 use crate::expression::{
-    ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableStructLiteral,
-    TableStructLiteralField,
+    ExpressionHandle, ExpressionNode, MatchPattern, MatchSubjectCapture, StaticMachineArgument,
+    TableAtomicExpression, TableBinaryExpression, TableBorrowExpression, TableCallExpression,
+    TableCastExpression, TableDestructurePattern, TableIndexedExpression, TableMatchArm,
+    TableMatchExpression, TableMemberExpression, TableMembershipExpression, TableRangeExpression,
+    TableSavedSubject, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
 };
 use crate::identifier::Identifier;
 use crate::item::{
@@ -13,11 +15,15 @@ use crate::item::{
     StateSignatureHandle,
 };
 use crate::statement::{
-    StatementHandle, StatementNode, TableAssemblyFact, TableAssignment, TableCall, TableLocalData,
-    TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    AssemblyBlock, AssemblyControlFlow, RootBinding, StatementHandle, StatementNode,
+    TableAssemblyFact, TableAssignment, TableCall, TableLocalData,
+    TableProofOutputBindingStatement, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
-use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use crate::types::{
+    DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use arena::{Handle, HandleSpan};
 
 /// `StateSignature` assembly shared by the signature copy entrances: one row
@@ -55,8 +61,8 @@ impl SyntaxCopy<'_> {
     pub fn copy_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
-        argument: &crate::expression::StaticMachineArgument,
-    ) -> crate::expression::StaticMachineArgument {
+        argument: &StaticMachineArgument,
+    ) -> StaticMachineArgument {
         let mut copied = argument.clone();
         self.remap_static_machine_argument(other, &mut copied);
         copied
@@ -65,7 +71,7 @@ impl SyntaxCopy<'_> {
     pub(super) fn remap_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
-        argument: &mut crate::expression::StaticMachineArgument,
+        argument: &mut StaticMachineArgument,
     ) {
         argument.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
         if let Some(application) = &mut argument.application {
@@ -127,7 +133,7 @@ impl SyntaxCopy<'_> {
     pub(crate) fn copy_state_signature(
         &mut self,
         other: &SyntaxTrees,
-        signature: &crate::item::StateSignature,
+        signature: &StateSignature,
     ) -> StateSignature {
         copied_state_signature!(self, other, signature)
     }
@@ -207,7 +213,7 @@ impl SyntaxCopy<'_> {
                                 self.statements.insert(statement)
                             })
                             .collect();
-                        crate::statement::AssemblyBlock {
+                        AssemblyBlock {
                             label: block.label.clone(),
                             requires: self.statements.insert_assembly_expressions(requires),
                             ensures: self.statements.insert_assembly_expressions(ensures),
@@ -232,23 +238,19 @@ impl SyntaxCopy<'_> {
                     }
                 }
                 let blocks = self.statements.insert_assembly_blocks(blocks);
-                StatementNode::Assembly(self.statements.insert_assembly(
-                    crate::statement::AssemblyControlFlow {
-                        target_requirement: graph.target_requirement,
-                        blocks,
-                        scratch,
-                        primitives,
-                    },
-                ))
+                StatementNode::Assembly(self.statements.insert_assembly(AssemblyControlFlow {
+                    target_requirement: graph.target_requirement,
+                    blocks,
+                    scratch,
+                    primitives,
+                }))
             }
-            StatementNode::RootBinding(binding) => {
-                StatementNode::RootBinding(crate::statement::RootBinding {
-                    receiver: self.copy_expression_handle(other, binding.receiver),
-                    implementation_operand: self
-                        .copy_expression_handle(other, binding.implementation_operand),
-                    ..binding.clone()
-                })
-            }
+            StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
+                receiver: self.copy_expression_handle(other, binding.receiver),
+                implementation_operand: self
+                    .copy_expression_handle(other, binding.implementation_operand),
+                ..binding.clone()
+            }),
             StatementNode::AssemblyFact(fact) => StatementNode::AssemblyFact(TableAssemblyFact {
                 kind: fact.kind,
                 expression: self.copy_expression_handle(other, fact.expression),
@@ -272,12 +274,10 @@ impl SyntaxCopy<'_> {
                 discards_result: call.discards_result,
             }),
             StatementNode::ProofOutputBindingStatement(binding) => {
-                StatementNode::ProofOutputBindingStatement(
-                    crate::statement::TableProofOutputBindingStatement {
-                        bindings: binding.bindings.clone(),
-                        call: self.copy_expression_handle(other, binding.call),
-                    },
-                )
+                StatementNode::ProofOutputBindingStatement(TableProofOutputBindingStatement {
+                    bindings: binding.bindings.clone(),
+                    call: self.copy_expression_handle(other, binding.call),
+                })
             }
             StatementNode::Expression(value) => {
                 StatementNode::Expression(self.copy_expression_handle(other, *value))
@@ -352,6 +352,36 @@ impl SyntaxCopy<'_> {
             return TypeReferenceHandle::invalid();
         }
 
+        if let Some(actual) = self
+            .type_substitutions
+            .iter()
+            .find_map(|(source, actual)| (*source == handle).then_some(*actual))
+        {
+            let origins = other
+                .type_references
+                .type_alias_applications(handle)
+                .cloned()
+                .collect::<Vec<_>>();
+            if origins.is_empty() {
+                self.supplied_type_copies.push(actual);
+                return actual;
+            }
+            let copied = self.type_references.fresh_type_occurrence(actual);
+            for origin in origins {
+                let application = self.copy_type_reference_handle(other, origin.application);
+                self.type_references.retain_type_alias_application(
+                    crate::types::TypeAliasApplicationOrigin {
+                        instance: copied,
+                        application,
+                        declaration: origin.declaration,
+                        definition_references: origin.definition_references.clone(),
+                    },
+                );
+            }
+            self.supplied_type_copies.push(copied);
+            return copied;
+        }
+
         let copied = match other.type_references.type_reference(handle) {
             TypeReferenceNode::Reference {
                 referee,
@@ -359,11 +389,11 @@ impl SyntaxCopy<'_> {
                 lifetime,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
-                self.type_references.insert_reference_with_lifetime(
-                    referee,
-                    *access,
-                    lifetime.clone(),
-                )
+                let lifetime = lifetime
+                    .as_ref()
+                    .map(|name| self.copied_lifetime(other, name));
+                self.type_references
+                    .insert_reference_with_lifetime(referee, *access, lifetime)
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -385,6 +415,14 @@ impl SyntaxCopy<'_> {
                             self.copy_type_reference_handle(other, *use_type),
                         )
                     }
+                    crate::types::FixedArrayLength::ConstParameter(name) => self
+                        .array_length_substitutions
+                        .iter()
+                        .find_map(|(span, spelling, actual)| {
+                            (*span == name.source_span() && spelling == name.as_str(other))
+                                .then_some(crate::types::FixedArrayLength::Expression(*actual))
+                        })
+                        .unwrap_or_else(|| length.clone()),
                     length => length.clone(),
                 };
                 self.type_references
@@ -400,9 +438,13 @@ impl SyntaxCopy<'_> {
                 arguments,
             } => {
                 let arguments = self.copy_type_reference_handle_span(other, *arguments);
+                let lifetime_arguments = lifetime_arguments
+                    .iter()
+                    .map(|name| self.copied_lifetime(other, name))
+                    .collect();
                 self.type_references.insert(TypeReferenceNode::Generic {
                     base_name: base_name.clone(),
-                    lifetime_arguments: lifetime_arguments.clone(),
+                    lifetime_arguments,
                     arguments,
                 })
             }
@@ -425,6 +467,10 @@ impl SyntaxCopy<'_> {
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
+        if self.retain_alias_header_role && other.type_references.is_alias_header_reference(handle)
+        {
+            self.type_references.retain_alias_header_reference(copied);
+        }
         for pending in other.type_references.pending_const_arguments(handle) {
             self.type_references
                 .retain_pending_const_argument(copied, pending);
@@ -483,6 +529,17 @@ impl SyntaxCopy<'_> {
             self.type_references
                 .retain_generic_application_origin(copied, application);
         }
+        for origin in other.type_references.type_alias_applications(handle) {
+            let application = self.copy_type_reference_handle(other, origin.application);
+            self.type_references.retain_type_alias_application(
+                crate::types::TypeAliasApplicationOrigin {
+                    instance: copied,
+                    application,
+                    declaration: origin.declaration,
+                    definition_references: origin.definition_references.clone(),
+                },
+            );
+        }
         copied
     }
 
@@ -512,7 +569,7 @@ impl SyntaxCopy<'_> {
             |this, constraint| match constraint {
                 TypeConstraintNode::Named(name) => TypeConstraintNode::Named(name.clone()),
                 TypeConstraintNode::Domain(domain) => {
-                    TypeConstraintNode::Domain(crate::types::DomainConstraint {
+                    TypeConstraintNode::Domain(DomainConstraint {
                         name: domain.name.clone(),
                         arguments: this.copy_type_reference_handle_span(other, domain.arguments),
                     })
@@ -537,8 +594,8 @@ impl SyntaxCopy<'_> {
     fn copy_match_subject(
         &mut self,
         other: &SyntaxTrees,
-        capture: Handle<crate::expression::MatchSubjectCapture>,
-    ) -> Handle<crate::expression::MatchSubjectCapture> {
+        capture: Handle<MatchSubjectCapture>,
+    ) -> Handle<MatchSubjectCapture> {
         if !capture.is_valid() {
             return Handle::invalid();
         }
@@ -562,8 +619,8 @@ impl SyntaxCopy<'_> {
     fn copy_destructure_pattern(
         &mut self,
         other: &SyntaxTrees,
-        pattern: crate::expression::TableDestructurePattern,
-    ) -> crate::expression::TableDestructurePattern {
+        pattern: TableDestructurePattern,
+    ) -> TableDestructurePattern {
         use crate::expression::{MatchFieldAction, TableMatchField};
         let head = self.copy_expression_handle(other, pattern.head);
         let fields = other
@@ -590,7 +647,7 @@ impl SyntaxCopy<'_> {
                 .iter()
                 .cloned(),
         );
-        crate::expression::TableDestructurePattern {
+        TableDestructurePattern {
             head,
             fields,
             has_rest: pattern.has_rest,
@@ -608,6 +665,14 @@ impl SyntaxCopy<'_> {
             return ExpressionHandle::invalid();
         }
 
+        if let Some((_, actual)) = self
+            .expression_substitutions
+            .iter()
+            .find(|(source, _)| *source == handle)
+        {
+            return *actual;
+        }
+
         let source_position = handle.arena_index() as usize;
         if let Some((source, copied)) = self.expression_copies.get(source_position)
             && *source == handle
@@ -623,36 +688,30 @@ impl SyntaxCopy<'_> {
                     Vec::with_capacity(other.expressions.match_arms(dispatch.arms).len());
                 for arm in other.expressions.match_arms(dispatch.arms) {
                     let pattern = match arm.pattern {
-                        crate::expression::MatchPattern::Value(value) => {
-                            crate::expression::MatchPattern::Value(
-                                self.copy_expression_handle(other, value),
-                            )
+                        MatchPattern::Value(value) => {
+                            MatchPattern::Value(self.copy_expression_handle(other, value))
                         }
-                        crate::expression::MatchPattern::Wildcard => {
-                            crate::expression::MatchPattern::Wildcard
-                        }
-                        crate::expression::MatchPattern::Destructure(pattern) => {
-                            crate::expression::MatchPattern::Destructure(
-                                self.copy_destructure_pattern(other, pattern),
-                            )
+                        MatchPattern::Wildcard => MatchPattern::Wildcard,
+                        MatchPattern::Destructure(pattern) => {
+                            MatchPattern::Destructure(self.copy_destructure_pattern(other, pattern))
                         }
                     };
                     let value = self.copy_expression_handle(other, arm.value);
-                    arms.push(crate::expression::TableMatchArm {
+                    arms.push(TableMatchArm {
                         pattern,
                         value,
                         source_span: arm.source_span,
                     });
                 }
                 let arms = self.expressions.insert_match_arms(arms);
-                ExpressionNode::Match(crate::expression::TableMatchExpression {
+                ExpressionNode::Match(TableMatchExpression {
                     subject,
                     capture,
                     arms,
                 })
             }
             ExpressionNode::SavedSubject(saved) => {
-                ExpressionNode::SavedSubject(crate::expression::TableSavedSubject {
+                ExpressionNode::SavedSubject(TableSavedSubject {
                     capture: self.copy_match_subject(other, saved.capture),
                     pattern_head: self.copy_expression_handle(other, saved.pattern_head),
                 })
@@ -660,18 +719,16 @@ impl SyntaxCopy<'_> {
             ExpressionNode::ArrayLiteral(values) => {
                 ExpressionNode::ArrayLiteral(self.copy_expression_handle_list(other, *values))
             }
-            ExpressionNode::Atomic(atomic) => {
-                ExpressionNode::Atomic(crate::expression::TableAtomicExpression {
-                    value: self.copy_expression_handle(other, atomic.value),
-                    result: if atomic.result.is_valid() {
-                        self.copy_expression_handle(other, atomic.result)
-                    } else {
-                        ExpressionHandle::invalid()
-                    },
-                    ordering: atomic.ordering,
-                    result_custody: atomic.result_custody,
-                })
-            }
+            ExpressionNode::Atomic(atomic) => ExpressionNode::Atomic(TableAtomicExpression {
+                value: self.copy_expression_handle(other, atomic.value),
+                result: if atomic.result.is_valid() {
+                    self.copy_expression_handle(other, atomic.result)
+                } else {
+                    ExpressionHandle::invalid()
+                },
+                ordering: atomic.ordering,
+                result_custody: atomic.result_custody,
+            }),
             ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
                 left: self.copy_expression_handle(other, binary.left),
                 operator: binary.operator,
@@ -709,7 +766,7 @@ impl SyntaxCopy<'_> {
             }),
             ExpressionNode::Integer(value) => ExpressionNode::Integer(value.clone()),
             ExpressionNode::Membership(membership) => {
-                ExpressionNode::Membership(crate::expression::TableMembershipExpression {
+                ExpressionNode::Membership(TableMembershipExpression {
                     value: self.copy_expression_handle(other, membership.value),
                     domain: self.copy_expression_identifier_span(other, membership.domain),
                 })
@@ -720,22 +777,18 @@ impl SyntaxCopy<'_> {
                 member: member.member.clone(),
                 case_variant: member.case_variant.clone(),
             }),
-            ExpressionNode::Borrow(expression) => {
-                ExpressionNode::Borrow(crate::expression::TableBorrowExpression {
-                    target: self.copy_expression_handle(other, expression.target),
-                    access: expression.access,
-                })
-            }
+            ExpressionNode::Borrow(expression) => ExpressionNode::Borrow(TableBorrowExpression {
+                target: self.copy_expression_handle(other, expression.target),
+                access: expression.access,
+            }),
             ExpressionNode::Name(path) => {
                 ExpressionNode::Name(self.copy_expression_identifier_span(other, *path))
             }
-            ExpressionNode::Range(range) => {
-                ExpressionNode::Range(crate::expression::TableRangeExpression {
-                    start: self.copy_expression_handle(other, range.start),
-                    end: self.copy_expression_handle(other, range.end),
-                    end_inclusive: range.end_inclusive,
-                })
-            }
+            ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {
+                start: self.copy_expression_handle(other, range.start),
+                end: self.copy_expression_handle(other, range.end),
+                end_inclusive: range.end_inclusive,
+            }),
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
                     constructor_name: struct_literal.constructor_name.clone(),
@@ -745,7 +798,7 @@ impl SyntaxCopy<'_> {
             ExpressionNode::String(value) => ExpressionNode::String(value.clone()),
             ExpressionNode::Unary(unary) => {
                 let operand = self.copy_expression_handle(other, unary.operand);
-                ExpressionNode::Unary(crate::expression::TableUnaryExpression {
+                ExpressionNode::Unary(TableUnaryExpression {
                     operator: unary.operator,
                     operand,
                 })

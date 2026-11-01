@@ -9,8 +9,11 @@
 //! contract. Unresolved calls supply no denotational authority.
 
 use crate::frozen_program::expression_table;
+use numerics::float_projection::FloatProjectionOperation;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
 
 mod normal_return;
 mod requirement_satisfiers;
@@ -64,7 +67,7 @@ pub(crate) fn abstract_value_call_signature(
 /// termination facts; conditional runtime result capture has a different owner.
 pub fn checked_value_call_candidate(
     program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     state: &typed_trees::state::State,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -88,7 +91,7 @@ pub fn checked_value_call_candidate(
 
 fn unchecked_value_call_candidate(
     program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     state: &typed_trees::state::State,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -172,7 +175,7 @@ fn each_reachable_checked_machine(
     program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
-    admits: impl Fn(&dyn crate::CheckingInput, &typed_trees::machine::Machine) -> bool,
+    admits: impl Fn(&dyn crate::CheckingInput, &Machine) -> bool,
 ) -> bool {
     let mut pending = vec![machine_symbol];
     let mut visited = Vec::new();
@@ -354,67 +357,41 @@ fn expression_is_fact_observation_free(
     expression: ExpressionHandle,
     internal_borrow: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    let node = expression_table(program).expression(expression);
-    let allowed = match node {
-        ExpressionNode::Match(dispatch) => {
-            crate::expression_traversal::match_children(program, *dispatch)
-                .all(|child| expression_is_fact_observation_free(program, child, internal_borrow))
-        }
-        ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) => false,
-        ExpressionNode::Borrow(borrow) => {
-            borrow.access == language_semantics::ReferenceAccess::Shared
-                && internal_borrow(expression)
-                && expression_is_fact_observation_free(program, borrow.target, internal_borrow)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_is_fact_observation_free(program, binary.left, internal_borrow)
-                && expression_is_fact_observation_free(program, binary.right, internal_borrow)
-        }
-        ExpressionNode::Cast(cast) => {
-            expression_is_fact_observation_free(program, cast.value, internal_borrow)
-        }
-        ExpressionNode::Call(call) => {
-            // A retained declaration qualifier is not a storage observation.
-            // Rejoin it to the exact selected target through the shared call
-            // owner; declaration spelling or namespace kind alone is no proof.
-            (!call.receiver.is_valid() || program.call_has_no_runtime_receiver_for_target(call))
-                && expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| {
-                        expression_is_fact_observation_free(program, *argument, internal_borrow)
-                    })
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_fact_observation_free(program, indexed.collection, internal_borrow)
-                && expression_is_fact_observation_free(program, indexed.index, internal_borrow)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_fact_observation_free(program, member.receiver, internal_borrow)
-        }
-        ExpressionNode::Range(range) => {
-            expression_is_fact_observation_free(program, range.start, internal_borrow)
-                && expression_is_fact_observation_free(program, range.end, internal_borrow)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| {
-                expression_is_fact_observation_free(program, field.value, internal_borrow)
-            }),
-        ExpressionNode::Unary(unary) => {
-            expression_is_fact_observation_free(program, unary.operand, internal_borrow)
-        }
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_fact_observation_free(program, *value, internal_borrow)),
-        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => true,
-    };
-    if !allowed && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!("DENOTATION observation expression={expression:?} node={node:?}",);
-    }
-    allowed
+    use typed_trees::SubtreeVisit;
+    !program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |handle, node| {
+            let visit = match node {
+                ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) => SubtreeVisit::Found,
+                ExpressionNode::Borrow(borrow)
+                    if borrow.access != language_semantics::ReferenceAccess::Shared
+                        || !internal_borrow(handle) =>
+                {
+                    SubtreeVisit::Found
+                }
+                // A retained declaration qualifier is not a storage observation.
+                // Rejoin it to the exact selected target through the shared call
+                // owner; declaration spelling or namespace kind alone is no proof.
+                ExpressionNode::Call(call)
+                    if call.receiver.is_valid()
+                        && !program.call_has_no_runtime_receiver_for_target(call) =>
+                {
+                    SubtreeVisit::Found
+                }
+                ExpressionNode::Call(call) => SubtreeVisit::InsteadEach(
+                    expression_table(program)
+                        .expression_handles(call.arguments)
+                        .to_vec(),
+                ),
+                _ => SubtreeVisit::Descend,
+            };
+            if visit == SubtreeVisit::Found && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!("DENOTATION observation expression={handle:?} node={node:?}",);
+            }
+            visit
+        },
+    )
 }
 
 pub(crate) fn unconditionally_terminates(
@@ -616,7 +593,7 @@ pub(crate) fn has_no_crash_routes(
 
 fn complete_family_members<'program>(
     program: &'program dyn crate::CheckingInput,
-    interface: &typed_trees::machine::Machine,
+    interface: &Machine,
 ) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
     let members = super::calls::target_family_members(program, interface)?;
     for member in members {
@@ -639,17 +616,12 @@ fn complete_family_members<'program>(
 pub(crate) fn selected_operator_authored_body<'program>(
     program: &'program dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
-) -> Option<(
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
-)> {
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
     if operator.is_boundary
-        || program.operator_contracts(operator).iter().any(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Crashes { .. }
-            )
-        })
+        || program
+            .operator_contracts(operator)
+            .iter()
+            .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
     {
         return None;
     }
@@ -675,21 +647,21 @@ pub fn selected_operator_has_closed_value_denotation(
     // A published crash ceiling describes possible abnormal completion, not
     // a total proof value. Closed kernel result equations describe normal
     // results only and cannot erase that separate selected interface effect.
-    if program.operator_contracts(operator).iter().any(|contract| {
-        matches!(
-            contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
-        )
-    }) || program.machine(operator.symbol).is_some_and(|machine| {
-        machine.suspends
-            || machine.blocks
-            || program.machine_declares_crash(machine)
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty()
-            || !program.machine_owned_data(machine).is_empty()
-    }) {
+    if program
+        .operator_contracts(operator)
+        .iter()
+        .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+        || program.machine(operator.symbol).is_some_and(|machine| {
+            machine.suspends
+                || machine.blocks
+                || program.machine_declares_crash(machine)
+                || !program
+                    .service_reach_rows
+                    .services(machine.service_reach_row)
+                    .is_empty()
+                || !program.machine_owned_data(machine).is_empty()
+        })
+    {
         return false;
     }
     if program
@@ -712,10 +684,7 @@ pub fn selected_operator_has_closed_value_denotation(
     let path = program.operator_path_members(operator.name);
     if let [namespace, name] = path
         && let Some(projection) =
-            numerics::float_projection::FloatProjectionOperation::from_source_identity(
-                namespace.as_str(),
-                name.as_str(),
-            )
+            FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())
         && float_projection_bindings::exact_toolchain_float_projection_primitive(
             program, operator, projection,
         )

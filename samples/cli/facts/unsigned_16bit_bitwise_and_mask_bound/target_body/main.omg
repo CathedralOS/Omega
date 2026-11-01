@@ -2,40 +2,59 @@
 // Place: target_body. Each of four target bodies performs 16-bit unsigned bitwise AND mask and discharges subtraction bounds.
 // Expected exit: 0
 
-linux_x86_64 machine verify_target() -> i32 {
-    let raw: u16 = 116u16;
-    let res: u16 = raw & 63u16;
-    let headroom: u16 = 63u16 - res;
-    let margin: u16 = res - 40u16;
-    0i32
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let raw: u16 = 116u16;
-    let res: u16 = raw & 63u16;
-    let headroom: u16 = 63u16 - res;
-    let margin: u16 = res - 40u16;
-    0i32
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine verify_target() -> i32 {
-    let raw: u16 = 116u16;
-    let res: u16 = raw & 63u16;
-    let headroom: u16 = 63u16 - res;
-    let margin: u16 = res - 40u16;
-    0i32
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine verify_target() -> i32 {
-    let raw: u16 = 116u16;
-    let res: u16 = raw & 63u16;
-    let headroom: u16 = 63u16 - res;
-    let margin: u16 = res - 40u16;
-    0i32
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86VerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let raw: u16 = 116u16;
+        let res: u16 = raw & 63u16;
+        let headroom: u16 = 63u16 - res;
+        let margin: u16 = res - 40u16;
+        0i32
+    }
+}
+
+ArmVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let raw: u16 = 116u16;
+        let res: u16 = raw & 63u16;
+        let headroom: u16 = 63u16 - res;
+        let margin: u16 = res - 40u16;
+        0i32
+    }
 }
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {
@@ -45,4 +64,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

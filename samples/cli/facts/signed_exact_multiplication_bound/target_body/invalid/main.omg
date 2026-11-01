@@ -8,36 +8,57 @@ requires product >= 40 && product <= 90
     0i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
-    let factor: i64 = 16i64;
-    let scale: i64 = 6i64;
-    let product: i64 = factor * scale;
-    verify_product(product)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let factor: i64 = 16i64;
-    let scale: i64 = 6i64;
-    let product: i64 = factor * scale;
-    verify_product(product)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine verify_target() -> i32 {
-    let factor: i64 = 16i64;
-    let scale: i64 = 6i64;
-    let product: i64 = factor * scale;
-    verify_product(product)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine verify_target() -> i32 {
-    let factor: i64 = 16i64;
-    let scale: i64 = 6i64;
-    let product: i64 = factor * scale;
-    verify_product(product)
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86VerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let factor: i64 = 16i64;
+        let scale: i64 = 6i64;
+        let product: i64 = factor * scale;
+        verify_product(product)
+    }
+}
+
+ArmVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let factor: i64 = 16i64;
+        let scale: i64 = 6i64;
+        let product: i64 = factor * scale;
+        verify_product(product)
+    }
 }
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {
@@ -47,4 +68,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

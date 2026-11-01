@@ -1,0 +1,29 @@
+// Matching `Value::Integer` or `Value::Boolean` recovers `T == i32` or `T == bool` from the data's default domain, so the generic extractor `extract<T>(v: Value<T>) -> T` returns each payload as `T`, and the specialization for `Value<i32>` or `Value<bool>` keeps only the arm its instance admits.
+// Expected error: return value expects `T`, but the value is delivered as `bool`
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || (self in Value::Boolean)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine extract<T>(v: Value<T>) -> T {
+    match v {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine probe(number: Value<i32>, flag: Value<bool>, expected: i32) -> bool {
+    extract(number) == expected && extract(flag)
+}
+machine main() crashes Trap {
+    transition probe(Value::Integer { value: 7 }, Value::Boolean { value: true }, 7)
+        && probe(Value::Integer { value: 9 }, Value::Boolean { value: true }, 9)
+        && !probe(Value::Integer { value: 9 }, Value::Boolean { value: true }, 7)
+        && !probe(Value::Integer { value: 7 }, Value::Boolean { value: false }, 7) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

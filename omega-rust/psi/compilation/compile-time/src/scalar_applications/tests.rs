@@ -5,6 +5,7 @@ use arena::Arena;
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateOperator, ScalarValue};
+use semantic_vocabulary::proof_applications::ProofApplicationMachine;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, StructuralTypeId, ValueId,
@@ -317,15 +318,13 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
             "dormant declaration".into(),
         ));
-    scope.plan.machines.insert(
-        semantic_vocabulary::proof_applications::ProofApplicationMachine {
-            machine: terminal_psi::ProofDeclarationId(1),
-            authored_target: Some("windows_x86_64".into()),
-            source_target: Some("windows_x86_64".into()),
-            product_selected: true,
-            ..Default::default()
-        },
-    );
+    scope.plan.machines.insert(ProofApplicationMachine {
+        machine: terminal_psi::ProofDeclarationId(1),
+        authored_target: Some("windows_x86_64".into()),
+        source_target: Some("windows_x86_64".into()),
+        product_selected: true,
+        ..Default::default()
+    });
     let result = ValueDeclaration {
         id: value_id(99),
         scalar_type: scalar(),

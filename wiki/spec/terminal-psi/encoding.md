@@ -1102,11 +1102,18 @@ ranked-SCC row follows:
 <!-- ranked-scc-tags -->
 | Tag | Ranked SCC | Fields after the tag |
 | --- | --- | --- |
-| 2 | Natural | counted natural cycle components |
+| 3 | Natural | counted integer-tuple cycle components |
 
-A natural cycle component is its rank integer type, counted block ranks (block
-id + rank value id), and counted rank edges. A rank edge is its edge id,
-source and target block ids, successor rank value id, and rank comparison:
+A cycle component has counted block ranks (block id + rank tuple) and counted
+rank edges (edge id + source and target block ids + successor rank tuple + rank
+comparison). A rank tuple is a positive count followed by ordered pairs of
+integer type and value id. Every row has the same arity and the same integer
+carrier, sign and width at each position. Singletons use this same record.
+Tuples compare lexicographically; a strict earlier component permits an arbitrary
+formed suffix. Storage-arena coordinates are not encoded. The former singleton
+layout at tag 2 is retired and rejects.
+
+Rank comparison tags follow:
 
 <!-- rank-comparison-tags -->
 | Tag | Rank comparison | Fields after the tag |
@@ -1223,7 +1230,7 @@ producer state and rederives every ordering rule.
 | Row | Fields |
 | --- | --- |
 | structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape |
-| structural referent identity | structural type id + canonical closed-type identity string; no storage shape |
+| structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
 | structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection + counted establishment routes |
@@ -1238,7 +1245,11 @@ Their ids and canonical identities are disjoint, and each roster is strictly
 ordered by type id. Every identity-only row is the target of a reference
 carrier. A pointer edge may name either roster; by-value fields, array elements,
 owned storage and dereference projections require concrete declarations.
-Naming a pointer target supplies no layout or access authority. This keeps
+Naming a pointer target supplies no layout or access authority. The
+foreign transport role is separate from a pointee body: `false` names one
+native pointer, `true` names the target's two-word descriptor. The checked
+producer retains this distinction without expanding the pointee. It supplies
+neither owned storage nor field/dereference authority. This keeps
 `Nest<T>` containing `&Nest<[T; 2]>` finite without truncating type identity or
 manufacturing a placeholder shape. Zero array extent does not erase its element.
 

@@ -3,6 +3,7 @@
 //! authored/inferred witness policies and invariant regimes remain consumers.
 
 mod coordinates;
+mod declaration_inputs;
 mod entry;
 use crate::checks::current_scalar_values::CurrentScalarValues;
 pub(super) use coordinates::Coordinate;

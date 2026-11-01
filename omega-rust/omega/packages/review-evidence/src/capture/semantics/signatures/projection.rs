@@ -4,8 +4,9 @@
 //! rows into an arena the capture path owns, while every passthrough row —
 //! substituted arguments, unchanged subterms, declaration lookups — keeps the
 //! source handle space. The scratch therefore seeds exactly the arenas a
-//! signature or type-identity read can index: trait telescopes, state
-//! signatures and parameters, data/proposition declarations, const and domain
+//! signature or type-identity read can index: trait and implementation
+//! telescopes, state signatures and parameters, data/proposition declarations,
+//! const and domain
 //! vocabulary, the operator spellings consulted by closed-integer endpoint
 //! evaluation, and the expression table behind `ConstExpression`/`Range`
 //! terms — plus the authored-declaration-selection custody those endpoints
@@ -80,7 +81,9 @@ fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     let source = compilation.checking_input;
     let mut tables = TypedTreeTables::default();
     tables.const_declarations = source.tables.const_declarations.clone();
+    tables.conformances = source.tables.conformances.clone();
     tables.data_definitions = source.tables.data_definitions.clone();
+    tables.type_aliases = source.tables.type_aliases.clone();
     tables.data_type_parameters = source.tables.data_type_parameters.clone();
     tables.domain_definitions = source.tables.domain_definitions.clone();
     tables.domain_path_members = source.tables.domain_path_members.clone();

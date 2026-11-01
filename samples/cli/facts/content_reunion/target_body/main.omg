@@ -77,74 +77,67 @@ ensures
         right: Region { base: base + requested, length: length - requested } }
 }
 
-linux_x86_64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(whole, requested);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(whole, requested);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(whole, requested);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(whole, requested);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
+boundary trait SelectedRejoin {
+    machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, Owned::content(old(&whole)) == Owned::content(&result);
+}
+
+X86Rejoin satisfies SelectedRejoin {
+    machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, Owned::content(old(&whole)) == Owned::content(&result)
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let parts: Parts = partition(whole, requested);
+        let left: Region in Owned = parts.left;
+        let right: Region in Owned = parts.right;
+        let joined: Region in Owned = merge(left, right);
+        let finished: Region in Owned = finish_reunion(joined);
+        let { base, length } = finished;
+        let reunited: Region = Region { base: base, length: length };
+        reunited
+    }
+}
+
+ArmRejoin satisfies SelectedRejoin {
+    machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, Owned::content(old(&whole)) == Owned::content(&result)
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let parts: Parts = partition(whole, requested);
+        let left: Region in Owned = parts.left;
+        let right: Region in Owned = parts.right;
+        let joined: Region in Owned = merge(left, right);
+        let finished: Region in Owned = finish_reunion(joined);
+        let { base, length } = finished;
+        let reunited: Region = Region { base: base, length: length };
+        reunited
+    }
 }
 
 machine exercise(requested: u64) -> bool
 requires requested <= 48
 {
-    let reunited: Region in Owned = rejoin(issue(), requested);
+    let reunited: Region in Owned = SelectedRejoin::rejoin(issue(), requested);
     let correct: bool = reunited.base == 10 && reunited.length == 48;
     drop(reunited);
     correct
@@ -157,4 +150,12 @@ machine main() crashes Trap {
     transition empty && interior && full { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

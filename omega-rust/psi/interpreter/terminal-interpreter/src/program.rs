@@ -825,7 +825,7 @@ impl<'artifact> TerminalProgram<'artifact> {
                 TerminalInterpretError::ProviderInstallationMissing(*boundary),
             ));
         }
-        crate::structural_inputs::zero_initialized::validate(structural_inputs)
+        crate::structural_inputs::initialization::validate(structural_inputs)
             .map_err(TerminalArtifactInterpretError::Execution)?;
         let converted_boolean_fields;
         let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
@@ -841,13 +841,10 @@ impl<'artifact> TerminalProgram<'artifact> {
         let mut execution = crate::execution::TerminalExecution::start_with_program(
             program,
             scalar_arguments,
-            structural_inputs.arguments,
-            scalar_fields,
-            structural_inputs.primitive_values,
-            structural_inputs.access_view_establishments,
-            structural_inputs.private_entry_ram,
-            structural_inputs.zero_initialized_arguments,
-            structural_inputs.established_erased_fields,
+            TerminalStructuralInputs {
+                scalar_fields,
+                ..structural_inputs
+            },
             installation,
             account.cloned(),
         )
@@ -874,9 +871,6 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
         execution.scalar_applications = scalar_values;
-        execution
-            .bind_structural_cases(structural_inputs.cases)
-            .map_err(TerminalArtifactInterpretError::Execution)?;
         if !structural_inputs.byte_arrays.is_empty() {
             execution
                 .bind_byte_arrays(structural_inputs.byte_arrays)

@@ -504,6 +504,8 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    // Raw application association; reset with all context-sensitive inputs.
+    pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
     /// Exact satisfaction associations depend only on this immutable typed
     /// program, not changing progress summaries, effects or selected layouts.
@@ -545,6 +547,44 @@ pub struct CheckingMemos {
             crate::CapturedNumericObservations,
         >,
     >,
+    /// One exact-operation operand-fit verdict per (machine, expression),
+    /// published by a single per-machine population instead of a fresh
+    /// prefix walk per occurrence. `None` retains "processed, no
+    /// observation" so a later query does not walk again.
+    pub(crate) operand_fit_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+            ),
+            Option<crate::proof_contracts::contract_entailment::OperandFitOutcome>,
+        >,
+    >,
+    /// Machines whose operand-fit expressions were already enumerated;
+    /// even a machine with no qualifying expression populates only once.
+    pub(crate) operand_fit_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
+    /// One completed-case verdict per (machine, state, statement ordinal,
+    /// demanded value expression, observed reference), published by a
+    /// single per-machine population instead of a fresh prefix walk per
+    /// occurrence. `None` retains "processed, no proven case" so a later
+    /// query does not walk again.
+    pub(crate) completed_case_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                usize,
+                typed_trees::expression::ExpressionHandle,
+                typed_trees::types::TypeReferenceHandle,
+            ),
+            Option<symbols::SymbolHandle>,
+        >,
+    >,
+    /// Machines whose completed-case occurrences were already enumerated;
+    /// even a machine with no qualifying statement populates only once.
+    pub(crate) completed_case_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
@@ -564,7 +604,7 @@ pub struct CheckingMemos {
                 symbols::SymbolHandle,
                 symbols::SymbolHandle,
                 u8,
-                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
+                Vec<(symbols::SymbolHandle, crate::proof_contracts::arithmetic_domains::Interval)>,
             ),
             Option<(
                 crate::proof_contracts::arithmetic_domains::Interval,

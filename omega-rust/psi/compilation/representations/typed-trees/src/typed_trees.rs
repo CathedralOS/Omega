@@ -27,6 +27,7 @@ macro_rules! typed_tree_table {
         )*
     };
 }
+use crate::product_operand::ProductOperandApplication;
 pub(crate) use typed_tree_table;
 
 /// One declaration's retained column, projected out of the table that owns the
@@ -131,7 +132,9 @@ pub mod evidence;
 pub mod inspection;
 pub mod names;
 mod selection_exclusions;
+mod symbol_rebinding;
 pub use selection_exclusions::AuthoredSelectionExclusions;
+pub use symbol_rebinding::SymbolRebinding;
 mod table_reads;
 mod trait_and_machine_tables;
 mod type_reference_queries;
@@ -410,11 +413,10 @@ pub struct DesignatedStaticTypeArgument {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
-    pub retained_product_application_handles:
-        Arena<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
     pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
-    pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
+    pub product_operand_applications: Arena<ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
@@ -422,6 +424,7 @@ pub struct TypedTreeTables {
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
+    pub type_aliases: Arena<crate::type_aliases::TypeAliasDefinition>,
     /// Applied field views, indexed by the exact type-reference row. A symbolic
     /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
@@ -476,10 +479,10 @@ pub struct TypedTreeTables {
 pub struct TypedTreeRoots {
     /// Closed choices admitted through dependency Build output custody.
     /// These explicit roots are independent of authored body occurrences.
-    pub retained_product_applications:
-        HandleSpan<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
+    pub type_aliases: HandleSpan<crate::type_aliases::TypeAliasDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
@@ -513,6 +516,7 @@ impl TypedTreeRoots {
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
+            type_aliases: HandleSpan::empty(),
             domain_definitions,
             machines,
             measures: HandleSpan::default(),
@@ -802,11 +806,12 @@ impl DerefMut for TypedTrees {
 
 /// Symbol-remap lookup shared by the typed-tree copy paths: symbols map
 /// through the pair table, unmapped symbols stay themselves.
-pub(crate) fn remapped(
+pub(crate) fn remapped<'scope>(
     symbol: SymbolHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<SymbolRebinding<'scope>>,
 ) -> SymbolHandle {
     symbols
+        .into()
         .iter()
         .find_map(|(source, target)| (*source == symbol).then_some(*target))
         .unwrap_or(symbol)

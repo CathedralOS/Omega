@@ -4,6 +4,7 @@
 //! requires contracts, result compatibility and provider selection then share
 //! the expression path; a qualified name alone never admits execution.
 
+use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -14,10 +15,8 @@ use typed_trees::statement::TransitionTargetNode;
 pub fn normalize_terminal_transition_calls(
     program: &mut TypedTrees,
     first_machine: usize,
-    completed_machines: &[symbols::SymbolHandle],
-    captured_arguments: impl Fn(
-        symbols::SymbolHandle,
-    ) -> Vec<typed_trees::expression::StaticMachineArgument>,
+    completed_machines: &[SymbolHandle],
+    captured_arguments: impl Fn(SymbolHandle) -> Vec<typed_trees::expression::StaticMachineArgument>,
 ) {
     let mut targets = Vec::new();
     for (index, machine) in program.machines().iter().enumerate() {
@@ -143,7 +142,9 @@ pub fn normalize_terminal_transition_calls(
         let call = program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
-                authored_call_selection: None,
+                // The source-owned occurrence stays on the call as well as in
+                // the attachment below, like every authored expression call.
+                authored_call_selection,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
                 requirement_application: Default::default(),

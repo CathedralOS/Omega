@@ -1,6 +1,7 @@
 /// Aggregate ceilings for the complete lock, never reset for a target or child.
 /// Input remains borrowed; owned storage counts requested recovery allocations
 /// and verification scratch, not allocator overhead or already owned input.
+use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackageLockRecoveryLimits {
     pub maximum_bytes: usize,
@@ -33,10 +34,8 @@ impl Default for PackageLockRecoveryLimits {
 }
 
 impl PackageLockRecoveryLimits {
-    pub(super) fn source_limits(
-        self,
-    ) -> crate::resolution::graph::CanonicalSourceClosureSubjectLimits {
-        crate::resolution::graph::CanonicalSourceClosureSubjectLimits {
+    pub(super) fn source_limits(self) -> CanonicalSourceClosureSubjectLimits {
+        CanonicalSourceClosureSubjectLimits {
             maximum_record_bytes: 64 * 1024 * 1024,
             maximum_packages: self.maximum_packages,
             maximum_dependency_requests: self.maximum_dependency_requests,

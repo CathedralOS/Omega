@@ -2,23 +2,20 @@
 //! binders and the closure of
 //! outbound and direct callback materializations.
 
+use super::policy_signature::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
 use crate::calling_policy_plans::callback_layout_catalog;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
-use crate::calling_policy_plans::plan_computation::{
-    boundary_plan_application_identity, evaluate_materialized_calling_policy_plan,
-};
+use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
     BoundaryCallbackBinder, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
-    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, NativePlace,
-    ValidatedBoundaryEntryPlan, callback_requirement_id,
-    validate_boundary_entry_plan_with_callback_materializations,
+    CallbackRequirementId, NativeCallbackDemand, NativePlace, ValidatedBoundaryEntryPlan,
+    callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
 };
-use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
@@ -215,31 +212,20 @@ pub(crate) fn validate_retained_callback_binders(
 }
 
 fn exact_callback_requirement_catalog(
-    typed: &TypedTrees,
     binders: &[BoundaryCallbackBinder],
 ) -> Result<Vec<(CallbackRequirementId, String)>, String> {
     let mut catalog = Vec::with_capacity(binders.len());
     for binder in binders {
-        let trait_definition = typed
-            .trait_definition_by_symbol(binder.requirement_trait)
-            .ok_or_else(|| {
-                "evaluated callback binder lost its exact requirement trait".to_owned()
-            })?;
-        let requirement = typed
-            .trait_machine_signature_by_symbol(trait_definition, binder.requirement_machine)
-            .ok_or_else(|| {
-                "evaluated callback binder lost its exact requirement machine".to_owned()
-            })?;
-        let exact = typed.trait_requirement_callable_identity_text(trait_definition, requirement);
-        let report = callback_requirement_id(&exact);
+        let exact = &binder.requirement_identity;
+        let report = callback_requirement_id(exact);
         if report != binder.requirement {
             return Err(
                 "evaluated callback binder requirement report drifted from its exact requirement"
                     .to_owned(),
             );
         }
-        validate_callback_requirement_report_collision(&catalog, report, &exact)?;
-        catalog.push((report, exact));
+        validate_callback_requirement_report_collision(&catalog, report, exact)?;
+        catalog.push((report, exact.clone()));
     }
     Ok(catalog)
 }
@@ -263,18 +249,27 @@ pub(crate) fn validate_callback_requirement_report_collision(
 
 /// Close outbound registrar policies over the target's native layout catalog
 /// before provider schemas and provenance capture the calling commitment.
-/// Layout consumes typed structure, not a language judgment. This produces ABI
-/// geometry only; checked callback authority is bound separately after Psi.
+/// Layout consumes typed structure; the checked owner binds it to the policy
+/// catalog, without rechecking source. This produces ABI geometry only;
+/// checked callback authority is bound separately after Psi.
 pub fn close_outbound_callback_materializations(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
-    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    code: Option<&super::CallingPolicyCode>,
 ) -> Result<(), Vec<Diagnostic>> {
     if realizations.is_empty() {
         return Ok(());
     }
+    let typed = &checked.typed;
+    let code = code.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "callback geometry has no published calling-policy code",
+        )]
+    })?;
+    code.require_owner(checked)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let layout_target = layout::LayoutTarget::for_profile(target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let native_target = layout_target.native_target();
@@ -291,13 +286,6 @@ pub fn close_outbound_callback_materializations(
         }),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-        typed,
-        package_inputs.map(|inputs| {
-            std::sync::Arc::new(inputs.clone())
-                as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        }),
-    );
 
     for realization in realizations {
         let mut signature = realization.materialized_signature.clone();
@@ -311,12 +299,12 @@ pub fn close_outbound_callback_materializations(
             .into_iter()
             .map(|demand| (demand, None))
             .collect::<Vec<_>>();
-        let binder_requirement_catalog =
-            exact_callback_requirement_catalog(typed, &realization.callback_binders).map_err(
-                |reason| {
-                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                },
-            )?;
+        let binder_requirement_catalog = exact_callback_requirement_catalog(
+            &realization.callback_binders,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+        })?;
         let mut demand_requirement_catalog = Vec::new();
         for parameter in &signature.native_parameters {
             for layout in layout_plan
@@ -389,25 +377,11 @@ pub fn close_outbound_callback_materializations(
         let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
         signature.callback_demands = demands.clone();
         signature.callback_layout_catalog = entries.into_iter().flatten().collect();
-        let validated = evaluate_materialized_calling_policy_plan(
-            typed,
-            &admission,
-            &realization.policy_machine,
-            realization.policy_symbol,
-            &signature,
-            Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
-                realization.relationship_span,
-            )),
-        )
-        .map_err(|rejection| {
-            vec![
-                Diagnostic::error(rejection.reason).with_source_span(
-                    rejection
-                        .source_span
-                        .unwrap_or(realization.relationship_span),
-                ),
-            ]
-        })?;
+        let validated = code
+            .evaluate(realization.policy_symbol, target_profile, &signature)
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+            })?;
         let classified = CallSignature {
             parameters: validated
                 .plan()
@@ -463,31 +437,21 @@ fn close_direct_callback_parameters(
             BoundaryNativeParameterOrigin::SemanticFormal { .. }
         )
     });
-    let byte_size = u16::try_from(target.pointer_size)
-        .map_err(|_| "target function-pointer size exceeds boundary shape range".to_owned())?;
-    let alignment = u16::try_from(target.pointer_alignment)
-        .map_err(|_| "target function-pointer alignment exceeds boundary shape range".to_owned())?;
-    if byte_size == 0 || alignment == 0 || !alignment.is_power_of_two() {
-        return Err(format!(
-            "target function-pointer geometry {}/{} is invalid for a direct callback parameter",
-            target.pointer_size, target.pointer_alignment,
-        ));
-    }
 
     let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
     for direct in &signature.direct_callback_parameters {
         validate_fresh_native_parameter_report_identity(
-            &signature.native_parameters,
+            signature
+                .native_parameters
+                .iter()
+                .map(|parameter| parameter.identity),
             direct.identity,
             direct.native_ordinal,
         )?;
         signature.native_parameters.push(BoundaryNativeParameter {
             identity: direct.identity,
             native_ordinal: direct.native_ordinal,
-            shape: BoundaryNativeParameterShape::TargetFunctionPointer {
-                byte_size,
-                alignment,
-            },
+            shape: BoundaryNativeParameterShape::function_pointer(target)?,
             origin: BoundaryNativeParameterOrigin::PrivateCallback {
                 binder: direct.binder,
                 requirement: direct.requirement,
@@ -509,33 +473,8 @@ fn close_direct_callback_parameters(
                 parameter.native_ordinal,
             ));
         }
-        if matches!(
-            parameter.shape,
-            BoundaryNativeParameterShape::TargetFunctionPointer { .. }
-        ) && (byte_size != 8 || alignment != 8)
-        {
-            // The current source-level closed vocabulary has only admitted
-            // 64-bit native targets. Keep unsupported future pointer geometry
-            // fail-closed until its scalar ABI carrier is present.
-            return Err(format!(
-                "direct callback parameters currently require an admitted 8/8 target function-pointer shape, got {byte_size}/{alignment}"
-            ));
-        }
     }
     Ok(demands)
-}
-
-pub(crate) fn validate_fresh_native_parameter_report_identity(
-    prior: &[BoundaryNativeParameter],
-    identity: NativeParameterId,
-    ordinal: u32,
-) -> Result<(), String> {
-    if prior.iter().any(|parameter| parameter.identity == identity) {
-        return Err(format!(
-            "boundary runtime parameter {ordinal} collides with an earlier exact parameter on one compact native-parameter report identity"
-        ));
-    }
-    Ok(())
 }
 
 pub(crate) fn callback_materialization_context(
@@ -561,48 +500,12 @@ pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
-    let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
-    let mut callback_binding_rows = arena::HandleSpan::empty();
-    for binder in &signature.callback_binders {
-        callback_bindings.append_to_span(
-            &mut callback_binding_rows,
-            calling_conventions::BoundaryCallbackBinding {
-                binder: binder.binder,
-                requirement: binder.requirement,
-                static_machine_ordinal: binder.static_machine_ordinal,
-                requirement_identity: binder.requirement_identity.clone(),
-                invokes_synchronously: binder.invokes_synchronously,
-            },
-        );
-    }
-    let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
-    let mut native_parameter_rows = arena::HandleSpan::empty();
-    for parameter in &signature.native_parameters {
-        native_parameters.append_to_span(
-            &mut native_parameter_rows,
-            calling_conventions::BoundaryNativeParameterGeometry {
-                identity: parameter.identity,
-                native_ordinal: parameter.native_ordinal,
-                origin: parameter.origin,
-                shape: parameter.shape,
-            },
-        );
-    }
-    let mut callback_layouts = arena::Arena::with_capacity(signature.callback_layout_catalog.len());
-    let mut callback_layout_rows = arena::HandleSpan::empty();
-    for entry in &signature.callback_layout_catalog {
-        callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
-    }
+    let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
         requirement_identity: signature.owner_requirement_identity().to_owned(),
-        target: signature.native_target(), report_fingerprint: 0, commitment: [0;32],
+        target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),
-        signature: calling_conventions::BoundarySignatureGeometry {
-            shapes: signature.shapes().to_vec(), fields: signature.fields().to_vec(),
-            parameters: signature.parameters().to_vec(), result: signature.result(),
-            native_parameters, native_parameter_rows, callback_layouts, callback_layout_rows,
-            callback_bindings, callback_binding_rows,
-        },
+        signature: policy.geometry,
         opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
             calling_conventions::BoundaryOpaqueApplication {
                 shape_root: use_.shape_root(), application_report_fingerprint: use_.application_report_fingerprint(),
@@ -613,7 +516,65 @@ pub(super) fn source_free_application(
                     representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
-        callback_context: callback_materialization_context(signature),
+        callback_context: policy.callbacks,
         callback_context_closed: false,
     })
+}
+
+impl MaterializedBoundarySignature {
+    /// Detach the ABI input from source correspondence. Native publication and
+    /// policy activation consume this same projection, including unused callback
+    /// binders and every target-closed destination demand.
+    pub fn policy_signature(&self) -> Result<super::CallingPolicySignature, String> {
+        let signature = self;
+        let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
+        let mut callback_binding_rows = arena::HandleSpan::empty();
+        for binder in &signature.callback_binders {
+            callback_bindings.append_to_span(
+                &mut callback_binding_rows,
+                calling_conventions::BoundaryCallbackBinding {
+                    binder: binder.binder,
+                    requirement: binder.requirement,
+                    static_machine_ordinal: binder.static_machine_ordinal,
+                    requirement_identity: binder.requirement_identity.clone(),
+                    invokes_synchronously: binder.invokes_synchronously,
+                },
+            );
+        }
+        let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
+        let mut native_parameter_rows = arena::HandleSpan::empty();
+        for parameter in &signature.native_parameters {
+            native_parameters.append_to_span(
+                &mut native_parameter_rows,
+                calling_conventions::BoundaryNativeParameterGeometry {
+                    identity: parameter.identity,
+                    native_ordinal: parameter.native_ordinal,
+                    origin: parameter.origin,
+                    shape: parameter.shape,
+                },
+            );
+        }
+        let mut callback_layouts =
+            arena::Arena::with_capacity(signature.callback_layout_catalog.len());
+        let mut callback_layout_rows = arena::HandleSpan::empty();
+        for entry in &signature.callback_layout_catalog {
+            callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
+        }
+        Ok(super::CallingPolicySignature {
+            target: signature.native_target(),
+            geometry: calling_conventions::BoundarySignatureGeometry {
+                shapes: signature.shapes().to_vec(),
+                fields: signature.fields().to_vec(),
+                parameters: signature.parameters().to_vec(),
+                result: signature.result(),
+                native_parameters,
+                native_parameter_rows,
+                callback_layouts,
+                callback_layout_rows,
+                callback_bindings,
+                callback_binding_rows,
+            },
+            callbacks: callback_materialization_context(signature),
+        })
+    }
 }

@@ -39,8 +39,8 @@ machine Counter::reset(counter: &mut Counter) satisfies Resettable<Counter>::res
 }
 
 CounterImpl satisfies RequiredCounter<Counter> {
-    Resettable::set = Counter::set;
-    Resettable::reset = Counter::reset;
+    machine set(subject: &mut Counter, value: i32) { Counter::set(subject, value) }
+    machine reset(subject: &mut Counter) { Counter::reset(subject) }
 }
 
 data Main { counter: Counter; hits: i32 in Wrapping; }

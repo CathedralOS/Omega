@@ -6,7 +6,7 @@
 
 use semantic_vocabulary::{
     BoundedIntegerType, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
-    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, PlaceId,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, PlaceId, ScalarRefinement,
 };
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
@@ -312,15 +312,12 @@ pub(crate) fn decode_structural_field_type(
             .map_err(CodecError::MalformedProposition)?,
         ),
         9 => StructuralFieldType::RefinedScalar(
-            semantic_vocabulary::ScalarRefinement::new(
-                decode_scalar_type(reader)?,
-                decode_proposition(reader, 0)?,
-            )
-            .map_err(|_| {
-                CodecError::MalformedStructuralFoundation(
-                    "scalar field predicate is not closed and carrier-typed",
-                )
-            })?,
+            ScalarRefinement::new(decode_scalar_type(reader)?, decode_proposition(reader, 0)?)
+                .map_err(|_| {
+                    CodecError::MalformedStructuralFoundation(
+                        "scalar field predicate is not closed and carrier-typed",
+                    )
+                })?,
         ),
         2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
         3 => StructuralFieldType::Erased {
@@ -353,12 +350,15 @@ pub(crate) fn decode_structural_field_type(
 
 #[cfg(test)]
 mod reference_path_wire_tests {
+    use super::super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
+    use semantic_vocabulary::{ScalarReadProjection, ScalarTerm, ScalarType, StructuralFieldId};
+
     use super::*;
 
     #[test]
     fn referent_paths_round_trip_in_both_canonical_tag_spaces() {
         let root = PlaceId::new(1).unwrap();
-        let field = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+        let field = StructuralFieldId::new(2).unwrap();
         let path = vec![
             CanonicalStructuralPathSegment::Referent,
             CanonicalStructuralPathSegment::Field(field),
@@ -372,22 +372,16 @@ mod reference_path_wire_tests {
             (root, path.clone())
         );
         assert_eq!(reader.remaining(), 0);
-        let term = semantic_vocabulary::ScalarTerm::StructuralRead {
+        let term = ScalarTerm::StructuralRead {
             root,
-            path: path
-                .into_iter()
-                .map(semantic_vocabulary::ScalarReadProjection::from)
-                .collect(),
-            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            path: path.into_iter().map(ScalarReadProjection::from).collect(),
+            scalar_type: ScalarType::Boolean,
         };
         let mut writer = Writer::default();
-        super::super::scalar_term_wire::encode_scalar_term(&mut writer, &term, 0).unwrap();
+        encode_scalar_term(&mut writer, &term, 0).unwrap();
         let bytes = writer.finish();
         let mut reader = Reader::new(&bytes);
-        assert_eq!(
-            super::super::scalar_term_wire::decode_scalar_term(&mut reader, 0).unwrap(),
-            term
-        );
+        assert_eq!(decode_scalar_term(&mut reader, 0).unwrap(), term);
         assert_eq!(reader.remaining(), 0);
     }
 }

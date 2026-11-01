@@ -1,6 +1,7 @@
 //! Source-owned actuals of an already checked generic helper activation.
 //! Only its exact specialization receipt supplies bindings. Source requests
 //! remain unchanged, and no current-world symbol/type handle escapes here.
+use crate::static_applications::StaticMachineBindingValue;
 use crate::{TypedTrees, expression as expr, types};
 use arena::{Handle, HandleSpan};
 use language_semantics::declaration_selection::product_operands::*;
@@ -58,15 +59,13 @@ pub fn capture_static_environment(
             .symbol_provenance_source_span(binding.parameter)
             .ok_or("Build helper static binder lost source identity")?;
         let actual = match &binding.value {
-            crate::static_applications::StaticMachineBindingValue::Type(reference)
-            | crate::static_applications::StaticMachineBindingValue::Const(reference) => program
+            StaticMachineBindingValue::Type(reference)
+            | StaticMachineBindingValue::Const(reference) => program
                 .static_operand_from_type_reference(*reference)
                 .map_err(str::to_owned)?,
-            crate::static_applications::StaticMachineBindingValue::Machine(argument)
-            | crate::static_applications::StaticMachineBindingValue::Conformance(argument) => {
-                argument.clone()
-            }
-            crate::static_applications::StaticMachineBindingValue::RuntimeValue { .. } => continue,
+            StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
+            StaticMachineBindingValue::RuntimeValue { .. } => continue,
         };
         let argument = capture.operand(&actual)?;
         let declared_type = program
@@ -360,6 +359,14 @@ impl Capture<'_> {
         reference: types::TypeReferenceHandle,
     ) -> Result<Handle<ProductOperandType>, String> {
         let program = self.program;
+        if program
+            .type_reference_table
+            .type_alias_applications(reference)
+            .next()
+            .is_some()
+        {
+            return Err("captured Build helper static type cannot yet retain transparent alias application obligations".into());
+        }
         if let Some((_, value)) = self.types.iter().find(|(source, _)| *source == reference) {
             return Ok(*value);
         }

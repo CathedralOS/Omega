@@ -1,8 +1,6 @@
 use crate::flow::expressions;
 use symbols::SymbolHandle;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 
 use super::super::facts::RangeFacts;
 
@@ -14,7 +12,7 @@ use super::super::facts::RangeFacts;
 /// `checked_add`, so an inclusive range whose end is `i64::MAX` (e.g. the
 /// `..=usize::MAX` overflow edge) reports a proof failure (`None`) rather than
 /// silently wrapping — the overflow is surfaced as a diagnostic, never a panic.
-pub(in crate::checks::ranges) fn provable_range_bounds(
+pub(in super::super) fn provable_range_bounds(
     program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
@@ -37,10 +35,7 @@ pub(in crate::checks::ranges) fn provable_range_bounds(
 ///
 /// Returns `None` on overflow so the caller can report a proof error instead of
 /// wrapping (the `..=` overflow edge is a proof failure, never a panic).
-pub(in crate::checks::ranges) fn normalize_exclusive_end(
-    end: i64,
-    end_inclusive: bool,
-) -> Option<i64> {
+pub(in super::super) fn normalize_exclusive_end(end: i64, end_inclusive: bool) -> Option<i64> {
     if end_inclusive {
         end.checked_add(1)
     } else {
@@ -48,7 +43,7 @@ pub(in crate::checks::ranges) fn normalize_exclusive_end(
     }
 }
 
-pub(in crate::checks::ranges) fn expression_integer_value(
+pub(in super::super) fn expression_integer_value(
     program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
@@ -115,7 +110,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
     }
 }
 
-pub(in crate::checks::ranges) fn expression_name(
+pub(in super::super) fn expression_name(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Option<&str>)> {
@@ -129,30 +124,4 @@ pub(in crate::checks::ranges) fn expression_name(
     ))
 }
 
-pub(in crate::checks) fn folded_integer_binary(
-    left: i64,
-    operator: BinaryOperator,
-    right: i64,
-) -> Option<i64> {
-    match operator {
-        BinaryOperator::Add => left.checked_add(right),
-        BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
-        BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
-        BinaryOperator::Multiply => left.checked_mul(right),
-        BinaryOperator::Subtract => left.checked_sub(right),
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Equal
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::CaseMembership => None,
-    }
-}
+pub(in crate::checks) use validation::folded_integer_binary;

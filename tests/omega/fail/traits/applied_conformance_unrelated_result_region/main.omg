@@ -1,9 +1,9 @@
 // Declaration admission must check this map even when no call selects it.
 trait Reading<Input, Output> { machine read(value: Input) -> Output; }
 Wrong<'left, 'right> satisfies Reading<&'left i32, &'right i32> {
-    Reading::read = read;
+    machine read(value: &'left i32) -> &'right i32 { read_realization(value) }
 }
-machine read<'source>(value: &'source i32) -> &'source i32 { value }
+machine read_realization<'source>(value: &'source i32) -> &'source i32 { value }
 data Main {}
 machine Main::main(main: &mut Main) {}
 

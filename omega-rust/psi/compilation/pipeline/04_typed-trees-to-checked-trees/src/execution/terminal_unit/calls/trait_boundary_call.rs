@@ -9,6 +9,9 @@
 //! authored preconditions and normal guarantees; this planner retains the exact
 //! checked requirement commitment rather than replaying a contract shape gate.
 
+use super::super::structural_scalar_store::primitive_local_before;
+use super::computation_arguments::borrowed_storage_argument;
+use super::computation_arguments::primitive_local_argument;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::places::place_at;
 
@@ -379,15 +382,8 @@ pub(super) fn build(
         // Boundary calls lend the same primitive local home as checked-body
         // calls. Its existing admission retains the authored type and exact
         // borrow occurrence; a scalar local is not a structural parameter.
-        if super::super::structural_scalar_store::primitive_local_before(
-            program,
-            state,
-            call.statement_index,
-            source_symbol,
-        )
-        .is_some()
-        {
-            structural_arguments.push(super::computation_arguments::primitive_local_argument(
+        if primitive_local_before(program, state, call.statement_index, source_symbol).is_some() {
+            structural_arguments.push(primitive_local_argument(
                 program,
                 &facts.borrow,
                 machine.symbol,
@@ -408,7 +404,7 @@ pub(super) fn build(
         phase("call operation: boundary borrowed storage");
         let mut receiving_parameter = (*parameter).clone();
         receiving_parameter.type_reference = formal;
-        if let Some(argument) = super::computation_arguments::borrowed_storage_argument(
+        if let Some(argument) = borrowed_storage_argument(
             program,
             shapes,
             &facts.borrow,

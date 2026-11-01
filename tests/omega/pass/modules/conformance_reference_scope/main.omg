@@ -2,7 +2,7 @@ use left;
 use right;
 
 trait RootValue { machine read() -> u64; }
-Qualified satisfies RootValue { RootValue::read = right::Reader::read; }
+Qualified satisfies RootValue { machine read() -> u64 { right::Reader::read() } }
 machine invoke<Selected satisfies RootValue>() -> u64 { Selected::read() }
 
 machine main() crashes Trap {

@@ -36,6 +36,16 @@ pub struct CheckedRankApplicationFormation {
     pub state: SymbolHandle,
     pub application: CheckedRankApplicationFacts,
     pub bindings: HandleSpan<super::CheckedRankCoordinateBinding>,
+    /// An independently admitted reusable whole-value input. Scalar reads
+    /// cannot authorize a structural argument or reconstruct this home.
+    pub owned_copy: Option<CheckedRankApplicationOwnedCopy>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedRankApplicationOwnedCopy {
+    pub formal: SymbolHandle,
+    pub actual: super::CheckedRankCoordinateHandle,
+    pub actual_type: typed_trees::types::TypeReferenceHandle,
 }
 
 pub type CheckedRankApplicationFormationHandle = Handle<CheckedRankApplicationFormation>;

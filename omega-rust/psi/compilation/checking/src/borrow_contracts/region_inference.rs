@@ -6,7 +6,7 @@
 use super::carried_lifetimes::RegionIdentity;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct InputRegionApplication {
     fresh: Vec<(usize, RegionIdentity)>,
     pub(super) elided: Vec<(usize, TypeReferenceHandle, RegionIdentity)>,

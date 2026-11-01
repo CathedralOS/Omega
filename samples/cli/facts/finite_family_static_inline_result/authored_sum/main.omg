@@ -9,8 +9,8 @@ machine produce<Width: u64>() -> Choice satisfies Family::row {
         false -> Choice::Large { value: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } }
     }
 }
-Selected satisfies Family { Family::row = produce; }
-Other satisfies Family { Family::row = produce; }
+Selected satisfies Family { machine row<Width: u64>() -> Choice where Width == 16 || Width == 32 { produce<Width>() } }
+Other satisfies Family { machine row<Width: u64>() -> Choice where Width == 16 || Width == 32 { produce<Width>() } }
 machine dispatch(selected: dyn Family, width: u64) -> Choice
 requires width == 16 || width == 32
 { Family::row<width>(selected) }

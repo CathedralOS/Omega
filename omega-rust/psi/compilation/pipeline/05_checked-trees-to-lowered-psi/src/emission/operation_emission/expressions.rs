@@ -6,6 +6,7 @@ use super::integer::LoweredIntegerBinaryKind;
 use crate::emission::operation_emission::buffer::{
     scalar_result_declaration, structural_result_declaration,
 };
+use crate::expression_preparation::saturating_shift::expansion;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::mint;
@@ -1060,11 +1061,7 @@ pub(crate) fn emit_direct_expression(
             // Source checking already discharged the authored count condition.
             // The generated masked shifts and saturating products are total;
             // do not manufacture an unused Exact shift to recheck that judgment.
-            let expanded = crate::expression_preparation::saturating_shift::expansion(
-                *scalar_type,
-                left,
-                right,
-            );
+            let expanded = expansion(*scalar_type, left, right);
             emit_direct_expression(&expanded, &bindings, next_value_identity, operations)
         }
         LoweredDirectExpression::IntegerBinary {

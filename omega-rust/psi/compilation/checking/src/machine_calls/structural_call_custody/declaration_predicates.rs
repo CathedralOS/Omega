@@ -50,13 +50,17 @@
 
 use super::super::super::proof_contracts::collection_predicates;
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedMemberIdentity;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerComparisonKind,
     CheckedOperatorFacts, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
+use collection_predicates::PredicateIntegerOperand;
 use language_core::ReferenceAccess;
 use numerics::bignum::BigInt;
+use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
+use typed_trees::data::DataVariant;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -390,10 +394,7 @@ impl RowEmitter<'_, '_> {
         self.definition_rows(prefix, definition);
         for (case, field) in owned_storage_fields(self.program, definition) {
             if let Some(case) = case {
-                let identity = checked_trees::CheckedMemberIdentity::of_member(
-                    case.identity,
-                    case.name.clone(),
-                );
+                let identity = CheckedMemberIdentity::of_member(case.identity, case.name.clone());
                 self.case_guards
                     .push(CheckedBooleanExpression::StructuralCaseMembership {
                         subject: checked_trees::CheckedStructuralCaseSubject {
@@ -407,7 +408,7 @@ impl RowEmitter<'_, '_> {
                 prefix.push(CheckedStructuralPredicatePathSegment::Case(identity));
             }
             prefix.push(CheckedStructuralPredicatePathSegment::Field(
-                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
             self.descend(prefix, field.type_reference, visited);
             prefix.pop();
@@ -459,10 +460,7 @@ impl RowEmitter<'_, '_> {
                 };
                 let mut path = prefix.to_vec();
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 match field_consequence.elements {
                     collection_predicates::ConsequenceShape::Array(intervals) => {
@@ -494,8 +492,9 @@ impl RowEmitter<'_, '_> {
         &self,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive: PrimitiveType,
-        (minimum, maximum): (i128, i128),
+        interval: collection_predicates::IntegerSet,
     ) -> Option<CheckedBooleanExpression> {
+        let (minimum, maximum) = interval.bounds()?;
         let (carrier_minimum, carrier_maximum) = carrier_bounds(primitive)?;
         let leaf = || CheckedScalarExpression::StructuralParameterField {
             observation: Default::default(),
@@ -599,12 +598,7 @@ fn definition_emits_rows(
 fn owned_storage_fields<'program>(
     program: &'program dyn crate::CheckingInput,
     definition: &'program DataDefinition,
-) -> impl Iterator<
-    Item = (
-        Option<&'program typed_trees::data::DataVariant>,
-        &'program DataField,
-    ),
-> {
+) -> impl Iterator<Item = (Option<&'program DataVariant>, &'program DataField)> {
     program
         .data_members(definition)
         .iter()
@@ -781,10 +775,7 @@ impl FactSpelling<'_> {
                             },
                             path,
                         },
-                        case: checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
+                        case: CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                     })
                 }
                 BinaryOperator::And => Some(CheckedBooleanExpression::And {
@@ -848,12 +839,10 @@ impl FactSpelling<'_> {
         consequence: collection_predicates::PredicateOrderingConsequence,
     ) -> Option<CheckedBooleanExpression> {
         let operand = |operand| match operand {
-            collection_predicates::PredicateIntegerOperand::Argument(subject)
-                if subject.projection.is_empty() =>
-            {
+            PredicateIntegerOperand::Argument(subject) if subject.projection.is_empty() => {
                 self.scalar(subject.expression)
             }
-            collection_predicates::PredicateIntegerOperand::Integer(value) => {
+            PredicateIntegerOperand::Integer(value) => {
                 let literal = numerics::literals::IntegerLiteral::from_parts(
                     value < 0,
                     numerics::literals::IntegerRadix::Decimal,
@@ -978,8 +967,8 @@ impl FactSpelling<'_> {
         primitive: PrimitiveType,
     ) -> Option<CheckedScalarExpression> {
         let format = match primitive {
-            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
-            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
             _ => return None,
         };
         match (
@@ -1071,12 +1060,10 @@ impl FactSpelling<'_> {
             ExpressionNode::Float(literal) => {
                 // An unlanded literal rounds directly to the other operand's
                 // format when the comparison lands it (`land_float_operand`).
-                let format = literal
-                    .landing()
-                    .unwrap_or(numerics::literals::FloatFormat::F64);
+                let format = literal.landing().unwrap_or(FloatFormat::F64);
                 let primitive = literal.landing().map(|format| match format {
-                    numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
-                    numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                    FloatFormat::F32 => PrimitiveType::F32,
+                    FloatFormat::F64 => PrimitiveType::F64,
                 });
                 Some((
                     CheckedScalarExpression::IeeeFloatLiteral {
@@ -1167,10 +1154,7 @@ impl FactSpelling<'_> {
                         .unwrap_or_else(SymbolHandle::invalid);
                     let field = find_data_field(self.program, owner, symbol, member.as_str())?;
                     path.push(CheckedStructuralPredicatePathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
+                        CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     if index + 1 == members.len() {
                         leaf = Some(field.type_reference);
@@ -1206,17 +1190,11 @@ impl FactSpelling<'_> {
                     })
                 {
                     path.push(CheckedStructuralPredicatePathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
+                        CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                     ));
                 }
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 Some((path, field.type_reference))
             }

@@ -1,0 +1,17 @@
+// A completed u8 value keeps 0..255 when widened to i32 and placed in a bounded record.
+// Intended invalid: the source carrier no longer establishes the receiving upper bound.
+data Bound [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
+machine probe(source: u16) -> Bound {
+    let local: u16 = source;
+    Bound { value: local as i32 }
+}
+machine main() crashes Trap {
+    let low: Bound = probe(0);
+    let high: Bound = probe(256);
+    transition low.value == 0 && high.value == 255 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

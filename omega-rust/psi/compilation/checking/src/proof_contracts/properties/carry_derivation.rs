@@ -1,28 +1,20 @@
+use crate::CheckingInput;
+use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember, TypeParameter};
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct CarryDerivation<'program> {
-    program: &'program dyn crate::CheckingInput,
-    parameters: Vec<(
-        symbols::SymbolHandle,
-        String,
-        language_semantics::CarryPolicy,
-    )>,
-    substitutions: Vec<(
-        symbols::SymbolHandle,
-        String,
-        typed_trees::types::TypeReferenceHandle,
-    )>,
-    visiting: Vec<symbols::SymbolHandle>,
+    program: &'program dyn CheckingInput,
+    parameters: Vec<(SymbolHandle, String, language_semantics::CarryPolicy)>,
+    substitutions: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
+    visiting: Vec<SymbolHandle>,
     requires_borrow_preservation: bool,
     borrow_independent: language_semantics::CarryPolicy,
 }
 
 impl<'program> CarryDerivation<'program> {
-    pub(super) fn new(
-        program: &'program dyn crate::CheckingInput,
-        parameters: &[TypeParameter],
-    ) -> Self {
+    pub(super) fn new(program: &'program dyn CheckingInput, parameters: &[TypeParameter]) -> Self {
         let parameters = parameters
             .iter()
             .map(|parameter| {
@@ -48,7 +40,7 @@ impl<'program> CarryDerivation<'program> {
 
     pub(super) fn derive_requirements(
         mut self,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
     ) -> super::TypeCarryRequirements {
         let structural = self.derive(type_reference);
         super::TypeCarryRequirements {
@@ -60,7 +52,7 @@ impl<'program> CarryDerivation<'program> {
 
     pub(super) fn derive(
         &mut self,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
     ) -> language_semantics::CarryPolicy {
         use language_semantics::CarryPolicy;
 
@@ -165,9 +157,9 @@ impl<'program> CarryDerivation<'program> {
 
     pub(super) fn derive_named_data(
         &mut self,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
         name: &str,
-        arguments: Option<&[typed_trees::types::TypeReferenceHandle]>,
+        arguments: Option<&[TypeReferenceHandle]>,
     ) -> language_semantics::CarryPolicy {
         use language_semantics::CarryPolicy;
 
@@ -239,7 +231,7 @@ impl<'program> CarryDerivation<'program> {
 }
 
 pub(super) fn for_each_stored_field(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     data_definition: &DataDefinition,
     visit: &mut impl FnMut(&DataField, Option<&str>),
 ) {

@@ -10,9 +10,13 @@
 //! byte offset in its place. Source projection and independent replay both
 //! call this one join.
 
+use super::scalar_graph_input::primitive_locals::read_root_type;
 use crate::LegalizationError;
 use crate::legalization::accepted_fact;
 use crate::structural_inputs::structural_reference_input::RuntimeElement;
+use crate::structural_inputs::structural_reference_input::{
+    collection_projection, reference_formation_geometry, runtime_projection_elements,
+};
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
@@ -93,20 +97,11 @@ pub(crate) fn projection(
         return Ok(Vec::new());
     }
     let elements = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            root,
-            path,
-            declarations,
-        )
-        .ok_or(LegalizationError::custody())?
-        .elements
+        reference_formation_geometry(root, path, declarations)
+            .ok_or(LegalizationError::custody())?
+            .elements
     } else {
-        crate::structural_inputs::structural_reference_input::runtime_projection_elements(
-            root,
-            path,
-            declarations,
-        )
-        .ok_or(LegalizationError::custody())?
+        runtime_projection_elements(root, path, declarations).ok_or(LegalizationError::custody())?
     };
     operands(optimized, unit, owner, &elements)
 }
@@ -117,8 +112,7 @@ pub(crate) fn reference_source(
     operation: OperationId,
     source: &terminal_psi::StructuralArgument,
 ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-    let root = super::scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
-        .ok_or(LegalizationError::custody())?;
+    let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
     // Formation's final marker is interpreted by the endpoint: it loads an
     // actual Reference shell, but creates no crossing at an ordinary leaf.
     // Both endpoints retain the same selectors before that final marker.
@@ -128,12 +122,7 @@ pub(crate) fn reference_source(
     };
     // Selector transport needs the actual storage regions, not a standalone
     // declaration for an inline endpoint. Formation owns its presentation.
-    let geometry =
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            root,
-            path,
-            &unit.structural_types,
-        )
+    let geometry = reference_formation_geometry(root, path, &unit.structural_types)
         .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &geometry.elements)
 }
@@ -153,20 +142,14 @@ pub(crate) fn collection_view(
     {
         return Ok(Vec::new());
     }
-    let root = super::scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
-        .ok_or(LegalizationError::custody())?;
+    let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
     let path = match source.path.last() {
         Some(terminal_psi::StructuralPathSegment::FixedByteRange { .. }) => {
             &source.path[..source.path.len() - 1]
         }
         _ => &source.path,
     };
-    let (_, _, elements) =
-        crate::structural_inputs::structural_reference_input::collection_projection(
-            root,
-            path,
-            &unit.structural_types,
-        )
+    let (_, _, elements) = collection_projection(root, path, &unit.structural_types)
         .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &elements)
 }

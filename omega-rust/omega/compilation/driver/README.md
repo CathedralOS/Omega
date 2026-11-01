@@ -600,6 +600,26 @@ Independent execution support.
 
 ### Callback custody boundaries
 
+Calling-policy execution consumes a source-free `CallingPolicySignature`:
+the canonical `BoundarySignatureGeometry`, target and complete callback
+obligations. Its input encoder and returned-plan validator live together in
+[policy_signature.rs](../realization/provider-planning/src/calling_policy_plans/policy_signature.rs).
+Native application publication uses that same geometry projection. Source
+symbols used by package review and layout preparation never enter the policy
+activation. The canonical catalog materializer in
+[terminal_signature.rs](../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs)
+produces that policy input directly; it never constructs a source-bearing
+signature with invalid placeholder symbols. Preparation still reads source for ordinary/opaque layouts and
+inline callback slots; moving those owners after Terminal publication and
+removing the separate policy-code publication remain unfinished.
+
+Native boundary packing retains no opaque source-selection record. It emits
+the recipe's exact selection ordinal and native shape root; provider planning
+joins those occurrences to the original selection roster once. Source symbols,
+lifecycle and copy disposition stay with that review/publication owner, whose
+commitment and exact-occurrence checks are unchanged. Layout geometry alone
+cannot publish selected representation custody.
+
 Retained-product callback and checked-scope composition must close through
 actual native publication, not a zero-payload layout or provider-selection check.
 Widening scalar-provider forwarding additionally requires preserved incoming

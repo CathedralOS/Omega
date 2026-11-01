@@ -32,7 +32,8 @@ pub use rank_components::{
 pub(crate) mod runtime_ranking;
 pub use rank_relevance::{RankRelevance, rank_relevance};
 pub use runtime_ranking::{
-    RuntimeRankBodyWitness, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
+    RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankInput, RuntimeRankOperand,
+    ValidatedRuntimeIntegerRank, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
     ValidatedRuntimeNaturalState, activation_target_state_index, internal_state_index,
 };
 
@@ -243,7 +244,9 @@ pub(crate) fn declaration_call_dependencies(
     // through the same owner used by call admission. Its full public contracts
     // remain dependencies; neither missing states nor provider bodies supply
     // independence. Keep `symbol` as graph owner so distinct evidence binders
-    // do not collapse into the trait's nominal declaration.
+    // do not collapse into the trait's nominal declaration. A trait requirement
+    // additionally depends on every supplied satisfier, selected or not (see
+    // `requirement_backing_machines`).
     } else if let Some(signature) = crate::selected_requirement_signature(program, symbol)
         .map(|(_, signature)| signature)
         .or_else(|| {
@@ -262,6 +265,7 @@ pub(crate) fn declaration_call_dependencies(
             program.state_signature_contracts(signature),
             &mut dependencies,
         );
+        dependencies.extend(requirement_backing_machines(program, symbol));
     } else if let Some(proposition) = program
         .propositions()
         .iter()
@@ -286,6 +290,57 @@ pub(crate) fn declaration_call_dependencies(
         .sort_unstable_by_key(|dependency| (dependency.arena_index(), dependency.generation()));
     dependencies.dedup();
     Some((symbol, dependencies))
+}
+
+/// The supplied machines whose bodies back a trait requirement's published
+/// guarantee.
+///
+/// A call to a requirement imports the requirement's contract, never a selected
+/// body's stronger private one, and that contract holds because every supplied
+/// satisfier proves it: Psi checks each named implementation under its ordinary
+/// identity whether or not any Build row selects it
+/// (`wiki/spec/build/configuration.md#multi-target-compilation`). A satisfier
+/// whose proof reaches this requirement again would discharge its own `ensures`
+/// with the guarantee it is meant to establish. That is the citation cycle
+/// `wiki/spec/proofs/contracts.md#citation-and-induction` rejects without a
+/// joint ranking.
+///
+/// The retired target-family head recorded this edge through
+/// `target_family_members`. Moving a family to named implementations selected by
+/// Build rows dropped it, and only a satisfier some row selected was left to
+/// Omega's synchronous-`invokes` cycle check, which never sees an unselected
+/// one. The edge therefore belongs to the requirement, not to the selection.
+///
+/// Only the requirement symbol itself gains the edge. An evidence binder
+/// (`S::member` in a generic body) stands for whichever implementation a call's
+/// type argument names; widening it to every satisfier would reject a body that
+/// applies the template to a different implementation than the one it defines.
+fn requirement_backing_machines(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    // A closed application has its own signature symbol; satisfaction edges
+    // name the declared requirement it instantiates.
+    let declared = program
+        .closed_requirement_application(symbol)
+        .map_or(symbol, |application| application.template);
+    if program.trait_machine_signature(declared).is_none() {
+        return Vec::new();
+    }
+    // Machine-level `satisfies` clauses and the rows of named implementations
+    // are the two authored forms of satisfaction; the shared satisfier query
+    // indexes only the first, and its termination and write-only consumers
+    // depend on that scope.
+    let mut backing = super::denotational_calls::requirement_satisfiers(program, declared);
+    backing.extend(
+        program
+            .conformances()
+            .iter()
+            .flat_map(|conformance| conformance.rows.iter())
+            .filter(|row| row.requirement == declared && row.realization_machine.is_valid())
+            .map(|row| row.realization_machine),
+    );
+    backing
 }
 
 fn collect_contract_dependency_symbols(

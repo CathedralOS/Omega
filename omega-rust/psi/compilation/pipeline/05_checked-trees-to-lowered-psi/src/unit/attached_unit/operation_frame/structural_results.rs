@@ -70,32 +70,19 @@ pub(super) fn validate_completed_arrival(
     let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
         return unsupported("completed arrival lost its block declaration");
     };
-    // A completed binding can outlive later private blocks. Its declaration
-    // rejoins the actual owning block's parameter roster, not just the current
-    // roster. Receiving replay still proves use dominance and live ownership.
-    let mut emitted = evaluation
-        .blocks
-        .iter()
-        .filter(|candidate| candidate.id == block);
-    let parameters = if block == evaluation.current {
-        if emitted.next().is_some() {
-            return unsupported("completed arrival repeats its current block");
-        }
-        evaluation.block_structural_parameters.as_slice()
-    } else {
-        let owner = emitted.next().ok_or(LoweringError::Unsupported(
-            "completed arrival has no established block",
-        ))?;
-        if emitted.next().is_some() {
-            return unsupported("completed arrival repeats its established block");
-        }
-        owner.structural_parameters.as_slice()
-    };
-    if !parameters
-        .iter()
-        .any(|parameter| parameter.place == declaration.id)
-    {
-        return unsupported("completed arrival has no declared parameter");
+    // The declaration may belong to this scope or an enclosing emitted
+    // scope. Branching transfers that exact owner association, not executable
+    // blocks or a claim that the value is still live. Terminal replay proves
+    // dominance and ownership independently.
+    let mut parameters = evaluation
+        .structural_arrivals()
+        .filter(|(owner, parameter)| *owner == block && parameter.place == declaration.id)
+        .map(|(_, parameter)| parameter);
+    let parameter = parameters.next().ok_or(LoweringError::Unsupported(
+        "completed arrival has no declared owner parameter",
+    ))?;
+    if parameters.any(|other| other != parameter) {
+        return unsupported("completed arrival changes its owner parameter");
     }
     Ok(())
 }

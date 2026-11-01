@@ -10,7 +10,10 @@ use symbol_resolved_trees::{
 };
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
+use crate::symbols::expressions::lexical_value_head;
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::name::DiagnosticName;
 
 /// Constant and field types contain the same value expressions as parameter types.
 /// Resolve them after declaration and type identities exist, before typing can
@@ -41,6 +44,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 owned_data: &[],
                 prior_statements: &[],
                 data_definitions: &program.roots.data_definitions,
+                type_aliases: &program.roots.type_aliases,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
                 data_payload_fields: &declarations.data_payload_fields,
@@ -56,6 +60,47 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 &mut declaration.declared_type,
             );
         });
+    // Headers remain readable while roots are resolved. Only the expansion
+    // changes here; publish its updates after the immutable roster traversal.
+    let mut alias_expansions = Vec::new();
+    for alias in program.roots.type_aliases.iter() {
+        let parameters = declarations
+            .data_type_parameters
+            .span_or_empty(alias.type_parameters)
+            .to_vec();
+        let scope = MachineScope {
+            symbol: alias.symbol,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: &parameters,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
+            data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        let mut expansion = alias.expansion.clone();
+        assign_type_value_expression_symbols(
+            symbols,
+            &scope,
+            &[],
+            SymbolHandle::invalid(),
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            &mut expansion,
+        );
+        alias_expansions.push(expansion);
+    }
+    let mut alias_expansions = alias_expansions.into_iter();
+    program.roots.type_aliases.for_each_mut(|alias| {
+        alias.expansion = alias_expansions.next().expect("unchanged alias roster");
+    });
     let mut field_updates = Vec::new();
     let mut payload_updates = Vec::new();
     for definition in program.roots.data_definitions.iter() {
@@ -73,6 +118,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             owned_data: &[],
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
@@ -80,11 +126,11 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
         };
         for (member_offset, member) in members.iter().enumerate() {
             let (fields, payload) = match member {
-                symbol_resolved_trees::data::DataMember::Field(field) => {
+                DataMember::Field(field) => {
                     scope.symbol = definition.symbol;
                     (std::slice::from_ref(field), None)
                 }
-                symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                DataMember::Variant(variant) => {
                     // Payload subjects shadow common fields and global names.
                     // The symbol hierarchy retains the enclosing data owner.
                     scope.symbol = variant.symbol;
@@ -119,9 +165,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
         }
     }
     for (handle, reference) in field_updates {
-        if let symbol_resolved_trees::data::DataMember::Field(field) =
-            declarations.data_members.get_mut(handle)
-        {
+        if let DataMember::Field(field) = declarations.data_members.get_mut(handle) {
             field.type_reference = reference;
         }
     }
@@ -185,6 +229,24 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                     machine
                         .data_type_parameters
                         .span_or_empty(data.type_parameters)
+                })
+                .or_else(|| {
+                    if symbols.get(generic.base_symbol).kind != SymbolKind::TypeAlias {
+                        return None;
+                    }
+                    let mut aliases = machine
+                        .type_aliases
+                        .iter()
+                        .filter(|alias| alias.symbol == generic.base_symbol);
+                    let alias = aliases.next()?;
+                    if aliases.next().is_some() {
+                        return None;
+                    }
+                    Some(
+                        machine
+                            .data_type_parameters
+                            .span_or_empty(alias.type_parameters),
+                    )
                 });
             if let Some(telescope) = telescope {
                 for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
@@ -264,6 +326,30 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expression.expression,
             );
         }
+        TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                application,
+            );
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                expansion,
+            );
+        }
         TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
     }
 }
@@ -326,16 +412,14 @@ fn resolve_index_subject(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     parameters: &[StateParameter],
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &DiagnosticName,
 ) -> Option<SymbolHandle> {
     // The type occurrence owns one span, so every path segment retains that
     // span rather than manufacturing source offsets across whitespace.
     let members = name
         .as_str()
         .split("::")
-        .map(|member| {
-            symbol_resolved_trees::name::DiagnosticName::from_str(member, name.source_span())
-        })
+        .map(|member| DiagnosticName::from_str(member, name.source_span()))
         .collect::<Vec<_>>();
     let Some((head_name, suffix)) = members.split_first() else {
         return None;
@@ -354,12 +438,8 @@ fn resolve_index_subject(
     let lexical = if payload_subject {
         declared
     } else {
-        let frontier = crate::symbols::expressions::lexical_value_head(
-            machine,
-            parameters,
-            head_name.as_str(),
-            !suffix.is_empty(),
-        );
+        let frontier =
+            lexical_value_head(machine, parameters, head_name.as_str(), !suffix.is_empty());
         if frontier.is_valid() {
             frontier
         } else {
@@ -401,3 +481,6 @@ fn resolve_index_subject(
     }
     None
 }
+
+#[cfg(test)]
+mod subject_binding_tests;

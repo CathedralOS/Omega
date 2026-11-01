@@ -1,5 +1,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "checked_asm_add_carry_target_body");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider<SelectedObserveTarget, X86ObserveTarget>(builder, linux_x86_64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
+    Build::select_provider<SelectedObserveTarget, X86ObserveTarget>(builder, windows_x86_64);
 }

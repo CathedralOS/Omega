@@ -3,8 +3,10 @@
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::resolution::graph::{
-    GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
+    CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
+    ResolvedPackageSourceClosure,
 };
+use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -316,10 +318,8 @@ impl LocalProjectPreparation {
         self.canonical_root.join(&self.entry_relative)
     }
 
-    pub fn acquire_root(
-        &self,
-    ) -> Result<crate::resolution::source::AcquiredBuildSource, PrepareLocalProjectError> {
-        crate::resolution::source::AcquiredBuildSource::capture_local(
+    pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
+        AcquiredBuildSource::capture_local(
             &self.canonical_root,
             LocalSourceLimits::default(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
@@ -331,15 +331,14 @@ impl LocalProjectPreparation {
     /// anonymous Build sources. Accepted selectors cannot refresh during discovery.
     pub fn source_acquisitions(
         &self,
-    ) -> Result<crate::resolution::source::BuildSourceAcquisitions<'_>, PrepareLocalProjectError>
-    {
+    ) -> Result<BuildSourceAcquisitions<'_>, PrepareLocalProjectError> {
         let source = self
             .accepted
             .as_ref()
             .and_then(|lock| lock.targets().first())
             .map(|target| target.source());
         if let Some(source) = source {
-            let matches_root = matches!(source.root().request(), crate::resolution::graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
+            let matches_root = matches!(source.root().request(), CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
                 if requested_root == self.canonical_root.as_os_str().as_encoded_bytes()
                     && source_context == &ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT));
             if !matches_root {
@@ -354,9 +353,7 @@ impl LocalProjectPreparation {
             GitExactRevisionAcquisition::AllowFetch
         };
         let pins = source
-            .map(|source| {
-                crate::resolution::graph::GitDependencyPins::new(source, &[], acquisition)
-            })
+            .map(|source| GitDependencyPins::new(source, &[], acquisition))
             .transpose()
             .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?;
         Ok(crate::resolution::source::BuildSourceAcquisitions::new(

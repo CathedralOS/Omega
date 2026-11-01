@@ -99,3 +99,15 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d33
 - The three corpus legs (check, native, agreement) are recorded at published base `f1b0d3326d2` with the fixtures staged, so their rows are stamped `@f1b0d3326d2+wt`.
 
 - **What remains open:** Dynamic out-of-range shift count masking, saturating/wrapping left shifts (`u8 in Saturating`), and SIMD byte vector shifts.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

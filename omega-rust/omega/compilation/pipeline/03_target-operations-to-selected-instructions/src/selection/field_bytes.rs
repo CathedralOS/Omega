@@ -5,6 +5,8 @@
 //! storage layout does not change with its consumer: a descriptor must be
 //! loaded, never addressed as though its words were inline payload.
 
+use super::established_view_input::{element_view_type, view_access};
+
 pub(in crate::selection) struct FieldBytes {
     /// Offset within the final contiguous region, after all pointer crossings.
     offset: u32,
@@ -69,14 +71,9 @@ pub(in crate::selection) fn root_type(
         }
         return Some(parameter.structural_type);
     }
-    if let Some(structural_type) =
-        super::established_view_input::element_view_type(function, source.place)
-    {
-        return access_covers(
-            super::established_view_input::view_access(function, source.place)?,
-            source.access,
-        )
-        .then_some(structural_type);
+    if let Some(structural_type) = element_view_type(function, source.place) {
+        return access_covers(view_access(function, source.place)?, source.access)
+            .then_some(structural_type);
     }
     let (_, result) = super::aggregate_result_input::home(function, source.place)?;
     (access_covers(StructuralAccess::Owned, source.access)

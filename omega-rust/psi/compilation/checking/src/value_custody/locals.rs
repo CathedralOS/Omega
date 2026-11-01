@@ -1,6 +1,7 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use diagnostics::Diagnostic;
 use language_core::is_self_receiver;
+use symbols::SymbolKind;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::{machine::Machine, state::State};
@@ -27,21 +28,19 @@ pub(crate) fn state_binding_type(
         return None;
     }
     match declaration.kind {
-        symbols::SymbolKind::Parameter => program
+        SymbolKind::Parameter => program
             .state_parameters(state)
             .iter()
             .find(|parameter| parameter.symbol == symbol)
             .map(|parameter| parameter.type_reference),
-        symbols::SymbolKind::Local => {
-            prior_statements
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == symbol => {
-                        Some(local.type_reference)
-                    }
-                    _ => None,
-                })
-        }
+        SymbolKind::Local => prior_statements
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => {
+                    Some(local.type_reference)
+                }
+                _ => None,
+            }),
         _ => None,
     }
 }
@@ -57,12 +56,7 @@ pub(crate) fn state_value_root_is_known(
     name: &str,
 ) -> bool {
     let kind = program.symbols.get(root).kind;
-    if is_self_receiver(name)
-        || matches!(
-            kind,
-            symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
-        )
-    {
+    if is_self_receiver(name) || matches!(kind, SymbolKind::Local | SymbolKind::Parameter) {
         return crate::value_custody::locals::state_binding_type(
             program,
             state,
@@ -71,8 +65,20 @@ pub(crate) fn state_value_root_is_known(
         )
         .is_some();
     }
-    if root.is_valid() && kind == symbols::SymbolKind::Unknown {
+    if root.is_valid() && kind == SymbolKind::Unknown {
         return false;
+    }
+    // A resolved constant is a declaration value, not storage introduced by
+    // this state. Its exact header establishes scope; readiness, carrier and
+    // value formation remain separate checks. Never borrow a same-named
+    // constant for a foreign local or parameter handled above.
+    if root.is_valid() && kind == SymbolKind::Const {
+        return program
+            .const_declarations()
+            .iter()
+            .filter(|declaration| declaration.symbol == root)
+            .count()
+            == 1;
     }
     // Generated case operands retain the selected declaration even when their
     // diagnostic carrier includes a package prefix absent from the roster name.
@@ -82,7 +88,7 @@ pub(crate) fn state_value_root_is_known(
     if root.is_valid()
         && matches!(
             kind,
-            symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+            SymbolKind::Conformance | SymbolKind::ConformanceParameter
         )
     {
         return true;
@@ -266,3 +272,6 @@ pub(crate) fn validate_local_data_names(
         }
     }
 }
+
+#[cfg(test)]
+mod value_scope_tests;

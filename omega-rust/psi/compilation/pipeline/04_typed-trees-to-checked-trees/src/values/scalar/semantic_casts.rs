@@ -1,5 +1,5 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
-use crate::flow::expressions;
+use crate::facts::domain_is_vacuous;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -84,11 +84,7 @@ pub(crate) fn has_only_vacuous_tags(
                                 && domain.semantic_id.is_valid()
                                 && !domain.predicate_presence.is_present()
                                 && domain.establishment_routes.is_empty()
-                                && crate::facts::domain_is_vacuous(
-                                    program,
-                                    domain.symbol,
-                                    &mut Vec::new(),
-                                )
+                                && domain_is_vacuous(program, domain.symbol, &mut Vec::new())
                         }
                         TypeConstraintNode::Range { .. }
                         | TypeConstraintNode::ArithmeticDomain(_) => true,
@@ -104,52 +100,20 @@ pub(crate) fn requires_custody(
     state: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    let child = |expression| requires_custody(program, state, expression);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) => {
-            !cast.semantic_domain.is_empty()
-                || result_type(program, state, cast.value)
-                    .is_some_and(|reference| has_declared_domains(program, reference))
-                || child(cast.value)
-        }
-        ExpressionNode::Binary(binary) => child(binary.left) || child(binary.right),
-        ExpressionNode::Unary(unary) => child(unary.operand),
-        ExpressionNode::Match(dispatch) => {
-            child(dispatch.subject)
-                || crate::flow::match_arm_satisfies(program, dispatch.arms, child)
-        }
-        ExpressionNode::Call(call) => {
-            child(call.receiver)
-                || expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied()
-                    .any(child)
-        }
-        ExpressionNode::Member(member) => child(member.receiver),
-        ExpressionNode::Indexed(indexed) => child(indexed.collection) || child(indexed.index),
-        ExpressionNode::Borrow(borrow) => child(borrow.target),
-        ExpressionNode::Atomic(atomic) => child(atomic.value) || child(atomic.result),
-        ExpressionNode::Range(range) => child(range.start) || child(range.end),
-        ExpressionNode::ArrayLiteral(elements) => expressions(program)
-            .expression_handles(*elements)
-            .iter()
-            .copied()
-            .any(child),
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| child(field.value)),
-        ExpressionNode::SavedSubject(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::TypeExpression(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
+    program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::STRUCTURAL,
+        |_, node| match node {
+            ExpressionNode::Cast(cast)
+                if !cast.semantic_domain.is_empty()
+                    || result_type(program, state, cast.value)
+                        .is_some_and(|reference| has_declared_domains(program, reference)) =>
+            {
+                typed_trees::SubtreeVisit::Found
+            }
+            _ => typed_trees::SubtreeVisit::Descend,
+        },
+    )
 }
 
 /// A checked value cast that changes arithmetic policy or interval qualification

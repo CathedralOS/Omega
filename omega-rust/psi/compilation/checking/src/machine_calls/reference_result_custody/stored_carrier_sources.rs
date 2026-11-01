@@ -6,6 +6,7 @@
 //! selected carrier already stored in its referent. Preserve that distinction:
 //! an aggregate extraction transports the child's loans, not the root loan.
 
+use checked_trees::CheckedMemberIdentity;
 use checked_trees::{
     CheckFacts, CheckedStructuralValueHandle, CheckedStructuralValueKind,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
@@ -160,9 +161,7 @@ fn select(
                     _ => None,
                 });
             let region = fields.nth(1)?;
-            if checked_trees::CheckedMemberIdentity::of_member(region.identity, region.name.clone())
-                != *selected
-            {
+            if CheckedMemberIdentity::of_member(region.identity, region.name.clone()) != *selected {
                 return None;
             }
             output.push(StoredCarrierSource::Image { value });
@@ -237,7 +236,7 @@ fn select(
                             .iter()
                             .find_map(|member| match member {
                                 DataMember::Variant(variant)
-                                    if checked_trees::CheckedMemberIdentity::of_member(
+                                    if CheckedMemberIdentity::of_member(
                                         variant.identity,
                                         variant.name.clone(),
                                     ) == *case =>
@@ -253,7 +252,7 @@ fn select(
                         .data_payload_fields(variant)
                         .iter()
                         .find(|declaration| {
-                            checked_trees::CheckedMemberIdentity::of_member(
+                            CheckedMemberIdentity::of_member(
                                 declaration.identity,
                                 declaration.name.clone(),
                             ) == *field
@@ -281,10 +280,8 @@ fn select(
             };
             let declaration = if let Some(variant) = payload {
                 program.data_payload_fields(variant).iter().find(|field| {
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ) == *field_identity
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone())
+                        == *field_identity
                 })?
             } else {
                 program
@@ -292,7 +289,7 @@ fn select(
                     .iter()
                     .find_map(|member| match member {
                         DataMember::Field(field)
-                            if checked_trees::CheckedMemberIdentity::of_member(
+                            if CheckedMemberIdentity::of_member(
                                 field.identity,
                                 field.name.clone(),
                             ) == *field_identity =>
@@ -334,10 +331,8 @@ fn select(
                     DataMember::Variant(variant) if variant.symbol == case.case => Some(variant),
                     _ => None,
                 })?;
-            if checked_trees::CheckedMemberIdentity::of_member(
-                selected.identity,
-                selected.name.clone(),
-            ) == *requested
+            if CheckedMemberIdentity::of_member(selected.identity, selected.name.clone())
+                == *requested
                 || !super::record_carrier_sources(
                     program,
                     case.type_reference,

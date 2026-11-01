@@ -5,6 +5,7 @@
 use super::{declared_place_type_raw, unwrapped_type_reference};
 use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -26,11 +27,7 @@ pub(crate) fn declared_member_path_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == field_name =>
-                    {
-                        Some(field)
-                    }
+                    DataMember::Field(field) if field.name.as_str() == field_name => Some(field),
                     _ => None,
                 })?;
             field
@@ -209,14 +206,14 @@ fn resolve_nested_member_path(
 }
 
 /// The data/sum definition behind a named or applied-generic type reference
-/// (through `&`/`in Domain` shells). Type arguments do not change the declared
-/// member names. `None` for primitives, arrays, and unknown names.
+/// (through `&`/`in Domain` shells). Prefer its exact prepared field telescope,
+/// then the declaration's names. `None` for primitives, arrays, and unknown names.
 pub(crate) fn data_definition_for_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    if let Some(instance) = program.closed_data_definition(unwrapped) {
+    if let Some(instance) = program.data_field_definition(unwrapped) {
         return Some(instance);
     }
     let symbol = match program.type_reference_table.type_reference(unwrapped) {
@@ -224,8 +221,8 @@ pub(crate) fn data_definition_for_type(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return None,
     };
-    // An application without a uniquely retained closed instance still names
-    // its exact template. Its fields stay open: this query neither invents a
+    // Without an exact prepared field view, the application still names its
+    // template. Fields stay open: this query neither invents a
     // specialization nor supplies a concrete extent from incomplete evidence.
     super::unique_data_definition_by_symbol(program, symbol)
 }

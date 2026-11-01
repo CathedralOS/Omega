@@ -15,48 +15,65 @@ machine fold(value: Payload) -> u64 {
     (value.left >> 4) ^ value.right
 }
 
-windows_x86_64 machine select(selected: u64, first: u64, second: u64) -> Payload {
-    let pair: Pair = Pair {
-        first: Payload { left: first, right: second },
-        second: Payload { left: second, right: first }
-    };
-    match selected {
-        0 -> pair.first,
-        _ -> supply(first ^ 255, second ^ 255).second
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_x86_64 machine select(selected: u64, first: u64, second: u64) -> Payload {
-    let pair: Pair = Pair {
-        first: Payload { left: first, right: second },
-        second: Payload { left: second, right: first }
-    };
-    match selected {
-        0 -> pair.first,
-        _ -> supply(first ^ 255, second ^ 255).second
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-macos_arm64 machine select(selected: u64, first: u64, second: u64) -> Payload {
-    let pair: Pair = Pair {
-        first: Payload { left: first, right: second },
-        second: Payload { left: second, right: first }
-    };
-    match selected {
-        0 -> pair.first,
-        _ -> supply(first ^ 255, second ^ 255).second
+
+boundary trait SelectedSelect {
+    machine select(selected: u64, first: u64, second: u64) -> Payload
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Select satisfies SelectedSelect {
+    machine select(selected: u64, first: u64, second: u64) -> Payload
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let pair: Pair = Pair {
+            first: Payload { left: first, right: second },
+            second: Payload { left: second, right: first }
+        };
+        match selected {
+            0 -> pair.first,
+            _ -> supply(first ^ 255, second ^ 255).second
+        }
     }
 }
-linux_arm64 machine select(selected: u64, first: u64, second: u64) -> Payload {
-    let pair: Pair = Pair {
-        first: Payload { left: first, right: second },
-        second: Payload { left: second, right: first }
-    };
-    match selected {
-        0 -> pair.first,
-        _ -> supply(first ^ 255, second ^ 255).second
+
+ArmSelect satisfies SelectedSelect {
+    machine select(selected: u64, first: u64, second: u64) -> Payload
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let pair: Pair = Pair {
+            first: Payload { left: first, right: second },
+            second: Payload { left: second, right: first }
+        };
+        match selected {
+            0 -> pair.first,
+            _ -> supply(first ^ 255, second ^ 255).second
+        }
     }
 }
+
 machine choose(selected: u64, first: u64, second: u64) -> u64 {
-    let result: Payload = select(selected, first, second);
+    let result: Payload = SelectedSelect::select(selected, first, second);
     fold(result)
 }
 
@@ -69,4 +86,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine wrong() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

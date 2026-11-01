@@ -16,19 +16,30 @@ use crate::flow::expression::Execution;
 use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
-use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
-use facts::{FactPayload, ProgramPoint};
+use checked_trees::{
+    CheckedOperatorOccurrence, FlowConstraintRef, FlowOperandAlternative, FlowSemanticContextRef,
+};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint, ScalarValue};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
+use validation::expression_result_type_reference;
+use validation::field_domains::domain_requires_provenance;
+use validation::peel_declared_constraints;
+use validation::place_has_builtin_coordinates;
+use validation::structural_match_pattern_case;
+use validation::structural_match_pattern_is_total;
+use validation::structural_match_subject_type;
 
 impl Execution<'_, '_, '_> {
     pub(super) fn dispatch(
         &mut self,
         expression: ExpressionHandle,
         dispatch: TableMatchExpression,
-        destination: typed_trees::types::TypeReferenceHandle,
+        destination: TypeReferenceHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> HandleSpan<checked_trees::FlowOperandAlternative> {
+    ) -> HandleSpan<FlowOperandAlternative> {
         let destination = if destination.is_valid() {
             destination
         } else {
@@ -36,12 +47,8 @@ impl Execution<'_, '_, '_> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .unwrap_or_default()
         };
-        let structural = validation::structural_match_subject_type(
-            self.program,
-            self.machine,
-            self.state,
-            &dispatch,
-        );
+        let structural =
+            structural_match_subject_type(self.program, self.machine, self.state, &dispatch);
         // Structural pattern correspondence does not determine whether the
         // subject is an owned value or a view. Owned subjects need their full
         // once-completed inventory; views keep address and live-read custody.
@@ -77,7 +84,7 @@ impl Execution<'_, '_, '_> {
         let mut boolean_coverage = [false; 2];
         let mut case_coverage = Vec::new();
         let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
-        let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
+        let mut shared_scalar: Option<Option<ScalarValue>> = None;
         let mut shared_members: Option<Vec<_>> = None;
         let mut shared_qualifications = None;
         let mut value_coverage = false;
@@ -91,19 +98,20 @@ impl Execution<'_, '_, '_> {
         {
             let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
             if let Some(reference) = structural
-                && let Some(case) = validation::structural_match_pattern_case(
+                && let Some(case) = structural_match_pattern_case(
                     self.program,
                     self.machine,
                     self.state,
                     &dispatch,
                     arm.pattern,
                 )
-                && validation::structural_match_pattern_is_total(self.program, arm.pattern)
+                && structural_match_pattern_is_total(self.program, arm.pattern)
             {
                 crate::collections::push_unique(&mut case_coverage, case);
                 covered |= validation::structural_match_cases_are_covered(
                     self.program,
                     reference,
+                    expression,
                     &case_coverage,
                 );
             }
@@ -115,7 +123,7 @@ impl Execution<'_, '_, '_> {
                     let source_arm = dispatch.arms.handle_at(ordinal);
                     self.record_operator_invocation(
                         expression,
-                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                        CheckedOperatorOccurrence::MatchEquality { source_arm },
                         &[subject_operand, pattern_operand],
                         *constraints,
                     );
@@ -243,7 +251,7 @@ impl Execution<'_, '_, '_> {
                 .unwrap_or_default();
             self.context.control.operand_alternatives.append_to_span(
                 &mut alternatives,
-                checked_trees::FlowOperandAlternative { source_arm, value },
+                FlowOperandAlternative { source_arm, value },
             );
             let yielded = self.predicates_on_value(arm.value, &selected_contexts);
             match shared_predicates.as_mut() {
@@ -339,34 +347,25 @@ impl Execution<'_, '_, '_> {
         &self,
         value: ExpressionHandle,
         contexts: &HandleSpan<FlowSemanticContextRef>,
-    ) -> Option<facts::ScalarValue> {
+    ) -> Option<ScalarValue> {
         // Anonymous literals already own their exact denotation, even before
         // a declaration-backed carrier exists. A later destination checks
         // representability; inventing a source type here would move landing.
         if !crate::values::is_assignment_literal(self.program, value) {
-            let reference = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                value,
-            )?;
-            let reference = validation::peel_declared_constraints(self.program, reference);
+            let reference =
+                expression_result_type_reference(self.program, self.machine, self.state, value)?;
+            let reference = peel_declared_constraints(self.program, reference);
             if matches!(
                 self.program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Reference { .. }
+                TypeReferenceNode::Reference { .. }
             ) || self.program.primitive_type_reference(reference).is_none()
             {
                 return None;
             }
         }
         let source = self.completed_value_place(value)?;
-        if matches!(source.root, facts::PlaceRoot::Symbol(_))
-            && !validation::place_has_builtin_coordinates(
-                self.program,
-                self.machine,
-                Some(self.state),
-                value,
-            )
+        if matches!(source.root, PlaceRoot::Symbol(_))
+            && !place_has_builtin_coordinates(self.program, self.machine, Some(self.state), value)
         {
             return None;
         }
@@ -399,10 +398,7 @@ impl Execution<'_, '_, '_> {
             } else if let Some((_, _, domain_symbol, semantic_domain)) =
                 fact.payload.domain_membership()
             {
-                if validation::field_domains::domain_requires_provenance(
-                    self.program,
-                    domain_symbol,
-                ) {
+                if domain_requires_provenance(self.program, domain_symbol) {
                     continue;
                 }
                 let Some(domain) = self.program.domain_definition(domain_symbol) else {
@@ -443,7 +439,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
         domains: &[CarriedPredicate],
-        scalar: Option<facts::ScalarValue>,
+        scalar: Option<ScalarValue>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
@@ -459,20 +455,20 @@ impl Execution<'_, '_, '_> {
         let mut refs = HandleSpan::empty();
         if let Some(scalar) = scalar {
             let value = self.semantic.scalar_values.append(scalar);
-            let fact = self.semantic.append_fact(facts::Fact {
-                place: facts::FactPlace::Place(place),
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
                 point,
-                origin: facts::FactOrigin::StatementTransfer,
+                origin: FactOrigin::StatementTransfer,
                 evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedScalarValue { value },
             });
             self.semantic.append_ref(&mut refs, fact);
         }
         for domain in domains {
-            let fact = self.semantic.append_fact(facts::Fact {
-                place: facts::FactPlace::Place(place),
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
                 point,
-                origin: facts::FactOrigin::StatementTransfer,
+                origin: FactOrigin::StatementTransfer,
                 evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: domain.payload(expression),
             });

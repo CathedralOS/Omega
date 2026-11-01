@@ -20,8 +20,12 @@ pub(super) struct StorageExposureRecord {
 }
 
 use super::StructuralJudge;
+use crate::CanonicalPlace;
+use facts::PlaceSegment;
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
@@ -107,7 +111,7 @@ impl CapturedStorageCoordinate {
 
 #[derive(Clone, PartialEq, Eq)]
 enum CapturedStorageSegment {
-    Place(facts::PlaceSegment),
+    Place(PlaceSegment),
     Index(super::StructuralTerm),
 }
 
@@ -137,9 +141,36 @@ impl CapturedStorageSegment {
 /// and no receiving declaration contributes a premise about its own initializer.
 fn project_captured_value(
     program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: super::StructuralTerm,
+    path: &[CapturedStorageSegment],
+) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
+    project_captured_value_by(
+        program,
+        reference,
+        value,
+        path,
+        |reference, value, segment| {
+            super::super::observed_projections::project_observed_value(
+                program,
+                reference,
+                value,
+                std::slice::from_ref(segment),
+            )
+        },
+    )
+}
+
+fn project_captured_value_by(
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     mut value: super::StructuralTerm,
     path: &[CapturedStorageSegment],
+    mut project_place: impl FnMut(
+        TypeReferenceHandle,
+        super::StructuralTerm,
+        &facts::PlaceSegment,
+    ) -> Option<super::StructuralTerm>,
 ) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
     for segment in path {
         // Invocation entry may already have observed the exact referent of an
@@ -155,14 +186,7 @@ fn project_captured_value(
         }
         let projected = segment.projected_type(program, reference)?;
         value = match segment {
-            CapturedStorageSegment::Place(segment) => {
-                super::super::observed_projections::project_observed_value(
-                    program,
-                    reference,
-                    value,
-                    std::slice::from_ref(segment),
-                )?
-            }
+            CapturedStorageSegment::Place(segment) => project_place(reference, value, segment)?,
             CapturedStorageSegment::Index(index) => {
                 super::super::observed_projections::project_index(
                     program,
@@ -183,6 +207,7 @@ fn project_captured_value(
 /// stores; a later whole read rejoins them through intake_current_storage_fields.
 fn disjoint_storage_fields(
     program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge,
     coordinate: &CapturedStorageCoordinate,
     reference: TypeReferenceHandle,
     value: &super::StructuralTerm,
@@ -198,17 +223,34 @@ fn disjoint_storage_fields(
     else {
         return;
     };
+    let mut fields = Vec::new();
     for member in program.data_members(data) {
-        // An unknown tag supplies no payload projection. Common fields use
-        // their resolved symbols and the current application's exact types.
-        let typed_trees::data::DataMember::Field(field) = member else {
-            continue;
-        };
-        let segment = CapturedStorageSegment::Place(facts::PlaceSegment::Field {
+        match member {
+            typed_trees::data::DataMember::Field(field) => fields.push((Vec::new(), field)),
+            typed_trees::data::DataMember::Variant(variant)
+                if matches!(
+                    judge.judge_case(value.clone(), data.symbol, variant.symbol),
+                    super::StructuralJudgment::Proven
+                ) =>
+            {
+                for field in program.data_payload_fields(variant) {
+                    fields.push((
+                        vec![CapturedStorageSegment::Place(facts::PlaceSegment::Case {
+                            variant: variant.symbol,
+                        })],
+                        field,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    for (mut segments, field) in fields {
+        segments.push(CapturedStorageSegment::Place(facts::PlaceSegment::Field {
             symbol: field.symbol,
-        });
+        }));
         let mut child = coordinate.clone();
-        child.segments.push(segment.clone());
+        child.segments.extend(segments.clone());
         let Some(path) = child.frame_path(program) else {
             continue;
         };
@@ -228,11 +270,20 @@ fn disjoint_storage_fields(
         {
             continue;
         }
-        let Some((projected, value)) = project_captured_value(
+        let Some((projected, value)) = project_captured_value_by(
             program,
             reference,
             value.clone(),
-            std::slice::from_ref(&segment),
+            &segments,
+            |reference, value, segment| {
+                super::super::observed_projections::project_observed_value_in_scope(
+                    program,
+                    judge,
+                    reference,
+                    value,
+                    std::slice::from_ref(segment),
+                )
+            },
         ) else {
             continue;
         };
@@ -244,7 +295,9 @@ fn disjoint_storage_fields(
                 ),
             ));
         } else {
-            disjoint_storage_fields(program, &child, projected, &value, written, preserved);
+            disjoint_storage_fields(
+                program, judge, &child, projected, &value, written, preserved,
+            );
         }
     }
 }
@@ -256,17 +309,15 @@ fn content_storage_segments(
     path.iter()
         .map(|segment| match segment {
             ContentPlaceSegment::Field(field) => {
-                CapturedStorageSegment::Place(facts::PlaceSegment::Field {
+                CapturedStorageSegment::Place(PlaceSegment::Field {
                     symbol: field.symbol,
                 })
             }
-            ContentPlaceSegment::Case(case) => {
-                CapturedStorageSegment::Place(facts::PlaceSegment::Case {
-                    variant: case.symbol,
-                })
-            }
+            ContentPlaceSegment::Case(case) => CapturedStorageSegment::Place(PlaceSegment::Case {
+                variant: case.symbol,
+            }),
             ContentPlaceSegment::FixedIndex(index) => CapturedStorageSegment::Index(
-                super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*index)),
+                super::StructuralTerm::Integer(BigInt::from_u64(*index)),
             ),
         })
         .collect()
@@ -280,6 +331,9 @@ pub(super) struct CapturedStorageValue {
     pub(super) coordinate: CapturedStorageCoordinate,
     pub(super) entry: Option<super::StructuralTerm>,
     pub(super) current: Option<super::StructuralTerm>,
+    /// A payload store observes the containing case without asserting any of
+    /// its predicates or unobserved fields. Whole/opaque writes retire it.
+    pub(super) selected_case: Option<SymbolHandle>,
     pub(super) completed_read: Option<(ExpressionHandle, usize)>,
     pub(super) backing: Option<read_backing::CapturedScalarReadBacking>,
 }
@@ -338,6 +392,7 @@ impl StructuralJudge<'_> {
                     },
                     entry: Some(current.clone()),
                     current: Some(current),
+                    selected_case: None,
                     completed_read: None,
                     backing: None,
                 });
@@ -548,6 +603,7 @@ impl StructuralJudge<'_> {
                     {
                         disjoint_storage_fields(
                             program,
+                            self,
                             &stored.coordinate,
                             reference,
                             value,
@@ -582,7 +638,34 @@ impl StructuralJudge<'_> {
                                 })
                         })
                         .filter(|reference| !frames.value_is_reference_free(*reference));
-                    (stable, inline)
+                    let tag_stable = stored.selected_case.is_some_and(|case| {
+                        let Some(written) = written else {
+                            return false;
+                        };
+                        if !stored.coordinate.has_stable_backing(program, state, frames) {
+                            return false;
+                        }
+                        let Some(parent) = stored.coordinate.frame_path(program) else {
+                            return false;
+                        };
+                        let mut selected = stored.coordinate.clone();
+                        selected.segments.push(CapturedStorageSegment::Place(
+                            facts::PlaceSegment::Case { variant: case },
+                        ));
+                        let Some(selected) = selected.frame_path(program) else {
+                            return false;
+                        };
+                        written.iter().all(|written| {
+                            !crate::frame_paths_overlap(written, &parent)
+                                || written
+                                    .strip_prefix(&parent)
+                                    .is_some_and(|suffix| suffix.starts_with('.'))
+                                || written
+                                    .strip_prefix(&selected)
+                                    .is_some_and(|suffix| suffix.starts_with('.'))
+                        })
+                    });
+                    (stable, inline, tag_stable)
                 })
                 .collect::<Vec<_>>()
         };
@@ -591,7 +674,10 @@ impl StructuralJudge<'_> {
         // current contents at their former addresses, not detached copies.
         let mut preservation = preservation.into_iter();
         std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
-            let (stable, inline) = preservation.next().unwrap_or((false, None));
+            let (stable, inline, tag_stable) = preservation.next().unwrap_or((false, None, false));
+            if !tag_stable {
+                stored.selected_case = None;
+            }
             if !stable {
                 stored.current = None;
             } else if let Some(reference) = inline
@@ -607,7 +693,7 @@ impl StructuralJudge<'_> {
             }
             // A retained current value is not a new observation after the write.
             stored.completed_read = None;
-            stored.entry.is_some() || stored.current.is_some()
+            stored.entry.is_some() || stored.current.is_some() || stored.selected_case.is_some()
         });
         for (coordinate, value) in preserved_fields {
             // Existing finer observations are authoritative. Splitting an older
@@ -707,11 +793,9 @@ impl StructuralJudge<'_> {
 
     fn ordinary_storage_path(&self, scope: StorageScope<'_>, expression: ExpressionHandle) -> bool {
         match self.program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Name(_) => true,
-            typed_trees::expression::ExpressionNode::Member(member) => {
-                self.ordinary_storage_path(scope, member.receiver)
-            }
-            typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Name(_) => true,
+            ExpressionNode::Member(member) => self.ordinary_storage_path(scope, member.receiver),
+            ExpressionNode::Indexed(indexed) => {
                 let builtin = scope.is_some_and(|(machine, state)| {
                     crate::value_custody::places::place_has_builtin_coordinates(
                         self.program,
@@ -754,16 +838,13 @@ impl StructuralJudge<'_> {
         let [source] = subject.sources.as_slice() else {
             return None;
         };
-        self.capture_storage_place(crate::CanonicalPlace {
+        self.capture_storage_place(CanonicalPlace {
             root: facts::PlaceRoot::Symbol(source.root),
             segments: source.segments.clone(),
         })
     }
 
-    fn capture_storage_place(
-        &self,
-        place: crate::CanonicalPlace,
-    ) -> Option<CapturedStorageCoordinate> {
+    fn capture_storage_place(&self, place: CanonicalPlace) -> Option<CapturedStorageCoordinate> {
         self.capture_storage_place_with_selectors(place, |expression| {
             let (_, value) = self
                 .normal_results
@@ -775,19 +856,17 @@ impl StructuralJudge<'_> {
 
     fn capture_storage_place_with_selectors(
         &self,
-        place: crate::CanonicalPlace,
+        place: CanonicalPlace,
         mut selector: impl FnMut(ExpressionHandle) -> Option<super::StructuralTerm>,
     ) -> Option<CapturedStorageCoordinate> {
         let segments = place
             .segments
             .into_iter()
             .map(|segment| match segment {
-                facts::PlaceSegment::FixedIndex { index } => Some(CapturedStorageSegment::Index(
-                    super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                        u64::try_from(index).ok()?,
-                    )),
+                PlaceSegment::FixedIndex { index } => Some(CapturedStorageSegment::Index(
+                    super::StructuralTerm::Integer(BigInt::from_u64(u64::try_from(index).ok()?)),
                 )),
-                facts::PlaceSegment::Index { expression } => {
+                PlaceSegment::Index { expression } => {
                     let value = selector(expression);
                     if super::super::struct_trace() {
                         eprintln!(
@@ -800,19 +879,19 @@ impl StructuralJudge<'_> {
                     value.observation_identity_key()?;
                     Some(CapturedStorageSegment::Index(value))
                 }
-                facts::PlaceSegment::Field { symbol }
+                PlaceSegment::Field { symbol }
                     if symbol.is_valid()
                         && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Field =>
                 {
                     Some(CapturedStorageSegment::Place(segment))
                 }
-                facts::PlaceSegment::Case { variant } if variant.is_valid() => {
+                PlaceSegment::Case { variant } if variant.is_valid() => {
                     Some(CapturedStorageSegment::Place(segment))
                 }
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. } => None,
+                PlaceSegment::Field { .. } | PlaceSegment::Case { .. } => None,
                 // A window is not one storage coordinate. Unknown selection cannot
                 // borrow the identity of its source expression or an arbitrary slot.
-                facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => None,
+                PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => None,
             })
             .collect::<Option<Vec<_>>>()?;
         Some(CapturedStorageCoordinate {
@@ -825,12 +904,26 @@ impl StructuralJudge<'_> {
         &self,
         scope: StorageScope<'_>,
         expression: ExpressionHandle,
+        mut specification_selector: impl FnMut(ExpressionHandle) -> Option<super::StructuralTerm>,
     ) -> Option<super::StructuralTerm> {
         // Case-only judgments intentionally do not track storage writes.
         if self.stored_values.is_empty() || !self.requires_value_preservation() {
             return None;
         }
-        let place = self.captured_storage_coordinate(scope, expression)?;
+        let place = if self.specification_terms {
+            // A predicate observes selectors at this proof point; it has no
+            // executable operand schedule of its own. Its term owner supplies
+            // the exact current environment and selected operation meanings.
+            // Executed reads still require their already completed selectors.
+            self.ordinary_storage_path(scope, expression)
+                .then_some(())?;
+            let place = crate::canonical_place_from_expression(self.program, expression)?;
+            self.capture_storage_place_with_selectors(place, |selector| {
+                specification_selector(selector).map(|value| self.completed_value_identity(value))
+            })?
+        } else {
+            self.captured_storage_coordinate(scope, expression)?
+        };
         let current = self.current_storage_value(&place);
         if super::super::struct_trace() {
             eprintln!(
@@ -885,7 +978,7 @@ impl StructuralJudge<'_> {
             for segment in &place.segments[stored.coordinate.segments.len()..] {
                 let projected_type = segment.projected_type(self.program, reference)?;
                 value = match segment {
-                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol }) => {
+                    CapturedStorageSegment::Place(PlaceSegment::Field { symbol }) => {
                         self.observed_field_term(value, self.program.symbols.name(*symbol), 0)?
                     }
                     CapturedStorageSegment::Index(_) => {
@@ -940,6 +1033,33 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
+            && let Some(case) = self
+                .stored_values
+                .iter()
+                .find(|stored| stored.coordinate == coordinate)
+                .and_then(|stored| stored.selected_case)
+            && let Some((owner, _)) = self.program.variant_owner(case)
+            && let Some(definition) = self.program.data_constructor_definition(
+                self.program
+                    .type_reference_table
+                    .peeled_type_reference(reference),
+                owner.symbol,
+            )
+            && let Some(selected) = self.program.data_constructor_case(
+                self.program
+                    .type_reference_table
+                    .peeled_type_reference(reference),
+                owner.symbol,
+                case,
+            )
+        {
+            self.intake_case_guarantee(&super::CaseGuarantee {
+                subject: value.clone(),
+                data: definition.symbol,
+                case: selected.symbol,
+            });
+        }
         let equations = self
             .stored_values
             .iter()
@@ -951,11 +1071,20 @@ impl StructuralJudge<'_> {
                     return None;
                 }
                 let current = stored.current.clone()?;
-                let (_, projection) = project_captured_value(
+                let (_, projection) = project_captured_value_by(
                     self.program,
                     reference,
                     value.clone(),
                     &stored.coordinate.segments[coordinate.segments.len()..],
+                    |reference, value, segment| {
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            reference,
+                            value,
+                            std::slice::from_ref(segment),
+                        )
+                    },
                 )?;
                 let projected_type = stored.coordinate.segments[coordinate.segments.len()..]
                     .iter()
@@ -1049,6 +1178,7 @@ impl StructuralJudge<'_> {
                 coordinate,
                 entry: entry.then(|| value.clone()),
                 current: Some(value),
+                selected_case: None,
                 completed_read: None,
                 backing: None,
             });
@@ -1134,7 +1264,7 @@ impl StructuralJudge<'_> {
     /// revision ledger; claim forwarding alone never establishes byte equality.
     pub(in crate::proof_contracts::contract_entailment) fn captured_place_projection(
         &self,
-        place: &crate::CanonicalPlace,
+        place: &CanonicalPlace,
         version: language_semantics::content::ContentPlaceVersion,
     ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
@@ -1235,7 +1365,7 @@ impl StructuralJudge<'_> {
                     && origin.recasts.is_empty()
                     && origin.representation.is_none() =>
             {
-                crate::CanonicalPlace {
+                CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(origin.root),
                     segments: origin.segments.clone(),
                 }
@@ -1283,7 +1413,49 @@ impl StructuralJudge<'_> {
         destination: CapturedStoreDestination,
         value: super::StructuralTerm,
     ) -> Option<()> {
+        // The outward frame deliberately coarsens indexed stores. This actual
+        // store additionally owns one authenticated, already evaluated place.
+        // Preserve observed cells proved disjoint from that place, using the
+        // current roster after RHS effects, never the pre-RHS snapshot. Calls
+        // and opaque/multiple destinations still use only their complete frame.
+        let mut preserved = Vec::new();
+        if let Some(written) = &destination.coordinate {
+            let frames = self.frame_resolver()?;
+            for stored in self.stored_values.iter() {
+                if !stored
+                    .coordinate
+                    .has_stable_backing(self.program, state, frames)
+                    || !self.exact_storage_coordinates_disjoint(&stored.coordinate, written)
+                {
+                    continue;
+                }
+                let Some(current) = stored.current.clone() else {
+                    continue;
+                };
+                let Some(reference) = stored.coordinate.root.as_symbol().and_then(|root| {
+                    stored.coordinate.segments.iter().try_fold(
+                        crate::declaration_type_reference(self.program, root)?,
+                        |reference, segment| segment.projected_type(self.program, reference),
+                    )
+                }) else {
+                    continue;
+                };
+                // A disjoint descriptor slot preserves its words, not an old
+                // observation of potentially aliased storage behind the slot.
+                preserved.push((
+                    stored.coordinate.clone(),
+                    super::super::structural_terms::owned_projection_observation(
+                        self.program,
+                        reference,
+                        current,
+                    ),
+                ));
+            }
+        }
         self.observe_storage_effects(state, destination.frame.complete_paths())?;
+        for (coordinate, current) in preserved {
+            self.retain_storage_value(coordinate, current, false);
+        }
         if let Some(coordinate) = destination.coordinate {
             if super::super::struct_trace() {
                 eprintln!(
@@ -1306,9 +1478,95 @@ impl StructuralJudge<'_> {
                     value,
                 )
             };
-            self.retain_storage_value(coordinate, value, false);
+            self.retain_storage_value(coordinate.clone(), value, false);
+            self.retain_written_case_tags(&coordinate);
         }
         Some(())
+    }
+
+    /// A checked store through a case field has already selected that case.
+    /// Record only the tag of each containing storage value. This supplies no
+    /// default-domain admission, named membership, sibling contents or loan.
+    fn retain_written_case_tags(&mut self, destination: &CapturedStorageCoordinate) {
+        let program = self.program;
+        let Some(root) = destination.root.as_symbol() else {
+            return;
+        };
+        let Some(mut reference) = crate::declaration_type_reference(program, root) else {
+            return;
+        };
+        let mut prefix = CapturedStorageCoordinate {
+            root: destination.root,
+            segments: Vec::new(),
+        };
+        for segment in &destination.segments {
+            if let CapturedStorageSegment::Place(facts::PlaceSegment::Case { variant }) = segment
+                && crate::value_custody::places::data_definition_for_type(program, reference)
+                    .is_some_and(|definition| {
+                        program
+                            .data_members(definition)
+                            .iter()
+                            .filter_map(typed_trees::data::DataMember::as_variant)
+                            .any(|case| case.symbol == *variant)
+                    })
+            {
+                let values = std::sync::Arc::make_mut(&mut self.stored_values);
+                if let Some(stored) = values.iter_mut().find(|stored| stored.coordinate == prefix) {
+                    stored.selected_case = Some(*variant);
+                } else {
+                    values.push(CapturedStorageValue {
+                        coordinate: prefix.clone(),
+                        entry: None,
+                        current: None,
+                        selected_case: Some(*variant),
+                        completed_read: None,
+                        backing: None,
+                    });
+                }
+            }
+            let Some(projected) = segment.projected_type(program, reference) else {
+                break;
+            };
+            reference = projected;
+            prefix.segments.push(segment.clone());
+        }
+    }
+
+    /// A common backing and equal prefix identify the collection whose frozen
+    /// selectors are compared. Different roots, unknown selectors and prefix
+    /// writes supply no non-interference proof. Case tags are not disjoint
+    /// storage: changing a variant may replace its entire payload.
+    fn exact_storage_coordinates_disjoint(
+        &self,
+        observed: &CapturedStorageCoordinate,
+        written: &CapturedStorageCoordinate,
+    ) -> bool {
+        if observed.root != written.root {
+            return false;
+        }
+        for (observed, written) in observed.segments.iter().zip(&written.segments) {
+            if observed == written {
+                continue;
+            }
+            return match (observed, written) {
+                (
+                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol: left }),
+                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol: right }),
+                ) => left != right,
+                (CapturedStorageSegment::Index(left), CapturedStorageSegment::Index(right)) => {
+                    matches!(
+                        self.judge_equation(
+                            self.resolve_at(left.clone(), 0),
+                            self.resolve_at(right.clone(), 0),
+                            0,
+                        ),
+                        super::StructuralJudgment::Refuted
+                    )
+                }
+                _ => false,
+            };
+        }
+        false
     }
 
     /// A slice descriptor in a private owned home is a completed value,

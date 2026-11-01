@@ -4,7 +4,9 @@
 //! locals, or entry facts enter the lifted machine. Captured statics precede
 //! authored statics both in the declaration telescope and at every call site.
 
+use crate::expressions::expression::lower_static_machine_argument;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees as typed;
@@ -42,19 +44,15 @@ pub(crate) fn enclosing_bounds<'program>(
 pub(crate) fn call_arguments(
     program: Option<&resolved::SymbolResolvedTrees>,
     target: &mut typed::TypedTrees,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<SelectionExposure>,
     callee: SymbolHandle,
     authored: &[resolved::expression::StaticMachineArgument],
 ) -> Result<Box<[typed::expression::StaticMachineArgument]>, Diagnostic> {
     let mut arguments = captured_arguments(program, callee);
     for argument in authored {
-        arguments.push(
-            crate::expressions::expression::lower_static_machine_argument(
-                program, target, exposure, argument,
-            )?,
-        );
+        arguments.push(lower_static_machine_argument(
+            program, target, exposure, argument,
+        )?);
     }
     Ok(arguments.into_boxed_slice())
 }

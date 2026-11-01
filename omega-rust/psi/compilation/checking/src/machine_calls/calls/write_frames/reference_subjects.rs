@@ -15,6 +15,7 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
 use facts::PlaceSegment;
 use std::sync::Mutex;
 use symbols::SymbolKeyMap as HashMap;
+use symbols::SymbolKind;
 
 pub(super) mod bindings;
 mod projections;
@@ -117,9 +118,7 @@ pub(super) fn replaces_binding(
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
     let target = FrameSourcePlace::from_expression(program, assignment.target);
-    if !target.segments.is_empty()
-        || program.symbols.get(target.root).kind != symbols::SymbolKind::Local
-    {
+    if !target.segments.is_empty() || program.symbols.get(target.root).kind != SymbolKind::Local {
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
@@ -549,7 +548,7 @@ pub(super) fn local_origins(
         })?;
     if !type_reference_is_reference(program, local.type_reference)
         || program.symbols.get(local_symbol).parent != state.symbol
-        || program.symbols.get(local_symbol).kind != symbols::SymbolKind::Local
+        || program.symbols.get(local_symbol).kind != SymbolKind::Local
         || program.symbols.name(local_symbol) != local.name.as_str()
     {
         return None;
@@ -1048,9 +1047,15 @@ pub(super) fn validate_source_projection(
                 return None;
             };
             let root = source_root_type(program, state, index, recast.root)?;
+            // Readability and single-descriptor shape are judged on the
+            // carrier; the join below projects from the qualified storage
+            // type because the carrier query peels constraint shells.
+            carrier_storage_type(program, root)?;
+            let storage_root =
+                crate::reference_shell(program, root).map_or(root, |shell| shell.referee);
             let source_type = crate::project_type_reference_from_segments(
                 program,
-                carrier_storage_type(program, root)?,
+                storage_root,
                 &recast.segments,
             )?;
             // The endpoint's qualifications name resident custody. Geometry
@@ -1108,7 +1113,7 @@ pub(super) fn source_root_type(
             .then_some(parameter.type_reference);
     }
     if program.symbols.get(root).parent != state.symbol
-        || program.symbols.get(root).kind != symbols::SymbolKind::Local
+        || program.symbols.get(root).kind != SymbolKind::Local
     {
         return None;
     }

@@ -16,6 +16,7 @@ use arena::HandleSpan;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::TransitionGuardNode;
+use validation::land_anonymous_integer_expression;
 
 /// The argument-integer-range spine both operand-arg obligations share:
 /// anonymous-argument literal first, then literal-or-constraints.
@@ -98,7 +99,14 @@ pub(crate) fn guarded_integer_range_for_transition_argument(
     // place, and through the `place +- K` refold.
     for refuted in &obligation.refuted_exit_guards {
         range = apply_handle_condition_complement(proof_plan, range, obligation.argument, *refuted);
-        range = complement_refined_binary_range(proof_plan, range, obligation.argument, *refuted);
+        range = place_refined_binary_range(
+            proof_plan,
+            range,
+            obligation.argument,
+            |plan, place_range, place| {
+                apply_handle_condition_complement(plan, place_range, place, *refuted)
+            },
+        );
     }
     range
 }
@@ -217,17 +225,6 @@ fn place_refined_binary_range(
     }
 }
 
-fn complement_refined_binary_range(
-    proof_plan: &ProofPlan,
-    range: IntegerRange,
-    value: ExpressionHandle,
-    refuted: ExpressionHandle,
-) -> IntegerRange {
-    place_refined_binary_range(proof_plan, range, value, |plan, place_range, place| {
-        apply_handle_condition_complement(plan, place_range, place, refuted)
-    })
-}
-
 argument_obligation_range!(
     integer_range_for_call_argument,
     BoundedCallArgumentObligation
@@ -245,13 +242,10 @@ fn anonymous_integer_argument_range(
 ) -> Option<IntegerRange> {
     let program = proof_plan.program;
     let primitive = program.primitive_type_reference(destination)?;
-    let (literal, _) = validation::land_anonymous_integer_expression(
-        program,
-        argument,
-        primitive,
-        &[],
-        |expression| validation::has_anonymous_operator_meaning(program, expression),
-    )?;
+    let (literal, _) =
+        land_anonymous_integer_expression(program, argument, primitive, &[], |expression| {
+            validation::has_anonymous_operator_meaning(program, expression)
+        })?;
     integer_range_for_literal(&literal)
 }
 

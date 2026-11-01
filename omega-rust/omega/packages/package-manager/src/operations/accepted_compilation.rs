@@ -4,6 +4,9 @@
 //! Matching source and compiler identities select retained compilation inputs;
 //! they do not prove generated code, supply host grants, or waive Psi checking.
 
+use crate::declarations::BuildDeclarationKind;
+use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use std::iter::empty;
 mod identity;
 pub(crate) use identity::compiler_input_identity;
 
@@ -45,12 +48,8 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     }
 }
 
-fn invalid_production_root(
-    product: &CompilationProduct,
-    role: crate::declarations::BuildDeclarationKind,
-) -> bool {
-    matches!(product, CompilationProduct::Native(_))
-        && role != crate::declarations::BuildDeclarationKind::Application
+fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationKind) -> bool {
+    matches!(product, CompilationProduct::Native(_)) && role != BuildDeclarationKind::Application
 }
 
 /// Ordinary project inputs to admit, without invoking a compiler. The caller
@@ -353,13 +352,7 @@ fn prepare_accepted_project(
 
 fn admit_accepted_contexts(
     request: &AcceptedCompilationRequest<'_>,
-) -> Result<
-    (
-        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
-        [u8; 32],
-    ),
-    Error,
-> {
+) -> Result<(Option<TerminalPermissionAcceptance>, [u8; 32]), Error> {
     let root = request.closure.source_closure().graph().root();
     let compiler_identity = compiler_input_identity().map_err(|error| failure(root, error))?;
     if let Some(accepted) = request.accepted {
@@ -550,9 +543,7 @@ fn prepare_occurrence_contexts(
             } else {
                 None
             }
-            .unwrap_or_else(|| {
-                build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
-            });
+            .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
             let inputs = if !is_root && !request.verify {
                 match custody.compiled_review_cache_dir() {
                     Some(directory) => {

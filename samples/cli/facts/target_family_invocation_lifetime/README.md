@@ -1,30 +1,150 @@
-# Target-family invocation lifetime
+# Selected-implementation invocation lifetimes
 
-**PSI-TARGET-FAMILIES:** Every target-family member retains a fresh invocation lifetime and the returned item reference independently of captured context storage.
+Owning task: **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
+This row tracks exact requirement/implementation lifetime identity and
+captured-operand transport under ordinary target-keyed Build selections.
 
-The selected callback returns the item while the context holds a reference to different storage. Each place has a twin that changes only one member's callback result to the enclosing lifetime:
+**Every selected implementation retains a fresh invocation lifetime and the
+returned item reference independently of captured context storage.**
 
-- [local](local/main.omg) / [reject](local/invalid/main.omg)
-- [field](field/main.omg) / [reject](field/invalid/main.omg)
-- [parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg)
-- [call result](call_result/main.omg) / [reject](call_result/invalid/main.omg)
-- [match join](match_join/main.omg) / [reject](match_join/invalid/main.omg)
-- [const name](const_name/main.omg) / [reject](const_name/invalid/main.omg)
-- [nested machine](other_state/main.omg) / [reject](other_state/invalid/main.omg)
-- [another machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg)
-- [target body](target_body/main.omg) / [reject](target_body/invalid/main.omg)
+The public `SelectedApply::apply` requirement and its four ordinary inline
+implementations keep independently named own lifetime and static telescopes.
+Each selected callback returns the item while its context contains a reference
+to different storage. The caller observes item value 42; context points to independently initialized
+value 17. This comparison tests returned storage rather than establishing a
+static fact.
+Each twin changes only one implementation's callback result to the enclosing
+lifetime. Every supplied implementation must check even when another target's
+Build row selects execution.
 
-The [two-lifetime control](two_lifetimes/main.omg) separates the captured context lifetime from the item lifetime and uses them in the reverse order from their telescope. Its [return-relation twin](two_lifetimes/invalid/main.omg) changes the callback result to the captured lifetime; its [telescope twin](two_lifetimes/invalid_telescope/main.omg) adds a lifetime binder to one member. Both reject.
+- [Local](local/main.omg) / [reject](local/invalid/main.omg)
+- [Field](field/main.omg) / [reject](field/invalid/main.omg)
+- [Parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg)
+- [Call result](call_result/main.omg) / [reject](call_result/invalid/main.omg)
+- [Match join](match_join/main.omg) / [reject](match_join/invalid/main.omg)
+- [Const name](const_name/main.omg) / [reject](const_name/invalid/main.omg)
+- [Nested machine](other_state/main.omg) / [reject](other_state/invalid/main.omg)
+- [Another machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg)
+- [Selected target implementation](target_body/main.omg) / [reject](target_body/invalid/main.omg)
 
-The callback must refine its invocation-lifetime family for every fresh region, including its returned input-source relation ([generics](../../../../wiki/spec/language/generics.md#invocation-lifetime-families)). All target members must be checked and retained ([configuration](../../../../wiki/spec/build/configuration.md#multi-target-compilation)).
+The match helper takes a runtime choice. Both paths call the same original
+operation; the true call must return the original item 42 and the false call
+an independent item 73. The captured context still denotes 17. Inverting a
+branch or returning context storage therefore fails the runtime oracle.
+Identical instrumentation remains in its static reject twin.
 
-At fixed baseline `f7681adbc9b1190fbc19abf217b28e62ea2fb037`, an optimized Windows producer rejects the positive with three static lifetime tuple custody diagnostics. The untargeted equivalent checks successfully. The twin additionally rejects for a different returned-view input-source relation. These are checking observations, not execution evidence.
+The [two-lifetime control](two_lifetimes/main.omg) separates captured context
+and item lifetimes and uses them in reverse telescope order. Its
+[return-relation twin](two_lifetimes/invalid/main.omg) names the captured
+lifetime; its [telescope twin](two_lifetimes/invalid_telescope/main.omg) adds
+one implementation lifetime. Both obligations remain independent.
 
-- **Establishment and composition:** the selected callback returns its item; its declared result relation is retained through the family and each transport place. The runtime comparison observes which storage was returned and does not establish that relation for checking.
-- **Identity and lifetime:** the captured context and callback invocation remain distinct; each twin changes one member's callback result relation and rejects. The tuple's declaration-local parameter follows its family member while the argument remains in the caller's lexical scope.
-- **Soundness:** the repair transfers existing lifetime operands only across members of one retained family. It neither invents a region nor relaxes the universal callable requirement or borrow checks.
-- **Checked-to-Terminal Psi:** each Linux `omega run --both` observation executes the checked call and returned reference in the Terminal interpreter.
-- **Provider, layout and ABI:** each project binds `ProgramEntry` for all four hosted targets. Linux and Windows execution exercise selection, reference transport and calling plans; the arm64 targets remain unverified here.
-- **Instruction, frame and emission:** Linux and Windows native execution reaches exit 0 and agrees with Terminal for each positive. The two-lifetime control also runs in both engines on Windows. These observations do not establish arm64 realization or the broader family, callback and provider acceptance.
+Applicable requirements:
 
-The fixed-baseline and candidate run records are retained with the session. The full parent task remains open, including distinct target realizations from one Terminal artifact and Build companion, remaining portable consumers, open const scopes, evidence telescopes, callback conjunctions, and the named corpus controls.
+- Establishment and composition: the selected body must refine the complete
+  public callback signature for every fresh invocation, including the returned
+  input-source relation. Calls and joins transport that established relation.
+- Identity and lifetime: receiving declaration/ordinal and supplying lexical
+  declaration/ordinal remain distinct through copying and specialization.
+  Captured regions cannot become fresh invocation binders through a shared name.
+- Soundness: source checking retains universal callable refinement, complete
+  own telescope correspondence, exact storage origins, access and loan debt.
+  No signature, visibility or proof requirement is weakened by selection.
+- Psi 05–07: one checked portable requirement call and its actual returned
+  reference must survive Terminal lowering and execute in the interpreter.
+- Omega 00–09: explicit four-hosted-target Build rows select ordinary
+  implementations; matching-host native calls must preserve returned storage
+  and agree with Terminal. These alpha-renamed implementations do not establish
+  the separate distinct-output/two-target acceptance of the owning task.
+
+See [invocation lifetime families](../../../../wiki/spec/language/generics.md#invocation-lifetime-families),
+[lifetimes](../../../../wiki/spec/language/lifetimes.md), and
+[multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
+The exact source twins and positives are pinned under
+`tests/omega/{pass,fail}/facts/target_family_invocation_lifetime`.
+
+At fixed optimized baseline `e4601e395b752c092042ef5b1ddbbe17bc22f749`, all nine
+ordinary-provider positives and the two-lifetime positive wrongly refuse;
+the exact canonical sources and diagnostics are retained in qualification
+records. Historical Linux/Windows observations of the former target-prefixed
+sources keep their original producer identities and provide no execution
+credit for this migration. Current native/Terminal acceptance is recorded
+separately with its actual source, producer and host.
+
+Current progress is established by [focused run 41228657620](https://github.com/CathedralOS/Omega/actions/runs/41228657620)
+at source `e7ab78cfde9789da0edb6d141e09af553d0ca9e9`: local, field,
+parameter, match join, const name, nested machine, another machine and selected
+implementation all check and exit 0 through both Linux x86-64 native execution
+and Terminal, with agreement. The retained optimized compiler SHA-256 is
+`bdf58ae1044cc32f3a1d6ffb0a6bae992cf5796f57fb6716ebfa7236c27c6d58`.
+The [captured-body reject](../../../../tests/omega/fail/borrows/invocation_lifetime_captured_body_return/main.omg)
+keeps its item-result signature but returns captured storage; its authored
+body-origin diagnostic also matches.
+
+The two-lifetime case is established separately by
+[run 41234754042](https://github.com/CathedralOS/Omega/actions/runs/41234754042)
+at source `312b9f34a983180519eea3e9441a9f574c944b81`. It checks and exits 0
+through Linux x86-64 native execution and Terminal, with agreement. Its return
+relation and telescope twins both match their specific refusal diagnostics.
+The optimized compiler SHA-256 is
+`013c9842dd3efbc9b79feefd755f818945fb84bb6b21f54491ab8e26ecad5418`.
+The repair includes final-call transition expressions in ordinary lifetime
+inference. The invalid telescope program is unchanged; its expectation now
+names the exact requirement/owned-realizer own-region telescope mismatch.
+
+The ordinary call-result forwarding case is established by
+[run 41238127524](https://github.com/CathedralOS/Omega/actions/runs/41238127524)
+at source `db6c80fc4d2345c0406dc66f10cba81537598ef6`. Call result, local and
+two-lifetime positives check and exit 0 through Linux x86-64 native execution
+and Terminal, with agreement; all five selected ownership/region rejection
+controls match. The canonical call-result sample also passes its ordinary
+review and native/Terminal gate. The optimized compiler SHA-256 is
+`23706c88bec26b5e60e55f6a30e65e69a67ca3ad4d776919724a83ef0c8f62dd`.
+The repair composes origins through every exactly associated closed provider
+body and retains each body's exact formal-to-actual correspondence.
+
+That run remains failed because the sample invalid twin expected an older
+input-source diagnostic. The byte-identical corpus twin in
+[run 41239954082](https://github.com/CathedralOS/Omega/actions/runs/41239954082)
+uses the same compiler and runner bytes and rejects during result validation:
+the nested fresh invocation output disagrees with the enclosing captured item
+region. Both expectation files now require that result-validation phase and
+its explicit fresh-versus-captured comparison. Matching is verified against
+the retained actual diagnostic; neither old wrong-fragment report is relabeled
+as a passing run, and no new compiler execution is claimed for the text change.
+The invalid program is unchanged.
+
+The remaining eight ordinary places are established by
+[run 41241114672](https://github.com/CathedralOS/Omega/actions/runs/41241114672)
+at source `cf446f9620a9d95ed5c80bee0dc9565debde7fc6`: local, field, parameter,
+match join, const name, nested machine, another machine and selected target
+implementation all pass ordinary review and native/Terminal execution on Linux
+x86-64. This run authenticates the same compiler bytes as the call-result run
+above and runner SHA-256
+`9584aa1409dba9dbebfa0da41ea5740f7fef1fbcb4cc18cd9f6f73d1e151656d`.
+Together these observations fill all nine positive places with the same fact
+and operation on that host.
+
+All eight invalid twins reject at the intended output-region mismatch.
+[Run 41241547644](https://github.com/CathedralOS/Omega/actions/runs/41241547644)
+retains each full actual diagnostic from the byte-identical corpus sources,
+using the same compiler and runner. Every rejected comparison is fresh
+invocation output versus the implementation's enclosing captured item slot.
+The paired expectations now require the result-validation phase and explicit
+fresh-versus-captured comparison, as for call result. The existing matcher
+accepts all nine retained actual diagnostics against those specific fragments.
+The invalid programs and runtime oracles are unchanged.
+
+The canonical-eight run and rejection-only run retain their original failed
+statuses under the old fragments. This expectation maintenance does not claim
+another compiler execution or relabel those reports. Historical incompleteness
+in [run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
+and wrong-fragment refusals in
+[run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
+also retain their original identities. The nine-place row is established on
+Linux x86-64; other native hosts and the complete parent capability remain
+separate acceptance.
+
+The parent task remains open for its remaining source migrations, native and
+callback consumers, distinct-target execution and complete legacy model,
+parser, codec and dispatch retirement.

@@ -1,6 +1,7 @@
 //! Parent links select the current declaration's type, never its template's.
 
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data::TypeParameterKind;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Exact static assumptions of this declaration and its lexical ancestors.
@@ -115,10 +116,8 @@ pub fn declaration_type_reference(
                         return None;
                     }
                     match parameter.kind {
-                        typed_trees::data::TypeParameterKind::Value { type_reference }
-                        | typed_trees::data::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
+                        TypeParameterKind::Value { type_reference }
+                        | TypeParameterKind::Const { type_reference } => Some(type_reference),
                         _ => None,
                     }
                 })

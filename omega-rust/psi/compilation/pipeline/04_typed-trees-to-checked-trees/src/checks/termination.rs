@@ -13,6 +13,7 @@
 //! source judgment; it cannot consume a later compile's retained facts. Proof
 //! recursion and runtime call topology remain independent early authorities.
 
+mod application_inputs;
 mod component_selection;
 mod graph;
 mod joint_natural;
@@ -131,7 +132,10 @@ pub(crate) fn admit_machine_rankings(
                         );
                     }
                 }
-                Some(ranking::DecreaseOutcome::Unproven) => {
+                Some(
+                    ranking::DecreaseOutcome::Unproven
+                    | ranking::DecreaseOutcome::RequiresComponent,
+                ) => {
                     local_terminates = false;
                     diagnostic = format!(
                         "cannot prove the `terminates by` ranking for machine {}",

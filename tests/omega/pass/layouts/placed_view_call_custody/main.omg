@@ -81,14 +81,14 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 // The host establishes the backing and binds these exact generated accessors.
 // Delegation retains the original backing; neither wrapper stages contents.
 machine observe(view: &Access<RegPlacement, Registers>) -> u32 {
-    view.status.read(&view.status)
+    read(&view.status)
 }
 
 machine delegate(view: &Access<RegPlacement, Registers>) -> u32 { observe(view) }
 
 machine mutate(view: &mut Access<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(&mut view.transmit, 9);
-    view.status.read(&view.status)
+    write(&mut view.transmit, 9u8);
+    read(&view.status)
 }
 
 machine delegate_mutable(view: &mut Access<RegPlacement, Registers>) -> u32 { mutate(view) }
@@ -131,7 +131,7 @@ machine later(view: &mut Access<RegPlacement, Registers>) -> u32 {
 
 // Unit-returning helpers use the same structural telescope and occurrence.
 machine write_only(view: &mut Access<RegPlacement, Registers>) {
-    view.transmit.write(&mut view.transmit, 9);
+    write(&mut view.transmit, 9u8);
 }
 machine unit_delegate(view: &mut Access<RegPlacement, Registers>) -> u32 {
     write_only(view);

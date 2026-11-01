@@ -98,25 +98,61 @@ fn search(
         .iter()
         .enumerate()
         .map(|(position, machine)| {
-            let coordinate = &candidates[position][chosen[position]].coordinate;
+            let rank = &candidates[position][chosen[position]];
+            let coordinate = rank.subject.root();
+            let scalar = rank.subject.scalar();
             Some(validation::ValidatedRuntimeNaturalState {
-                measure: candidates[position][chosen[position]]
-                    .application
-                    .map_or(symbols::SymbolHandle::invalid(), |application| {
-                        application.measure
-                    }),
                 state: program.machine_states(machine)[0].symbol,
-                parameter: coordinate.parameter,
-                coordinate: validation::RankSubjectCoordinate {
+                values: vec![validation::ValidatedRuntimeIntegerRank {
+                    measure: candidates[position][chosen[position]]
+                        .application
+                        .map_or(symbols::SymbolHandle::invalid(), |application| {
+                            application.measure
+                        }),
                     parameter: coordinate.parameter,
-                    path: coordinate.path.clone(),
-                },
-                entry_indexes: coordinate.entry_indexes.clone(),
-                parameter_position: u32::try_from(coordinate.position).ok()?,
-                primitive_type: coordinate.primitive,
-                observation: coordinate.observation,
-                function: order.function(),
-                application: candidates[position][chosen[position]].formation.clone(),
+                    coordinate: validation::RankSubjectCoordinate {
+                        parameter: coordinate.parameter,
+                        path: coordinate.path.clone(),
+                    },
+                    entry_indexes: scalar
+                        .map_or_else(Vec::new, |coordinate| coordinate.entry_indexes.clone()),
+                    parameter_position: u32::try_from(rank.subject.position()).ok()?,
+                    application_bindings: match rank.application {
+                        Some(application) => {
+                            rank.subject.retained_bindings(program, application)?
+                        }
+                        None => Vec::new(),
+                    },
+                    input_type: rank.application.map_or(Default::default(), |application| {
+                        rank.subject.input_type(application)
+                    }),
+                    primitive_type: if order == Order::BoundedDistance {
+                        typed_trees::types::PrimitiveType::U64
+                    } else {
+                        match rank.application {
+                            Some(application) => application.result_primitive,
+                            None => scalar?.primitive,
+                        }
+                    },
+                    observation: if order == Order::BoundedDistance {
+                        validation::RuntimeRankInput::Distance {
+                            lower_observation: scalar?.observation,
+                            lower_primitive: scalar?.primitive,
+                            upper: candidates[position][chosen[position]]
+                                .bound
+                                .as_ref()?
+                                .observation(program, program.machine_states(machine)[0].symbol)?,
+                        }
+                    } else {
+                        scalar
+                            .map_or(validation::RankPremiseObservation::Value, |coordinate| {
+                                coordinate.observation
+                            })
+                            .into()
+                    },
+                    function: order.function(),
+                    application: candidates[position][chosen[position]].formation.clone(),
+                }],
             })
         })
         .collect::<Option<Vec<_>>>();

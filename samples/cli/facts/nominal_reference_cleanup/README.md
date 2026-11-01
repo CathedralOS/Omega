@@ -154,3 +154,15 @@ Full 8-layer specification and lowering evidence:
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for local referents resolve into concrete frame offsets. Function basic blocks, cleanup edges, and transition jumps lay out with branch relaxation and offset reflow. Transitive machine-state footprints validate, and direct PE/ELF/Mach-O emission produces native executables agreeing with Terminal Psi (`omega run --both` exit 0) across host targets.
 
 Remaining open on CML4: residual-cleanup, crash routes, fuel/retry, suspension, and cross-host acceptance; CML4's remaining residual-cleanup and computed-call requirements stay open on the board.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

@@ -9,21 +9,61 @@ machine issue_other() -> Ticket in Ticket::Other { Ticket { number: 23 } }
 domain Ticket::Labelled = Ticket::Issued & Ticket::Label;
 machine issue() -> Ticket in Ticket::Labelled { Ticket { number: 17 } }
 machine observe(ticket: &Ticket in Ticket::Observed) -> u64 { ticket.number }
-macos_arm64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
-    observe((&ticket) as &Ticket in Ticket::Observed)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
-    observe((&ticket) as &Ticket in Ticket::Observed)
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_x86_64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
-    observe((&ticket) as &Ticket in Ticket::Observed)
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
-    observe((&ticket) as &Ticket in Ticket::Observed)
+
+boundary trait SelectedInspect {
+    machine inspect(ticket: Ticket in Ticket::Labelled) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Inspect satisfies SelectedInspect {
+    machine inspect(ticket: Ticket in Ticket::Labelled) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        observe((&ticket) as &Ticket in Ticket::Observed)
+    }
+}
+
+ArmInspect satisfies SelectedInspect {
+    machine inspect(ticket: Ticket in Ticket::Labelled) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        observe((&ticket) as &Ticket in Ticket::Observed)
+    }
+}
+
+
 machine main() crashes Trap {
-    let observed: u64 = inspect(issue());
+    let observed: u64 = SelectedInspect::inspect(issue());
     transition observed == 17 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

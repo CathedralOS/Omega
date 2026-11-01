@@ -45,9 +45,9 @@ ensures a == c
 }
 
 RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
-    Reflexive::reflexive = equivalent_reflexive;
-    Symmetric::symmetric = equivalent_symmetric;
-    Transitive::transitive = equivalent_transitive;
+    machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
+    machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
 }
 
 data EquivalenceClass = Representative % equivalent

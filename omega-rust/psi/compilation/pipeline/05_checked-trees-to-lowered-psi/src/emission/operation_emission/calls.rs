@@ -3,6 +3,7 @@
 use super::buffer::{OperationBuffer, SourceInvocation};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::direct_calls::DirectCallResult;
+use crate::expression_preparation::bindings::structural_paths::structural_argument;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::proofs::crash_routes::lowered_erased_scalar_term;
@@ -144,13 +145,7 @@ impl PreparedStructuralArgument {
         if selectors.next().is_some() {
             return unsupported("captured selectors exceed the structural argument path");
         }
-        Ok(
-            crate::expression_preparation::bindings::structural_paths::structural_argument(
-                source.place,
-                path,
-                self.access,
-            ),
-        )
+        Ok(structural_argument(source.place, path, self.access))
     }
 }
 

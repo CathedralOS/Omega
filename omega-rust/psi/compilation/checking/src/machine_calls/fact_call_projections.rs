@@ -6,16 +6,21 @@
 //! the structural judge and package-review identity never acquire an implicit
 //! execution model.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use typed_trees::data::DataDefinition;
 use typed_trees::data::DataShapeKind;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
 use typed_trees::proposition::{PropositionBody, PropositionFormula};
+use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_fact_call_projections(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
@@ -101,7 +106,7 @@ pub(crate) fn validate_fact_call_projections(
 }
 
 fn substituted_projection_requests(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
     let Some(declaration) = program.proposition_definition_by_symbol(application.proposition)
@@ -130,7 +135,7 @@ fn substituted_projection_requests(
 }
 
 fn append_substituted_projection_requests(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     bindings: &[(symbols::SymbolHandle, ExpressionHandle)],
     requests: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
@@ -169,7 +174,7 @@ pub struct ValidatedFactCallProjection {
 }
 
 fn validate_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -227,7 +232,7 @@ fn validate_expression(
 }
 
 fn validate_direct_projection(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     projection_expression: ExpressionHandle,
     call_expression: ExpressionHandle,
     call: &TableCallExpression,
@@ -299,9 +304,7 @@ fn validate_direct_projection(
     };
     if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         || DataShapeKind::Record
-            != typed_trees::data::DataDefinition::shape_kind_from_members(
-                program.data_members(data),
-            )
+            != DataDefinition::shape_kind_from_members(program.data_members(data))
     {
         reject(
             "sum, mixed, empty, and opaque result shapes are not admitted",
@@ -345,7 +348,7 @@ fn validate_direct_projection(
 /// consumers still owe their independent termination and result-shape checks.
 /// Runtime callers use it only after both actual evaluations have completed.
 pub fn has_checked_denotational_call_identity(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -364,16 +367,13 @@ pub fn has_checked_denotational_call_identity(
 /// Shared source admission for denotational calls. Final checked termination
 /// remains mandatory for every candidate, including integer embeddings.
 pub(crate) fn validate_checked_call_candidate<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     reject: &impl Fn(&str, &mut Vec<Diagnostic>),
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
-)> {
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
     checked_call_target_candidate(
         program,
         call.target_symbol,
@@ -389,16 +389,13 @@ pub(crate) fn validate_checked_call_candidate<'program>(
 /// a spelling cannot recover a missing entry or choose another body.
 /// Termination retains the independent checked-lowering obligation below.
 pub(crate) fn checked_call_target_candidate<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     target: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     reject: &impl Fn(&str, &mut Vec<Diagnostic>),
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
-)> {
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
     let matches = program
         .machines()
         .iter()
@@ -417,9 +414,7 @@ pub(crate) fn checked_call_target_candidate<'program>(
         );
         return None;
     };
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.body_is_present
-    {
+    if machine.supply_mode != MachineSupplyMode::CheckedBody || !machine.body_is_present {
         reject(
             "bodyless, boundary, accepted, and external targets are not admitted",
             diagnostics,
@@ -435,10 +430,8 @@ pub(crate) fn checked_call_target_candidate<'program>(
         .iter()
         .chain(program.state_contracts(state))
         .any(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Requires
-            ) && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+            matches!(contract.kind, SignatureContractKind::Requires)
+                && !program.proof_facts.span_or_empty(contract.facts).is_empty()
         });
     if has_requires {
         reject("the selected entry has preconditions", diagnostics);
@@ -498,53 +491,26 @@ pub(crate) fn checked_call_target_candidate<'program>(
 }
 
 pub(crate) fn expression_contains_call_projection(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
-        ExpressionNode::Atomic(atomic) => {
-            expression_contains_call_projection(program, atomic.value)
-                || expression_contains_call_projection(program, atomic.result)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_contains_call_projection(program, binary.left)
-                || expression_contains_call_projection(program, binary.right)
-        }
-        ExpressionNode::Borrow(inner) => expression_contains_call_projection(program, inner.target),
-        ExpressionNode::Cast(cast) => expression_contains_call_projection(program, cast.value),
-        ExpressionNode::Call(call) => {
-            expression_contains_call_projection(program, call.receiver)
-                || expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_contains_call_projection(program, *argument))
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_contains_call_projection(program, indexed.collection)
-                || expression_contains_call_projection(program, indexed.index)
-        }
-        ExpressionNode::Range(range) => {
-            expression_contains_call_projection(program, range.start)
-                || expression_contains_call_projection(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_contains_call_projection(program, field.value)),
-        ExpressionNode::Unary(unary) => expression_contains_call_projection(program, unary.operand),
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_contains_call_projection(program, *value)),
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::STRUCTURAL,
+        |_, node| match node {
+            ExpressionNode::Member(member)
+                if expression_contains_call(program, member.receiver) =>
+            {
+                SubtreeVisit::Found
+            }
+            ExpressionNode::Member(_) | ExpressionNode::Match(_) => SubtreeVisit::Prune,
+            _ => SubtreeVisit::Descend,
+        },
+    )
 }
 
-fn expression_contains_call(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
+fn expression_contains_call(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     if !expression.is_valid() {
         return false;
     }

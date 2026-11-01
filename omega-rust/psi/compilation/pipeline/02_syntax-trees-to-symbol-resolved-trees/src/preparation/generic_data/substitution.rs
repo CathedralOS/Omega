@@ -1,7 +1,6 @@
 //! Member and type-reference substitution.
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
-use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
@@ -24,7 +23,6 @@ use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::ProofFact;
-use syntax_trees::item::ProofMembershipFact;
 use syntax_trees::types::DomainConstraint;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeConstraintNode;
@@ -71,12 +69,8 @@ pub(crate) fn substitute_member(
     snapshot: &SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
-    type_identities: &HashMap<String, ClosedArgumentIdentity>,
     impossible_variants: &HashSet<String>,
-    selection: Option<&declaration_selection::ConstantSelection>,
-    instance_name: &str,
     const_values: &HashMap<String, i128>,
-    const_scalars: &HashMap<String, ConstScalarValue>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<DataMember, Diagnostic> {
     let member = match member {
@@ -112,35 +106,13 @@ pub(crate) fn substitute_member(
                     .expect("generic sum payload field count overflow");
             }
             variant.payload = HandleSpan::from_parts(first, count);
-            // CASE-CONSTRAINTS generic case-data synthesis: the case's `where`
-            // facts ride the instance with it. The syntax->resolved lowering
-            // fence already refused any fact that names a parameter without a
-            // fact-position substitution, so a deep copy out of the
-            // pre-substitution snapshot is faithful -- field names, literals,
-            // and top-level bindings spell identically on the instance, and a
-            // `const` binder mention is rewritten to its literal argument by
-            // the caller's rewrite over freshly copied expressions. Source
-            // spans ride along, so a construction-side refusal still names the
-            // authored clause.
-            //
-            // A `type` binder is the exception: the gate admits it only as one
-            // side of a top-level `==`/`!=` conjunct, which this copy decides
-            // against the closed argument identity. A decided-true conjunct
-            // discharges out of the carried fact; a decided-false one leaves
-            // the literal `0` witness behind so the case reads as impossible
-            // for construction, zero gating, and coverage on this instance.
-            variant.where_facts = copy_case_where_facts(
-                syntax,
-                snapshot,
-                variant.where_facts,
-                substitution,
-                type_identities,
-                const_scalars,
-                const_values,
-                selection,
-                instance_name,
-                warnings,
-            )?;
+            // Case metadata contains only closed contradiction witnesses.
+            // The complete data predicate owns all generic substitution.
+            let mut copied_facts = HandleSpan::empty();
+            for fact in variant.where_facts.handles() {
+                copied_facts.push_contiguous(syntax.copy_proof_fact_from(snapshot, fact));
+            }
+            variant.where_facts = copied_facts;
             // A case the data-level `requires` replay refuted on this
             // instance carries the same literal `0` witness an authored or
             // instance-decided case `where false` produces: coverage drops
@@ -163,256 +135,6 @@ pub(crate) fn substitute_member(
     Ok(member)
 }
 
-/// What one top-level `and` conjunct of a copied case fact became under this
-/// instance's arguments.
-enum ConjunctDecision {
-    /// Not a type-parameter equality: the conjunct copies verbatim.
-    Ordinary,
-    /// A decided-true `T == name` / `T != name`: discharged at instantiation,
-    /// the conjunct drops out of the carried fact.
-    Established,
-    /// A decided-false type equality: the whole fact collapses to the literal
-    /// `0` witness -- this case can never be established for the instance.
-    Refuted,
-}
-
-/// Deep-copy one case `where` fact span out of the template snapshot, deciding
-/// admitted type-parameter equalities against this instance's closed argument
-/// identities. The handles index the template's fact arena, which `snapshot`
-/// preserves exactly; each kept copy appends to the live tree, so the rebuilt
-/// span stays contiguous.
-fn copy_case_where_facts(
-    syntax: &mut SyntaxTrees,
-    snapshot: &SyntaxTrees,
-    facts: HandleSpan<ProofFact>,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-    type_identities: &HashMap<String, ClosedArgumentIdentity>,
-    const_scalars: &HashMap<String, ConstScalarValue>,
-    const_values: &HashMap<String, i128>,
-    selection: Option<&declaration_selection::ConstantSelection>,
-    instance_name: &str,
-    warnings: &mut Vec<Diagnostic>,
-) -> Result<HandleSpan<ProofFact>, Diagnostic> {
-    let mut copied = HandleSpan::empty();
-    for source in facts.handles() {
-        if let ProofFact::Membership(_) = snapshot.items.proof_fact(source) {
-            copied.push_contiguous(copy_case_membership_fact(
-                syntax,
-                snapshot,
-                source,
-                substitution,
-                const_scalars,
-                const_values,
-                warnings,
-            ));
-            continue;
-        }
-        let ProofFact::Expression(template_root) = snapshot.items.proof_fact(source) else {
-            copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
-            continue;
-        };
-        let mut conjuncts = Vec::new();
-        flatten_case_fact_conjuncts(snapshot, *template_root, &mut conjuncts);
-        let mut decisions = Vec::with_capacity(conjuncts.len());
-        for conjunct in &conjuncts {
-            decisions.push(decide_type_equality_conjunct(
-                snapshot,
-                *conjunct,
-                type_identities,
-                selection,
-                instance_name,
-            )?);
-        }
-        if decisions
-            .iter()
-            .all(|decision| matches!(decision, ConjunctDecision::Ordinary))
-        {
-            copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
-            continue;
-        }
-        if decisions
-            .iter()
-            .any(|decision| matches!(decision, ConjunctDecision::Refuted))
-        {
-            let handle = syntax.copy_proof_fact_from(snapshot, source);
-            let copied_root = match syntax.items.proof_fact(handle) {
-                ProofFact::Expression(expression) => *expression,
-                _ => unreachable!("an expression fact copies as an expression fact"),
-            };
-            // The decided-false witness: `0` folds FALSE for construction,
-            // zero gating, and coverage, and replays against the template's
-            // equality on the seeded-instance check.
-            syntax.expressions.replace_expression(
-                copied_root,
-                ExpressionNode::Integer(
-                    IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
-                        .expect("literal `0` is a valid integer literal"),
-                ),
-            );
-            copied.push_contiguous(handle);
-            continue;
-        }
-        if conjuncts.len() == decisions.len()
-            && decisions
-                .iter()
-                .all(|decision| matches!(decision, ConjunctDecision::Established))
-        {
-            // Every conjunct was a type equality this instance proved: the
-            // instantiation obligation is discharged, so the fact does not
-            // ride the instance.
-            continue;
-        }
-        // A mixed fact: rewrite the copied conjunction over only the conjuncts
-        // that did not discharge. The copy preserves the template's tree, so
-        // flattening it yields conjuncts in the same order the decisions were
-        // taken.
-        let handle = syntax.copy_proof_fact_from(snapshot, source);
-        let copied_root = match syntax.items.proof_fact(handle) {
-            ProofFact::Expression(expression) => *expression,
-            _ => unreachable!("an expression fact copies as an expression fact"),
-        };
-        let mut copied_conjuncts = Vec::new();
-        flatten_case_fact_conjuncts(syntax, copied_root, &mut copied_conjuncts);
-        let kept: Vec<ExpressionHandle> = copied_conjuncts
-            .iter()
-            .copied()
-            .zip(decisions.iter())
-            .filter_map(|(conjunct, decision)| {
-                matches!(decision, ConjunctDecision::Ordinary).then_some(conjunct)
-            })
-            .collect();
-        let rebuilt = rebuild_conjunction(syntax, &kept);
-        let rebuilt_node = syntax.expressions.expression(rebuilt).clone();
-        syntax
-            .expressions
-            .replace_expression(copied_root, rebuilt_node);
-        copied.push_contiguous(handle);
-    }
-    Ok(copied)
-}
-
-/// Deep-copy one case `where` membership fact onto the instance, substituting
-/// the domain's index arguments: the gate admits `type` and `const` binders
-/// in argument position only, so a named `type` binder lands as the closed
-/// type argument, a named `const` binder as its literal spelling, and a
-/// const-expression argument copies so the caller's rewrite reduces its fresh
-/// `Name` leaves on the instance. The membership value and the domain path
-/// copy verbatim -- the gate refuses binder mentions in both, so their
-/// template spellings are already instance-correct.
-fn copy_case_membership_fact(
-    syntax: &mut SyntaxTrees,
-    snapshot: &SyntaxTrees,
-    source: Handle<ProofFact>,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-    const_scalars: &HashMap<String, ConstScalarValue>,
-    const_values: &HashMap<String, i128>,
-    warnings: &mut Vec<Diagnostic>,
-) -> Handle<ProofFact> {
-    let ProofFact::Membership(membership) = snapshot.items.proof_fact(source) else {
-        unreachable!("membership fact checked by caller")
-    };
-    let membership = *membership;
-    let arguments = syntax_type_references(&snapshot)
-        .type_reference_handles(membership.domain_arguments)
-        .to_vec();
-    let substituted: Vec<TypeReferenceHandle> = arguments
-        .iter()
-        .map(|argument| {
-            substitute_case_fact_domain_argument(
-                syntax,
-                snapshot,
-                *argument,
-                substitution,
-                const_scalars,
-                const_values,
-                warnings,
-            )
-        })
-        .collect();
-    let domain_arguments = syntax
-        .tables
-        .type_references
-        .insert_type_reference_handles(substituted);
-    let value = syntax.copy_expression_from(snapshot, membership.value);
-    let domain = syntax.items.insert_identifier_path_members(
-        syntax_items(&snapshot)
-            .identifier_path_members(membership.domain)
-            .to_vec(),
-    );
-    let handle = syntax
-        .items
-        .append_proof_fact(ProofFact::Membership(ProofMembershipFact {
-            value,
-            domain,
-            domain_arguments,
-        }));
-    if let Some(source_span) = snapshot.items.proof_fact_source_span(source) {
-        syntax.items.set_proof_fact_source_span(handle, source_span);
-    }
-    handle
-}
-
-/// One domain index argument of a copied membership fact. `type` and `const`
-/// binders substitute; a parameter-free argument reuses its template handle
-/// (the snapshot is a prefix of the same arena). Composite shapes fall through
-/// to the general domain-argument substitution.
-fn substitute_case_fact_domain_argument(
-    syntax: &mut SyntaxTrees,
-    snapshot: &SyntaxTrees,
-    argument: TypeReferenceHandle,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-    const_scalars: &HashMap<String, ConstScalarValue>,
-    const_values: &HashMap<String, i128>,
-    warnings: &mut Vec<Diagnostic>,
-) -> TypeReferenceHandle {
-    match syntax.type_references.type_reference(argument).clone() {
-        TypeReferenceNode::Named(name) => {
-            if let Some(substituted) = substitution.get(name.as_str(syntax)) {
-                return *substituted;
-            }
-            if let Some(scalar) = const_scalars.get(name.as_str(syntax)) {
-                // PDI2's closed-constant leaf is the literal name itself
-                // (`Domain<8>`, `Domain<true>`), so a `const` binder lands as
-                // that name.
-                let literal = match scalar {
-                    ConstScalarValue::Integer(value)
-                    | ConstScalarValue::DeclaredInteger { value, .. } => value.to_string(),
-                    ConstScalarValue::Boolean(value) => value.to_string(),
-                };
-                return syntax
-                    .tables
-                    .type_references
-                    .insert_named(Identifier::generated(literal));
-            }
-            argument
-        }
-        TypeReferenceNode::ConstExpression(expression) => {
-            if !expression_mentions_const(syntax, expression, const_scalars) {
-                return argument;
-            }
-            // The copy's `Name` leaves sit past the caller's const-fact
-            // watermark, so the literal rewrite reduces the binder mentions
-            // on the instance while the template stays symbolic.
-            let copied = syntax.copy_expression_from(snapshot, expression);
-            syntax
-                .tables
-                .type_references
-                .insert(TypeReferenceNode::ConstExpression(copied))
-        }
-        _ => substitute_domain_index_argument(
-            syntax,
-            snapshot,
-            argument,
-            substitution,
-            const_values,
-            warnings,
-        ),
-    }
-}
-
-/// Whether an expression names any `const` binder. Conservative like
-/// `expression_mentions_parameter`: an unhandled shape counts as a mention so
-/// the caller copies rather than sharing a binder-bearing expression.
 fn expression_mentions_in<V>(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -438,120 +160,7 @@ fn expression_mentions_in<V>(
     }
 }
 
-fn expression_mentions_const(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    const_scalars: &HashMap<String, ConstScalarValue>,
-) -> bool {
-    expression_mentions_in(syntax, expression, const_scalars)
-}
-
-fn flatten_case_fact_conjuncts(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    conjuncts: &mut Vec<ExpressionHandle>,
-) {
-    if let ExpressionNode::Binary(binary) = syntax.expressions.expression(expression)
-        && binary.operator == BinaryOperator::And
-    {
-        flatten_case_fact_conjuncts(syntax, binary.left, conjuncts);
-        flatten_case_fact_conjuncts(syntax, binary.right, conjuncts);
-        return;
-    }
-    conjuncts.push(expression);
-}
-
-/// Rebuild an `and` chain over the kept conjuncts, reusing their nodes.
-/// Callers guarantee `kept` is nonempty and smaller than the original
-/// conjunction.
-fn rebuild_conjunction(syntax: &mut SyntaxTrees, kept: &[ExpressionHandle]) -> ExpressionHandle {
-    let mut rebuilt = kept[0];
-    for conjunct in &kept[1..] {
-        rebuilt = syntax.expressions.insert(ExpressionNode::Binary(
-            syntax_trees::expression::TableBinaryExpression {
-                left: rebuilt,
-                operator: BinaryOperator::And,
-                right: *conjunct,
-            },
-        ));
-    }
-    rebuilt
-}
-
-/// Decide one copied conjunct as a type-parameter equality. The lowering gate
-/// (`lowering/data.rs::case_fact_type_equality`) admits exactly this shape: one
-/// side is a single-segment `type` binder, the other a single-segment
-/// binder-free name. Both sides' identities are closed by construction -- the
-/// instance's arguments already passed the closed-shape gate -- so an
-/// unresolvable opposite name is an authored-fact error, never a silent drop.
-fn decide_type_equality_conjunct(
-    syntax: &SyntaxTrees,
-    conjunct: ExpressionHandle,
-    type_identities: &HashMap<String, ClosedArgumentIdentity>,
-    selection: Option<&declaration_selection::ConstantSelection>,
-    instance_name: &str,
-) -> Result<ConjunctDecision, Diagnostic> {
-    let ExpressionNode::Binary(binary) = syntax.expressions.expression(conjunct) else {
-        return Ok(ConjunctDecision::Ordinary);
-    };
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) {
-        return Ok(ConjunctDecision::Ordinary);
-    }
-    let single_name = |side| -> Option<&Identifier> {
-        let ExpressionNode::Name(path) = syntax.expressions.expression(side) else {
-            return None;
-        };
-        let [member] = syntax.expressions.identifier_path_members(*path) else {
-            return None;
-        };
-        Some(member)
-    };
-    let Some((parameter, other)) = (match (single_name(binary.left), single_name(binary.right)) {
-        (Some(left), Some(right)) if type_identities.contains_key(left.as_str(syntax)) => {
-            Some((left, right))
-        }
-        (Some(left), Some(right)) if type_identities.contains_key(right.as_str(syntax)) => {
-            Some((right, left))
-        }
-        _ => None,
-    }) else {
-        return Ok(ConjunctDecision::Ordinary);
-    };
-    let parameter_identity = type_identities
-        .get(parameter.as_str(syntax))
-        .expect("the gate admits only listed type binders");
-    let Some(other_identity) = closed_name_identity(syntax, selection, other) else {
-        return Err(Diagnostic::error(format!(
-            "case constraint on generic instance `{instance_name}` cannot decide `{}`: `{}` does not name a closed type",
-            parameter.as_str(syntax),
-            other.as_str(syntax),
-        )));
-    };
-    let equal = *parameter_identity == other_identity;
-    let holds = match binary.operator {
-        BinaryOperator::Equal => equal,
-        BinaryOperator::NotEqual => !equal,
-        _ => unreachable!("the equality check above admits only == or !="),
-    };
-    Ok(if holds {
-        ConjunctDecision::Established
-    } else {
-        ConjunctDecision::Refuted
-    })
-}
-
-/// Fold every `type`-binder `==`/`!=` node inside one copied data-predicate
-/// expression against the instance's closed argument identities. Data-level
-/// `requires` nests those equations under `&&`/`||` beside memberships and
-/// value couplings (`(self in C && T == i32) || ...`), so the whole-fact
-/// conjunct decision used by case `where` facts does not reach them: each
-/// decided equality is replaced in place by a `true`/`false` literal, and
-/// the surrounding predicate keeps its undecided leaves. A binder equality
-/// whose opposite name is not a closed type is an authored-fact error, same
-/// as a top-level conjunct.
+/// Substitute and decide type equations in the complete declaration predicate.
 pub(crate) fn decide_instance_type_equalities(
     syntax: &mut SyntaxTrees,
     expression: ExpressionHandle,
@@ -807,9 +416,7 @@ pub(crate) fn variant_fact_verdict(
                 _ => Undecided,
             }
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             match variant_fact_verdict(syntax, unary.operand, type_name, variant_name) {
                 Holds => Refuted,
                 Refuted => Holds,

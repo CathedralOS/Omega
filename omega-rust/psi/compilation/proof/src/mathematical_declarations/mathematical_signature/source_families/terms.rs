@@ -7,7 +7,11 @@
 //! so moving them under tag/payload eliminators cannot capture a source name.
 //! Finite child positions use the profile's boxed strict empty/unit types.
 
-use proof_admission::{IndexedFamily, Level, Term, TermArena, TermHandle};
+use proof_admission::{
+    Declaration, IndexedFamily, Level, Sort, Term, TermArena, TermHandle, check_signature,
+    check_type, convertible, indexed_scheme, infer_type, judgment_assumption_closure, shift,
+    substitute,
+};
 use symbols::SymbolHandle;
 
 macro_rules! term {
@@ -135,7 +139,7 @@ impl S {
                     let Term::Lambda { body, .. } = arena.get(result) else {
                         return Err("source payload domain lost its generated Type telescope");
                     };
-                    result = proof_admission::substitute(arena, body, actual);
+                    result = substitute(arena, body, actual);
                 }
                 return Ok(result);
             }
@@ -146,7 +150,7 @@ impl S {
                     .map(|p| (scope.len() - 1 - p) as u32)
                     .ok_or("generated source-family binder escaped its telescope")?,
             ),
-            Self::Type => Term::Sort(proof_admission::Sort::Type(Level::Constant(0))),
+            Self::Type => Term::Sort(Sort::Type(Level::Constant(0))),
             Self::Two => Term::Two,
             Self::Zero => Term::TwoZero,
             Self::One => Term::TwoOne,
@@ -563,26 +567,22 @@ pub(super) fn description(
 /// The caller still checks every declaration body in the whole signature.
 pub(super) fn intern_description(
     arena: &mut TermArena,
-    declarations: &mut Vec<proof_admission::Declaration>,
+    declarations: &mut Vec<Declaration>,
     mut family: IndexedFamily,
 ) -> Result<IndexedFamily, &'static str> {
     fn retain(
         arena: &mut TermArena,
-        declarations: &mut Vec<proof_admission::Declaration>,
+        declarations: &mut Vec<Declaration>,
         ty: TermHandle,
         body: TermHandle,
     ) -> TermHandle {
         let declaration = declarations.len() as u32;
-        declarations.push(proof_admission::Declaration::definition(0, ty, body));
+        declarations.push(Declaration::definition(0, ty, body));
         arena.insert(term!(Constant => declaration => vec![]))
     }
-    let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
-    let index_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
-        family.levels[0].clone(),
-    )));
-    let carrier_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
-        family.levels[1].clone(),
-    )));
+    let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let index_sort = arena.insert(Term::Sort(Sort::Type(family.levels[0].clone())));
+    let carrier_sort = arena.insert(Term::Sort(Sort::Type(family.levels[1].clone())));
     family.index = retain(arena, declarations, index_sort, family.index);
     family.carrier = retain(arena, declarations, carrier_sort, family.carrier);
     let ty = arena.insert(term!(Pi => family.carrier => sort));
@@ -928,14 +928,14 @@ impl InductionBuilder<'_, '_> {
 /// its original authored body remains part of the checked dependency closure.
 pub(super) fn intern_invariant(
     arena: &mut TermArena,
-    declarations: &mut Vec<proof_admission::Declaration>,
+    declarations: &mut Vec<Declaration>,
     family: &IndexedFamily,
     invariant: TermHandle,
 ) -> TermHandle {
-    let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+    let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
     let ty = arena.insert(term!(Pi => family.index => sort));
     let declaration = declarations.len() as u32;
-    declarations.push(proof_admission::Declaration::definition(0, ty, invariant));
+    declarations.push(Declaration::definition(0, ty, invariant));
     arena.insert(term!(Constant => declaration => vec![]))
 }
 
@@ -950,7 +950,7 @@ pub(super) fn constant_invariant_theorem(
 ) -> (TermHandle, TermHandle) {
     let i = arena.insert(Term::Variable(0));
     let evidence_type = family.indexed_w(arena, i);
-    let closed = proof_admission::shift(arena, proof, 0, 2);
+    let closed = shift(arena, proof, 0, 2);
     let body = arena.insert(term!(Lambda => evidence_type => closed));
     let theorem = arena.insert(term!(Lambda => family.index => body));
     let i = arena.insert(Term::Variable(1));
@@ -971,7 +971,7 @@ pub(super) fn induction(
     cases: &[Case],
     invariant: TermHandle,
     lemmas: &[TermHandle],
-    declarations: &mut Vec<proof_admission::Declaration>,
+    declarations: &mut Vec<Declaration>,
     type_parameters: &[SymbolHandle],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
     if cases.len() != lemmas.len() {
@@ -979,15 +979,15 @@ pub(super) fn induction(
     }
     fn retain(
         arena: &mut TermArena,
-        declarations: &mut Vec<proof_admission::Declaration>,
+        declarations: &mut Vec<Declaration>,
         ty: TermHandle,
         body: TermHandle,
     ) -> TermHandle {
         let declaration = declarations.len() as u32;
-        declarations.push(proof_admission::Declaration::definition(0, ty, body));
+        declarations.push(Declaration::definition(0, ty, body));
         arena.insert(term!(Constant => declaration => vec![]))
     }
-    let w_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
+    let w_sort = arena.insert(Term::Sort(Sort::Type(
         family
             .levels
             .iter()
@@ -1035,17 +1035,16 @@ pub(super) fn induction(
     let positions = arena.insert(term!(Apply => family.children => a));
     let next = arena.insert(term!(Apply => family.next => a));
     let position = arena.insert(Term::Variable(0));
-    let next = proof_admission::shift(arena, next, 0, 1);
+    let next = shift(arena, next, 0, 1);
     let next = arena.insert(term!(Apply => next => position));
     let hypothesis = arena.insert(term!(Apply => invariant => next));
     let hypotheses = arena.insert(term!(Pi => positions => hypothesis));
     let out = arena.insert(term!(Apply => family.out => a));
     let goal = arena.insert(term!(Apply => invariant => out));
-    let goal = proof_admission::shift(arena, goal, 0, 1);
+    let goal = shift(arena, goal, 0, 1);
     let result = arena.insert(term!(Pi => hypotheses => goal));
     let result = arena.insert(term!(Lambda => family.carrier => result));
-    let proposition_sort =
-        arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+    let proposition_sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
     let result_type = arena.insert(term!(Pi => family.carrier => proposition_sort));
     let logical_result = retain(arena, declarations, result_type, result);
     let mut producer = InductionBuilder {
@@ -1094,9 +1093,7 @@ pub(super) fn induction(
     let result_type = producer.type_at_label(S::Var(a));
     let step_type = pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
     let declaration = declarations.len() as u32;
-    declarations.push(proof_admission::Declaration::definition(
-        0, step_type, step_body,
-    ));
+    declarations.push(Declaration::definition(0, step_type, step_body));
     let step = arena.insert(term!(Constant => declaration => vec![]));
     let i = arena.insert(Term::Variable(1));
     let proposition = arena.insert(term!(Apply => invariant => i));
@@ -1128,8 +1125,8 @@ mod induction_tests {
         });
         let evidence = arena.insert(term!(Constant => 1 => vec![]));
         let declarations = vec![
-            proof_admission::Declaration::assumption(0, two),
-            proof_admission::Declaration::assumption(0, predicate),
+            Declaration::assumption(0, two),
+            Declaration::assumption(0, predicate),
         ];
         let parameters = [
             (0, SymbolHandle::from_arena_index(31), two),
@@ -1144,7 +1141,7 @@ mod induction_tests {
             &parameters
         ));
         let context = Context::empty().with_signature(Signature::from_declarations(declarations));
-        proof_admission::check_type(
+        check_type(
             &mut arena,
             &context,
             proof,
@@ -1166,7 +1163,7 @@ mod induction_tests {
             right: one,
         });
         assert!(
-            proof_admission::check_type(
+            check_type(
                 &mut arena,
                 &context,
                 supplied,
@@ -1181,7 +1178,7 @@ mod induction_tests {
     fn source_case_abstraction_preserves_bound_proof_variables_and_dependency_closure() {
         let mut arena = TermArena::new();
         let two = arena.insert(Term::Two);
-        let mut declarations = vec![proof_admission::Declaration {
+        let mut declarations = vec![Declaration {
             level_arity: 0,
             ty: two,
             body: None,
@@ -1211,7 +1208,7 @@ mod induction_tests {
         ));
         let context =
             Context::empty().with_signature(Signature::from_declarations(declarations.clone()));
-        proof_admission::check_type(
+        check_type(
             &mut arena,
             &context,
             proof,
@@ -1219,7 +1216,7 @@ mod induction_tests {
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .unwrap();
-        declarations.push(proof_admission::Declaration {
+        declarations.push(Declaration {
             level_arity: 0,
             ty: two,
             body: Some(value),
@@ -1236,7 +1233,7 @@ mod induction_tests {
     #[test]
     fn generated_source_induction_checks_multiple_cases_and_child_positions() {
         let mut arena = TermArena::new();
-        let mut declarations = proof_admission::indexed_scheme(&mut arena);
+        let mut declarations = indexed_scheme(&mut arena);
         let two = arena.insert(Term::Two);
         let field = SymbolHandle::from_arena_index(2);
         let x = Key::Source(field);
@@ -1284,7 +1281,7 @@ mod induction_tests {
             body = arena.insert(Term::Lambda { domain: two, body });
             let context =
                 Context::empty().with_signature(Signature::from_declarations(declarations.clone()));
-            let ty = proof_admission::infer_type(
+            let ty = infer_type(
                 &mut arena,
                 &context,
                 body,
@@ -1292,7 +1289,7 @@ mod induction_tests {
             )
             .unwrap();
             let declaration = declarations.len() as u32;
-            declarations.push(proof_admission::Declaration::definition(0, ty, body));
+            declarations.push(Declaration::definition(0, ty, body));
             lemmas.push(arena.insert(term!(Constant => declaration => vec![])));
         }
         let (theorem, ty, step, step_type) = induction(
@@ -1309,7 +1306,7 @@ mod induction_tests {
         .unwrap();
         let context =
             Context::empty().with_signature(Signature::from_declarations(declarations.clone()));
-        proof_admission::check_type(
+        check_type(
             &mut arena,
             &context,
             step,
@@ -1318,9 +1315,9 @@ mod induction_tests {
         )
         .unwrap();
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-        proof_admission::check_signature(&mut arena, &declarations, &mut budget).unwrap();
+        check_signature(&mut arena, &declarations, &mut budget).unwrap();
         let context = Context::empty().with_signature(Signature::from_declarations(declarations));
-        proof_admission::check_type(
+        check_type(
             &mut arena,
             &context,
             theorem,
@@ -1328,9 +1325,9 @@ mod induction_tests {
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .unwrap();
-        let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+        let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
         assert!(
-            proof_admission::check_type(
+            check_type(
                 &mut arena,
                 &context,
                 theorem,
@@ -1347,7 +1344,7 @@ mod induction_tests {
 /// or type can reach it through a transparent definition or another constant.
 pub(super) fn excludes_parameters(
     arena: &TermArena,
-    declarations: &[proof_admission::Declaration],
+    declarations: &[Declaration],
     roots: &[TermHandle],
     parameters: &[(u32, SymbolHandle, TermHandle)],
 ) -> bool {
@@ -1462,7 +1459,7 @@ mod indexed_vector_budget_tests {
         })
     }
     fn and(arena: &mut TermArena, left: TermHandle, right: TermHandle) -> TermHandle {
-        let codomain = proof_admission::shift(arena, right, 0, 1);
+        let codomain = shift(arena, right, 0, 1);
         arena.insert(term!(Sigma => left => codomain))
     }
     fn close(
@@ -1490,14 +1487,14 @@ mod indexed_vector_budget_tests {
             Context::empty().with_signature(Signature::from_declarations(declarations.to_vec()));
         // For child-index functions the result is I rather than Type0;
         // conversion is still typed at the independently inferred Pi below.
-        let inferred = proof_admission::infer_type(
+        let inferred = infer_type(
             arena,
             &context,
             compact,
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .unwrap();
-        let raw_type = proof_admission::infer_type(
+        let raw_type = infer_type(
             arena,
             &context,
             raw,
@@ -1505,20 +1502,12 @@ mod indexed_vector_budget_tests {
         )
         .unwrap();
         assert_eq!(
-            proof_admission::judgment_assumption_closure(
-                arena,
-                context.signature(),
-                &[raw, raw_type]
-            ),
-            proof_admission::judgment_assumption_closure(
-                arena,
-                context.signature(),
-                &[compact, inferred]
-            ),
+            judgment_assumption_closure(arena, context.signature(), &[raw, raw_type]),
+            judgment_assumption_closure(arena, context.signature(), &[compact, inferred]),
             "generated primitive-domain compaction must preserve the full judgment assumption closure",
         );
         assert!(
-            proof_admission::convertible(
+            convertible(
                 arena,
                 &context,
                 raw,
@@ -1540,7 +1529,7 @@ mod indexed_vector_budget_tests {
         let context =
             Context::empty().with_signature(Signature::from_declarations(declarations.to_vec()));
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-        let result = proof_admission::check_type(arena, &context, term, ty, &mut budget);
+        let result = check_type(arena, &context, term, ty, &mut budget);
         eprintln!(
             "indexed vector {role}: {} kernel steps",
             DEFAULT_CONVERSION_STEPS - budget.remaining()
@@ -1565,12 +1554,12 @@ mod indexed_vector_budget_tests {
     }
     fn vector_budget(source_like: bool) {
         let mut arena = TermArena::new();
-        let mut declarations = proof_admission::indexed_scheme(&mut arena);
+        let mut declarations = indexed_scheme(&mut arena);
         let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
         let vocabulary = theory.vocabulary();
         let integer = constant(&mut arena, vocabulary.carrier);
         let scalar = if source_like {
-            let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+            let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
             let alias = declarations.len() as u32;
             declarations.push(Declaration::definition(0, sort, integer));
             constant(&mut arena, alias)
@@ -1599,7 +1588,7 @@ mod indexed_vector_budget_tests {
                     context = context.extend(scalar);
                 }
                 assert!(
-                    proof_admission::convertible(
+                    convertible(
                         arena,
                         &context,
                         raw,
@@ -1711,17 +1700,17 @@ mod indexed_vector_budget_tests {
             let Term::Lambda { body, .. } = arena.get(authored) else {
                 unreachable!()
             };
-            let remaining = proof_admission::substitute(&mut arena, body, length);
+            let remaining = substitute(&mut arena, body, length);
             let Term::Lambda { body, .. } = arena.get(remaining) else {
                 unreachable!()
             };
-            let normalized = proof_admission::substitute(&mut arena, body, total);
+            let normalized = substitute(&mut arena, body, total);
             let context = Context::empty()
                 .with_signature(Signature::from_declarations(declarations.clone()))
                 .extend(family.index);
-            let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+            let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
             assert!(
-                proof_admission::convertible(
+                convertible(
                     &mut arena,
                     &context,
                     raw_goal,
@@ -1776,7 +1765,7 @@ mod indexed_vector_budget_tests {
                 .unwrap();
             let mut ty = goal;
             for &domain in assumptions.iter().rev() {
-                let codomain = proof_admission::shift(&mut arena, ty, 0, 1);
+                let codomain = shift(&mut arena, ty, 0, 1);
                 ty = arena.insert(Term::Pi { domain, codomain });
             }
             let (proof, ty) = abstract_parameters(&mut arena, proof, ty, &parameters).unwrap();
@@ -1812,7 +1801,7 @@ mod indexed_vector_budget_tests {
         checked(&mut arena, &declarations, step, step_type, "step");
         checked(&mut arena, &declarations, theorem, ty, "theorem");
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-        let result = proof_admission::check_signature(&mut arena, &declarations, &mut budget);
+        let result = check_signature(&mut arena, &declarations, &mut budget);
         eprintln!(
             "indexed vector signature: {} kernel steps",
             DEFAULT_CONVERSION_STEPS - budget.remaining()
@@ -1844,7 +1833,7 @@ mod indexed_vector_budget_tests {
             constant_invariant_theorem(&mut arena, &family, false_invariant, closed_proof);
         let context = Context::empty().with_signature(Signature::from_declarations(declarations));
         assert!(
-            proof_admission::check_type(
+            check_type(
                 &mut arena,
                 &context,
                 theorem,

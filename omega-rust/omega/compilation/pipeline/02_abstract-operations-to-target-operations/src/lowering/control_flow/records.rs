@@ -8,10 +8,12 @@ use crate::LoweringError;
 use abstract_operations::AbstractOperation;
 use std::collections::BTreeSet;
 use target_operations::TargetUnitOperation;
+use terminal_psi::StructuralPathSegment;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,
 };
+use terminal_semantics::byte_carrier_field_declaration;
 
 pub(super) fn establish(
     operation: &AbstractOperation,
@@ -131,9 +133,7 @@ pub(super) fn establish(
             if let Some(case) = case {
                 destination.push(terminal_psi::StructuralPathSegment::Case(case));
             }
-            destination.push(terminal_psi::StructuralPathSegment::Field(
-                declaration.identity.clone(),
-            ));
+            destination.push(StructuralPathSegment::Field(declaration.identity.clone()));
             Ok((
                 &declaration.field_type,
                 destination,
@@ -150,9 +150,7 @@ pub(super) fn establish(
                         element_type
                             .as_ref()
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
-                        vec![terminal_psi::StructuralPathSegment::FixedIndex(
-                            index as u64,
-                        )],
+                        vec![StructuralPathSegment::FixedIndex(index as u64)],
                         Input::Element(argument),
                     ))
                 }),
@@ -231,10 +229,7 @@ pub(super) fn establish(
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         let expected = field_type.byte_sequence_carrier().and_then(|carrier| {
-                            terminal_semantics::byte_carrier_field_declaration(
-                                types.values().copied(),
-                                carrier,
-                            )
+                            byte_carrier_field_declaration(types.values().copied(), carrier)
                         });
                         if expected.is_none_or(|declaration| {
                             terminal_semantics::borrowed_referent_presentation(

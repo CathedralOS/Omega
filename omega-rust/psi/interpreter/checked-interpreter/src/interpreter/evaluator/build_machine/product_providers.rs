@@ -19,6 +19,7 @@
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
+use validation::product_queries::describe_provider;
 
 /// The marker type name carried by issued `ProductProviderRef` values. An
 /// authored `ProductProviderRef {}` has the declared type name instead and is
@@ -41,7 +42,9 @@ impl<'program> Evaluator<'program> {
             occurrence,
             frame,
             "product provider selection requires an explicit facet and path",
-            |engine, path, frame| engine.eval_product_provider_operand(path, frame),
+            |engine, path, frame| {
+                engine.eval_byte_data_operand(path, frame, "product provider operand")
+            },
             |engine, path, occurrence| engine.issue_product_provider_description(path, occurrence),
         )
     }
@@ -75,12 +78,8 @@ impl<'program> Evaluator<'program> {
         path: &[u8],
         occurrence: source::SourceSpan,
     ) -> EvalResult<Value> {
-        let selected = validation::product_queries::describe_provider(
-            self.product_declarations,
-            occurrence,
-            path,
-        )
-        .map_err(Halt::Trap)?;
+        let selected =
+            describe_provider(self.product_declarations, occurrence, path).map_err(Halt::Trap)?;
         let index = self.product_provider_descriptions.len();
         self.product_provider_descriptions
             .try_reserve(1)
@@ -97,18 +96,5 @@ impl<'program> Evaluator<'program> {
             type_name: PRODUCT_PROVIDER_DESCRIPTION_TYPE.into(),
             fields: BTreeMap::from([("description".into(), description)]),
         })
-    }
-
-    fn eval_product_provider_operand(
-        &mut self,
-        expression: ExpressionHandle,
-        frame: &mut Frame,
-    ) -> EvalResult<Vec<u8>> {
-        self.eval_byte_data_operand(
-            expression,
-            frame,
-            "product provider operand",
-            "product provider operands",
-        )
     }
 }

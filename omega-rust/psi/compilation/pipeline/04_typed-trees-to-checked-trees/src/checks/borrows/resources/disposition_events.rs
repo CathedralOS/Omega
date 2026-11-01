@@ -2,12 +2,14 @@
 
 use crate::checks::borrows::resources::lifecycle::span_handle;
 use crate::checks::borrows::resources::lifecycle::{
-    EphemeralResourceStatus, EphemeralStatuses, LifecycleBoundaryKey, LifecycleEvent,
-    LifecycleEventKind, LifecyclePhase, activation_boundary, apply_activation_batch,
-    apply_weakening_batch, exact_loan_lifecycle_rows, weakening_event_boundary,
+    EphemeralResourceStatus as ResourceStatus, EphemeralStatuses, LifecycleBoundaryKey,
+    LifecycleEvent, LifecycleEventKind, LifecyclePhase, activation_boundary,
+    apply_activation_batch, apply_weakening_batch, exact_loan_lifecycle_rows,
+    weakening_event_boundary,
 };
 use crate::checks::borrows::resources::reborrow_drafts::{
-    CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, DispositionTargetIndex,
+    CheckedReborrowDispositionEventDraft as EventDraft,
+    CheckedReborrowLoanResourceDraft as ResourceDraft, DispositionTargetIndex as TargetIndex,
     ParentResourceIndex,
 };
 use crate::checks::borrows::resources::{
@@ -15,8 +17,9 @@ use crate::checks::borrows::resources::{
 };
 use checked_trees::{
     BorrowFacts, CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
-    CheckedReborrowAccessEffect, CheckedReborrowResourceDisposition, FlowFacts,
-    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+    CheckedReborrowAccessEffect as AccessEffect,
+    CheckedReborrowResourceDisposition as ResourceDisposition, FlowFacts, FlowInvalidationSource,
+    ParentLexicalStatusAtChildEnd,
 };
 use diagnostics::Diagnostic;
 
@@ -24,9 +27,9 @@ pub(crate) fn plan_reborrow_disposition_events(
     borrow: &BorrowFacts,
     flow: &FlowFacts,
     direct: &[CheckedDirectBorrowLoanResource],
-    reborrows: &[CheckedReborrowLoanResourceDraft],
+    reborrows: &[ResourceDraft],
     installation: &[ParentResourceIndex],
-) -> Result<Vec<CheckedReborrowDispositionEventDraft>, Vec<Diagnostic>> {
+) -> Result<Vec<EventDraft>, Vec<Diagnostic>> {
     let mut states = Vec::new();
     for (machine, state) in direct
         .iter()
@@ -145,9 +148,9 @@ fn resolve_disposition_event(
     boundary: LifecycleBoundaryKey,
     statuses: &mut EphemeralStatuses,
     snapshot: &EphemeralStatuses,
-    reborrows: &[CheckedReborrowLoanResourceDraft],
+    reborrows: &[ResourceDraft],
     installation: &[ParentResourceIndex],
-) -> Result<CheckedReborrowDispositionEventDraft, Vec<Diagnostic>> {
+) -> Result<EventDraft, Vec<Diagnostic>> {
     let Some(child) = reborrows.get(child_index) else {
         return Err(reborrow_disposition_drift());
     };
@@ -157,20 +160,19 @@ fn resolve_disposition_event(
     let Some(immediate_parent) = installation.get(child_index).copied() else {
         return Err(reborrow_disposition_drift());
     };
-    let shared_cohort = if child.access_effect == CheckedReborrowAccessEffect::SharedRelease {
+    let shared_cohort = if child.access_effect == AccessEffect::SharedRelease {
         vec![child_index]
-    } else if child.access_effect == CheckedReborrowAccessEffect::SharedFreeze {
+    } else if child.access_effect == AccessEffect::SharedFreeze {
         let children = match snapshot.get(immediate_parent) {
-            Some(EphemeralResourceStatus::BorrowedBy { children })
-            | Some(EphemeralResourceStatus::RetiredWhileBorrowed { children, .. }) => children,
+            Some(ResourceStatus::BorrowedBy { children })
+            | Some(ResourceStatus::RetiredWhileBorrowed { children, .. }) => children,
             _ => return Err(reborrow_disposition_drift()),
         };
         children
             .into_iter()
             .filter_map(|resource| match resource {
                 ParentResourceIndex::Reborrow(index)
-                    if reborrows[index].access_effect
-                        == CheckedReborrowAccessEffect::SharedFreeze =>
+                    if reborrows[index].access_effect == AccessEffect::SharedFreeze =>
                 {
                     Some(index)
                 }
@@ -180,18 +182,18 @@ fn resolve_disposition_event(
     } else {
         Vec::new()
     };
-    let release = if child.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension {
-        CheckedReborrowResourceDisposition::BranchRelease
+    let release = if child.access_effect == AccessEffect::ExclusiveSuspension {
+        ResourceDisposition::BranchRelease
     } else {
-        CheckedReborrowResourceDisposition::SharedRelease
+        ResourceDisposition::SharedRelease
     };
     let mut closed_child = ParentResourceIndex::Reborrow(child_index);
     let mut parent = immediate_parent;
     let mut retired_parent_path = Vec::new();
     let (disposition, final_target) = loop {
         let (mut children, parent_weakening) = match statuses.get(parent) {
-            Some(EphemeralResourceStatus::BorrowedBy { children }) => (children, None),
-            Some(EphemeralResourceStatus::RetiredWhileBorrowed {
+            Some(ResourceStatus::BorrowedBy { children }) => (children, None),
+            Some(ResourceStatus::RetiredWhileBorrowed {
                 children,
                 weakening,
             }) => (children, Some(weakening)),
@@ -206,54 +208,48 @@ fn resolve_disposition_event(
         children.remove(child_position);
         if !children.is_empty() {
             let status = if let Some(weakening) = parent_weakening {
-                EphemeralResourceStatus::RetiredWhileBorrowed {
+                ResourceStatus::RetiredWhileBorrowed {
                     children,
                     weakening,
                 }
             } else {
-                EphemeralResourceStatus::BorrowedBy { children }
+                ResourceStatus::BorrowedBy { children }
             };
             if !statuses.set(parent, status) {
                 return Err(reborrow_disposition_drift());
             }
-            break (release, DispositionTargetIndex::ParentResource(parent));
+            break (release, TargetIndex::ParentResource(parent));
         }
         let Some(weakening) = parent_weakening else {
-            if !statuses.set(parent, EphemeralResourceStatus::Available) {
+            if !statuses.set(parent, ResourceStatus::Available) {
                 return Err(reborrow_disposition_drift());
             }
             let disposition = if parent != immediate_parent {
-                CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
+                ResourceDisposition::CascadeThroughRetiredParent
             } else {
                 match child.access_effect {
-                    CheckedReborrowAccessEffect::SharedRelease => {
-                        CheckedReborrowResourceDisposition::SharedRelease
-                    }
-                    CheckedReborrowAccessEffect::SharedFreeze => {
-                        CheckedReborrowResourceDisposition::RestoreSharedCohort
-                    }
-                    CheckedReborrowAccessEffect::ExclusiveSuspension => {
-                        CheckedReborrowResourceDisposition::Reactivate
-                    }
+                    AccessEffect::SharedRelease => ResourceDisposition::SharedRelease,
+                    AccessEffect::SharedFreeze => ResourceDisposition::RestoreSharedCohort,
+                    AccessEffect::ExclusiveSuspension => ResourceDisposition::Reactivate,
                 }
             };
-            break (disposition, DispositionTargetIndex::ParentResource(parent));
+            break (disposition, TargetIndex::ParentResource(parent));
         };
         let retired_fact = flow.borrow_lifetimes.weakenings.get(weakening);
         let retired_boundary = weakening_event_boundary(retired_fact.source, retired_fact.reason)?;
-        if retired_boundary > boundary || !statuses.set(parent, EphemeralResourceStatus::Retired) {
+        if retired_boundary > boundary || !statuses.set(parent, ResourceStatus::Retired) {
             return Err(reborrow_disposition_drift());
         }
         retired_parent_path.push((parent, weakening));
         match parent {
             ParentResourceIndex::Direct(index) => {
-                let final_target = DispositionTargetIndex::DirectRootLifetime(index);
+                let final_target = TargetIndex::DirectRootLifetime(index);
                 let disposition = if boundary.phase == LifecyclePhase::StateExit {
-                    CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+                    ResourceDisposition::StateExitDirectRootHandoff
                 } else if retired_boundary == boundary {
-                    CheckedReborrowResourceDisposition::SameBoundaryLineageClosure
+                    ResourceDisposition::SameBoundaryLineageClosure
                 } else {
-                    CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
+                    ResourceDisposition::CascadeThroughRetiredParent
                 };
                 break (disposition, final_target);
             }
@@ -265,7 +261,7 @@ fn resolve_disposition_event(
             }
         }
     };
-    Ok(CheckedReborrowDispositionEventDraft {
+    Ok(EventDraft {
         machine_symbol: child.machine_symbol,
         state_symbol: child.state_symbol,
         child_loan: child.loan,
@@ -292,7 +288,7 @@ fn exact_shared_cohort_observation(
     flow: &FlowFacts,
     flow_state: &checked_trees::FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
-    cohort: &[(usize, &CheckedReborrowLoanResourceDraft)],
+    cohort: &[(usize, &ResourceDraft)],
     mutation_statement_index: usize,
 ) -> bool {
     if mutation_statement_index != cohort.len() + 2
@@ -387,8 +383,8 @@ pub(crate) fn bind_restored_call_uses(
     borrow: &checked_trees::BorrowFacts,
     flow: &checked_trees::FlowFacts,
     direct: &[CheckedDirectBorrowLoanResource],
-    reborrows: &[CheckedReborrowLoanResourceDraft],
-    dispositions: &mut [CheckedReborrowDispositionEventDraft],
+    reborrows: &[ResourceDraft],
+    dispositions: &mut [EventDraft],
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     for event in dispositions.iter_mut() {
@@ -396,8 +392,8 @@ pub(crate) fn bind_restored_call_uses(
         // requires an exclusive suspension, RestoreSharedCohort a bounded
         // shared-freeze cohort carrying every child of the parent.
         let restored = match event.disposition {
-            CheckedReborrowResourceDisposition::Reactivate => true,
-            CheckedReborrowResourceDisposition::RestoreSharedCohort => false,
+            ResourceDisposition::Reactivate => true,
+            ResourceDisposition::RestoreSharedCohort => false,
             _ => continue,
         };
         let ParentResourceIndex::Direct(parent_index) = event.parent_resource else {
@@ -412,8 +408,7 @@ pub(crate) fn bind_restored_call_uses(
         let exclusive_reactivation = matches!(
             child.access,
             checked_trees::BorrowAccessKind::Mutable | checked_trees::BorrowAccessKind::WriteOnly
-        ) && child.access_effect
-            == CheckedReborrowAccessEffect::ExclusiveSuspension;
+        ) && child.access_effect == AccessEffect::ExclusiveSuspension;
         let shared_cohort = reborrows
             .iter()
             .enumerate()
@@ -422,7 +417,7 @@ pub(crate) fn bind_restored_call_uses(
         let bounded_shared_freeze = matches!(shared_cohort.len(), 1..=3)
             && shared_cohort.iter().all(|(_, member)| {
                 member.access == checked_trees::BorrowAccessKind::Read
-                    && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+                    && member.access_effect == AccessEffect::SharedFreeze
                     && member.machine_symbol == child.machine_symbol
                     && member.state_symbol == child.state_symbol
                     && member.parent_lexical_status == ParentLexicalStatusAtChildEnd::LivePastChild
@@ -458,7 +453,7 @@ pub(crate) fn bind_restored_call_uses(
                         .iter()
                         .map(|(index, _)| *index)
                         .collect::<Vec<_>>())
-            || event.final_target != DispositionTargetIndex::ParentResource(event.parent_resource)
+            || event.final_target != TargetIndex::ParentResource(event.parent_resource)
         {
             continue;
         }

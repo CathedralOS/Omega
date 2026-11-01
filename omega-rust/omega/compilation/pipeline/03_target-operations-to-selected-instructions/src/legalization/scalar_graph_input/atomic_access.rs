@@ -3,6 +3,7 @@
 //! authority, exact scalar type and ordering remain atomic-event obligations.
 //! An observed prior is the result of this event, never an added scalar load.
 
+use crate::structural_inputs::structural_reference_input::atomic_field_geometry;
 use abstract_operations::{AbstractAtomicEvent, AbstractResult};
 use semantic_vocabulary::{IntegerType, StructuralFieldId};
 use terminal_psi::{
@@ -148,13 +149,7 @@ pub(in crate::legalization) fn access(
     {
         return None;
     }
-    let geometry = crate::structural_inputs::structural_reference_input::atomic_field_geometry(
-        root,
-        &location.path,
-        location.field,
-        scalar_type,
-        types,
-    )?;
+    let geometry = atomic_field_geometry(root, &location.path, location.field, scalar_type, types)?;
     let offset = geometry.byte_offset;
     let byte_size = geometry.byte_size;
     if byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0 {

@@ -9,6 +9,8 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
 };
+use typed_trees::statement::TransitionTargetHandle;
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::{CallableIdentityId, CallableParametersId, CallablePathId};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -68,16 +70,6 @@ impl MachineOverloadIndex {
             entry_to_group,
             groups,
         }
-    }
-
-    fn group(&self, entry: SymbolHandle) -> Option<&MachineOverloadGroup> {
-        self.entry_to_group
-            .get(&entry.arena_index())
-            .and_then(|index| self.groups.get(*index))
-    }
-
-    fn contains_entry(&self, entry: SymbolHandle) -> bool {
-        self.entry_to_group.contains_key(&entry.arena_index())
     }
 }
 
@@ -260,7 +252,26 @@ pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let boolean_equalities = crate::static_type_boolean_equalities(program);
-    program.prepare_static_type_contexts(&boolean_equalities);
+    let case_memberships = crate::case_membership_type_facts(program);
+    program.prepare_static_type_contexts(&boolean_equalities, case_memberships.clone());
+    program.elide_unreachable_case_arms();
+    // Full-predicate implications apply under the successful case test to
+    // both expression arms and transition targets. Publish them only after
+    // independent prefix queries. Do not elide again: a refuted body can
+    // still have an effectful reached guard before its final rejecting test.
+    let conditional =
+        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(program);
+    program.prepare_static_type_contexts(
+        &boolean_equalities,
+        case_memberships.into_iter().chain(conditional).collect(),
+    );
+    // Result selection needs each arm's independently proved type equation,
+    // and dispatch needs the same admitted subject's possible cases. Compute
+    // the whole batch against the preexisting contexts, then publish it once;
+    // a goal or receiving annotation cannot become its own premise.
+    let predicate_contexts =
+        crate::proof_contracts::contract_entailment::predicate_type_contexts(program);
+    program.retain_proven_type_contexts(predicate_contexts);
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
             .into_iter()
@@ -371,7 +382,7 @@ pub fn resolve_named_result_overloads(
     }
     let mut changed_owners = Vec::new();
     for (target, selected, owner) in transition_updates {
-        let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+        let TransitionTargetNode::Named { path, .. } =
             program.statement_table.transition_target_mut(target)
         else {
             unreachable!("collected transition target changed shape");
@@ -543,11 +554,7 @@ pub fn resolve_named_result_overloads(
 fn selected_transition_call_symbols(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(
-    typed_trees::statement::TransitionTargetHandle,
-    SymbolHandle,
-    SymbolHandle,
-)> {
+) -> Vec<(TransitionTargetHandle, SymbolHandle, SymbolHandle)> {
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -556,7 +563,7 @@ fn selected_transition_call_symbols(
                     continue;
                 };
                 for target in transition.targets() {
-                    let typed_trees::statement::TransitionTargetNode::Named {
+                    let TransitionTargetNode::Named {
                         path,
                         arguments,
                         source_span,
@@ -905,7 +912,9 @@ fn provisional_target_is_named_non_operator_callable(
     machine_overloads: &MachineOverloadIndex,
     target: SymbolHandle,
 ) -> bool {
-    machine_overloads.contains_entry(target)
+    machine_overloads
+        .entry_to_group
+        .contains_key(&target.arena_index())
         || program.traits().iter().any(|trait_definition| {
             program
                 .trait_machine_signatures(trait_definition)
@@ -922,7 +931,11 @@ fn selected_named_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if let Some(group) = machine_overloads.group(provisional_target) {
+    if let Some(group) = machine_overloads
+        .entry_to_group
+        .get(&provisional_target.arena_index())
+        .and_then(|index| machine_overloads.groups.get(*index))
+    {
         let visible_overloads = group
             .overloads
             .iter()
@@ -1257,17 +1270,15 @@ pub fn collect_expected_expression_calls(
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
-                                typed_trees::statement::TransitionTargetNode::Named {
-                                    path,
-                                    arguments,
-                                    ..
+                                TransitionTargetNode::Named {
+                                    path, arguments, ..
                                 } => collect_call_argument_expectations(
                                     program,
                                     path.symbol,
                                     program.statement_table.expression_handles(*arguments),
                                     &mut expected,
                                 ),
-                                typed_trees::statement::TransitionTargetNode::Value(value)
+                                TransitionTargetNode::Value(value)
                                     if state.return_type.is_valid() =>
                                 {
                                     push_expected_call(

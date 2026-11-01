@@ -5,6 +5,7 @@
 //! must not reject it, and target materialization retains traversal order.
 
 use crate::TypedTrees;
+use crate::type_identity::TypeIdentityId;
 use crate::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use arena::Handle;
 use language_semantics::boundary_values::{
@@ -33,17 +34,14 @@ pub struct BoundaryValuePreparation<'input> {
     visiting: Vec<DataApplicationKey>,
     // Share exact closed source recipes, not native occurrences. Repeated
     // record fields must not expand exponentially before the ABI bound runs.
-    closed_values: Vec<(
-        crate::type_identity::TypeIdentityId,
-        Handle<BoundaryValueRecipe>,
-    )>,
+    closed_values: Vec<(TypeIdentityId, Handle<BoundaryValueRecipe>)>,
     recipes: BoundaryValueRecipes,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DataApplicationKey {
     Nominal(symbols::SymbolHandle),
-    Applied(crate::type_identity::TypeIdentityId),
+    Applied(TypeIdentityId),
 }
 
 impl<'input> BoundaryValuePreparation<'input> {
@@ -133,13 +131,7 @@ impl<'input> BoundaryValuePreparation<'input> {
                 {
                     referee = substitute_boundary_type_reference(typed, *base_type, self.bindings);
                 }
-                let descriptor = match typed.type_reference_table.type_reference(referee) {
-                    TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                        true
-                    }
-                    TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
-                    _ => false,
-                };
+                let descriptor = foreign_reference_uses_descriptor(typed, referee);
                 BoundaryValueRecipe::Reference { descriptor }
             }
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
@@ -350,6 +342,24 @@ impl<'input> BoundaryValuePreparation<'input> {
                 byte_alignment: geometry.align as u64,
             }),
         }
+    }
+}
+
+/// Source-owned pointer-versus-descriptor distinction for a closed referent.
+/// This records foreign transport only, not backing storage or access authority.
+pub fn foreign_reference_uses_descriptor(
+    typed: &TypedTrees,
+    mut referent: TypeReferenceHandle,
+) -> bool {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        typed.type_reference_table.type_reference(referent)
+    {
+        referent = *base_type;
+    }
+    match typed.type_reference_table.type_reference(referent) {
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
+        _ => false,
     }
 }
 

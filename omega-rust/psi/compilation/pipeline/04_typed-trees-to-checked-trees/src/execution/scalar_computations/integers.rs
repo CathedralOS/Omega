@@ -15,6 +15,13 @@ use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
 use crate::values::scalar::scalar_lowering::lower_scalar_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
+use typed_trees::expression::MatchPattern;
+use typed_trees::expression::TableBinaryExpression;
+use typed_trees::operator::integer_peer_operand_carrier;
+use validation::atomic_load_carrier;
+use validation::call_target_return_type;
+use validation::call_target_symbol;
+use validation::declared_place_type_raw;
 
 #[derive(Clone)]
 pub(super) struct IntegerOperand {
@@ -93,7 +100,8 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
-        if let Some((computation, reference)) = self.declaration_input(expression) {
+        // A malformed bound input cannot fall through to an ordinary parameter.
+        if let Some((computation, reference)) = self.declaration_input(expression).ok()? {
             let primitive = self.program.primitive_type_reference(reference)?;
             if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
                 return None;
@@ -152,8 +160,8 @@ impl Builder<'_, '_> {
                     .primitive_reference_observation(expression, observation.primitive_type)?,
             });
         }
-        if let Some(carrier) = validation::atomic_load_carrier(self.program, expression) {
-            let declared = validation::declared_place_type_raw(
+        if let Some(carrier) = atomic_load_carrier(self.program, expression) {
+            let declared = declared_place_type_raw(
                 self.program,
                 self.program.machine_by_symbol(self.machine)?,
                 Some(self.program.state_by_symbol(self.state)?),
@@ -271,9 +279,9 @@ impl Builder<'_, '_> {
                         contextual_results.push(arm.value);
                     }
                     match arm.pattern {
-                        typed_trees::expression::MatchPattern::Destructure(_) => {}
-                        typed_trees::expression::MatchPattern::Wildcard => break,
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                        MatchPattern::Destructure(_) => {}
+                        MatchPattern::Wildcard => break,
+                        MatchPattern::Value(pattern) => {
                             if let Some(value) = self.program.expression_table.boolean_node(pattern)
                             {
                                 boolean_coverage[usize::from(*value)] = true;
@@ -305,10 +313,8 @@ impl Builder<'_, '_> {
                 // Static bodies, boundary requirements and implementation
                 // slots all own their declared result. An entry-state lookup
                 // incorrectly excludes calls without an authored body state.
-                let returned = validation::call_target_return_type(
-                    self.program,
-                    validation::call_target_symbol(self.program, &call),
-                )?;
+                let returned =
+                    call_target_return_type(self.program, call_target_symbol(self.program, &call))?;
                 let primitive_type = self.program.primitive_type_reference(returned)?;
                 if !is_integer(primitive_type) {
                     return None;
@@ -454,7 +460,7 @@ impl Builder<'_, '_> {
 
     fn integer_operands(
         &mut self,
-        binary: &typed_trees::expression::TableBinaryExpression,
+        binary: &TableBinaryExpression,
         expected: Option<PrimitiveType>,
     ) -> Option<(IntegerOperand, IntegerOperand)> {
         let mut left = self.integer_operand(binary.left, expected);
@@ -479,11 +485,7 @@ impl Builder<'_, '_> {
         if let Some(destination) = operand_type(&right)
             && let Some(operand) = land(
                 binary.left,
-                typed_trees::operator::integer_peer_operand_carrier(
-                    binary.operator,
-                    destination,
-                    false,
-                ),
+                integer_peer_operand_carrier(binary.operator, destination, false),
             )
         {
             left = Some(operand);
@@ -491,11 +493,7 @@ impl Builder<'_, '_> {
         if let Some(destination) = operand_type(&left)
             && let Some(operand) = land(
                 binary.right,
-                typed_trees::operator::integer_peer_operand_carrier(
-                    binary.operator,
-                    destination,
-                    true,
-                ),
+                integer_peer_operand_carrier(binary.operator, destination, true),
             )
         {
             right = Some(operand);
@@ -520,11 +518,7 @@ impl Builder<'_, '_> {
             left = self.anonymous_operand(binary.left, destination);
             right = self.anonymous_operand(
                 binary.right,
-                typed_trees::operator::integer_peer_operand_carrier(
-                    binary.operator,
-                    destination,
-                    true,
-                ),
+                integer_peer_operand_carrier(binary.operator, destination, true),
             );
         }
         Some((left?, right?))
@@ -593,7 +587,7 @@ impl Builder<'_, '_> {
     pub(super) fn integer_comparison(
         &mut self,
         source_expression: ExpressionHandle,
-        binary: &typed_trees::expression::TableBinaryExpression,
+        binary: &TableBinaryExpression,
     ) -> Option<CheckedScalarComputationHandle> {
         // A comparison's result is Boolean, so it offers its operands no
         // carrier; the operands must still establish their own.

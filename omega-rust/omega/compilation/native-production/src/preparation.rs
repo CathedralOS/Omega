@@ -2,6 +2,8 @@
 
 use crate::{NativeCompileRequest, NativeScalarCompletion};
 use diagnostics::Diagnostic;
+use image_emission::ExecutableImageEmissionRequest;
+use terminal_installation::admit_target_layouts;
 use terminal_psi_to_abstract_operations::{PreparedNativeWork, RetainedTerminalArtifact};
 
 pub struct PreparedNativeCompilation<'input> {
@@ -36,13 +38,7 @@ impl<'input> PreparedNativeCompilation<'input> {
 pub fn prepare<'input>(
     retained: &'input RetainedTerminalArtifact,
     mut request: NativeCompileRequest<'input>,
-) -> Result<
-    PreparedNativeCompilation<'input>,
-    (
-        image_emission::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
+) -> Result<PreparedNativeCompilation<'input>, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
     let recovery = request.image_request.clone();
     let result = (|| {
         let (artifact, proposal) = request.prepare_terminal(retained)?;
@@ -60,12 +56,8 @@ pub fn prepare<'input>(
                     "entry RAM target has no representation facts",
                 )]
             })?;
-        let layouts = terminal_installation::admit_target_layouts(
-            artifact.view(),
-            &selections,
-            &target_facts,
-        )
-        .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let layouts = admit_target_layouts(artifact.view(), &selections, &target_facts)
+            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {

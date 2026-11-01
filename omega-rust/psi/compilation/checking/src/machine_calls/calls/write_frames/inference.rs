@@ -3,6 +3,7 @@
 
 use super::StoredLocalOrigins;
 use super::call_targets::machine_state_by_symbol;
+use crate::CheckingInput;
 use crate::value_custody::places::binding_observations::{
     BindingObservation, binding_has_write_effects, binding_is_exclusively_exposed,
     binding_is_written,
@@ -79,7 +80,7 @@ impl FrameInference {
 
     pub(super) fn argument_values(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         arguments: &[ExpressionHandle],
     ) -> Vec<BoolTruth> {
         if let Some(parameter_values) = &self.parameter_values {
@@ -102,7 +103,7 @@ impl FrameInference {
     /// the ordinary possible-element relation.
     pub(super) fn argument_indices(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         arguments: &[ExpressionHandle],
     ) -> Vec<Option<usize>> {
         arguments
@@ -113,7 +114,7 @@ impl FrameInference {
 
     pub(super) fn index_value(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<usize> {
         match &self.parameter_values {
@@ -124,7 +125,7 @@ impl FrameInference {
 
     pub(super) fn specialize_segments(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         segments: &mut [facts::PlaceSegment],
     ) {
         for segment in segments {
@@ -139,7 +140,7 @@ impl FrameInference {
 
     pub(super) fn specialize_source(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         source: &mut super::FrameSourcePlace,
     ) {
         if !source.builtin_coordinates {
@@ -167,7 +168,7 @@ impl FrameInference {
     /// Restore the caller even when inference refuses partway through the body.
     pub(super) fn with_invocation<T>(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         values: &[BoolTruth],
         indices: &[Option<usize>],
@@ -198,7 +199,7 @@ impl FrameInference {
     /// A nested relation walk cannot advance the enclosing call's live values.
     pub(super) fn with_state_values<T>(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         action: impl FnOnce(&mut Self) -> T,
     ) -> T {
@@ -226,7 +227,7 @@ impl FrameInference {
 
     pub(super) fn finish_statement(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         statement: &StatementNode,
     ) {
@@ -249,7 +250,7 @@ pub(super) struct ParameterValues {
 
 impl ParameterValues {
     pub(super) fn new(
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         actual_values: &[BoolTruth],
         actual_indices: &[Option<usize>],
@@ -320,7 +321,7 @@ impl ParameterValues {
 
     fn index_value(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<usize> {
         if !expression.is_valid() {
@@ -344,13 +345,13 @@ impl ParameterValues {
             || self.indices.iter().any(|(_, value)| value.is_some())
     }
 
-    pub(super) fn restart(&self, program: &dyn crate::CheckingInput, state: &State) -> Self {
+    pub(super) fn restart(&self, program: &dyn CheckingInput, state: &State) -> Self {
         Self::new(program, state, &self.entry_values, &self.entry_indices)
     }
 
     pub(super) fn argument_values(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         arguments: &[ExpressionHandle],
     ) -> Vec<BoolTruth> {
         let Some((_, state)) = machine_state_by_symbol(program, self.state) else {
@@ -364,7 +365,7 @@ impl ParameterValues {
 
     pub(super) fn truth(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         expression: ExpressionHandle,
     ) -> BoolTruth {
@@ -375,7 +376,7 @@ impl ParameterValues {
     /// The same transfer serves return selection and chronological write frames.
     pub(super) fn finish_statement(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: &State,
         statement: &StatementNode,
     ) {
@@ -434,7 +435,7 @@ pub(super) enum BoolTruth {
 }
 
 fn bool_truth(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     current: &ParameterValues,
     expression: ExpressionHandle,
@@ -513,10 +514,7 @@ impl BoolTruth {
     }
 }
 
-fn constant_index(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<usize> {
+fn constant_index(program: &dyn CheckingInput, expression: ExpressionHandle) -> Option<usize> {
     if !expression.is_valid() {
         return None;
     }

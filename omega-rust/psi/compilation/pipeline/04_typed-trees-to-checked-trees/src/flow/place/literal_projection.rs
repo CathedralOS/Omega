@@ -6,10 +6,12 @@
 //! operand to its declaration without letting a common field select a case.
 
 use crate::places::place_at;
+use facts::PlaceSegment;
+use facts::payload_variant_for_field;
 use validation::CanonicalPlace;
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -19,7 +21,7 @@ pub(crate) fn literal_argument_access_places(
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> Option<Vec<CanonicalPlace>> {
     literal_projections(
         program,
@@ -59,8 +61,8 @@ pub(crate) enum LiteralValueSource {
 #[derive(Clone)]
 pub(crate) struct LiteralValueProjection {
     pub source: LiteralValueSource,
-    pub remaining: Vec<facts::PlaceSegment>,
-    pub destination: Vec<facts::PlaceSegment>,
+    pub remaining: Vec<PlaceSegment>,
+    pub destination: Vec<PlaceSegment>,
 }
 
 impl LiteralValueProjection {
@@ -77,15 +79,15 @@ impl LiteralValueProjection {
 #[derive(Clone)]
 pub(crate) struct LiteralExpressionProjection {
     pub expression: ExpressionHandle,
-    pub remaining: Vec<facts::PlaceSegment>,
-    pub destination: Vec<facts::PlaceSegment>,
+    pub remaining: Vec<PlaceSegment>,
+    pub destination: Vec<PlaceSegment>,
 }
 
 pub(crate) fn literal_expression_projections(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
     enumerate: bool,
 ) -> Option<Vec<LiteralExpressionProjection>> {
     literal_value_projections(program, expression, reference, segments, enumerate)?
@@ -115,10 +117,10 @@ pub(crate) fn literal_value_path_is_inactive(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> bool {
     segments.iter().enumerate().any(|(position, segment)| {
-        let facts::PlaceSegment::Case { variant } = segment else {
+        let PlaceSegment::Case { variant } = segment else {
             return false;
         };
         let Some(projections) = literal_expression_projections(
@@ -143,8 +145,7 @@ pub(crate) fn literal_value_path_is_inactive(
                         })
                     }
                     ExpressionNode::Name(name)
-                        if program.symbols.get(name.symbol).kind
-                            == symbols::SymbolKind::Variant =>
+                        if program.symbols.get(name.symbol).kind == SymbolKind::Variant =>
                     {
                         Some(name.symbol)
                     }
@@ -153,8 +154,8 @@ pub(crate) fn literal_value_path_is_inactive(
                 actual.is_some_and(|actual| {
                     actual != *variant
                         && variant.is_valid()
-                        && program.symbols.get(actual).kind == symbols::SymbolKind::Variant
-                        && program.symbols.get(*variant).kind == symbols::SymbolKind::Variant
+                        && program.symbols.get(actual).kind == SymbolKind::Variant
+                        && program.symbols.get(*variant).kind == SymbolKind::Variant
                         && program.symbols.get(actual).parent
                             == program.symbols.get(*variant).parent
                 })
@@ -166,7 +167,7 @@ pub(crate) fn literal_value_projections(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
     enumerate: bool,
 ) -> Option<Vec<LiteralValueProjection>> {
     literal_projections(
@@ -186,7 +187,7 @@ fn literal_projections(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
     mode: ProjectionMode,
 ) -> Option<Vec<LiteralValueProjection>> {
     let mut pending = vec![(expression, reference, segments, Vec::new())];
@@ -263,8 +264,7 @@ fn literal_projections(
                         DataMember::Variant(variant)
                             if variant.symbol == symbol
                                 && symbol.is_valid()
-                                && program.symbols.get(symbol).kind
-                                    == symbols::SymbolKind::Variant
+                                && program.symbols.get(symbol).kind == SymbolKind::Variant
                                 && program.symbols.get(symbol).parent == owner =>
                         {
                             Some(variant)
@@ -281,7 +281,7 @@ fn literal_projections(
                 };
                 let fields = program.data_construction_fields(members, literal.case_symbol);
                 let (selected_variant, segments) = match segments.split_first() {
-                    Some((facts::PlaceSegment::Case { variant: selected }, remaining)) => {
+                    Some((PlaceSegment::Case { variant: selected }, remaining)) => {
                         if variant.is_none_or(|variant| variant.symbol != *selected) {
                             return None;
                         }
@@ -291,15 +291,13 @@ fn literal_projections(
                 };
                 let actuals = program.expression_table.struct_fields(literal.fields);
                 let selected = match segments.split_first() {
-                    Some((facts::PlaceSegment::Field { symbol }, remaining)) => {
-                        Some((*symbol, remaining))
-                    }
+                    Some((PlaceSegment::Field { symbol }, remaining)) => Some((*symbol, remaining)),
                     None => None,
                     _ => return None,
                 };
                 if selected.is_some_and(|(symbol, _)| {
                     !fields.iter().any(|field| field.symbol == symbol)
-                        || facts::payload_variant_for_field(program, symbol) != selected_variant
+                        || payload_variant_for_field(program, symbol) != selected_variant
                 }) {
                     return None;
                 }
@@ -316,7 +314,7 @@ fn literal_projections(
                         || mapped_actuals
                             .iter()
                             .any(|(symbol, _)| *symbol == field.symbol)
-                        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+                        || program.symbols.get(field.symbol).kind != SymbolKind::Field
                     {
                         return None;
                     }
@@ -324,7 +322,7 @@ fn literal_projections(
                 }
                 for field in fields {
                     if selected_variant.is_some_and(|variant| {
-                        facts::payload_variant_for_field(program, field.symbol) != Some(variant)
+                        payload_variant_for_field(program, field.symbol) != Some(variant)
                     }) {
                         continue;
                     }
@@ -346,12 +344,11 @@ fn literal_projections(
                             )?;
                             let constructor_path_length = destination.len();
                             let mut destination = destination.clone();
-                            if let Some(variant) =
-                                facts::payload_variant_for_field(program, field.symbol)
+                            if let Some(variant) = payload_variant_for_field(program, field.symbol)
                             {
-                                destination.push(facts::PlaceSegment::Case { variant });
+                                destination.push(PlaceSegment::Case { variant });
                             }
-                            destination.push(facts::PlaceSegment::Field {
+                            destination.push(PlaceSegment::Field {
                                 symbol: field.symbol,
                             });
                             destination.extend_from_slice(remaining);
@@ -381,10 +378,10 @@ fn literal_projections(
                         return None;
                     };
                     let mut destination = destination.clone();
-                    if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
-                        destination.push(facts::PlaceSegment::Case { variant });
+                    if let Some(variant) = payload_variant_for_field(program, field.symbol) {
+                        destination.push(PlaceSegment::Case { variant });
                     }
-                    destination.push(facts::PlaceSegment::Field {
+                    destination.push(PlaceSegment::Field {
                         symbol: field.symbol,
                     });
                     pending.push((
@@ -411,13 +408,13 @@ fn literal_projections(
                     None => {
                         for (index, element) in elements.iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(facts::PlaceSegment::FixedIndex { index });
+                            destination.push(PlaceSegment::FixedIndex { index });
                             pending.push((*element, *element_type, &[], destination));
                         }
                     }
-                    Some((facts::PlaceSegment::FixedIndex { index }, remaining)) => {
+                    Some((PlaceSegment::FixedIndex { index }, remaining)) => {
                         let mut destination = destination;
-                        destination.push(facts::PlaceSegment::FixedIndex { index: *index });
+                        destination.push(PlaceSegment::FixedIndex { index: *index });
                         pending.push((
                             *elements.get(*index)?,
                             *element_type,
@@ -425,19 +422,19 @@ fn literal_projections(
                             destination,
                         ));
                     }
-                    Some((facts::PlaceSegment::Index { .. }, remaining)) => {
+                    Some((PlaceSegment::Index { .. }, remaining)) => {
                         for (index, element) in elements.iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(facts::PlaceSegment::FixedIndex { index });
+                            destination.push(PlaceSegment::FixedIndex { index });
                             pending.push((*element, *element_type, remaining, destination));
                         }
                     }
-                    Some((facts::PlaceSegment::FixedRange { start, end }, remaining))
+                    Some((PlaceSegment::FixedRange { start, end }, remaining))
                         if start <= end && *end <= elements.len() =>
                     {
                         for (offset, element) in elements[*start..*end].iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(facts::PlaceSegment::FixedIndex {
+                            destination.push(PlaceSegment::FixedIndex {
                                 index: start + offset,
                             });
                             pending.push((*element, *element_type, remaining, destination));

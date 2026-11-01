@@ -174,6 +174,8 @@ mod tests {
     use image::{
         FinalImage, FinalImageLayout, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
+
+    use crate::test_support::relocation_mut;
     use object_file::{RelocationKind, SymbolKind};
 
     /// The one private text symbol these witnesses point at.
@@ -257,28 +259,12 @@ mod tests {
             });
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
-        image
-            .relocation_table
-            .relocations
-            .get_mut(relocation)
-            .section = FinalImageSection::Data;
-        image
-            .relocation_table
-            .relocations
-            .get_mut(relocation)
-            .byte_width = 4;
+        relocation_mut(&mut image, relocation).section = FinalImageSection::Data;
+        relocation_mut(&mut image, relocation).byte_width = 4;
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
-        image
-            .relocation_table
-            .relocations
-            .get_mut(relocation)
-            .byte_width = 8;
-        image
-            .relocation_table
-            .relocations
-            .get_mut(relocation)
-            .offset = 1;
+        relocation_mut(&mut image, relocation).byte_width = 8;
+        relocation_mut(&mut image, relocation).offset = 1;
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
     }
 
@@ -326,11 +312,7 @@ mod tests {
         let first = data_pointer_relocation(&mut image, 0, 0, Handle::invalid());
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
-        image
-            .relocation_table
-            .relocations
-            .get_mut(first)
-            .symbol_handle = function;
+        relocation_mut(&mut image, first).symbol_handle = function;
         data_pointer_relocation(&mut image, 0, 0, function);
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
     }

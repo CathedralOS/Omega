@@ -20,7 +20,7 @@ use typed_trees::types::PrimitiveType;
 
 mod rank_comparison;
 pub(in crate::proof_contracts::contract_entailment) use rank_comparison::{
-    CapturedIntegerRank, FormedIntegerRank,
+    CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank,
 };
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
@@ -1930,9 +1930,17 @@ impl<'program> StructuralJudge<'program> {
         } else {
             value
         };
-        let call = self
-            .completed_integer_call(value)
-            .filter(|(_, _, observed)| *observed == primitive);
+        let call = self.completed_integer_call(value);
+        if let Some((_, _, observed)) = call.as_ref()
+            && *observed != primitive
+        {
+            // A denotation-preserving conversion keeps the completed source
+            // observation. Project it in its own carrier first so both its
+            // bounds and canonical occurrence survive in the receiving one.
+            // The receiving carrier still owes its own conversion formation;
+            // its interval cannot be donated to the original source atom.
+            return self.integer_value(value, *observed, observations, depth + 1);
+        }
         let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = completed_before_resolution
             .or_else(|| self.completed_scalar_observation(value, primitive));
@@ -1978,6 +1986,21 @@ impl<'program> StructuralJudge<'program> {
                 observations.install_observed_carrier_bounds(primitive, &value)?;
             }
             return Some(value);
+        }
+        // An embedding denotes an integer that was already evaluated in the
+        // embedded carrier. That carrier bounds the value; the carrier that
+        // observes the embedding is at most as wide and must not replace it.
+        if let StructuralTerm::IntegerEmbedding {
+            reference,
+            value: embedded,
+        } = value
+        {
+            let (embedded_primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                embedded,
+            )?;
+            return self.integer_value(embedded, embedded_primitive, observations, depth + 1);
         }
         // A completed scalar observation can have a recorded mathematical
         // denotation (for example a window's end minus start). Keep that

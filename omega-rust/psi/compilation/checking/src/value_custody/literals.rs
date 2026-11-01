@@ -36,6 +36,7 @@
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
@@ -52,12 +53,7 @@ pub(crate) fn primitive_landing_type(primitive: PrimitiveType) -> Option<LandedI
 fn named_transition_arguments<'program>(
     program: &'program dyn crate::CheckingInput,
     target_node: &typed_trees::statement::TransitionTargetNode,
-) -> Option<
-    Vec<(
-        &'program typed_trees::signature::StateParameter,
-        ExpressionHandle,
-    )>,
-> {
+) -> Option<Vec<(&'program StateParameter, ExpressionHandle)>> {
     let typed_trees::statement::TransitionTargetNode::Named {
         path, arguments, ..
     } = target_node
@@ -309,12 +305,35 @@ pub(crate) fn validate_suffix_landings(
                                 assignment.target,
                             )
                         {
-                            validate_suffix_landing(
-                                program,
-                                assignment.value,
-                                declared,
-                                diagnostics,
-                            );
+                            // An atomic event delivers its authored operands at
+                            // the cell's resident type. The assignment's own
+                            // value is only the generated carrier, so a
+                            // suffixed literal, or a constant that expands to
+                            // one, reaches the cell through the operands.
+                            if let Some(event) = super::atomic_operations::atomic_assignment_carrier(
+                                program, assignment,
+                            ) {
+                                let resident =
+                                    super::atomic_operations::atomic_resident_type_reference(
+                                        program, declared,
+                                    )
+                                    .unwrap_or(declared);
+                                for &operand in &event.operands {
+                                    validate_suffix_landing(
+                                        program,
+                                        operand,
+                                        resident,
+                                        diagnostics,
+                                    );
+                                }
+                            } else {
+                                validate_suffix_landing(
+                                    program,
+                                    assignment.value,
+                                    declared,
+                                    diagnostics,
+                                );
+                            }
                         }
                     }
                     StatementNode::LocalData(local)

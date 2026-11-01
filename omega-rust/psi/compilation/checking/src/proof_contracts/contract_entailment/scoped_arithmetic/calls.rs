@@ -17,10 +17,12 @@ use super::{
 };
 use crate::expression_traversal::children;
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::references::StaticArgumentCall;
 use typed_trees::signature::SignatureContractKind;
 
 mod collections;
@@ -108,15 +110,12 @@ impl<'program> ScopedCalls<'program> {
                 left: Box::new(self.value(left)?),
                 right: Box::new(self.value(right)?),
             },
-            ScopedArithmeticValue::BoundedInteger {
-                value,
-                minimum,
-                maximum,
-            } => ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(self.value(value)?),
-                minimum: minimum.clone(),
-                maximum: maximum.clone(),
-            },
+            ScopedArithmeticValue::BoundedInteger { value, interval } => {
+                ScopedArithmeticValue::BoundedInteger {
+                    value: Box::new(self.value(value)?),
+                    interval: interval.clone(),
+                }
+            }
             _ => value.clone(),
         })
     }
@@ -217,7 +216,7 @@ impl<'program> ScopedCalls<'program> {
                     self.program,
                     self.context,
                     owner_symbol(&owner),
-                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                    StaticArgumentCall::Expression(expression, call),
                 );
             let interval = if independent {
                 crate::proof_contracts::arithmetic_domains::call_result_interval(
@@ -242,12 +241,14 @@ impl<'program> ScopedCalls<'program> {
             };
             let result = ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(atom),
-                minimum: interval
-                    .and_then(|interval| interval.low())
-                    .map(numerics::bignum::BigInt::from_i64),
-                maximum: interval
-                    .and_then(|interval| interval.high())
-                    .map(numerics::bignum::BigInt::from_i64),
+                interval: BigIntInterval {
+                    low: interval
+                        .and_then(|interval| interval.low())
+                        .map(numerics::bignum::BigInt::from_i64),
+                    high: interval
+                        .and_then(|interval| interval.high())
+                        .map(numerics::bignum::BigInt::from_i64),
+                },
             };
             let parameters = owner_parameters(self.program, &owner);
             let arguments = expression_table(self.program).expression_handles(call.arguments);
@@ -318,11 +319,9 @@ impl<'program> ScopedCalls<'program> {
             crate::CallSite::TransitionNamed { .. } => return None,
         };
         let selected_call = match site {
-            crate::CallSite::Statement(call) => {
-                typed_trees::references::StaticArgumentCall::Statement(call)
-            }
+            crate::CallSite::Statement(call) => StaticArgumentCall::Statement(call),
             crate::CallSite::Expression { expression, call } => {
-                typed_trees::references::StaticArgumentCall::Expression(expression, call)
+                StaticArgumentCall::Expression(expression, call)
             }
             crate::CallSite::TransitionNamed { .. } => return None,
         };
@@ -404,7 +403,7 @@ impl<'program> ScopedCalls<'program> {
                 self.program,
                 self.context,
                 owner_symbol(&owner),
-                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                StaticArgumentCall::Expression(expression, call),
             )
         {
             return None;
@@ -480,6 +479,17 @@ impl<'program> ScopedCalls<'program> {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value,
             });
+            if !parameter.is_mutable {
+                bindings.extend(
+                    actuals
+                        .iter()
+                        .filter(|binding| {
+                            matches!(&binding.binder, ScopedArithmeticBinder::Coordinate(coordinate)
+                        if coordinate.parameter == parameter.symbol)
+                        })
+                        .cloned(),
+                );
+            }
         }
         Some(bindings)
     }

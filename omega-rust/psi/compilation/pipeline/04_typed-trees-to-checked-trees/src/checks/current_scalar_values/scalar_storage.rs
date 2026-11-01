@@ -2,6 +2,8 @@
 //! Capture RHS first, authenticate exact locations at the same effect cut,
 //! retire overwritten observations, then publish the new value and dependencies.
 //! Typed origins establish equality; invalidation paths only expire observations.
+use super::scalar_fields::capture_path;
+use super::scalar_fields::same_projection;
 use super::scalar_fields::{CapturedScalarField, ScalarProjection, source_path};
 use super::{CurrentScalarValues, integer_carrier, unsigned};
 use symbols::SymbolHandle;
@@ -50,12 +52,7 @@ impl CurrentScalarValues<'_> {
                 .fields
                 .iter()
                 .find(|field| {
-                    field.owner == owner
-                        && super::scalar_fields::same_projection(
-                            self.occurrence(),
-                            &field.path,
-                            &path,
-                        )
+                    field.owner == owner && same_projection(self.occurrence(), &field.path, &path)
                 })
                 .map_or_else(Vec::new, |field| field.read_dependencies.clone()),
             value,
@@ -111,18 +108,14 @@ impl CurrentScalarValues<'_> {
                 if path.is_empty() {
                     return self.current_symbol(root);
                 }
-                let path = super::scalar_fields::capture_path(path, |selector| {
+                let path = capture_path(path, |selector| {
                     self.capture(self.program, self.machine, self.state, selector)
                 })?;
                 self.fields
                     .iter()
                     .find(|field| {
                         field.owner == root
-                            && super::scalar_fields::same_projection(
-                                self.occurrence(),
-                                &field.path,
-                                &path,
-                            )
+                            && same_projection(self.occurrence(), &field.path, &path)
                     })?
                     .value
                     .clone()
@@ -245,8 +238,7 @@ impl CurrentScalarValues<'_> {
         };
         for field in &mut self.fields {
             if let Some(alias) = aliases.iter().find(|alias| {
-                alias.owner == field.owner
-                    && super::scalar_fields::same_projection(occurrence, &alias.path, &field.path)
+                alias.owner == field.owner && same_projection(occurrence, &alias.path, &field.path)
             }) {
                 field.value = Some(value.clone());
                 field.read_dependencies.clone_from(&alias.read_dependencies);

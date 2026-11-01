@@ -6,12 +6,16 @@
 //! declaration subjects, not live claims or authority evidence.
 
 use super::DomainApplication;
-use symbols::SymbolHandle;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataMember, TypeParameterKind};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use validation::canonical_place_from_expression;
+use validation::owned_projection_type_reference;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct ContentSource {
@@ -64,9 +68,8 @@ pub(super) fn parameter_sources(
             if let Some(membership) = fact.as_membership()
                 && membership.domain_symbol.is_valid()
                 && membership.semantic_domain.is_valid()
-                && let Some(place) =
-                    validation::canonical_place_from_expression(program, membership.value)
-                && place.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                && let Some(place) = canonical_place_from_expression(program, membership.value)
+                && place.root == PlaceRoot::Symbol(parameter.symbol)
             {
                 // A requires membership is the same input obligation as a
                 // qualified parameter or field. Keep its exact subject; omitting
@@ -77,13 +80,9 @@ pub(super) fn parameter_sources(
                     .segments
                     .iter()
                     .map(|segment| match segment {
-                        facts::PlaceSegment::Field { symbol } => {
-                            Some(SourceSegment::Field(*symbol))
-                        }
-                        facts::PlaceSegment::Case { variant } => {
-                            Some(SourceSegment::Case(*variant))
-                        }
-                        facts::PlaceSegment::FixedIndex { index } => {
+                        PlaceSegment::Field { symbol } => Some(SourceSegment::Field(*symbol)),
+                        PlaceSegment::Case { variant } => Some(SourceSegment::Case(*variant)),
+                        PlaceSegment::FixedIndex { index } => {
                             u64::try_from(*index).ok().map(SourceSegment::FixedIndex)
                         }
                         _ => None,
@@ -97,7 +96,7 @@ pub(super) fn parameter_sources(
                     has_open_owned_carrier = true;
                     continue;
                 };
-                let selected = validation::owned_projection_type_reference(
+                let selected = owned_projection_type_reference(
                     program,
                     parameter.type_reference,
                     &place.segments,
@@ -259,7 +258,7 @@ fn append_sources(
     let Some(definition) = program.data_definition_by_symbol(definition_symbol) else {
         if !borrowed
             && definition_symbol.is_valid()
-            && program.symbols.get(definition_symbol).kind == symbols::SymbolKind::TypeParameter
+            && program.symbols.get(definition_symbol).kind == SymbolKind::TypeParameter
         {
             *has_open_owned_carrier = true;
         }
