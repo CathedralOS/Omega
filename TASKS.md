@@ -572,11 +572,9 @@ receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
 
-- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
-  emission build their final image once (only retained/admitted replay entrypoints
-  rebuild and compare).
-  Acceptance: the `linux_x86_64` native corpus leg on a Linux host, with
-  execution, passes unchanged.
+- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Qualify the unchanged
+  `linux_x86_64` native corpus leg on a Linux host, with execution.
+  Acceptance: that full native corpus leg passes unchanged.
 
 - **LOC-VALUE-CUSTODY.** (new-scope) Carry each recorded value-custody
   requirement through checking, stage 05, Terminal Psi semantics/codec, the
