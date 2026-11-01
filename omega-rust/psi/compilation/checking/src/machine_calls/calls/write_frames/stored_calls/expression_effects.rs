@@ -121,19 +121,13 @@ pub(super) fn prepare_normal_exits<'program>(
         let transfer = crate::completing_transition_transfer(program, target);
         let arrival = transfer.as_ref().and_then(|transfer| {
             let owner = program.machine_holding_state(transfer.state.symbol)?;
-            let static_context_unchanged = if transfer.expression.is_valid() {
-                program.machine_type_parameters(owner).is_empty()
-                    && expression_table(program)
-                        .call_node(transfer.expression)?
-                        .machine_arguments
-                        .is_empty()
-            } else {
-                owner.symbol == machine.symbol || program.machine_type_parameters(owner).is_empty()
-            };
-            (owner.supply_mode.is_checked_body()
-                && owner.body_is_present
-                && !owner.target_family_interface
-                && static_context_unchanged)
+            // Follow this selected body's runtime namespace symbolically.
+            // Static operands are not executed here: unavailable slot types or
+            // substitutions remain unavailable in the exit equations. The
+            // ordinary call checker still validates the complete application.
+            (owner.body_is_present
+                && owner.supply_mode.is_checked_body()
+                && owner.body_status == typed_trees::machine::MachineBodyStatus::Complete)
                 .then_some((owner, transfer.state))
         });
         let mut branch_context = context.clone();

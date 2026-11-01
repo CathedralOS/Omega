@@ -95,6 +95,12 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) {
+        // These roots describe executable demand. Source formation and proof
+        // records remain intact, but an impossible static application must not
+        // retain a dormant generic callee for native closure discovery.
+        if self.program.static_type_context_is_unreachable(expression) {
+            return;
+        }
         if pure
             .expression_at(self.state, statement_ordinal, role)
             .is_some()

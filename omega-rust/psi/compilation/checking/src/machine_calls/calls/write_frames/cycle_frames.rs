@@ -33,6 +33,7 @@ use crate::machine_calls::calls::write_frames::state_paths::{
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     summarize_complete_state_written_paths, summarize_state_written_paths,
 };
+use crate::machine_calls::calls::write_frames::stored_origins;
 use crate::machine_calls::calls::write_frames::stored_origins::{
     expand_write_path, expand_write_paths,
 };
@@ -44,7 +45,6 @@ use crate::machine_calls::calls::write_frames::transition_topology::{
     named_transition_target_state,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
-use crate::machine_calls::calls::write_frames::{stored_origins, wire_codecs};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -383,21 +383,7 @@ fn build_cycle_frame_equation<'program>(
                         program, call,
                     );
                 let arguments = program.statement_table.expression_handles(call.arguments);
-                // Synthesized wire codecs frame from their borrowed arguments;
-                // the type-name receiver never reaches the ownership floor.
-                let nested_writes = if wire_codecs::is_wire_codec_call(program, call) {
-                    wire_codecs::known_wire_codec_call_written_paths(
-                        program,
-                        machine,
-                        call,
-                        parameters,
-                        &isolated_local_roots,
-                        &local_alias_origins,
-                        &[],
-                        symbols,
-                        &mut inference,
-                    )
-                } else {
+                let nested_writes = {
                     let argument_origins = arguments
                         .iter()
                         .map(|argument| {

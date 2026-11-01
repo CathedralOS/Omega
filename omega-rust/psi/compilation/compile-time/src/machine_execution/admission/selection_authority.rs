@@ -117,7 +117,21 @@ pub(super) fn selection_authority_violation(
                 program.symbols.display_path(source_machine.symbol, "::"),
                 program.symbols.display_path(target_machine, "::")
             );
-            if let Some(authority) = authority
+            // Calling an explicitly supplied Machine value is not a new
+            // declaration selection by the library. Its source operand was
+            // selected under the supplying call's authority. Rejoin the exact
+            // declared binder and concrete tuple; the callee's own closure is
+            // still checked under its own source/package authority below.
+            let delegated = match program.static_machine_binding_selects_target(
+                source_machine.symbol,
+                call.static_machine_parameter,
+                target_machine,
+            ) {
+                Ok(delegated) => delegated,
+                Err(reason) => return Some(SelectionViolation::unlocated(reason.to_owned())),
+            };
+            if !delegated
+                && let Some(authority) = authority
                 && let Some(violation) = require_selection(
                     program,
                     package_for_symbol(program, source_machine.symbol),

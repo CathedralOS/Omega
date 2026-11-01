@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -24,7 +26,7 @@ data Blob {
 }
 
 data BlobSample {
-    bytes: &[u8];
+    #0 bytes: &[u8];
 }
 
 data Main {
@@ -38,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
 
-    Blob::encode(&sample, &mut main.buffer, &mut main.written);
+    BlobCodec::encode(&sample, &mut main.buffer, &mut main.written);
 
     let ok: bool = main.written == 5
         && main.buffer[0] == 0
@@ -64,4 +66,19 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The semantic owner supplies visitation. The library owns all byte grammar.
+data BlobCodec {}
+machine BlobCodec::fields(value: &BlobSample, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<BlobSample, CompactBinary::bytes_field>(value, context);
+}
+machine BlobCodec::encode<const N: u64>(value: &BlobSample, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<BlobSample, BlobCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
 }

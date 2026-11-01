@@ -1,0 +1,28 @@
+// Fact: A supplied static callable retains its exact applied type requirements through mutable values and calls without runtime operands.
+// Expected exit: 0
+data Cell<T [copy]> [copy] { value: T; }
+machine increment32(value: &mut Cell<u32>) { value.value = ((value.value as u32 in Wrapping) + (1u32 as u32 in Wrapping)) as u32; }
+machine increment64(value: &mut Cell<u64>) { value.value = ((value.value as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64; }
+machine increment<Kind>(value: &mut Kind)
+requires Kind == Cell<u32>
+{
+    transition { Kind == Cell<u32> -> increment32(value) _ -> increment64(value) }
+}
+machine mark<Kind>() requires Kind == Cell<u32> || Kind == Cell<u64> {}
+machine operate<Value, machine Op>(value: &mut Value)
+requires machine Op(value: &mut Value);
+{ Op(value); }
+machine zero<machine Op>() requires machine Op(); { Op(); }
+machine apply<Kind>(value: &mut Kind) requires Kind == Cell<u32> || Kind == Cell<u64> {
+    zero<mark<Kind>>();
+    operate<Kind, increment<Kind>>(value);
+}
+machine main() crashes Trap {
+    let mut value: Cell<u64> = Cell { value: 4294967295u64 };
+    let mut spare: Cell<u64> = Cell { value: 99u64 };
+    let selected: &mut Cell<u64> = match value.value == 4294967295u64 { true -> &mut value, false -> &mut spare };
+    apply(selected);
+    transition value.value == 4294967296u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

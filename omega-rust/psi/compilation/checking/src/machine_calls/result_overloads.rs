@@ -537,6 +537,7 @@ pub fn resolve_named_result_overloads(
                 type_is_inferred: true,
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
+                reflected_query_origin: None,
             });
     }
     changed_owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));

@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // Signed zigzag is a bit operation, including at the full carrier extremes.
 data Extremes {
     #0 minimum: i64;
@@ -7,13 +9,13 @@ data Extremes {
 }
 
 data ExtremeValues {
-    minimum: i64;
-    maximum: i64;
-    signed32: [i32; 2];
-    trailing: u32;
+    #0 minimum: i64;
+    #1 maximum: i64;
+    #2 signed32: [i32; 2];
+    #3 trailing: u32;
 }
 
-data WireVerdict {
+data ExtremesVerdict {
     case Invalid;
     case Sound;
 }
@@ -31,11 +33,11 @@ machine main() crashes Trap {
     let buffer: [u8; 64];
     let written: u64 = 0u64;
     let read: u64 = 0u64;
-    let verdict: WireVerdict = WireVerdict::Invalid;
-    Extremes::encode(&value, &mut buffer, &mut written);
-    Extremes::decode(&mut decoded, &buffer, &mut read, &mut verdict);
+    let verdict: ExtremesVerdict = ExtremesVerdict::Invalid;
+    ExtremesCodec::encode(&value, &mut buffer, &mut written);
+    ExtremesCodec::decode(&mut decoded, &buffer, &mut read, &mut verdict);
 
-    transition verdict == WireVerdict::Sound && written == 37u64 && read == 37u64
+    transition verdict == ExtremesVerdict::Sound && written == 37u64 && read == 37u64
         && decoded.trailing == 7u32
         && decoded.minimum == -9223372036854775808i64
         && decoded.maximum == 9223372036854775807i64
@@ -59,4 +61,94 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+// Reflection supplies exact member types; the source library supplies grammar.
+data ExtremesCodec {}
+machine ExtremesCodec::fields(value: &ExtremeValues, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<ExtremeValues, ExtremesCodec::member>(value, context);
+}
+machine ExtremesCodec::member<Kind>(context: &mut EncodeContext, field: &reflect::FieldInfo, value: &Kind)
+requires Kind == i64 || Kind == u32 || Kind == [i32; 2]
+{
+    transition {
+        Kind == [i32; 2] -> CompactBinary::packed_field<Kind, i32, 2>(context, field, value)
+        _ -> CompactBinary::scalar_field<Kind>(context, field, value)
+    }
+}
+machine ExtremesCodec::encode<const N: u64>(value: &ExtremeValues, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 4];
+    transition CompactBinary::encode<ExtremeValues, ExtremesCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+machine ExtremesCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Extremes, ExtremesCodec::plan_member>(context);
+}
+machine ExtremesCodec::plan_member<Kind>(context: &mut ScalarPlanContext, field: &reflect::FieldInfo)
+requires Kind == i64 || Kind == u32 || Kind == [i32; 2]
+{
+    transition {
+        Kind == [i32; 2] -> CompactBinary::plan_payload<Kind>(context, field)
+        _ -> CompactBinary::plan_scalar<Kind>(context, field)
+    }
+}
+machine ExtremesCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<ExtremeValues> {
+    transition fields.len == 4u64 { true -> region(bytes, fields) false -> DecodeResult::Invalid }
+    machine region(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<ExtremeValues>
+    requires fields.len == 4u64
+    {
+        let start: u64 = fields[2u64].start;
+        let end: u64 = fields[2u64].end;
+        transition start <= end && end <= bytes.len {
+            true -> packed(bytes, fields, start, end)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine packed(bytes: &[u8], fields: &[ScalarSlot], start: u64, end: u64) -> DecodeResult<ExtremeValues>
+    requires fields.len == 4u64 && start <= end && end <= bytes.len
+    {
+        let mut words: [u64; 2];
+        transition CompactBinary::read_packed(&bytes[start..end], &mut words[..], 100u64) {
+            PackedRead::Read { count } -> values(fields, &words[..], count)
+            _ -> DecodeResult::Invalid
+        }
+    }
+    machine values(fields: &[ScalarSlot], words: &[u64], count: u64) -> DecodeResult<ExtremeValues>
+    requires fields.len == 4u64 && words.len == 2u64
+    {
+        let a: i64 = CompactBinary::signed_from_word(words[0u64]);
+        let b: i64 = CompactBinary::signed_from_word(words[1u64]);
+        let trailing: u64 = fields[3u64].unsigned;
+        transition count == 2u64 && trailing <= 4294967295u64
+            && a >= (0i64 - 2147483648i64) && a <= 2147483647i64
+            && b >= (0i64 - 2147483648i64) && b <= 2147483647i64 {
+            true -> create(fields[0u64].signed, fields[1u64].signed, a, b, trailing)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine create(minimum: i64, maximum: i64, a: i64, b: i64, trailing: u64) -> DecodeResult<ExtremeValues>
+    requires trailing <= 4294967295u64
+        && a >= (0i64 - 2147483648i64) && a <= 2147483647i64
+        && b >= (0i64 - 2147483648i64) && b <= 2147483647i64
+    {
+        DecodeResult::Sound { value: ExtremeValues {
+            minimum: minimum, maximum: maximum, signed32: [a as i32, b as i32], trailing: trailing as u32
+        } }
+    }
+}
+machine ExtremesCodec::decode<const N: u64>(value: &mut ExtremeValues, bytes: &[u8; N], read: &mut u64, verdict: &mut ExtremesVerdict) {
+    let mut fields: [ScalarSlot; 4];
+    transition CompactBinary::decode_record<ExtremeValues, ExtremesCodec::plan, ExtremesCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut ExtremeValues, decoded: ExtremeValues, verdict: &mut ExtremesVerdict) {
+        value = decoded;
+        verdict = ExtremesVerdict::Sound;
+    }
+    machine invalid(verdict: &mut ExtremesVerdict) { verdict = ExtremesVerdict::Invalid; }
 }

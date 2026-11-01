@@ -147,3 +147,89 @@ fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
         ExpressionNode::Binary(_)
     ));
 }
+
+#[test]
+fn boolean_type_operands_preserve_constructor_and_value_contexts() {
+    let cases = [
+        (
+            "local",
+            "machine choose<T>() -> bool { let selected: bool = T == Box<u64>; selected }",
+        ),
+        (
+            "guard",
+            "machine choose<T>() -> bool { transition { T == Box<u64> -> true _ -> false } }",
+        ),
+        (
+            "constructor",
+            "data Box<T> { value: T; } machine build() -> Box<u64> { (Box { value: 1u64 }) }",
+        ),
+        (
+            "call",
+            "machine choose(value: u64) -> u64 { read<u64>(value) }",
+        ),
+        (
+            "comparison",
+            "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool { left < values[0] > (right) }",
+        ),
+    ];
+    let mut equalities = 0;
+    for (role, text) in cases {
+        let tokens = Lexer::new(text).tokenize().expect("tokens");
+        let syntax =
+            crate::parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{role}: {error:?}"));
+        match role {
+            "local" | "guard" => equalities += syntax.expressions.iter_expressions().filter(|(_, node)| matches!(node, ExpressionNode::Binary(binary)
+                if binary.operator == syntax_trees::expression::BinaryOperator::Equal
+                    && matches!(syntax.expressions.expression(binary.right), ExpressionNode::TypeExpression(_)))).count(),
+            "constructor" => assert!(syntax.expressions.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::StructLiteral(_)))),
+            "call" => assert!(syntax.expressions.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::Call(call) if call.machine_arguments.len() == 1))),
+            "comparison" => assert!(syntax.type_references.generic_nodes().is_empty()),
+            _ => unreachable!(),
+        }
+    }
+    assert_eq!(
+        equalities, 2,
+        "local values and guards share static type syntax"
+    );
+}
+
+#[test]
+fn boolean_type_operands_do_not_turn_qualified_type_arguments_into_indices() {
+    let text = "machine initialize<P, T>() -> AccessOutcome<Extent in Granted & Resident<P, T>, AccessReturn<Extent in Granted & Vacant, T>, Failure> {}";
+    let tokens = Lexer::new(text).tokenize().expect("tokens");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("qualified type arguments");
+    let machine = syntax
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = syntax
+        .items
+        .state(syntax.items.state_handles(machine.states)[0]);
+    let syntax_trees::types::TypeReferenceNode::Generic { arguments, .. } =
+        syntax.type_references.type_reference(state.return_type)
+    else {
+        panic!("applied result");
+    };
+    let arguments = syntax.type_references.type_reference_handles(*arguments);
+    assert!(
+        matches!(
+            syntax.type_references.type_reference(arguments[0]),
+            syntax_trees::types::TypeReferenceNode::Constrained { .. }
+        ),
+        "a constrained type retains its type role"
+    );
+    assert!(
+        !syntax
+            .type_references
+            .const_expression_nodes()
+            .iter()
+            .any(|(_, expression)| matches!(
+                syntax.expressions.expression(*expression),
+                ExpressionNode::TypeExpression(_)
+            )),
+        "a type description supplies no integer/index value"
+    );
+}

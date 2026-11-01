@@ -4,7 +4,6 @@ use crate::expression::ExpressionHandle;
 use crate::statement::*;
 use crate::typed_trees::{TypedTreeTables, remapped};
 use arena::{Handle, HandleSpan};
-use symbols::SymbolHandle;
 impl TypedTreeTables {
     /// Deep-copy a statement span and every table-owned payload reachable
     /// from it. Symbols are deliberately preserved: callers that clone a
@@ -108,6 +107,20 @@ impl TypedTreeTables {
                             call.authored_machine_application,
                             call.static_requirement_dispatch.clone(),
                         );
+                    let reflected_field_origin =
+                        call.reflected_field_origin.as_ref().map(|origin| {
+                            let query = self
+                                .copy_statement_nodes_deep_from(
+                                    source_tables,
+                                    HandleSpan::from_parts(origin.query, 1),
+                                )
+                                .start();
+                            let callback = self.expression_table.copy_static_argument_from(
+                                &source_tables.expression_table,
+                                &origin.callback,
+                            );
+                            ReflectedFieldCallOrigin { query, callback }
+                        });
                     StatementNode::Call(TableCall {
                         authored_machine_application,
                         static_machine_parameter: call.static_machine_parameter,
@@ -133,6 +146,7 @@ impl TypedTreeTables {
                         discards_result: call.discards_result,
                         source_span: call.source_span,
                         authored_call_selection: call.authored_call_selection,
+                        reflected_field_origin,
                     })
                 }
                 StatementNode::Expression(expression) => StatementNode::Expression(
@@ -153,6 +167,13 @@ impl TypedTreeTables {
                         self.expression_table
                             .copy_from(&source_tables.expression_table, local.initial_value)
                     });
+                    let reflected_query_origin = local.reflected_query_origin.map(|query| {
+                        self.copy_statement_nodes_deep_from(
+                            source_tables,
+                            HandleSpan::from_parts(query, 1),
+                        )
+                        .start()
+                    });
                     StatementNode::LocalData(TableLocalData {
                         role: local.role,
                         symbol: local.symbol,
@@ -164,6 +185,7 @@ impl TypedTreeTables {
                         type_is_inferred: local.type_is_inferred,
                         is_operand_capture: local.is_operand_capture,
                         relevance: local.relevance,
+                        reflected_query_origin,
                     })
                 }
                 StatementNode::Transition(transition) => {
@@ -258,6 +280,17 @@ impl TypedTreeTables {
                     }
                 }
                 StatementNode::Call(call) => {
+                    let reflected_field_origin = call.reflected_field_origin.map(|mut origin| {
+                        self.remap_statement_symbols(
+                            HandleSpan::from_parts(origin.query, 1),
+                            symbols,
+                        );
+                        self.expression_table.remap_static_argument_symbols(
+                            &mut origin.callback,
+                            symbols.authored(),
+                        );
+                        origin
+                    });
                     self.expression_table.remap_call_static_applications(
                         call.authored_machine_application,
                         call.static_requirement_dispatch.as_ref(),
@@ -289,11 +322,15 @@ impl TypedTreeTables {
                         unreachable!();
                     };
                     current.machine_arguments = arguments;
+                    current.reflected_field_origin = reflected_field_origin;
                 }
                 StatementNode::Expression(expression) => {
                     self.expression_table.remap_symbols_in(expression, symbols);
                 }
                 StatementNode::LocalData(local) => {
+                    if let Some(query) = local.reflected_query_origin {
+                        self.remap_statement_symbols(HandleSpan::from_parts(query, 1), symbols);
+                    }
                     self.type_reference_table.remap_symbols_in(
                         local.type_reference,
                         &mut self.expression_table,

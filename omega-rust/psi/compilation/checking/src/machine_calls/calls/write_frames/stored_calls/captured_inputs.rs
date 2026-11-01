@@ -177,7 +177,7 @@ fn observations(
 ) -> Option<Vec<InstantiatedSource>> {
     // Carrier transport and spatial substitution must select the same relative
     // input leaf. Equal backing alone cannot pair independent alternatives.
-    if supplied.carrier != supplied.origin.source || !captured.context.divergent.is_empty() {
+    if supplied.carrier != supplied.origin.source {
         return None;
     }
     let query = Inputs {
@@ -304,9 +304,6 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         inference: &mut FrameInference,
     ) -> Option<Vec<ReferenceSource>> {
         let captured = self.captured.observation(expression)?;
-        if !captured.context.divergent.is_empty() {
-            return None;
-        }
         if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Call(_) | ExpressionNode::Match(_)
@@ -433,9 +430,6 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             return self.project_value(expression, reference, &mut inference.clone());
         }
         let captured = self.captured.observation(expression)?;
-        if !captured.context.divergent.is_empty() {
-            return None;
-        }
         let (state, before, _) = caller_aliases::caller_statement_owner(
             self.program,
             self.machine,
@@ -492,9 +486,6 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         include_shared: bool,
     ) -> Option<AggregateOrigins> {
         let captured = self.captured.observation(expression)?;
-        if !captured.context.divergent.is_empty() {
-            return None;
-        }
         // The evaluator retained this invocation's entry before its own normal
         // effects. Its operands keep their distinct earlier descriptor values.
         let query = Inputs {
@@ -723,24 +714,50 @@ impl Inputs<'_, '_> {
             return Some(vec![origin]);
         };
         let mut sources = Vec::new();
-        for source in stored_origins::canonical_reference_sources(
-            self.program,
-            &Some(carrier.clone()),
-            &captured.context.aliases,
-            &captured.context.stored,
-        ) {
-            let mut source = source?;
-            if source.lifetime_access.is_none() {
-                source.carrier = carrier.source.clone();
-                source.carrier_backing = Some(source.origin.clone());
+        // A divergent local is an explicit finite set of completed aliases.
+        // Expand it before canonical storage lookup; never let a missing alias
+        // fall back to treating the descriptor's local slot as its referent.
+        let alternatives = captured
+            .context
+            .divergent
+            .iter()
+            .find(|(name, _)| name == self.program.symbols.name(carrier.source.root));
+        let aliases = if let Some((name, alternatives)) = alternatives {
+            if alternatives.is_empty() {
+                return None;
             }
-            let source = ReferenceSource::Captured(CapturedReferenceSource {
-                base: source.origin.clone(),
-                substitution: source.origin.source.clone(),
-                source,
-            });
-            if !sources.contains(&source) {
-                sources.push(source);
+            alternatives
+                .iter()
+                .map(|origin| {
+                    let mut aliases = captured.context.aliases.clone();
+                    aliases.retain(|(prior, _)| prior != name);
+                    aliases.push((name.clone(), origin.clone()));
+                    aliases
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![captured.context.aliases.clone()]
+        };
+        for aliases in aliases {
+            for source in stored_origins::canonical_reference_sources(
+                self.program,
+                &Some(carrier.clone()),
+                &aliases,
+                &captured.context.stored,
+            ) {
+                let mut source = source?;
+                if source.lifetime_access.is_none() {
+                    source.carrier = carrier.source.clone();
+                    source.carrier_backing = Some(source.origin.clone());
+                }
+                let source = ReferenceSource::Captured(CapturedReferenceSource {
+                    base: source.origin.clone(),
+                    substitution: source.origin.source.clone(),
+                    source,
+                });
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
             }
         }
         (!sources.is_empty()).then_some(sources)

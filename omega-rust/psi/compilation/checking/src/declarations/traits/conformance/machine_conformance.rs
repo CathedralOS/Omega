@@ -422,6 +422,7 @@ fn validate_machine_top_level_requirement_conformance(
             requirement.symbol,
             machine.symbol,
             &[],
+            Default::default(),
             diagnostics,
         );
     }

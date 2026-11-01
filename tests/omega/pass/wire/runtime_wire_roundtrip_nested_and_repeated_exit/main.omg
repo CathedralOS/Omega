@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // Wire NESTED MESSAGE + REPEATED field in ONE message: both features stage
 // runtime-sized payloads (the sub-message replays length-prefixed from the
 // wire scratch; the packed FixedVec field's length is intrinsic), so their
@@ -36,18 +38,18 @@ data RoomPacket {
 }
 
 data RoomHeaderValue {
-    room_id: u32;
+    #0 room_id: u32;
 }
 
 data RoomPacketValue {
-    header: RoomHeaderValue;
-    samples: FixedVec<i32, 4>;
-    depth: i32;
+    #0 header: RoomHeaderValue;
+    #1 samples: FixedVec<i32, 4>;
+    #2 depth: i32;
 }
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
 // is the ZII zero case, so an untouched verdict reads as failure.
-data WireVerdict {
+data PacketVerdict {
     case Invalid;
     case Sound;
 }
@@ -56,7 +58,7 @@ data Main {
     buffer: [u8; 64];
     written: u64;
     read: u64;
-    verdict: WireVerdict;
+    verdict: PacketVerdict;
     packet: RoomPacketValue;
 }
 
@@ -69,11 +71,11 @@ machine Main::main(main: &mut Main) reaches Console {
         depth: 0 - 64
     };
 
-    RoomPacket::encode(&msg, &mut main.buffer, &mut main.written);
+    RoomPacketCodec::encode(&msg, &mut main.buffer, &mut main.written);
 
-    RoomPacket::decode(&mut main.packet, &main.buffer, &mut main.read, &mut main.verdict);
+    RoomPacketCodec::decode(&mut main.packet, &main.buffer, &mut main.read, &mut main.verdict);
 
-    transition main.verdict == WireVerdict::Sound
+    transition main.verdict == PacketVerdict::Sound
         && main.written == 13
         && main.read == 13
         && main.packet.header.room_id == 300
@@ -98,4 +100,160 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The semantic owner delegates ordinary source operations for every member.
+data RoomPacketCodec {}
+machine RoomPacketCodec::fields(value: &RoomPacketValue, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<RoomPacketValue, RoomPacketCodec::member>(value, context);
+}
+machine RoomPacketCodec::member<Kind>(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeaderValue
+{
+    transition {
+        Kind == RoomHeaderValue -> RoomPacketCodec::header(context, info, value)
+        Kind == FixedVec<i32, 4> -> CompactBinary::fixed_vec_field<Kind, i32, 4>(context, info, value)
+        _ -> CompactBinary::scalar_field<Kind>(context, info, value)
+    }
+}
+machine RoomPacketCodec::encode<const N: u64>(value: &RoomPacketValue, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 3];
+    transition CompactBinary::encode<RoomPacketValue, RoomPacketCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+
+machine RoomPacketCodec::header_fields(value: &RoomHeaderValue, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<RoomHeaderValue, CompactBinary::scalar_field>(value, context);
+}
+machine RoomPacketCodec::header(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &RoomHeaderValue) {
+    let mut bytes: [u8; 16];
+    let mut scratch: [u8; 16];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<RoomHeaderValue, RoomPacketCodec::header_fields>(value, &mut bytes[..], &mut scratch[..], &mut fields[..], 100u64) {
+        EncodeResult::Encoded { next } -> bounded(context, info, &bytes[..], next)
+        _ -> invalid(context)
+    }
+    machine bounded(context: &mut EncodeContext, info: &reflect::FieldInfo, bytes: &[u8], next: u64) {
+        transition next >= 1u64 && next <= bytes.len {
+            true -> payload(context, info, bytes, next)
+            false -> invalid(context)
+        }
+    }
+    machine payload(context: &mut EncodeContext, info: &reflect::FieldInfo, bytes: &[u8], next: u64)
+    requires next >= 1u64 && next <= bytes.len
+    { CompactBinary::blob_field(context, info, &bytes[1u64..next]); }
+    machine invalid(context: &mut EncodeContext) { context.valid = false; }
+}
+
+machine RoomPacketCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<RoomPacket, RoomPacketCodec::plan_member>(context);
+}
+machine RoomPacketCodec::plan_member<Kind>(context: &mut ScalarPlanContext, info: &reflect::FieldInfo)
+requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeader
+{
+    transition {
+        Kind == u32 || Kind == i32 -> CompactBinary::plan_scalar<Kind>(context, info)
+        _ -> CompactBinary::plan_payload<Kind>(context, info)
+    }
+}
+machine RoomPacketCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<RoomPacketValue> {
+    transition fields.len == 3u64 { true -> regions(bytes, fields) false -> DecodeResult::Invalid }
+    machine regions(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<RoomPacketValue>
+    requires fields.len == 3u64
+    {
+        let start: u64 = fields[1u64].start;
+        let end: u64 = fields[1u64].end;
+        transition start <= end && end <= bytes.len {
+            true -> packed(bytes, fields, start, end)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine packed(bytes: &[u8], fields: &[ScalarSlot], start: u64, end: u64) -> DecodeResult<RoomPacketValue>
+    requires fields.len == 3u64 && start <= end && end <= bytes.len
+    {
+        let mut words: [u64; 4];
+        transition CompactBinary::read_packed(&bytes[start..end], &mut words[..], 100u64) {
+            PackedRead::Read { count } -> root(bytes, fields, &words[..], count)
+            _ -> DecodeResult::Invalid
+        }
+    }
+    machine root(bytes: &[u8], fields: &[ScalarSlot], words: &[u64], count: u64) -> DecodeResult<RoomPacketValue>
+    requires fields.len == 3u64 && words.len == 4u64
+    {
+        let start: u64 = fields[0u64].start;
+        let end: u64 = fields[0u64].end;
+        transition start <= end && end <= bytes.len {
+            true -> header(bytes, fields[2u64].signed, words, count, start, end)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine header(bytes: &[u8], depth: i64, words: &[u64], count: u64, start: u64, end: u64) -> DecodeResult<RoomPacketValue>
+    requires words.len == 4u64 && start <= end && end <= bytes.len
+    {
+        let header_bytes: &[u8] = &bytes[start..end];
+        let mut header_fields: [ScalarSlot; 1];
+        let mut plan: ScalarPlanContext = ScalarPlanContext { slots: &mut header_fields[..], count: 0u64, valid: true };
+        reflect::inspect_record_fields<RoomHeader, CompactBinary::plan_scalar>(&mut plan);
+        transition plan.valid && plan.count == 1u64 && plan.slots.len == 1u64 {
+            true -> read_header(header_bytes, depth, words, count, &mut plan.slots[..])
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine read_header(bytes: &[u8], depth: i64, words: &[u64], count: u64, header: &mut [ScalarSlot]) -> DecodeResult<RoomPacketValue>
+    requires words.len == 4u64 && header.len == 1u64
+    {
+        transition CompactBinary::read_payload_fields(bytes, header, 1u64, 0u64, 100u64) {
+            FrameRead::Read { next } -> closed_header(bytes, next, depth, words, count, header[0u64].unsigned)
+            _ -> DecodeResult::Invalid
+        }
+    }
+    machine closed_header(bytes: &[u8], next: u64, depth: i64, words: &[u64], count: u64, room: u64) -> DecodeResult<RoomPacketValue>
+    requires words.len == 4u64
+    {
+        transition next == bytes.len {
+            true -> values(room, depth, count, CompactBinary::signed_from_word(words[0u64]), CompactBinary::signed_from_word(words[1u64]), CompactBinary::signed_from_word(words[2u64]), CompactBinary::signed_from_word(words[3u64]))
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine values(room: u64, depth: i64, count: u64, a: i64, b: i64, c: i64, d: i64) -> DecodeResult<RoomPacketValue> {
+        transition room <= 4294967295u64 && count <= 4u64
+            && depth >= (0i64 - 2147483648i64) && depth <= 2147483647i64
+            && a >= (0i64 - 2147483648i64) && a <= 2147483647i64
+            && b >= (0i64 - 2147483648i64) && b <= 2147483647i64
+            && c >= (0i64 - 2147483648i64) && c <= 2147483647i64
+            && d >= (0i64 - 2147483648i64) && d <= 2147483647i64 {
+            true -> create(room, depth, count, a, b, c, d)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine create(room: u64, depth: i64, count: u64, a: i64, b: i64, c: i64, d: i64) -> DecodeResult<RoomPacketValue>
+    requires room <= 4294967295u64 && count <= 4u64
+        && depth >= (0i64 - 2147483648i64) && depth <= 2147483647i64
+        && a >= (0i64 - 2147483648i64) && a <= 2147483647i64
+        && b >= (0i64 - 2147483648i64) && b <= 2147483647i64
+        && c >= (0i64 - 2147483648i64) && c <= 2147483647i64
+        && d >= (0i64 - 2147483648i64) && d <= 2147483647i64
+    {
+        DecodeResult::Sound { value: RoomPacketValue {
+            header: RoomHeaderValue { room_id: room as u32 },
+            samples: FixedVec { items: [a as i32, b as i32, c as i32, d as i32], length: count },
+            depth: depth as i32
+        } }
+    }
+}
+machine RoomPacketCodec::decode<const N: u64>(value: &mut RoomPacketValue, bytes: &[u8; N], read: &mut u64, verdict: &mut PacketVerdict) {
+    let mut fields: [ScalarSlot; 3];
+    transition CompactBinary::decode_record<RoomPacketValue, RoomPacketCodec::plan, RoomPacketCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut RoomPacketValue, decoded: RoomPacketValue, verdict: &mut PacketVerdict) {
+        value = decoded;
+        verdict = PacketVerdict::Sound;
+    }
+    machine invalid(verdict: &mut PacketVerdict) { verdict = PacketVerdict::Invalid; }
 }
