@@ -33,6 +33,16 @@ introducing a layout-query exception.
 constant-formation obligation: subtracting 17 from the 16-byte packet extent
 must reject even when no executable body reads that constant.
 
+## Nearest existing row
+
+[Imported representation aliases](../transparent_generic_aliases/imported_representation/README.md)
+already prove alias/explicit identity with two `u64` fields placed at authored
+constant offsets. This row adds reusable schema-driven C placement: mixed-width
+`u8/u64/u16` fields require gaps at bytes 1–7 and 18–23, offsets 0/8/16 and a
+24-byte extent. Independent initialized backing and size/alignment observations
+establish that physical placement. The ordinary policy walks reflected fields
+and computes padding; it does not contain a per-record placement table.
+
 ## Current evidence
 
 Optimized Linux x86_64 producer `4e6a0f454c1c57634066be59be9d2a4c2a64fe05`,
@@ -63,10 +73,30 @@ admission, policy geometry and incompatibility judgments are unchanged. That
 first workflow's accepted arithmetic negative and internal initializer error
 remain historical failures, repaired by the later producer.
 
-New focused Rust unit cases were not executed. Earlier query-free Mac ARM64
+Validation uses the focused runtime and refusal cases; no full Rust suite was run. Earlier query-free Mac ARM64
 diagnostics are historical, not qualification of this complete root.
 
 The nine transport places, complete nested C records/platform migration,
 other-host execution and the parent capability remain open. The installed
 SDK15.5 arm64 oracle confirms Darwin stat 144/8 and timespec 16/8, including
 nanoseconds and reserved fields; no platform source migration is claimed here.
+
+## Current integration
+
+Main publishes calling-policy code with the shared Product and closes its
+actual invocation under a distinct scalar receipt. This replaces the earlier
+producer-scoping workaround; that redundant layer was removed. The remaining
+compiler changes are ordinary static-alias normalization and early refusal of
+independently ready scalar debts.
+
+Integrated optimized Linux source `f2e527c568c2f1c685fdb40c0be45cdf8f57509d`
+(on published main `fbd577583f3`), CLI image
+`be4025835a8f589976a3d5223f71865bb0c8c0b35b48d301ba69a2ce80815d9a`,
+passes the exact four affected cases in
+[pilot 41285540003](https://github.com/CathedralOS/Omega/actions/runs/41285540003).
+Both positives pass checking and native/Terminal execution with exit 0. Both
+arithmetic controls reject with their exact expected bounds. Preparation took
+1111.795 seconds, checking 22.970 seconds and native/Terminal execution 12.828
+seconds. Historical observations above retain their actual producer identities;
+the unchanged source alias and schema/policy controls are reused as described.
+No further compiler build is required for documentation or queue revisions.
