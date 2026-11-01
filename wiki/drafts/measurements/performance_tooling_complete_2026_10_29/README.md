@@ -8,7 +8,7 @@ The [guide](../../../../tools/benchmark/comparison.md) describes the contracts.
 These runs validate the instrument. They establish no compiler speedup.
 
 Fixed base: `0add3ad35224b3b037f3952d652453236310673c`. Implementation is the source
-overlay in [source-identities.json](source-identities.json). Host: shared Windows
+overlay in [source-identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/source-identities.json). Host: shared Windows
 x86_64, pinned nightly 2026-09-04, optimized development profile (`opt-level=1`).
 No CPU affinity, frequency, cache or external-contention isolation is claimed.
 Build/test chains used `tools/build_slot.py`; our own builds finished before
@@ -30,8 +30,8 @@ the integration measurements began.
 | Corrected wrapping-square-sum native sample gate | 1/1 passed on Windows x86_64 |
 | Wrong expected sum control | Native trap; compiler benchmark refused a success report |
 
-[Final consumer checks](final-consumer-validation.log) and
-[producer/tool build chain](final-validation.log) retain the command outputs.
+[Final consumer checks](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/final-consumer-validation.log) and
+[producer/tool build chain](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/final-validation.log) retain the command outputs.
 Existing compiler warnings and bounded-process's deprecated `fetch_update`
 warning remain outside the changed behavior. No full workspace/corpus sweep
 was run. The new CI workflow runs native instrument tests on Linux, macOS and
@@ -50,10 +50,10 @@ timeouts, overflow and unavailable counters also have focused controls.
 ## Real observations
 
 The plain compiler is
-[`055b078090d693606126c472c2a97640778ebadcf74b4f94a6790902e32a6b3f`](omega-plain.exe.identity.json).
+[`055b078090d693606126c472c2a97640778ebadcf74b4f94a6790902e32a6b3f`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/omega-plain.exe.identity.json).
 Its version says `unrecorded`; no revision is inferred from it. The fixed base
 and recorded source overlay identify its build inputs. The instrumented compiler
-has a distinct [digest and feature-marked version](omega-allocation.exe.identity.json).
+has a distinct [digest and feature-marked version](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/omega-allocation.exe.identity.json).
 MiMalloc remains the allocator in both builds.
 
 Every length/local image is 1,536 bytes with SHA-256
@@ -61,7 +61,7 @@ Every length/local image is 1,536 bytes with SHA-256
 Every image ran successfully against the authored empty-output/exit-zero oracle.
 Compilation latency medians were 714.673 and 797.842 ms for the same producer.
 The paired percent-change interval was **[-0.559%, +21.477%]**;
-[`check ... 5` returned 2, inconclusive](compiler-budget.stdout).
+[`check ... 5` returned 2, inconclusive](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/compiler-budget.stdout).
 This noisy shared-host A/A run demonstrates why the median alone must not
 promote a performance claim. All observations remain in the journal.
 
@@ -72,9 +72,9 @@ descendants are excluded. Minor/major faults are explicitly unavailable on
 this provider. The calibration fixture separately touches 32 MiB and does CPU
 work, requiring nonzero resource observations.
 
-The separate [phase profile](phase-profile/profile.json) captured 114 timing
+The separate [phase profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/phase-profile/profile.json) captured 114 timing
 labels and 104 event/count labels. Nested timing scopes are inclusive and
-must not be summed. The separate [allocation profile](allocation-profile/allocations.json)
+must not be summed. The separate [allocation profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/allocation-profile/allocations.json)
 observed 1,113,533 allocations, 48,657 reallocations, 280,482,651 requested bytes,
 and a peak of 143,683,009 live requested bytes. This covers Rust GlobalAlloc
 bookkeeping, not RSS or every custom/native allocation, and adds overhead.
@@ -82,28 +82,28 @@ bookkeeping, not RSS or every custom/native allocation, and adds overhead.
 The [runtime suite](runtime-suite/summary.md) checks independently calculated
 checksums for runtime-sized compute, indexed memory, indirect calls and allocation.
 These are Rust reference kernels, not generated Omega workloads.
-[Assembly observations](assembly-observations.txt) show the emitted compute loop,
+[Assembly observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/assembly-observations.txt) show the emitted compute loop,
 indexed memory loop, indirect vtable call and allocation/free loop at opt-level 1.
 The checksum and assembly evidence jointly address elimination of the measured
 work; checksum alone would not. The Omega square-sum remains a constant-input
 optimizer subject, now with a consumed accumulator and falsifiable result.
 
-[History output](history.stdout) uses independent resampling for two separately
+[History output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/history.stdout) uses independent resampling for two separately
 captured compute runs. It does not invent pairs across time. Changed workload
 input bytes are rejected by the history controls.
 
 ## Capability limits and retained material
 
-[WPR](wpr-profile/profile.json) returned `unavailable`:
+[WPR](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/wpr-profile/profile.json) returned `unavailable`:
 “Failed to enable the policy to profile system performance”, error `0xc5585011`.
 Its raw start output is retained. No trace was captured, no permission or system
 setting was changed, and no default recording was canceled. The unique owned
 instance protocol remains implemented. Linux perf is unavailable on this Windows
-host; its [explicit refusal](perf-unavailable/profile.json), parsing controls and
+host; its [explicit refusal](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/perf-unavailable/profile.json), parsing controls and
 cross-target compilation are recorded. Actual permitted Linux perf capture and
 successful WPR capture remain host-specific validation, not claimed results.
 
-[Integration commands](integration-commands.json) and [script](integration.py)
+[Integration commands](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/integration-commands.json) and [script](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/integration.py)
 retain exact local paths and exit codes. Full generated executables, accepted
 locks and build trees remain in the ignored local directory
 `build/performance/complete/`. This archive keeps reports, journals and raw streams
@@ -113,7 +113,7 @@ images; an archived report alone is insufficient to replay validation.
 Capture used the recorded `omega-bench.exe` digest. The only later executable
 change tightened native-artifact binding in `records.rs`; the final consumer
 validated all retained runs. Measurement, statistics, resource capture and
-workload source remained unchanged. [Source identities](source-identities.json)
+workload source remained unchanged. [Source identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/performance_tooling_complete_2026_10_29/source-identities.json)
 distinguish the capture runner and final consumer. The earlier
 [first-version snapshot](../performance_tooling_2026_10_29/README.md) remains
 historical; its `/1` records are not relabelled as current `/2` evidence.

@@ -40,7 +40,7 @@ Both are opt-level 3 builds of base
 `7d46e5a7dcdc3655cfe4d4f5fd59d72afc8a7481` plus the recorded source patches.
 The detailed baseline patch also contains incidental formatting of five files;
 the candidate restores that formatting. No semantic change is hidden there.
-[comparison.json](comparison.json) records binary profiles, exact commands,
+[comparison.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/comparison.json) records binary profiles, exact commands,
 input/output hashes, peaks and phase observations. The executable hashes, not
 an inherited version string, identify these experimental producers.
 
@@ -91,9 +91,9 @@ error and supplies no sampling evidence. [Research log](../research.md).
 
 ## Replay and evidence
 
-The assertion-based [comparison](compare.py) uses existing `capture_compile`,
+The assertion-based [comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/compare.py) uses existing `capture_compile`,
 optimized-profile validation and the strict review-settlement helper. The focused
-[behavior comparison](check.py) uses existing native execution and authored
+[behavior comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/check.py) uses existing native execution and authored
 invalid-diagnostic oracles. Run from the repository worktree inside one
 `tools/build_slot.py` hold, after placing the recorded baseline/candidate producers
 at `build/ui-native-round/omega-{detailed,scoped}.exe` and restoring the frozen
@@ -114,11 +114,11 @@ output directories and fail on changed images or changed outcomes.
   and identical error rosters: moved payload cannot revive issued membership,
   a dynamic selector write invalidates a prefix fact, and an unproved returned
   reference guarantee cannot establish itself.
-- [Canonical artifact comparison](check-terminal.py): moved-payload and dynamic
+- [Canonical artifact comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/check-terminal.py): moved-payload and dynamic
   post-write-alternative programs produced identical Terminal artifact hashes
   with both compilers. All four artifacts passed independent `inspect-terminal
-  --artifact` validation. Results: [terminal.json](terminal.json).
-- The native behavior results are assembled in [behavior.json](behavior.json).
+  --artifact` validation. Results: [terminal.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/terminal.json).
+- The native behavior results are assembled in [behavior.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/behavior.json).
   Successful positive observations were retained from the bounded run; after a
   rejection-harness issue, only invalid controls were rerun. Failed attempts
   remain in the archive and are not relabeled as successful runs.
@@ -135,10 +135,10 @@ deferred without running it. Anonymous invalid fixtures must use `--check`,
 not an invented ProgramEntry requiring a nonexistent `main`. These are recorded
 harness/environment boundaries, not optimization regressions or passing gates.
 
-[observations.tar.gz](observations.tar.gz) retains raw profiles, comparisons,
+[observations.tar.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/observations.tar.gz) retains raw profiles, comparisons,
 failed attempts, exact compiler source patches, the frozen UI source/assets,
 focused fixture sources, the four validated Terminal artifacts and replay
-scripts. [evidence.json](evidence.json) gives its digest and size. Optimized
+scripts. [evidence.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/native-round/evidence.json) gives its digest and size. Optimized
 executables and cache contents are retained locally, not committed as binaries.
 
 The removed work is graph adaptation outside the queries' invocation closure.

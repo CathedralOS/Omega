@@ -26,7 +26,7 @@ Baseline producer: `build/statement-loop/candidate/omega.exe`, SHA-256
 `67c79dda5d51d0034320ae0244b957a041794c751b69f07cdd42a08d453702b3`.
 It is the exact optimized producer tested before committing this source head;
 only experiment records were finalized after the build. Diagnostic changes
-are in [diagnostic.patch](diagnostic.patch), a zero-context diff replayed with
+are in [diagnostic.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/diagnostic.patch), a zero-context diff replayed with
 `git apply --unidiff-zero`; reverse application against the instrumented source
 was checked before running it.
 
@@ -37,7 +37,7 @@ The first profile measures 517.653 ms in call-bound validation out of 578.157 ms
 in value-position scanning. The finer profile measures 484.386 ms in
 `reject_refuted_value_call_requires` (399 calls) out of 536.922 ms in call bounds.
 The scopes are inclusive. Both diagnostic compilations produced the same PE and
-native exit 0. [detail.patch](detail.patch) records the temporary instrumentation;
+native exit 0. [detail.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/detail.patch) records the temporary instrumentation;
 it is absent from the candidate.
 
 Hypothesis: gathering the existing ordered list of callee requirement expressions
@@ -67,6 +67,6 @@ The six-run screen is inconclusive: scanner medians 697.609 -> 665.262 ms,
 with overlapping ranges. The candidate was removed from production source;
 its patch remains for replay. The planned wider validation was deliberately
 not started after this screen. See [the result ledger](README.md) and
-[raw observations](screen-runs.json). Next separate argument-term preparation,
+[raw observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/screen-runs.json). Next separate argument-term preparation,
 judge construction and per-requirement judgment; this result does not justify
 caching proof state or attributing the cost to the empty-list case.

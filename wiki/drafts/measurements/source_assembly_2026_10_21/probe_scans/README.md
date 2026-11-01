@@ -64,7 +64,7 @@ published. The final scan exits ordinary non-punctuation tokens before delimiter
 dispatch. Its reference minima are 2.585/2.590 ms baseline and 2.580/2.622 ms
 candidate in forward/reverse order: essentially unchanged in one order and
 about 1.2% slower in the other. No uniform parser speedup is claimed. All means,
-maxima, faults and trials for both versions are retained in observations.json.
+maxima, faults and trials for both versions are retained in [observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_scans/observations.json).
 The final fresh counter and allocation records exactly match the boundary-only
 version; final fresh syntax/control records exactly match the baseline.
 
@@ -117,7 +117,7 @@ contract; a future ownership change needs its own lifetime/identity evidence.
 **Retain the bounded scan change.** It removes demonstrated token and allocation
 work with exact parser equivalence and no observed behavioral regression.
 The source-level terminator proof is in [research.md](research.md).
-[observations.json](observations.json) binds the counts, producer hashes, timing
+[observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_scans/observations.json) binds the counts, producer hashes, timing
 samples, runtime outcomes, test commands and corpus result. The archived raw
 experiment includes standalone harness sources/manifests/lock, frozen binaries,
 input hashes, complete syntax/allocation TSVs, generated controls, disassembly,
@@ -137,6 +137,6 @@ original parser measurements retain their original identities. Both ordinary
 CLIs were rebuilt, all five native/Terminal witnesses and CLI timings rerun, and
 the 98-fixture comparison rerun against this new base: zero lost, zero gained.
 The final parser suite still reports 264 passes and the same seven failures.
-[integration.json](integration.json) records the full delta and applicability.
+[integration.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_scans/integration.json) records the full delta and applicability.
 Historical first-variant CLI observations/products remain under the raw archive's
 `initial-validation/`; they are not relabeled as final-candidate executions.

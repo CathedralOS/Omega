@@ -89,7 +89,7 @@ Transformation time remained 210.49–214.60 ms with the cache, versus
 220.79–287.98 ms in the bypass observations: almost the same number of
 transformations was still necessary. These different-run intervals cannot
 establish the CPU cost of the 24 skipped transformations. Full disjoint query
-metrics, cleanup metrics and per-run identities are in [summary.json](summary.json).
+metrics, cleanup metrics and per-run identities are in [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/summary.json).
 
 ## End-to-end controls and limits
 
@@ -133,18 +133,18 @@ Dungeon route was run. All compiler source edits and temporary hooks were remove
 
 Base `6f7ebcd23c1` contains only prior evidence beyond the original semantic base
 `456c5e984452a45d977295e254b3ca9ae3cc7750`. The unchanged 203 authored source
-files are checked against the [parent input manifest](../input-manifest.json).
+files are checked against the [parent input manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json).
 Every compile case uses an unused build directory, a fresh private
 `LOCALAPPDATA` cache, explicit library root, general phase profiler off, an
 optimized exact frozen compiler, and that compiler's ordinarily accepted lock.
 The public `--both` runtime comparison uses the shared cache and is a separate
 correctness observation, not one of the cold-cache timing comparisons.
 
-[instrumentation.patch](instrumentation.patch) reproduces the first diagnostic
-producer; [cost-instrumentation.patch](cost-instrumentation.patch) is the
+[instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/instrumentation.patch) reproduces the first diagnostic
+producer; [cost-instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/cost-instrumentation.patch) is the
 alternative adding explicit bypass temporary-result destruction timing. Apply
 exactly one, then use the existing one-hold `mbx nextest ... payload` / optimized
-CLI build chain. [identities.json](identities.json) binds the frozen producers
+CLI build chain. [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/identities.json) binds the frozen producers
 and accepted locks; normal package update logs show zero changed source entries.
 Binaries and accepted locks remain local under ignored `build/proof-profile`.
 Both patches are checked against separate scratch indices at the recorded base.
@@ -156,12 +156,12 @@ python wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/a
 python wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/parser_selfcheck.py
 ```
 
-`cache_diagnostics_run.py` provides `run(cache, mode, unused_label, producer=...)`
-and the original case schedule; `cache_cost_run.py` provides the reversed final
+[`cache_diagnostics_run.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/cache_diagnostics_run.py) provides `run(cache, mode, unused_label, producer=...)`
+and the original case schedule; [`cache_cost_run.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/cache_cost_run.py) provides the reversed final
 timing pairs. Retained producers are named `edge-cache-probe` and
 `edge-cache-cost-probe`. Existing result labels are refused. The raw-stream
 parser accepts plain or gzip stderr. Large exact streams and build logs are
-losslessly compressed; [manifest.json](manifest.json) binds every retained byte.
+losslessly compressed; [manifest.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/cache_diagnostics/manifest.json) binds every retained byte.
 
 Decision: retain the diagnosis and the rejection. **The expensive key was not
 the problem: reuse opportunity was negligible, and eager output wrapping added

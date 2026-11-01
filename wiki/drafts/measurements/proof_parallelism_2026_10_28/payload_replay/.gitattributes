@@ -1,5 +1,0 @@
-# Preserve replay patches and captured bytes on Windows.
-* -text
-raw/** -whitespace
-*.patch -whitespace
-*.gz -diff

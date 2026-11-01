@@ -17,5 +17,5 @@ The retained reviewed projects and their original process-local cache bases
 are reused. This is a runtime correction, not a new first-preparation timing
 comparison. Source/oracle and producer provenance remain in the parent record.
 The newer performance candidate is not used for any observation in this folder.
-See host.json for exact argv, producer digests and transcript links; replay.py
+See [host.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/host-replay/host.json) for exact argv, producer digests and transcript links; [replay.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/host-replay/replay.py)
 requires the retained ignored producers and reviewed projects in this worktree.

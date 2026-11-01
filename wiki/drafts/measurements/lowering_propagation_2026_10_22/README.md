@@ -43,7 +43,7 @@ Candidate: that base plus this commit's three Rust files under
 
 Both producers use the pinned optimized dev profile (opt-level 1), on Apple M4,
 macOS ARM64. Binary digests, build profiles, toolchain, source/library hashes,
-implementation-patch digest, commands and raw outputs are in `timings.json`.
+implementation-patch digest, commands and raw outputs are in [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/timings.json).
 The machine remained in normal interactive use; own builds were stopped during
 measurement. Recorded one-minute load averages span 6.20–12.40.
 
@@ -72,14 +72,14 @@ only about 1.5% of that command. Checking and host variation dominate the outer
 measurement. There is no hardware-throughput or cross-host claim.
 
 Every emitted native image is byte-identical within each workload across both
-producers and all timing repetitions. `assembly.json` confirms that table
+producers and all timing repetitions. [`assembly.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/assembly.json) confirms that table
 construction moved from the per-query routine to the graph-adaptation entry,
 while expression expansion remains emitted. These are real compiler invocations
 producing consumed artifacts, not a removable microbenchmark loop.
 
 ## Quality and replay
 
-The evidence ledger in `checks.json` and `validation.json` records scoped checks
+The evidence ledger in [`checks.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/checks.json) and [`validation.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/validation.json) records scoped checks
 and baseline/candidate behavior. No source sample, expected result, package
 admission or golden is changed by this experiment. The additional design probes
 are compile-only; actual engine claims come from the separate runtime checks.
@@ -114,8 +114,8 @@ validation are outside this bounded change.
 For replay, build the base with `mbx build -p omega` and preserve
 `build/lowering-propagation/omega-baseline`. Apply this commit's three Rust
 changes, rebuild, and preserve `omega-candidate` in the same directory. Save
-the implementation diff as `candidate.patch`, then run `measure.py` and
-`validate.py` from the repository root. Preserve historical results before a new
+the implementation diff as `candidate.patch`, then run [`measure.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/measure.py) and
+[`validate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_propagation_2026_10_22/validate.py) from the repository root. Preserve historical results before a new
 capture. The rejected candidate uses its separately preserved patch/executable;
 it must not be confused with the retained producer.
 

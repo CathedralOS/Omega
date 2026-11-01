@@ -34,10 +34,10 @@ behavior is part of the measured benefit. This does not mean every proof or
 component-admission operation costs only 21 ms. Full phase counters below are
 inclusive/nested, so their times cannot be summed.
 
-Records: [original matched run](cohort-comparison-02/result.json),
-[candidate matched run](cohort-comparison-final/result.json),
-[initial combined profile](cohort-01/result.json), and
-[prototype profile](shared-profile-02/result.json). Adjacent `.log.gz` files
+Records: [original matched run](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/cohort-comparison-02/result.json),
+[candidate matched run](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/cohort-comparison-final/result.json),
+[initial combined profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/cohort-01/result.json), and
+[prototype profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/shared-profile-02/result.json). Adjacent `.log.gz` files
 retain timings and counters. The measured drivers preserve explicit inputs.
 
 ## Rejected alternative and repeated work
@@ -48,7 +48,7 @@ project revokes its package grants. A compiler-only shared session reduced the
 second source assembly count from three to one and settled checking requests
 from four to two, but saved only about 5%: 24.185/23.969 s separately versus
 22.900/22.900 s shared, after an excluded first warm-up. Every output matched.
-See [its complete record](shared-comparison-01/result.json).
+See [its complete record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/shared-comparison-01/result.json).
 
 That prototype is removed. Its patch and example are retained as compressed
 experiment evidence, not supported APIs. An additional in-memory component
@@ -108,7 +108,7 @@ output with the qualified producer took **7.974 s**, with byte-identical compone
 and descriptions to the runtime-tested builder. Its phase profile attributes
 2.865 s to native product production, 1.330 s to Terminal selection/lowering, and
 0.914 s to component recovery (nested scopes). See
-[qualified producer and final validation](final-validation.json).
+[qualified producer and final validation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/shared/final-validation.json).
 
 
 ## Scope and remaining acceptance

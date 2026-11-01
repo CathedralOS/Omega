@@ -129,14 +129,14 @@ The twenty-first observation explicitly executed native and Terminal Psi via
 `omega run --both --keep`, with exit 0 and identical 463-byte stdout. Its shared-cache
 timing and the count-mode timings are excluded from the primary comparison.
 
-[candidate.patch](candidate.patch) preserves the pure baseline-to-borrowed change;
-[incremental-from-eager.patch](incremental-from-eager.patch) isolates this
+[candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/candidate.patch) preserves the pure baseline-to-borrowed change;
+[incremental-from-eager.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/incremental-from-eager.patch) isolates this
 refinement from the previous sharing candidate. The latter does not change the
-normalization owner. [instrumented-candidate.patch](instrumented-candidate.patch)
+normalization owner. [instrumented-candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/instrumented-candidate.patch)
 adds the existing outer probes and a disabled-by-default count observer.
 All three patch configurations were checked in isolated scratch Git indices.
-[identities.json](identities.json), [source-identity.json](source-identity.json),
-[summary.json](summary.json), [borrow_run.py](borrow_run.py), [raw/](raw/) and
+[identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/identities.json), [source-identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/source-identity.json),
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/summary.json), [borrow_run.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/borrow_run.py), [raw/](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/borrowed_handles/raw) and
 the build/run logs retain the inputs and observations; [research.md](research.md)
 records the primary API and comparison/ownership implementation audit. Run
 `python <this-directory>/analyze.py` to verify the artifact manifest, exact counts,

@@ -116,8 +116,8 @@ Representative ELF, Mach-O and PE machine headers were independently checked.
 Foreign images were not executed. No full corpus or foreign-host qualification
 is inferred from these checks or the small merge-queue admission check.
 
-[Unrounded data and resource results](summary.json) and
-[compressed source/producer/receipt/raw evidence](evidence.json.gz) preserve
+[Unrounded data and resource results](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/target_native_queue_landing_2026_10_29/summary.json) and
+[compressed source/producer/receipt/raw evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/target_native_queue_landing_2026_10_29/evidence.json.gz) preserve
 736 text records, including both qualification attempts, the failed launch,
 32 diagnostic replays and the exact integrated source patch. Original native
 source remains unchanged through the result-record commit. Publication follows
@@ -126,6 +126,6 @@ the normal PR/merge-queue path; an open PR alone does not establish landing.
 Published through [PR #850](https://github.com/CathedralOS/Omega/pull/850) as
 `90ffeba2d0b85b6b0eedb57c02dbd6d8437d83f2`. The exact submitted head matched,
 both required admission runs passed, and the published commit was verified as
-an ancestor of fetched remote main. [Publication readback](publication.json)
+an ancestor of fetched remote main. [Publication readback](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/target_native_queue_landing_2026_10_29/publication.json)
 keeps the original runtime producer/capture identities separate. Post-merge
 smoke was pending at this readback, not reported as green.

@@ -20,24 +20,24 @@ The new positive control nests both left and right conjunctions, including a
 folded true pair, and consumes two exact call results. Its reject twin changes
 only the second actual from 9 to 8 while retaining subtraction by 9. Both were
 run on the original source before implementation; see
-[baseline observations](new-controls-baseline.json).
+[baseline observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/new-controls-baseline.json).
 
 ## Fixed inputs and producer identities
 
 Fixed source base: `894c94a2eaef8c2e8c362b7282d017f5d53e5516`.
-The production change is [candidate.patch](candidate.patch). Both timed producers
+The production change is [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/candidate.patch). Both timed producers
 use the pinned Rust toolchain and optimized dev profile (`opt-level = 1`) on
 Windows x86-64. The original candidate build was interrupted. Two resumed builds
 refused corrupt dependency metadata; the second restored the corrupt bytes from
-cached build state. Their [first](build-corrupt-metadata.log) and
-[second](build-corrupt-restore.log) logs are retained.
+cached build state. Their [first](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/build-corrupt-metadata.log) and
+[second](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/build-corrupt-restore.log) logs are retained.
 
 Recovery used a fresh process-local mbx cache and disabled learned incremental
 reuse for this build. No global settings or other worktrees were changed.
 The original source was rebuilt with the same settings for the decisive A/B,
-then the candidate source was restored. [Matched build inputs](matched-build.json),
-[candidate build](build-candidate.log), [baseline build](build-matched-baseline.log)
-and [build script](matched_build.py) retain the provenance.
+then the candidate source was restored. [Matched build inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/matched-build.json),
+[candidate build](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/build-candidate.log), [baseline build](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/build-matched-baseline.log)
+and [build script](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/matched_build.py) retain the provenance.
 
 | Role | Executable SHA256 |
 | --- | --- |
@@ -45,7 +45,7 @@ and [build script](matched_build.py) retain the provenance.
 | Matched baseline, decisive timing | `6dea2214eb78f83d8e2d1a62219dae0b34370038eea7bcee148c45ac785ba566` |
 | Candidate, checks and timing | `12ca439bfc0fd52daa45cd186195030b29af4a3bf1f3c5032909fda272f6cd22` |
 
-The six-run [preliminary screen](preliminary-screen.json) uses the original
+The six-run [preliminary screen](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/preliminary-screen.json) uses the original
 baseline. It is preserved but excluded from the retained speedup claim because
 the build-cache recovery could otherwise confound that comparison.
 
@@ -65,8 +65,8 @@ No observation was excluded. Warmups and profiles are kept out of the medians.
 | length / local | 2585.8, 2026.3-3166.5 | 2195.0, 2022.1-3258.2 | Too variable to claim a gain |
 | dispatch / match_join | 2101.0, 2011.2-2405.2 | 2089.4, 2055.3-2161.8 | Effectively flat at this resolution |
 
-[Summary](summary.json), [all runs](runs.json), [metadata](metadata.json) and
-[raw transcripts](comparison/) retain timings, image hashes, exits and inputs.
+[Summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/summary.json), [all runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/runs.json), [metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/metadata.json) and
+[raw transcripts](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/comparison) retain timings, image hashes, exits and inputs.
 The stack32 image is 81,408 bytes, SHA256
 `ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca`.
 This newer fixed base differs from the prior experiment's backend and image;
@@ -80,7 +80,7 @@ profile scopes are inclusive; never sum them into elapsed time.
 
 ## Behavior
 
-[Validation](validation.json) records 78 A/B observations:
+[Validation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/validation.json) records 78 A/B observations:
 
 - All nine existing independent-call fact places execute through both native and
   Terminal engines under both producers; their nine circular-promise twins reject.
@@ -97,11 +97,11 @@ profile scopes are inclusive; never sum them into elapsed time.
 The reused validator initially assumed every runtime success meant zero, so it
 falsely failed the existing exit-70 control for both producers. The runner now
 reads `expected_native_exit.txt` and checks that exact exit from both engines.
-The [initial record](validation-initial.json) and [failure log](validation-initial.log)
+The [initial record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/validation-initial.json) and [failure log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/validation-initial.log)
 are retained. Only those two observations were rerun; the other 76 successful
 observations were reused after verifying source/Build hashes and producer digests.
-[Inputs](validation-inputs.json) also freeze the authored oracle files.
-[Validation producer identities](validation-producers.json) distinguish the
+[Inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/validation-inputs.json) also freeze the authored oracle files.
+[Validation producer identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/validation-producers.json) distinguish the
 original baseline from the separately rebuilt timing baseline.
 
 ## Publication and next question
@@ -110,7 +110,7 @@ The preceding two optimizations landed in [PR760](https://github.com/CathedralOS
 Its submitted head was `fbac55325b3766f5688609127f9015b6122bfc01`; published main is
 the fixed base above. PR compiler-check run 40840698152, merge-queue run
 40841224751, and post-merge smoke run 40841499791 succeeded. Published-main
-ancestry was verified after fetching. [Publication identities](publication.json)
+ancestry was verified after fetching. [Publication identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/conjunction_flow_2026_10_29/publication.json)
 separate submitted and published revisions. This new conjunction change remains
 local until separately published.
 

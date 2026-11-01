@@ -118,12 +118,12 @@ The fifteenth observation explicitly ran native and Terminal Psi via
 time is excluded from the primary A/B comparison. Count-mode times are excluded
 because their diagnostic set construction and logging add work.
 
-[candidate.patch](candidate.patch) preserves the pure implementation and kernel
-test. [instrumented-candidate.patch](instrumented-candidate.patch) adds the
+[candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/candidate.patch) preserves the pure implementation and kernel
+test. [instrumented-candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/instrumented-candidate.patch) adds the
 existing outer probes and disabled-by-default sharing counter. Both apply to the
-recorded checkpoint in isolated scratch Git indices. [identities.json](identities.json),
-[source-identity.json](source-identity.json), [summary.json](summary.json),
-[share_run.py](share_run.py), [raw/](raw/) and the build/run logs retain the exact
+recorded checkpoint in isolated scratch Git indices. [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/identities.json),
+[source-identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/source-identity.json), [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/summary.json),
+[share_run.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/share_run.py), [raw/](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/unchanged_sharing/raw) and the build/run logs retain the exact
 inputs and outcomes; [research.md](research.md) records the hypothesis and primary
 API/source audit. Run `python <this-directory>/analyze.py` to verify the artifact
 manifest, raw outcomes, exact repeated counts and paired summaries.

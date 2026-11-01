@@ -1,5 +1,0 @@
-# Preserve captured bytes and the replay patch across Windows checkouts.
-raw/** -text -diff
-*.log -text -diff
-instrumentation.patch -text -diff
-producer-policy-comparison.txt -text -diff

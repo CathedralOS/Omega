@@ -27,12 +27,12 @@ relationships, with arena/roster freshness and stable duplicate order.
 
 1. **Full index**: resolve both owner and state position from indexed occurrences,
    preserving parent preference, symbol eligibility and duplicate selection.
-   [Patch](full_index.patch). It reduced fact-checking median in profiled runs
+   [Patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/full_index.patch). It reduced fact-checking median in profiled runs
    from 90.581 to 84.539 ms, while machine-loop median rose from 33.347 to
    37.429 ms. The whole workload did not improve. The sub-pass difference does
    not establish a hardware cause for the offsetting cost.
 2. **Fallback only**: preserve the original short parent membership lookup and
-   use the index only after that fails. [Patch](fallback_index.patch).
+   use the index only after that fails. [Patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/fallback_index.patch).
    Stage median moved by 2.918 ms (about 0.5%), but minima differ by only
    1.154 ms and run variation is much larger. The largest baseline observation
    remains included. This does not justify a useful speedup claim or retaining
@@ -63,10 +63,10 @@ not convergence-certified repetition-tester floors.
 | Fallback only, Stage 05 (20 pairs) | 532.410 / 556.246 / 562.920 / 672.300 | 531.256 / 553.328 / 551.462 / 577.216 |
 | Fallback only, total | 650.885 / 682.515 / 688.960 / 803.639 | 650.406 / 678.615 / 676.680 / 716.175 |
 
-[Full-index observations](timings.json), [fallback observations](hybrid-timings.json),
-and [summary](summary.json) retain the exact binary digests and profiles, source
+[Full-index observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/timings.json), [fallback observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/hybrid-timings.json),
+and [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/summary.json) retain the exact binary digests and profiles, source
 hash, patch hash, toolchain and every output. Five additional pairs with
-`OMEGA_PHASE_PROFILE=1` are retained in [phase-timings.json](phase-timings.json);
+`OMEGA_PHASE_PROFILE=1` are retained in [phase-timings.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/phase-timings.json);
 they are attribution measurements and are not pooled with ordinary CLI timings.
 Nested and parallel scopes overlap; do not sum their inclusive durations.
 
@@ -81,7 +81,7 @@ rejected before a fresh test/corpus campaign. These are not interchangeable
 validation claims. Neither experimental implementation remains in production.
 
 The ordinary baseline separately ran `omega run --both --keep` on `length/local`:
-native exit 0 and interpreter exit 0. [Runtime output](baseline-runtime.txt).
+native exit 0 and interpreter exit 0. [Runtime output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/baseline-runtime.txt).
 No candidate native/corpus equivalence is claimed; those planned gates were
 cancelled after the latency experiment failed its retention criterion. No corpus
 goldens or sample sources changed. Formatting and diff checks passed.
@@ -91,7 +91,7 @@ Replay in isolated checkouts at the recorded base:
 1. Build `mbx build -p omega`, freeze the baseline executable, and verify its
    `--build-profile` output. Keep baseline and candidate target directories separate.
 2. Apply one recorded patch; build and freeze its candidate executable.
-3. Run `measure.py --baseline ABSOLUTE_BINARY --candidate ABSOLUTE_BINARY
+3. Run `[measure.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/state_lookup/measure.py) --baseline ABSOLUTE_BINARY --candidate ABSOLUTE_BINARY
    --output OUTPUT.json --pairs 12` (20 for fallback). Add `--profile` for attribution.
 4. Run `mbx nextest run -p typed-trees` to exercise the included independent oracle.
 

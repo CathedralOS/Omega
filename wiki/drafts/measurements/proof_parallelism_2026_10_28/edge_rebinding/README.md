@@ -8,7 +8,7 @@ The unchanged Dungeon EOF workload was compiled with four alternating pairs,
 using the same outer instrumentation, fresh private caches, explicit library root,
 general phase profiler off, optimized compilers and each producer's normally
 accepted lock. All 203 authored source files were checked against the existing
-[parent source manifest](../input-manifest.json). The frozen source base remains
+[parent source manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json). The frozen source base remains
 `456c5e984452a45d977295e254b3ca9ae3cc7750`; the experiment's documentation-only
 base is `053d97fd5e1`. No pull, rebase, shared-main edit or push was performed.
 
@@ -27,7 +27,7 @@ not establish the proposed rebinding benefit when the causal replay interval
 fails to improve consistently. Peak working sets varied substantially on both
 sides (baseline 1827–2044 MiB, candidate 1824–2024 MiB), so no memory win or
 precise allocation-overhead claim is established. Full-precision values and
-paired changes are in [summary.json](summary.json).
+paired changes are in [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/summary.json).
 
 ## Candidate and safety boundary
 
@@ -76,15 +76,15 @@ production qualification. Current compiler sources are unchanged.
 
 ## Reproduction and retained evidence
 
-[identities.json](identities.json) binds compiler hashes, accepted locks and
+[identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/identities.json) binds compiler hashes, accepted locks and
 optimized build profiles. The baseline is the previously frozen `payload`
 producer; the candidate is `edge-rebinding` in ignored local
 `build/proof-profile/producers/`, each with its accepted `omega.lock`.
 Package update found zero source changes and published ordinary acceptance;
-[package-update.log](package-update.log). Large binaries and locks remain local.
+[package-update.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/package-update.log). Large binaries and locks remain local.
 
-[candidate.patch](candidate.patch) is the production candidate alone;
-[instrumented-candidate.patch](instrumented-candidate.patch) is the alternative
+[candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/candidate.patch) is the production candidate alone;
+[instrumented-candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/instrumented-candidate.patch) is the alternative
 including the same outer probes as the frozen baseline. Apply exactly one at
 `053d97fd5e1`; both applied successfully to separate scratch indices. The
 candidate test/build ran inside one build-slot hold from a short mapped path,
@@ -92,7 +92,7 @@ using `mbx nextest run -p terminal-semantics payload` followed by
 `mbx build --locked -p omega`, both targeting `build/proof-profile/compiler`.
 The temporary drive mapping was removed after the experiment.
 
-Use [the preceding harness](../payload_replay/measure.py), with unused labels:
+Use [the preceding harness](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/measure.py), with unused labels:
 
 ```powershell
 python wiki/drafts/measurements/proof_parallelism_2026_10_28/payload_replay/measure.py payload baseline-label timing
@@ -105,7 +105,7 @@ separate runtime comparison. A public `--both` run's stdout equality must be
 checked explicitly against retained `terminal.stdout`, as captured here.
 
 [research.md](research.md) records the primary Rust API source and applicability.
-[raw](raw/) retains ten run observations, compile/runtime streams and metadata.
-Build and experiment logs are lossless gzip. [analyze.py](analyze.py) verifies
+[raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/raw) retains ten run observations, compile/runtime streams and metadata.
+Build and experiment logs are lossless gzip. [analyze.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/edge_rebinding/analyze.py) verifies
 manifest identities, interval accounting, output/hash agreement and the paired
 summary; it does not execute the compiler or mutate accepted inputs.

@@ -1,1 +1,0 @@
-published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\proof-profile-20261028\build\proof-profile\payload-index-counts\native\omega-program.exe

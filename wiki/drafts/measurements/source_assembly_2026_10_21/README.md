@@ -28,10 +28,10 @@ The [checkpoint, parser-transaction and token-recycling experiment](../source_as
 
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;
-the diagnostic producer adds only the adjacent `instrumentation.patch`.
+the diagnostic producer adds only the adjacent [`instrumentation.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/instrumentation.patch).
 The host is an Apple M4, macOS ARM64, with the repository's optimized dev
 profile (opt-level 1). Exact profiles, binary hashes, source hashes, library
-tree, toolchain and all forty observations are in `observations.json`.
+tree, toolchain and all forty observations are in [`observations.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/observations.json).
 
 ## Comparison and decision
 
@@ -75,7 +75,7 @@ From the repository root at the recorded base:
 
 1. Build with `mbx build -p omega`. Create `build/source-assembly/`, and copy
    `target/debug/omega` to `build/source-assembly/omega-baseline`.
-2. Apply `instrumentation.patch` using `git apply --unidiff-zero` and build the same package.
+2. Apply [`instrumentation.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/instrumentation.patch) using `git apply --unidiff-zero` and build the same package.
 3. Run `python3 wiki/drafts/measurements/source_assembly_2026_10_21/measure.py`.
    It checks producer optimization, alternates 20 pairs, requires every command
    to succeed, and writes full outputs to `build/source-assembly/observations.json`.

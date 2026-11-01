@@ -58,33 +58,33 @@ demand, not a fabricated runtime soundness failure.
 
 ## Quality evidence and limits
 
-The [42 observations](observations.json) contain 21 successful native executions
+The [42 observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/observations.json) contain 21 successful native executions
 across five positive inputs, with identical image hashes per subject in baseline,
 full, and skip modes. All four intended invalid controls retain their baseline
 diagnostics in both modes: wrong backing, overlapping loans, ambiguous attached
 policy owner, and attempted mutable access from shared storage. The two placed
 positives also pass native and Terminal execution in all three modes: six actual
-`run --both` observations in [controls.json](controls.json).
+`run --both` observations in [controls.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/controls.json).
 
 The instrumented full mode matches baseline images and failure diagnostics.
 Diagnostic comparison strips only probe records and the benchmark harness's
 recognized timing lines. Its first attempt compared timing lines as diagnostics;
-that assertion failure is preserved in `summary-initial.log`, and raw outputs
-remain unchanged. [summary.json](summary.json) contains the verified counts.
+that assertion failure is preserved in [`summary-initial.log`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/summary-initial.log), and raw outputs
+remain unchanged. [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/summary.json) contains the verified counts.
 
 Three exploratory witnesses remain explicitly classified as baseline failures:
 
-- [Inline field use](witnesses/inline_result/main.omg) creates one placement
+- [Inline field use](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/witnesses/inline_result/main.omg) creates one placement
   application in baseline/full mode, then fails Terminal lowering with
   `argument field requires its source record or selected case`. Bypass mode
   creates zero applications and instead fails earlier because the placed read
   lacks an exact accessor/value tuple. This proves a downstream dependency on
   discovery, but is not a passing source-to-native witness or a newly introduced
   baseline regression. The existing lowering failure was not repaired here.
-- [Implicit discard](witnesses/discarded_result/main.omg) is rejected because a
+- [Implicit discard](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/witnesses/discarded_result/main.omg) is rejected because a
   non-unit result must be consumed or explicitly discarded. It is an invalid
   draft, not performance evidence.
-- [Explicit discard](witnesses/explicit_discard/main.omg) still fails on the
+- [Explicit discard](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/witnesses/explicit_discard/main.omg) still fails on the
   baseline's opaque-representation obligation. All modes produce zero
   applications and the same refusal. It supplies no runtime acceptance.
 
@@ -108,7 +108,7 @@ incoming changes exist, so this remains a measurement of the recorded base.
 
 The diagnostic executable SHA-256 is
 `a2ec7aed3b9aaa415be90436dba2fdaea02d1b79ae1e2cc810bd3072adab3c5c`.
-The [profile receipt](instrumented-producer.json) binds effective opt-level 1
+The [profile receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/instrumented-producer.json) binds effective opt-level 1
 for compiler library, Omega library, and CLI to the actual artifacts. The
 baseline is the unchanged frozen executable from the parent record. Inputs,
 library tree, binaries, raw commands and output hashes are in the observations.
@@ -117,10 +117,10 @@ workflow observations, not compiler-runtime benchmarks.
 
 Replay from the recorded base with the parent frozen baseline available:
 create `build/placed-discovery/base.txt` containing the source SHA, then run
-`build.py` from this directory through `tools/build_slot.py`. It installs the
+[`build.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/build.py) from this directory through `tools/build_slot.py`. It installs the
 temporary probes, freezes the diagnostic producer, and restores exactly its
-recorded compiler paths. Run `capture.py`, `controls.py`, and `summarize.py`
-from the repository root. The [probe patch](instrumentation.patch) is preserved
+recorded compiler paths. Run [`capture.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/capture.py), [`controls.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/controls.py), and [`summarize.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/summarize.py)
+from the repository root. The [probe patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/instrumentation.patch) is preserved
 for inspection. Failed builds may leave probes installed; preserve the failure
 and restore the listed paths before resuming. No compiler probes or bypass
 remain in the retained source.

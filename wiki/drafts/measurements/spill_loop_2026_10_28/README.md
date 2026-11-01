@@ -12,7 +12,7 @@ No new compiler speedup is claimed.
 [source check](https://github.com/CathedralOS/Omega/actions/runs/40813553657/job/123249250851)
 and [merge-group check](https://github.com/CathedralOS/Omega/actions/runs/40813814472/job/123250098268).
 It merged as `2d87f18a195ec8523aeb4cdccc4ca0f793ba0e1b`; fetched-main ancestry
-was verified. No CI repair was necessary. [Receipt](landing-740.json).
+was verified. No CI repair was necessary. [Receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/landing-740.json).
 
 This experiment fixes that published commit as its base, using the detached
 `.agents/worktree/pass-ablation` checkout. Intervening allocator changes made
@@ -59,10 +59,10 @@ Replacing candidate-list duplicate checks is therefore deprioritized.
 
 | Producer | SHA256 | Source delta | Observation |
 | --- | --- | --- | --- |
-| Base | `75dcfeb5061db9f92709ad3d9a6f8246c7fb789a2222b910d662bc3f91f74b1d` | None | [JSON](baseline-profile.json) |
-| Derivation detail | `005e5a1e788149323f977834aedb608408edf2c758c2d6bbc6db36521505c598` | [Patch](detail-instrumentation.patch) | [JSON](detail-profile.json) |
-| Slot detail | `ccf4418af15b583c34a5d624f06757402c2cc594d473c7b8d6ec29aa5ea92d9f` | [Patch](instrumentation.patch) | [JSON](slots-profile.json) |
-| Private-slot ablation | `8ad081ee85ec0deea790d08fae4591aad0e398be8eb457f8e3ebb05c482c3e22` | [Patch](ablation.patch) | [A/B JSON](ablation-runs.json) |
+| Base | `75dcfeb5061db9f92709ad3d9a6f8246c7fb789a2222b910d662bc3f91f74b1d` | None | [JSON](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/baseline-profile.json) |
+| Derivation detail | `005e5a1e788149323f977834aedb608408edf2c758c2d6bbc6db36521505c598` | [Patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/detail-instrumentation.patch) | [JSON](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/detail-profile.json) |
+| Slot detail | `ccf4418af15b583c34a5d624f06757402c2cc594d473c7b8d6ec29aa5ea92d9f` | [Patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/instrumentation.patch) | [JSON](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/slots-profile.json) |
+| Private-slot ablation | `8ad081ee85ec0deea790d08fae4591aad0e398be8eb457f8e3ebb05c482c3e22` | [Patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablation.patch) | [A/B JSON](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablation-runs.json) |
 
 ## Ablation
 
@@ -82,7 +82,7 @@ process-local `LOCALAPPDATA`, with ordinary package review settled before timing
 
 These are a small diagnostic comparison on a shared host, not an unprofiled
 performance qualification. A concurrent release build was observed in another
-worktree ([process snapshot](concurrent-builds.json)); it was not interrupted.
+worktree ([process snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/concurrent-builds.json)); it was not interrupted.
 The unchanged checking stage varies materially, so the overall wall-time
 difference cannot be attributed wholly to this patch. Peak compiler job memory
 medians were 1,402,650,624 bytes for A and 1,348,964,352 bytes for B; these noisy
@@ -90,7 +90,7 @@ observations likewise do not establish a memory optimization.
 
 Both images remain 114,176 bytes, but B's SHA256 becomes
 `d50e22ad84371e6410e33fcc15a0b1f14db1cb0f04dd763f4ebbc7ec8d368cef`.
-The [disassembly excerpts](resource-evidence.txt) show the resource regression:
+The [disassembly excerpts](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/resource-evidence.txt) show the resource regression:
 A reserves `0x288` bytes; B reserves four `0x1000` pages plus `0xde8`, or 19,944
 bytes, with page touches. This is an encoded function reservation, not a claim
 about whole-program worst-case stack usage. Equal image size and exit code did
@@ -106,7 +106,7 @@ the resource tradeoff resolved; it does not claim the allocator is optimal.
 
 ## Replay and checks
 
-[Environment and build receipts](environment.json) record the toolchain,
+[Environment and build receipts](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/environment.json) record the toolchain,
 optimization profile and the baseline shell-receipt limitation. All measured
 producers report optimized dev `opt-level=1`. Retained local executables are
 under `build/spill-loop/{baseline,slots-profile,ablation}/omega.exe`; build logs,

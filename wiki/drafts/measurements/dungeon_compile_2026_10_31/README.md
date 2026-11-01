@@ -29,7 +29,7 @@ The ratios of median wall times improve 7.9% warm and 4.7% cold. Taking the
 median of each pair's percentage instead gives 12.1% warm and 6.7% cold; these
 are different aggregates. Peak memory is essentially unchanged. All raw paired
 points, source/producer hashes, controls and collection details are in
-[results.json](results.json). Whole compilation is still above one second.
+[results.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/dungeon_compile_2026_10_31/results.json). Whole compilation is still above one second.
 
 The initial baseline matrix measured warm 10.263s and cold 31.793s at an earlier
 point. Later isolated cold 40.936s therefore required fresh alternating controls;

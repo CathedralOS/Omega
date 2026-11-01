@@ -1,4 +1,0 @@
-# Keep exact replay bytes and original console logs outside text normalization.
-diagnostic.patch -text -diff
-*.gz -text
-*.log -text -diff

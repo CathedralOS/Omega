@@ -16,7 +16,7 @@ boundary, not a claim that the whole source path allocates nothing.
 
 Apple M4, macOS ARM64, pinned Rust nightly, opt-level 1. The frozen ordinary
 baseline and candidate are based on `37539d2c141492d4430498a2f7f187d1ecfe864e`.
-[observations.json](observations.json) records producer hashes/profiles, inputs,
+[observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/ownership/observations.json) records producer hashes/profiles, inputs,
 commands, allocations, timings, diagnostic counts and runtime observations.
 
 A standalone registration harness compares the old conversion with retained
@@ -95,7 +95,7 @@ reconciling per-file page identities and every table's rollback obligations.
 
 Raw binaries, build/test logs, input hashes, CLI observations, runtime products,
 probe patches and commands remain in `build/assembly-ownership` until archived
-before worktree cleanup. The committed harness is `registration.rs.txt`; use
+before worktree cleanup. The committed harness is [`registration.rs.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/ownership/registration.rs.txt); use
 an ignored standalone Cargo workspace with edition 2024, dev opt-level 1/debug 1,
 `source` as a path dependency and `mimalloc` with default features disabled.
 Pass a list of the recorded input paths. The CLI script expects frozen
