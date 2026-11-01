@@ -40,19 +40,19 @@ POSITIVES += ("pass/facts/opaque_independent_qualified_input_import_alias_exit",
               "pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit")
 NEGATIVES += ("fail/facts/opaque_independent_qualified_input_bare_sibling_unissued",)
 
-# Checked independent results carry existing other-issuer membership back out.
-POSITIVES += tuple(f"pass/facts/opaque_independent_qualified_result_through_{p}_exit" for p in PLACES)
-NEGATIVES += tuple(f"fail/facts/opaque_independent_qualified_result_through_{p}_unissued" for p in PLACES)
+# The same membership row, produced by a checked independent result.
+POSITIVES += ("pass/facts/opaque_independent_qualified_result_through_local_exit",)
+NEGATIVES += ("fail/facts/opaque_independent_qualified_result_through_local_unissued",)
 POSITIVES += ("pass/facts/opaque_independent_qualified_result_import_alias_exit",
               "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit")
 
 # A child retains every parent membership and its independent issuer group.
-POSITIVES += tuple(f"pass/facts/opaque_independent_inherited_result_through_{p}_exit" for p in PLACES)
-NEGATIVES += tuple(f"fail/facts/opaque_independent_inherited_result_through_{p}_unissued" for p in PLACES)
-POSITIVES += ("pass/facts/opaque_inherited_result_scalar_parent_tag_exit",
+POSITIVES += ("pass/facts/opaque_independent_inherited_result_through_local_exit",
+              "pass/facts/opaque_inherited_result_scalar_parent_tag_exit",
               "pass/domains/domain_pattern_match_bound_inherited_routed_retained_exit",
               "pass/domains/domain_pattern_match_bound_alias_routed_retained_exit")
-NEGATIVES += ("fail/domains/domain_pattern_match_bound_inherited_routed_unproven_rejected",)
+NEGATIVES += ("fail/facts/opaque_independent_inherited_result_through_local_unissued",
+              "fail/domains/domain_pattern_match_bound_inherited_routed_unproven_rejected")
 
 
 def authenticate_windows_lldiv(output):
@@ -161,7 +161,7 @@ def qualify_result_provenance(output, cli):
     try:
         for family, name in ((family, name) for family in ("", "refinement")
                              for name in ("raw_native_result", "component_launders_raw_result")):
-            authored = compiler_pilot.ROOT / "samples/cli/facts/opaque_closed_carrier_exchange/independent_qualified_result" / family / "controls" / name
+            authored = compiler_pilot.ROOT / "samples/cli/facts/opaque_closed_carrier_exchange/independent_qualified/result" / family / "controls" / name
             def source_hashes():
                 return {str(p.relative_to(authored)): hashlib.sha256(p.read_bytes()).hexdigest()
                         for p in authored.rglob("*") if p.is_file()
