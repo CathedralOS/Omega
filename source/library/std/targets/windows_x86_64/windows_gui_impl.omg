@@ -255,15 +255,77 @@ reaches
 
 // Complete explicit provider map; concrete bodies retain their own namespace.
 NativeWindowsGui satisfies WindowsGuiHost {
-    WindowsGuiHost::window_create = WindowsGuiNativeProvider::window_create;
-    WindowsGuiHost::foreground_window = WindowsGuiNativeProvider::foreground_window;
-    WindowsGuiHost::is_window = WindowsGuiNativeProvider::is_window;
-    WindowsGuiHost::window_destroy = WindowsGuiNativeProvider::window_destroy;
-    WindowsGuiHost::pump_message = WindowsGuiNativeProvider::pump_message;
-    WindowsGuiHost::get_dc = WindowsGuiNativeProvider::get_dc;
-    WindowsGuiHost::release_dc = WindowsGuiNativeProvider::release_dc;
-    WindowsGuiHost::client_rectangle = WindowsGuiNativeProvider::client_rectangle;
-    WindowsGuiHost::stretch_dibits = WindowsGuiNativeProvider::stretch_dibits;
-    WindowsGuiHost::window_create_client = WindowsGuiNativeProvider::window_create_client;
-    WindowsGuiHost::key_state = WindowsGuiNativeProvider::key_state;
+    machine window_create(class_name: &[u8], title: &[u8], style: u32,
+        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit {
+        WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width, height)
+    }
+    machine foreground_window() -> u64 reaches WindowManagement {
+        WindowsGuiNativeProvider::foreground_window()
+    }
+    machine is_window(window: u64) -> bool reaches WindowManagement {
+        WindowsGuiNativeProvider::is_window(window)
+    }
+    machine window_destroy(window: u64) -> bool reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        WindowsGuiNativeProvider::window_destroy(window)
+    }
+    machine pump_message(message: &mut WindowsMessage) -> bool reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        WindowsGuiNativeProvider::pump_message(message)
+    }
+    machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
+        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit {
+        WindowsGuiNativeProvider::window_create_client(class_name, title, style, x, y, width, height)
+    }
+    machine get_dc(window: u64) -> u64 reaches
+        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+        FilesystemNamespaceMutation {
+        WindowsGuiNativeProvider::get_dc(window)
+    }
+    machine release_dc(window: u64, device: u64) -> i32 reaches
+        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+        FilesystemNamespaceMutation {
+        WindowsGuiNativeProvider::release_dc(window, device)
+    }
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement {
+        WindowsGuiNativeProvider::client_rectangle(window, rectangle)
+    }
+    machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
+        destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
+        source_width: i32, source_height: i32, pixels: &i32, info: &i32,
+        usage: u32, raster_operation: u32) -> i32 reaches
+            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+            FilesystemNamespaceMutation {
+        WindowsGuiNativeProvider::stretch_dibits(device, destination_x, destination_y,
+            destination_width, destination_height, source_x, source_y,
+            source_width, source_height, pixels, info, usage, raster_operation)
+    }
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation {
+        WindowsGuiNativeProvider::key_state(virtual_key)
+    }
 }
