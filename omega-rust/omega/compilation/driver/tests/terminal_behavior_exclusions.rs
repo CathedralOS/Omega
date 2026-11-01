@@ -77,11 +77,11 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
             })
             .collect::<Vec<_>>()
     };
-    let source_checks = counters::settled_check_totals().0;
+    let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
     let reports = compile(&profiles);
     assert_eq!(
-        counters::settled_check_totals().0 - source_checks,
+        counters::product_source_check_count() - source_checks,
         1,
         "targets share one Product judgment"
     );

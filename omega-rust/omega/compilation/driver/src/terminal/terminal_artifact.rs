@@ -228,6 +228,10 @@ impl<'a> PreparedTerminalProduct<'a> {
 
     fn shares_production(&self, other: &Self) -> bool {
         self.request.use_kind == other.request.use_kind
+            && std::ptr::eq(
+                self.request.view.publication,
+                other.request.view.publication,
+            )
             && Arc::ptr_eq(self.request.view.program, other.request.view.program)
             && self.request.view.sources == other.request.view.sources
             && self.request.selections.project_psi() == other.request.selections.project_psi()

@@ -88,7 +88,9 @@ pub(crate) fn check_product_source(
             }
             .check();
             if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+                artifacts::compile_timings::counters::record_product_source_check(
+                    started.elapsed(),
+                );
             }
             result
         })
