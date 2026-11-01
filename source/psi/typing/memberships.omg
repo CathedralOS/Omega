@@ -12,7 +12,7 @@ public machine Typer::type_membership(typer: &mut Typer, syntax: &SyntaxTrees, r
 crashes Trap
 {
     let value_type: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
-    let base: u64 in Trapping = Typer::referent(typer, value_type);
+    let base: u64 in Trapping = Typer::case_subject(typer, value_type);
     let row: TypeRow = TypeTable::row(&typer.output.types, base);
     let boolean: u64 in Trapping = typer.output.boolean;
     Typing::set_expression_type(&mut typer.output, index, boolean);

@@ -313,6 +313,34 @@ fn sequence_actions(
             }
             match operation {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary:
+                        checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
+                    ..
+                } if program
+                    .state_by_symbol(state)
+                    .and_then(|state| {
+                        validation::data_bindings::completed_owner(
+                            program,
+                            state,
+                            *statement_index as usize,
+                        )
+                    })
+                    .is_some() =>
+                {
+                    selected.continuations.push((
+                        operation_index,
+                        super::bindings::actions(
+                            program,
+                            facts,
+                            targets,
+                            shapes,
+                            machine,
+                            state,
+                            *statement_index as usize,
+                        )?,
+                    ));
+                }
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
                     ..
                 } => {

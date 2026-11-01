@@ -4,6 +4,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
+use psi::typing::expectations;
 use psi::typing::arrays;
 use psi::typing::binders;
 use psi::typing::clauses;
@@ -15,6 +16,9 @@ use psi::typing::joins;
 use psi::typing::landing;
 use psi::typing::literals;
 use psi::typing::matches;
+use psi::typing::pattern_events;
+use psi::typing::case_context;
+use psi::typing::static_operands;
 use psi::typing::memberships;
 use psi::typing::references;
 use psi::typing::statements;
@@ -27,10 +31,17 @@ use psi::typing::statements;
 // (expressions.omg). An anonymous integer tree lands where its destination
 // is known: a declared local, a parameter, a field, an operand of a typed
 // operation, a cast or a result. The first rejection is the diagnostic.
-public data Typer {
+public data Typer
+where pattern_event_count <= 256, case_event_count <= 256
+{
+    case_events: [CaseTypeEvent; 256] in Trapping;
+    case_event_count: u64;
+    pattern_events: [PatternTypeEvent; 256] in Trapping;
+    pattern_event_count: u64;
     output: Typing;
     // Which expressions have typed.
     typed: [bool; 131072];
+    expected_types: [u64; 131072] in Trapping;
     // Generic bindings (generics.omg): a type per generic-parameter handle,
     // live while its stamp equals `binding_generation`.
     bound: [u64; 256];
@@ -53,6 +64,7 @@ crashes Trap
 {
     Typer::clear(typer, syntax);
     Typer::type_references(typer, sources, syntax, resolution);
+    Typer::prepare_static_operands(typer, syntax, resolution);
     transition typer.output.accepted {
         true -> constants(typer, sources, syntax, resolution)
         _ -> done()
@@ -94,6 +106,8 @@ crashes Trap
 machine Typer::clear(typer: &mut Typer, syntax: &SyntaxTrees)
 crashes Trap
 {
+    typer.pattern_event_count = 0;
+    typer.case_event_count = 0;
     typer.output.accepted = true;
     typer.output.diagnostic.code = TypeDiagnosticCode::None;
     let absent_row: TypeRow = TypeRow::of(TypeKind::Absent);
@@ -117,7 +131,16 @@ crashes Trap
     typer.output.boolean = boolean;
     typer.output.anonymous = anonymous;
     typer.output.anonymous_float = anonymous_float;
-    transition { _ -> expression(typer, 0) }
+    typer.output.static_index_type = 0;
+    typer.output.pattern_residual_count = 0;
+    transition { _ -> view_mode(typer, 0) }
+    machine view_mode(typer: &mut Typer, index: u64 in Trapping) {
+        transition index < 8192 { true -> initialized_mode(typer, index) _ -> expression(typer, 0) }
+    }
+    machine initialized_mode(typer: &mut Typer, index: u64 in Trapping) {
+        Typing::set_case_view_multiplicity(&mut typer.output, index, DataMultiplicity::Linear);
+        transition { _ -> view_mode(typer, index + 1) }
+    }
 
     machine expression(typer: &mut Typer, index: u64 in Trapping) {
         transition index < typer.output.expression_count {
@@ -128,11 +151,13 @@ crashes Trap
 
     machine clear_expression(typer: &mut Typer, index: u64 in Trapping) {
         Typing::set_expression_type(&mut typer.output, index, 0);
+        Typing::set_static_operand_type(&mut typer.output, index, 0);
         Typing::set_selection(&mut typer.output, index, Selection::None);
         Typing::set_adaptation(&mut typer.output, index, Adaptation::None);
         Typing::set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
         Typing::set_roster(&mut typer.output, index, 0);
         Typer::mark_typed(typer, index, false);
+        Typer::set_expected(typer, index, 0);
         transition { _ -> expression(typer, index + 1) }
     }
 
@@ -146,6 +171,7 @@ crashes Trap
     machine clear_binder(typer: &mut Typer, index: u64 in Trapping) {
         Typing::set_binder_type(&mut typer.output, index, 0);
         Typing::set_binder_member(&mut typer.output, index, MemberTarget::Unknown);
+        Typing::set_binder_subject(&mut typer.output, index, 0);
         transition { _ -> binder(typer, index + 1) }
     }
 
@@ -180,8 +206,9 @@ crashes Trap
 
     machine value(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: ConstantItem = SyntaxTrees::constant_item(syntax, index);
-        Typer::type_tree(typer, sources, syntax, resolution, item.value);
         let declared: u64 in Trapping = Typing::reference_type(&typer.output, item.type_reference);
+        Typer::expect_tree(typer, sources, syntax, resolution, item.value, declared);
+        Typer::type_tree(typer, sources, syntax, resolution, item.value);
         transition typer.output.accepted {
             true -> admit(typer, sources, syntax, resolution, index, declared, item.value)
             _ -> done()
@@ -346,5 +373,20 @@ crashes Trap
 
     machine invalid() {
         crash Trap;
+    }
+}
+
+// Case dispatch may read the original carrier through its case component;
+// ordinary field access deliberately uses `referent` and cannot do this.
+public machine Typer::case_subject(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> layer(typer, handle, 0) }
+    machine layer(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+        transition (row.kind == TypeKind::Reference || row.kind == TypeKind::CaseView) && depth < 16 {
+            true -> layer(typer, row.inner, depth + 1)
+            _ -> handle
+        }
     }
 }

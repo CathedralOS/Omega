@@ -1485,6 +1485,7 @@ fn validate_typed_const_index_type(
     visiting: &mut HashSet<String>,
 ) -> Result<(), String> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => Err("a case component is not an independent const-index carrier".into()),
         TypeReferenceNode::Named { name, .. } => {
             if matches!(
                 name.as_str(),

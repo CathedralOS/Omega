@@ -779,6 +779,7 @@ fn type_reference_is_slice(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

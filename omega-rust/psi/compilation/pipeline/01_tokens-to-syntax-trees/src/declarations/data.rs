@@ -264,6 +264,18 @@ fn parse_data_members<'tokens, 'source>(
     }
 
     let members = members.finish();
+    let mut cases_started = false;
+    for member in items_of(syntax_trees).data_members(members) {
+        match member {
+            DataMember::Variant(_) => cases_started = true,
+            DataMember::Field(_) if cases_started => {
+                return Err(
+                    input.error_here("common fields must precede the consecutive inline case tail")
+                );
+            }
+            _ => {}
+        }
+    }
     validate_data_identity_modes(items_of(syntax_trees).data_members(members), input)?;
     Ok((members, input))
 }

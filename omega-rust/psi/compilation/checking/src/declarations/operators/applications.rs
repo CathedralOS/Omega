@@ -470,6 +470,7 @@ fn static_type_argument_matches(
         return false;
     }
     match program.type_reference_table.type_reference(inferred) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Named { symbol, .. } => {
             supplied.application.is_none()
                 && symbol.is_valid()

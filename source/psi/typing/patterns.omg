@@ -1,11 +1,15 @@
 use psi::source::source;
+use psi::resolution::resolution;
+use psi::typing::calls;
+use psi::typing::statements;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::typer;
+use psi::typing::case_views;
 
 // Braces name a structural field roster, unlike a bare case-tag test.
 // Every field resolves before this check. Distinct field names must cover
-// the common fields and selected payload unless `..` opts out of drift
+// the selected payload unless `..` opts out of drift
 // checking (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
 public machine Typer::validate_pattern_fields(
     typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees,
@@ -35,8 +39,12 @@ crashes Trap
     machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
         let written: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + offset);
         let before: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + earlier);
-        let repeated: bool = SourceSet::spans_equal(sources, before.name.source_span, written.name.source_span);
-        transition repeated {
+        let repeated: bool = arm.kind != ArmPatternKind::Positional && SourceSet::spans_equal(sources, before.name.source_span, written.name.source_span);
+        let before_binding: IdentifierSpan = match before.has_rename { true -> before.rename false -> before.name };
+        let written_binding: IdentifierSpan = match written.has_rename { true -> written.rename false -> written.name };
+        let repeated_binding: bool = !before.has_value && !written.has_value && !before.is_waived && !written.is_waived
+            && SourceSet::spans_equal(sources, before_binding.source_span, written_binding.source_span);
+        transition repeated || repeated_binding {
             true -> duplicate(typer, written)
             _ -> prior(typer, sources, syntax, arm, expected, offset, earlier + 1)
         }
@@ -59,4 +67,179 @@ crashes Trap
     }
 
     machine done() {}
+}
+
+// A case pattern names only its payload. Construction and ordinary common
+// field access use their own member query; they do not widen this roster.
+public machine Typer::case_pattern_target(sources: &SourceSet, syntax: &SyntaxTrees, data_case: u64 in Trapping, name: IdentifierSpan) -> MemberTarget
+crashes Trap
+{
+    let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
+    transition { _ -> payload(sources, syntax, selected, name, 0) }
+    machine payload(sources: &SourceSet, syntax: &SyntaxTrees, selected: DataCase, name: IdentifierSpan, offset: u64 in Trapping) -> MemberTarget {
+        transition offset < selected.payload_field_count {
+            true -> compare(sources, syntax, selected, name, offset)
+            _ -> unknown()
+        }
+    }
+    machine compare(sources: &SourceSet, syntax: &SyntaxTrees, selected: DataCase, name: IdentifierSpan, offset: u64 in Trapping) -> MemberTarget {
+        let field: DataField = SyntaxTrees::payload_field(syntax, selected.first_payload_field + offset);
+        transition SourceSet::spans_equal(sources, field.name.source_span, name.source_span) {
+            true -> found(selected.first_payload_field + offset)
+            _ -> payload(sources, syntax, selected, name, offset + 1)
+        }
+    }
+    machine found(field: u64 in Trapping) -> MemberTarget { MemberTarget::Payload { field: field } }
+    machine unknown() -> MemberTarget { MemberTarget::Unknown }
+}
+
+// Outer decomposition sees the common roster plus one semantic case
+// component. The case component wraps the exact incoming subject, including
+// its application and reference access; it names no physical schema member.
+public machine Typer::outer_pattern(
+    typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees,
+    resolution: &NameResolution, arm: TransitionArm,
+    subject_type: u64 in Trapping, item: u64 in Trapping
+)
+crashes Trap
+{
+    let base: u64 in Trapping = Typer::referent(typer, subject_type);
+    let owner: TypeRow = TypeTable::row(&typer.output.types, base);
+    transition owner.kind == TypeKind::Data && owner.item == item && arm.has_fields {
+        true -> field(typer, sources, syntax, resolution, arm, subject_type, owner, 0)
+        _ -> other(typer, arm)
+    }
+    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping) {
+        transition offset < arm.field_count && typer.output.accepted {
+            true -> selected(typer, sources, syntax, resolution, arm, subject_type, owner, offset)
+            _ -> complete(typer, sources, syntax, arm, owner)
+        }
+    }
+    machine selected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping) {
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + offset);
+        let declared: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        let component: bool = match arm.kind == ArmPatternKind::Positional {
+            true -> declared.case_count > 0 && offset == declared.field_count
+            false -> SourceSet::span_spells(sources, written.name.source_span, "case")
+        };
+        transition component {
+            true -> case_component(typer, sources, syntax, resolution, arm, subject_type, owner, offset, written)
+            _ -> common(typer, sources, syntax, resolution, arm, subject_type, owner, offset, written)
+        }
+    }
+    machine case_component(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, written: PatternField) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        transition declared.case_count > 0 && (written.has_rename || arm.kind == ArmPatternKind::Positional) && !written.has_value {
+            true -> case_bound(typer, sources, syntax, resolution, arm, subject_type, owner, offset)
+            _ -> unknown(typer, written)
+        }
+    }
+    machine case_bound(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = Typer::case_view_type(typer, syntax, subject_type, arm.source_span);
+        Typing::set_binder_type(&mut typer.output, arm.first_field + offset, handle);
+        Typing::set_binder_member(&mut typer.output, arm.first_field + offset, MemberTarget::Case);
+        transition { _ -> field(typer, sources, syntax, resolution, arm, subject_type, owner, offset + 1) }
+    }
+    machine common(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, written: PatternField) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        let target: MemberTarget = match arm.kind == ArmPatternKind::Positional {
+            true -> Typer::positional_common_target(declared, offset)
+            false -> Typer::member_target(sources, syntax, declared, false, 0, written.name)
+        };
+        let reference: u64 in Trapping = Typer::target_reference(syntax, target);
+        transition reference < 18446744073709551615 {
+            true -> common_typed(typer, sources, syntax, resolution, arm, subject_type, owner, offset, written, target, reference)
+            _ -> unknown(typer, written)
+        }
+    }
+    machine common_typed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, written: PatternField, target: MemberTarget, reference: u64 in Trapping) {
+        let raw: u64 in Trapping = Typing::reference_type(&typer.output, reference);
+        let handle: u64 in Trapping = Typer::substitute(typer, syntax, raw, owner, written.source_span);
+        Typing::set_binder_type(&mut typer.output, arm.first_field + offset, handle);
+        Typing::set_binder_member(&mut typer.output, arm.first_field + offset, target);
+        transition written.has_value {
+            true -> value(typer, sources, syntax, resolution, arm, subject_type, owner, offset, written, handle)
+            _ -> field(typer, sources, syntax, resolution, arm, subject_type, owner, offset + 1)
+        }
+    }
+    machine value(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping, owner: TypeRow, offset: u64 in Trapping, written: PatternField, handle: u64 in Trapping) {
+        let admitted: bool = Typer::admit(typer, syntax, handle, written.value, false);
+        transition typer.output.accepted && admitted {
+            true -> field(typer, sources, syntax, resolution, arm, subject_type, owner, offset + 1)
+            _ -> done()
+        }
+    }
+    machine complete(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, owner: TypeRow) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        let extra: u64 in Trapping = match declared.case_count > 0 { true -> 1 false -> 0 };
+        Typer::validate_pattern_fields(typer, sources, syntax, arm, declared.field_count + extra);
+    }
+    machine other(typer: &mut Typer, arm: TransitionArm) { Typing::reject(&mut typer.output, TypeDiagnosticCode::CaseOfOtherData, arm.source_span); }
+    machine unknown(typer: &mut Typer, written: PatternField) { Typing::reject(&mut typer.output, TypeDiagnosticCode::UnknownPatternField, written.source_span); }
+    machine done() {}
+}
+
+// Coverage consumes the already checked exact roster. Field value tests and
+// guards still select a subset, and a case view cannot be an outer data arm.
+public machine Typer::outer_pattern_covers(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool
+crashes Trap
+{
+    let base: u64 in Trapping = Typer::referent(typer, subject_type);
+    let owner: TypeRow = TypeTable::row(&typer.output.types, base);
+    transition owner.kind == TypeKind::Data {
+        true -> arm(syntax, resolution, range, owner.item, 0)
+        _ -> answer(false)
+    }
+    machine arm(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        transition offset < range.count {
+            true -> candidate(syntax, resolution, range, item, offset)
+            _ -> answer(false)
+        }
+    }
+    machine candidate(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let selected: TransitionArm = SyntaxTrees::range_arm(syntax, range, offset);
+        let binding: ValueBinding = NameResolution::value_binding(resolution, selected.pattern);
+        transition selected.kind == ArmPatternKind::Positional && selected.has_fields && !selected.has_guard {
+            true -> fields(syntax, resolution, range, item, offset, selected, 0, true)
+            _ -> named_candidate(syntax, resolution, range, item, offset, selected, binding)
+        }
+    }
+    machine named_candidate(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping, selected: TransitionArm, binding: ValueBinding) -> bool {
+        transition selected.kind == ArmPatternKind::Case && selected.has_fields && !selected.has_guard {
+            true -> named(syntax, resolution, range, item, offset, selected, binding)
+            _ -> arm(syntax, resolution, range, item, offset + 1)
+        }
+    }
+    machine named(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping, selected: TransitionArm, binding: ValueBinding) -> bool {
+        transition binding {
+            ValueBinding::Data { item as declared } -> fields(syntax, resolution, range, item, offset, selected, 0, declared == item)
+            _ -> arm(syntax, resolution, range, item, offset + 1)
+        }
+    }
+    machine fields(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping, selected: TransitionArm, field: u64 in Trapping, total: bool) -> bool {
+        transition field < selected.field_count {
+            true -> field_value(syntax, resolution, range, item, offset, selected, field, total)
+            _ -> finished(syntax, resolution, range, item, offset, total)
+        }
+    }
+    machine field_value(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping, selected: TransitionArm, field: u64 in Trapping, total: bool) -> bool {
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, selected.first_field + field);
+        transition { _ -> fields(syntax, resolution, range, item, offset, selected, field + 1, total && !written.has_value) }
+    }
+    machine finished(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping, offset: u64 in Trapping, total: bool) -> bool {
+        transition total { true -> answer(true) _ -> arm(syntax, resolution, range, item, offset + 1) }
+    }
+    machine answer(value: bool) -> bool { value }
+}
+
+// Positional geometry is authored declaration order, independent of schema ids.
+machine Typer::positional_common_target(declared: DataItem, offset: u64 in Trapping) -> MemberTarget
+crashes Trap
+{
+    transition offset < declared.field_count {
+        true -> field(declared.first_field + offset)
+        _ -> unknown()
+    }
+    machine field(handle: u64 in Trapping) -> MemberTarget { MemberTarget::Common { field: handle } }
+    machine unknown() -> MemberTarget { MemberTarget::Unknown }
 }

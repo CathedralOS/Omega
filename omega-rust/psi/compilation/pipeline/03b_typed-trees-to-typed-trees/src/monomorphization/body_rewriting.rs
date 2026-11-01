@@ -211,6 +211,7 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
             ));
             let member = program.symbols.name(descriptor).into();
             expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver,
                 member,
                 member_symbol: descriptor,
@@ -233,6 +234,7 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
             let receiver =
                 insert_subject_name(expressions_of_mut(program), receiver_name, receiver);
             expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver,
                 member_symbol: field,
                 member: field_name,

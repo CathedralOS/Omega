@@ -1,0 +1,16 @@
+// A collection's index arithmetic policy remains attached to its carrier.
+// Passing the array by value neither adds a nominal domain nor loses contents.
+data Condition [copy] { root: u64 in Trapping; holds: bool; }
+machine prepare(root: u64 in Trapping, holds: bool) crashes Trap {
+    let mut pending: [Condition; 128] in Trapping;
+    pending[0] = Condition { root: root, holds: holds };
+    transition { _ -> inspect(pending, 1) }
+    machine inspect(pending: [Condition; 128] in Trapping, count: u64 in Trapping) {
+        transition pending[0].root == 73 && pending[0].holds && count == 1 {
+            true -> {}
+            false -> wrong()
+        }
+    }
+    machine wrong() { crash Trap; }
+}
+machine main() crashes Trap { prepare(73, true); }

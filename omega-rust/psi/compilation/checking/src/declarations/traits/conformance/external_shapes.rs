@@ -241,6 +241,7 @@ fn private_native_carrier(
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<PrivateNativeCarrier> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { .. } => None,
         TypeReferenceNode::Constrained { base_type, .. } => {
             private_native_carrier(program, *base_type, visiting)
         }

@@ -17,6 +17,15 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
+#[derive(Clone)]
+pub(super) struct AdmittedDisjunction {
+    owner: SymbolHandle,
+    parameters: Vec<StateParameter>,
+    expression: ExpressionHandle,
+    bindings: Vec<(String, StructuralTerm)>,
+    type_bindings: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
 impl StructuralJudge<'_> {
     /// Consequences conditional on a successful test of this independently
     /// admitted value. Only the equations/refutation escape the hypothetical
@@ -120,6 +129,13 @@ impl StructuralJudge<'_> {
         environment: &[(String, StructuralTerm)],
     ) {
         let program = self.program;
+        // Predicates still concern the original admitted subject. The view
+        // restricts source projections; it never discards common obligations
+        // already captured on that exact value.
+        let subject_type = program
+            .type_reference_table
+            .case_view_subject(subject_type)
+            .unwrap_or(subject_type);
         let Some((source_definition, source_variant)) =
             super::super::structural_terms::case_guard_classifier(
                 program,
@@ -156,16 +172,29 @@ impl StructuralJudge<'_> {
         if comparison.left != subject_expression && !same_place && !same_observation {
             return;
         }
-        if !self.has_admitted_nominal_subject(subject_expression, subject, subject_type) {
+        let admitted = self.has_admitted_nominal_subject(subject_expression, subject, subject_type);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT case-component-admission owner={} reference={:?} subject={subject:?} admitted={admitted}",
+                program.symbols.display_path(machine.symbol, "::"),
+                program.type_reference_table.type_reference(subject_type)
+            );
+        }
+        if !admitted {
             return;
         }
+        let Some(nominal_type) =
+            crate::field_domains::readable_type_reference(program, subject_type)
+        else {
+            return;
+        };
         let Some(definition) =
-            program.data_constructor_definition(subject_type, source_definition.symbol)
+            program.data_constructor_definition(nominal_type, source_definition.symbol)
         else {
             return;
         };
         let Some(variant) = program.data_constructor_case(
-            subject_type,
+            nominal_type,
             source_definition.symbol,
             source_variant.symbol,
         ) else {
@@ -195,6 +224,7 @@ impl StructuralJudge<'_> {
             &view,
             subject_expression,
             subject,
+            nominal_type,
             subject_type,
             machine,
             state,
@@ -213,6 +243,7 @@ impl StructuralJudge<'_> {
         subject_expression: ExpressionHandle,
         admitted_subject: &StructuralTerm,
         subject_type: TypeReferenceHandle,
+        admitted_type: TypeReferenceHandle,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         environment: &[(String, StructuralTerm)],
@@ -298,7 +329,7 @@ impl StructuralJudge<'_> {
         // the original observed subject identity; the fresh constructor is a
         // pattern view of that value's selected fields, not a new owner.
         let admitted =
-            self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type);
+            self.has_admitted_nominal_subject(subject_expression, admitted_subject, admitted_type);
         if admitted {
             // The successful guard selected this exact, independently admitted
             // value. Establish its tag before projecting payload fields, and
@@ -309,7 +340,7 @@ impl StructuralJudge<'_> {
                 data: definition.symbol,
                 case: variant.symbol,
             });
-            self.intake_admitted_value_predicates(subject_type, admitted_subject.clone());
+            self.intake_admitted_value_predicates(admitted_type, admitted_subject.clone());
         }
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(
@@ -334,7 +365,7 @@ impl StructuralJudge<'_> {
                 };
                 let Some(projected) = super::super::observed_projections::project_observed_value(
                     program,
-                    subject_type,
+                    admitted_type,
                     admitted_subject.clone(),
                     &[facts::PlaceSegment::Field {
                         symbol: field.symbol,
@@ -395,6 +426,15 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+        // The checked guard selects this exact tag; it is not an admission
+        // of the value's default or named domains. Previously admitted facts
+        // can now choose a disjunct on the same completed subject value.
+        self.intake_case_guarantee(&super::CaseGuarantee {
+            subject: admitted_subject.clone(),
+            data: definition.symbol,
+            case: variant.symbol,
+        });
+        self.reconsider_admitted_disjunctions();
     }
 
     pub(super) fn has_admitted_nominal_subject(
@@ -409,8 +449,57 @@ impl StructuralJudge<'_> {
         {
             return false;
         }
+
         if self.completed_match_nominal_admission(expression, subject, reference) {
             return true;
+        }
+        // A saved reference subject is the value this dispatch actually
+        // completed, not an independently admitted owner. Rejoin its exact
+        // supplier only while that supplier's ordinary storage epoch survives.
+        // The recursive admission query retains the backing and mutation fences;
+        // no borrowed nominal receipt outlives a write to its referent.
+        if let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+            expression_table(self.program).expression(expression)
+            && self
+                .completed_match_subject(saved)
+                .is_some_and(|completed| {
+                    completed.observation_identity_key().is_some()
+                        && completed.observation_identity_key()
+                            == subject.observation_identity_key()
+                })
+            && let Some(source) = self.program.saved_value_source(saved)
+            && source != expression
+        {
+            return self.has_admitted_nominal_subject(source, subject, reference);
+        }
+        // A semantic case projection carries this same completed subject.
+        // Rejoin its exact receiver receipt before asking for a nominal input;
+        // the projection owns neither a fresh value nor an admission premise.
+        if let typed_trees::expression::ExpressionNode::Member(member) =
+            expression_table(self.program).expression(expression)
+            && member.selector == language_core::DataComponentSelector::Case
+            && let Some((machine, state)) = self.runtime_declaration_scope()
+            && let Some(receiver_type) = crate::expression_result_type_reference(
+                self.program,
+                machine,
+                state,
+                member.receiver,
+            )
+            && self
+                .callee_term_in_scope(
+                    Some((machine, state, receiver_type)),
+                    member.receiver,
+                    &[],
+                    0,
+                )
+                .is_some_and(|receiver| {
+                    let observed = self.resolve(receiver);
+                    observed.observation_identity_key().is_some()
+                        && observed.observation_identity_key()
+                            == self.resolve(subject.clone()).observation_identity_key()
+                })
+        {
+            return self.has_admitted_nominal_subject(member.receiver, subject, receiver_type);
         }
         let Some(identity) = subject.observation_identity_key() else {
             return false;
@@ -467,6 +556,18 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        // A local owns the value its initializer actually completed. Reuse
+        // admission only for that binding's still-current exact observation;
+        // rewritten equality, a stale home or a matching destination type
+        // supplies no receipt.
+        if current.as_ref() == Some(&identity)
+            && self.completed_nominal_captures.iter().any(|capture| {
+                same_application(capture.reference)
+                    && capture.value.observation_identity_key().as_ref() == Some(&identity)
+            })
+        {
+            return true;
+        }
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
         // A descriptor home is not its referent. Resolve the completed read's
@@ -503,6 +604,12 @@ impl StructuralJudge<'_> {
                 segments: source.segments.clone(),
             })
         });
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT nominal-entry-join expression={} place={place:?} entry={entry_place:?} subject={subject:?}",
+                expression_table(program).display_name(expression)
+            );
+        }
         if self.declaration_state.is_valid()
             && !self.storage_observation_invalidated(expression)
             && let Some(place) = &entry_place
@@ -1177,24 +1284,56 @@ impl StructuralJudge<'_> {
             });
             bindings.push((name, index));
         }
-        // Unknown case identity admits only common fields. Payload predicates
-        // enter through the separately authenticated selected-case arm; reading
-        // every variant here would project inactive same-named payloads onto
-        // one subject and lend their unrelated default-domain facts.
-        for field in program
+        // Nominal admission of a one-case sum proves its classifier without
+        // a runtime branch. Otherwise only an independently established live
+        // case fact selects a payload; a binding's requested head proves nothing.
+        let variants = program
             .data_members(definition)
             .iter()
-            .filter_map(|member| member.as_field())
-        {
-            let path = [facts::PlaceSegment::Field {
+            .filter_map(|member| member.as_variant())
+            .collect::<Vec<_>>();
+        if let [variant] = variants.as_slice() {
+            self.intake_case_guarantee(&super::CaseGuarantee {
+                subject: value.clone(),
+                data: definition.symbol,
+                case: variant.symbol,
+            });
+        }
+        let mut proven = variants.iter().copied().filter(|variant| {
+            matches!(
+                self.judge_case(value.clone(), definition.symbol, variant.symbol),
+                super::StructuralJudgment::Proven
+            )
+        });
+        let selected = proven.next().filter(|_| proven.next().is_none());
+        let fields = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field().map(|field| (None, field)))
+            .chain(selected.into_iter().flat_map(|variant| {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .map(move |field| (Some(variant.symbol), field))
+            }))
+            .collect::<Vec<_>>();
+        for (variant, field) in fields {
+            let mut path = Vec::new();
+            if let Some(variant) = variant {
+                path.push(facts::PlaceSegment::Case { variant });
+            }
+            path.push(facts::PlaceSegment::Field {
                 symbol: field.symbol,
-            }];
-            let Some(projected) = super::super::observed_projections::project_observed_value(
-                program,
-                reference,
-                value.clone(),
-                &path,
-            ) else {
+            });
+            let Some(projected) =
+                super::super::observed_projections::project_observed_value_in_scope(
+                    program,
+                    self,
+                    reference,
+                    value.clone(),
+                    &path,
+                )
+            else {
                 continue;
             };
             let Some(projected_type) =
@@ -1210,6 +1349,25 @@ impl StructuralJudge<'_> {
             });
             bindings.push((field.name.to_string(), projected.clone()));
             self.intake_admitted_data_predicates(projected_type, projected, active);
+        }
+        // The authored default predicate names its declared `self`, not an
+        // unrelated same-spelled field or the receiving binding annotation.
+        // This owner is called only for an independently admitted observation.
+        if definition.predicate_subject_symbol.is_valid()
+            && definition.predicate_subject_type.is_valid()
+        {
+            let name = format!(
+                "\0data_subject_{}_{}",
+                definition.predicate_subject_symbol.arena_index(),
+                definition.predicate_subject_symbol.generation()
+            );
+            parameters.push(StateParameter {
+                symbol: definition.predicate_subject_symbol,
+                name: name.as_str().into(),
+                type_reference: definition.predicate_subject_type,
+                ..Default::default()
+            });
+            bindings.push((name, value.clone()));
         }
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {
             if let ProofFact::Expression(expression) = fact {
@@ -1480,6 +1638,48 @@ impl StructuralJudge<'_> {
         active.pop();
     }
 
+    fn reconsider_admitted_disjunctions(&mut self) {
+        let pending = std::sync::Arc::clone(&self.admitted_disjunctions);
+        // These are already admitted predicates instantiated onto completed
+        // values, just like captured equations. A write retires the live
+        // storage observation in storage_effects, not its former value. Keep
+        // the original bindings; never replay the predicate on a later read.
+        for row in pending.iter() {
+            let Some(binary) = expression_table(self.program).binary_node(row.expression) else {
+                continue;
+            };
+            let judge = |operand| {
+                super::super::refuted_requires::instantiated_selected_fact_judgment(
+                    self.program,
+                    self,
+                    row.owner,
+                    &row.parameters,
+                    operand,
+                    &row.bindings,
+                    &[],
+                    &row.type_bindings,
+                    None,
+                )
+            };
+            let selected = if matches!(judge(binary.left), super::StructuralJudgment::Refuted) {
+                Some(binary.right)
+            } else if matches!(judge(binary.right), super::StructuralJudgment::Refuted) {
+                Some(binary.left)
+            } else {
+                None
+            };
+            if let Some(selected) = selected {
+                self.intake_instantiated_predicate(
+                    row.owner,
+                    &row.parameters,
+                    selected,
+                    &row.bindings,
+                    &row.type_bindings,
+                );
+            }
+        }
+    }
+
     fn intake_instantiated_predicate(
         &mut self,
         owner: SymbolHandle,
@@ -1563,20 +1763,43 @@ impl StructuralJudge<'_> {
                     )
                 };
                 let surviving = if refuted(binary.left, judgments) {
-                    binary.right
+                    Some(binary.right)
                 } else if refuted(binary.right, judgments) {
-                    binary.left
+                    Some(binary.left)
                 } else {
-                    return;
+                    None
                 };
-                self.intake_judged_instantiated_predicate(
-                    owner,
-                    parameters,
-                    surviving,
-                    bindings,
-                    type_bindings,
-                    judgments,
-                );
+                if let Some(surviving) = surviving {
+                    self.intake_judged_instantiated_predicate(
+                        owner,
+                        parameters,
+                        surviving,
+                        bindings,
+                        type_bindings,
+                        judgments,
+                    );
+                } else if !self.admitted_disjunctions.iter().any(|row| {
+                    row.owner == owner
+                        && row.expression == expression
+                        && row.bindings == bindings
+                        && row.type_bindings == type_bindings
+                        && row.parameters.len() == parameters.len()
+                        && row.parameters.iter().zip(parameters).all(|(left, right)| {
+                            left.symbol == right.symbol
+                                && left.type_reference == right.type_reference
+                        })
+                }) {
+                    std::sync::Arc::make_mut(&mut self.admitted_disjunctions).push(
+                        AdmittedDisjunction {
+                            owner,
+                            parameters: parameters.to_vec(),
+                            expression,
+                            bindings: bindings.to_vec(),
+                            type_bindings: type_bindings.to_vec(),
+                        },
+                    );
+                }
+
                 return;
             }
             if super::super::structural_terms::has_identity_equality_meaning(

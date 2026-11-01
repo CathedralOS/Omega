@@ -74,3 +74,41 @@ fn declaration_equations_do_not_erase_reference_access_or_array_extent() {
     assert!(under_equations(&program, same, open, &equations));
     assert!(!under_equations(&program, other, open, &equations));
 }
+
+#[test]
+fn case_component_qualification_preserves_the_exact_application_and_reference_access() {
+    let (mut program, [value, _], [value_type, _, cell]) = fixture();
+    let open = program
+        .type_reference_table
+        .insert(TypeReferenceNode::CaseView {
+            subject: value_type,
+        });
+    let closed = program
+        .type_reference_table
+        .insert(TypeReferenceNode::CaseView { subject: cell });
+    assert!(under_application(&program, closed, open, &[(value, cell)]));
+    assert!(!under_equations(&program, cell, closed, &[]));
+    assert!(!under_equations(&program, closed, cell, &[]));
+    let mut views = Vec::new();
+    for access in [
+        ReferenceAccess::Shared,
+        ReferenceAccess::Mutable,
+        ReferenceAccess::WriteOnly,
+    ] {
+        let subject = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: cell,
+                access,
+                lifetime: None,
+            });
+        views.push(
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::CaseView { subject }),
+        );
+    }
+    assert!(under_equations(&program, views[0], views[0], &[]));
+    assert!(!under_equations(&program, views[0], views[1], &[]));
+    assert!(!under_equations(&program, views[1], views[2], &[]));
+}

@@ -324,6 +324,15 @@ fn type_is_caller_isolated_local_inner(
         return definition_isolated!(definition, proof_values);
     }
     match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::CaseView { subject } => type_is_caller_isolated_local_inner(
+            program,
+            *subject,
+            visiting,
+            proof_values,
+            isolated_parameters,
+            bindings,
+            identities,
+        ),
         TypeReferenceNode::Constrained { base_type, .. } => type_is_caller_isolated_local_inner(
             program,
             *base_type,

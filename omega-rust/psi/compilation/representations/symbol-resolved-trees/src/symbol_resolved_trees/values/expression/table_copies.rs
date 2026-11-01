@@ -250,6 +250,7 @@ impl ExpressionTable {
             ExpressionNode::Member(member) => {
                 let receiver = self.copy_graph(source, member.receiver, copies);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: member.selector,
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,

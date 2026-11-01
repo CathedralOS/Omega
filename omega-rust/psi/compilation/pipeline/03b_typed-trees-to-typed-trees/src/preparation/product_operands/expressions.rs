@@ -226,18 +226,21 @@ impl Lower<'_> {
                     index: self.expression(index)?,
                 })
             }
-            ProductExpressionKind::Member { receiver, member } => {
-                Node::Member(expr::TableMemberExpression {
-                    receiver: self.expression(receiver)?,
-                    member_symbol: if self.graph.names.get(member).declaration.is_some() {
-                        self.symbol(member)?
-                    } else {
-                        SymbolHandle::invalid()
-                    },
-                    member: self.identifier(member),
-                    case_variant: None,
-                })
-            }
+            ProductExpressionKind::Member {
+                selector,
+                receiver,
+                member,
+            } => Node::Member(expr::TableMemberExpression {
+                selector,
+                receiver: self.expression(receiver)?,
+                member_symbol: if self.graph.names.get(member).declaration.is_some() {
+                    self.symbol(member)?
+                } else {
+                    SymbolHandle::invalid()
+                },
+                member: self.identifier(member),
+                case_variant: None,
+            }),
             ProductExpressionKind::Borrow { target, access } => {
                 Node::Borrow(expr::TableBorrowExpression {
                     target: self.expression(target)?,
@@ -477,6 +480,7 @@ impl Lower<'_> {
                     .cloned()
                     .map(|field| {
                         Ok(expr::TableMatchField {
+                            selector: field.selector,
                             member: self.identifier(field.member),
                             field_symbol: SymbolHandle::invalid(),
                             action: match field.action {

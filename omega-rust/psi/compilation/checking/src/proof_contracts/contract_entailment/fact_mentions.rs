@@ -173,6 +173,7 @@ pub(crate) fn fact_mentions_zero_value(
             let mut current = *type_reference;
             loop {
                 match program.type_reference_table.type_reference(current) {
+                    TypeReferenceNode::CaseView { subject } => current = *subject,
                     TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
                     TypeReferenceNode::Generic { base_name, .. } => {
                         return Some(base_name.as_str().to_owned());

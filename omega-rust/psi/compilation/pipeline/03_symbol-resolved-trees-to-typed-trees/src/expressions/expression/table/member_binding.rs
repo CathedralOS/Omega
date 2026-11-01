@@ -33,11 +33,51 @@ impl ExpressionTableLowerer<'_, '_, '_> {
     pub(super) fn declared_member(
         &self,
         member: &TableMemberExpression,
-    ) -> (SymbolHandle, Option<resolved::name::DiagnosticName>) {
+    ) -> (
+        SymbolHandle,
+        Option<resolved::name::DiagnosticName>,
+        resolved::name::DiagnosticName,
+        language_core::DataComponentSelector,
+    ) {
+        use language_core::DataComponentSelector;
+        let selected = member
+            .case_variant
+            .is_none()
+            .then(|| {
+                let name = self.program.and_then(|program| {
+                    declared_binding_case(program, self.source, member.receiver)
+                })?;
+                let mut selected = member.clone();
+                selected.case_variant = Some(name);
+                Some(selected)
+            })
+            .flatten();
+        let member = selected.as_ref().unwrap_or(member);
+        if member.case_variant.is_none() && member.selector != DataComponentSelector::Named {
+            if let Some(definition) = self
+                .program
+                .and_then(|program| declared_pattern_data(program, self.source, member.receiver))
+            {
+                let program = self.program.expect("declaration context was inspected");
+                if selects_case_component(program, definition, member.selector) {
+                    return (
+                        SymbolHandle::invalid(),
+                        None,
+                        resolved::name::DiagnosticName::from("case"),
+                        DataComponentSelector::Case,
+                    );
+                }
+            }
+        }
         // A nonzero selection already has an owner. Preserve it, including a
         // conflicting/stale selection, for the existing validation contract.
         if member.member_symbol.is_valid() {
-            return (member.member_symbol, member.case_variant.clone());
+            return (
+                member.member_symbol,
+                member.case_variant.clone(),
+                member.member.clone(),
+                member.selector,
+            );
         }
         self.program
             .and_then(|program| declared_receiver_field(program, self.source, member, 0))
@@ -57,10 +97,76 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                     } else {
                         None
                     },
+                    field.name.clone(),
+                    DataComponentSelector::Named,
                 )
             })
-            .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
+            .unwrap_or_else(|| {
+                (
+                    member.member_symbol,
+                    member.case_variant.clone(),
+                    member.member.clone(),
+                    member.selector,
+                )
+            })
     }
+}
+
+/// A binding's resolved head owns payload selection. Classification uses its
+/// declaration identity, never path length or a generated binding name.
+fn declared_binding_case(
+    program: &resolved::SymbolResolvedTrees,
+    expressions: &resolved::expression::ExpressionTable,
+    receiver: ExpressionHandle,
+) -> Option<resolved::name::DiagnosticName> {
+    let ExpressionNode::Name(path) = expressions.expression(receiver) else {
+        return None;
+    };
+    let symbol = path.symbol;
+    if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Local {
+        return None;
+    }
+    let parent = program.symbols.get(symbol).parent;
+    let state = program
+        .tables
+        .declarations
+        .machine_states
+        .iter()
+        .find_map(|(_, state)| (state.symbol == parent).then_some(state))?;
+    let local = program
+        .state_statements(state.statements)
+        .iter()
+        .find_map(|statement| {
+            let resolved::statement::Statement::LocalData(local) = statement else {
+                return None;
+            };
+            (local.symbol == symbol).then_some(local)
+        })?;
+    let head = local.pattern?.head;
+    if !head.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = expressions.expression(head) else {
+        return None;
+    };
+    let selected = path.symbol;
+    if !selected.is_valid() || program.symbols.get(selected).kind != SymbolKind::Variant {
+        return None;
+    }
+    let definition = declared_pattern_data(program, expressions, receiver)?;
+    if program.symbols.get(selected).parent != definition.symbol {
+        return None;
+    }
+    program
+        .data_members(definition.members)
+        .iter()
+        .filter_map(|member| {
+            let DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.symbol == selected).then(|| variant.name.clone())
+        })
+        .next()
 }
 
 fn declared_receiver_field<'program>(
@@ -75,8 +181,12 @@ fn declared_receiver_field<'program>(
     if let ExpressionNode::StructLiteral(literal) = expressions.expression(member.receiver) {
         return declared_data_field(program, literal.type_symbol, member);
     }
-    let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
-    declared_field(program, receiver, member)
+    declared_type(program, expressions, member.receiver, depth + 1)
+        .and_then(|receiver| declared_field(program, receiver, member))
+        .or_else(|| {
+            declared_pattern_data(program, expressions, member.receiver)
+                .and_then(|definition| declared_data_field(program, definition.symbol, member))
+        })
 }
 
 fn declared_type<'program>(
@@ -143,7 +253,29 @@ fn declared_type<'program>(
                 .is_valid()
                 .then(|| program.child_type_reference(element))
         }
+        ExpressionNode::SavedSubject(saved) => declared_type(
+            program,
+            expressions,
+            expressions.match_subject(saved.capture).subject,
+            depth + 1,
+        ),
+        ExpressionNode::Member(member)
+            if member.selector == language_core::DataComponentSelector::Case =>
+        {
+            declared_type(program, expressions, member.receiver, depth + 1)
+        }
         ExpressionNode::Member(member) => {
+            if let Some(receiver) = declared_type(program, expressions, member.receiver, depth + 1)
+                && let Some(definition) = super::lowerer::resolved_data_definition_for_type(
+                    program,
+                    peel(program, receiver),
+                )
+                && selects_case_component(program, definition, member.selector)
+            {
+                // Resolved vocabulary identifies the original declaration;
+                // typed projection separately retains its case-only view.
+                return Some(receiver);
+            }
             Some(&declared_receiver_field(program, expressions, member, depth + 1)?.type_reference)
         }
         _ => None,
@@ -169,7 +301,24 @@ fn declared_data_field<'program>(
         .iter()
         .filter(|definition| definition.symbol == symbol);
     let definition = definitions.next()?;
-    if definitions.next().is_some() || !exact_top_level_data_symbol(program, definition) {
+    if definitions.next().is_some()
+        || !definition.symbol.is_valid()
+        || program.symbols.get(definition.symbol).kind != SymbolKind::Data
+    {
+        return None;
+    }
+    if let language_core::DataComponentSelector::Positional(ordinal) = member.selector {
+        return program
+            .data_members(definition.members)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                _ => None,
+            })
+            .nth(ordinal as usize)
+            .filter(|field| exact_field_symbol(program, definition.symbol, field));
+    }
+    if member.selector == language_core::DataComponentSelector::Case {
         return None;
     }
     if let Some(selected) = &member.case_variant {
@@ -259,7 +408,7 @@ fn inferred_capture_type<'program>(
             (local.symbol == symbol).then_some(local)
         })?;
     if !local.type_is_inferred
-        || local.role != language_core::LocalBindingRole::Value
+        || !local.role.has_ordinary_initializer()
         || !local.initial_value.is_valid()
     {
         return Some(declared);
@@ -370,4 +519,84 @@ pub(super) fn declared_symbol_type(
         }
         _ => None,
     }
+}
+
+/// A pattern with no authored carrier head derives that declaration from its
+/// one saved subject, with the same type peeling as ordinary projections.
+pub(super) fn declared_pattern_data<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    expressions: &resolved::expression::ExpressionTable,
+    subject: ExpressionHandle,
+) -> Option<&'program resolved::data::DataDefinition> {
+    let mut subject = subject;
+    for depth in 0..128 {
+        if let Some(definition) =
+            declared_type(program, expressions, subject, depth).and_then(|reference| {
+                super::lowerer::resolved_data_definition_for_type(program, peel(program, reference))
+            })
+        {
+            return Some(definition);
+        }
+        subject = match expressions.expression(subject) {
+            ExpressionNode::StructLiteral(literal) => {
+                return program.data_definition_by_symbol(literal.type_symbol);
+            }
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            ExpressionNode::SavedSubject(saved) => expressions.match_subject(saved.capture).subject,
+            ExpressionNode::Member(member)
+                if member.selector == language_core::DataComponentSelector::Case =>
+            {
+                member.receiver
+            }
+            ExpressionNode::Name(path) => {
+                let mut declarations = program
+                    .tables
+                    .declarations
+                    .machine_states
+                    .iter()
+                    .flat_map(|(_, state)| program.state_statements(state.statements))
+                    .filter_map(|statement| match statement {
+                        resolved::statement::Statement::LocalData(local)
+                            if local.symbol == path.symbol
+                                && local.type_is_inferred
+                                && local.role.has_ordinary_initializer() =>
+                        {
+                            Some(local)
+                        }
+                        _ => None,
+                    });
+                let local = declarations.next()?;
+                if declarations.next().is_some() {
+                    return None;
+                }
+                local.initial_value
+            }
+            _ => return None,
+        };
+        if !subject.is_valid() {
+            return None;
+        }
+    }
+    None
+}
+
+/// Interpret the anonymous component against the actual declaration roster.
+/// Named and positional spellings select the same semantic component before
+/// nested pattern binding asks for its original carrier and payload members.
+fn selects_case_component(
+    program: &resolved::SymbolResolvedTrees,
+    definition: &resolved::data::DataDefinition,
+    selector: language_core::DataComponentSelector,
+) -> bool {
+    use language_core::DataComponentSelector;
+    let members = program.data_members(definition.members);
+    let common_count = members
+        .iter()
+        .filter(|member| matches!(member, DataMember::Field(_)))
+        .count();
+    members
+        .iter()
+        .any(|member| matches!(member, DataMember::Variant(_)))
+        && (selector == DataComponentSelector::Case
+            || matches!(selector, DataComponentSelector::Positional(ordinal) if ordinal as usize == common_count))
 }

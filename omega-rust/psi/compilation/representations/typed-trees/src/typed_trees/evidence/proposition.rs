@@ -266,6 +266,9 @@ fn type_reference_mentions_any(
     use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            type_reference_mentions_any(program, *subject, symbols)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             type_reference_mentions_any(program, *referee, symbols)
         }
@@ -411,6 +414,10 @@ fn render_evidence_type(
     use crate::types::TypeReferenceNode;
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => format!(
+            "case-view<{}>",
+            render_evidence_type(program, *subject, substitutions)
+        ),
         TypeReferenceNode::Reference {
             referee, access, ..
         } => format!(

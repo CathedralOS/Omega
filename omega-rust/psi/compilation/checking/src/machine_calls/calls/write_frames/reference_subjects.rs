@@ -57,12 +57,8 @@ pub(super) fn carrier_storage_type(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    let unconstrained = program
-        .type_reference_table
-        .unconstrained_type_reference(reference);
-    if let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(unconstrained)
-        && !access.is_readable()
+    if let Some(shell) = crate::reference_shell(program, reference)
+        && !shell.access.is_readable()
     {
         return None;
     }
@@ -79,10 +75,8 @@ pub(super) fn carrier_storage_declaration(
     let mut reference = program
         .type_reference_table
         .unconstrained_type_reference(reference);
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *referee;
+    if let Some(shell) = crate::reference_shell(program, reference) {
+        reference = shell.referee;
     }
     (reference.is_valid() && !type_reference_is_reference(program, reference)).then_some(reference)
 }

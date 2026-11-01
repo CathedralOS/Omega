@@ -1213,6 +1213,31 @@ impl StructuralJudge<'_> {
         if !self.requires_value_preservation() || !symbol.is_valid() {
             return;
         }
+        // The component preserves an already completed subject observation.
+        // Authenticate that the initializer actually has this view type before
+        // using its subject carrier for observation; a destination annotation
+        // cannot manufacture a readable value or alter a backing loan.
+        let observation_reference = self
+            .program
+            .type_reference_table
+            .case_view_subject(reference)
+            .filter(|_| {
+                self.runtime_declaration_scope()
+                    .and_then(|(machine, state)| {
+                        let (_, local) = self.program.state_local_declaration(state, symbol)?;
+                        crate::expression_result_type_reference(
+                            self.program,
+                            machine,
+                            state,
+                            local.initial_value,
+                        )
+                    })
+                    .is_some_and(|actual| {
+                        self.program.normalized_type_identity(actual)
+                            == self.program.normalized_type_identity(reference)
+                    })
+            })
+            .unwrap_or(reference);
         // Owned bindings retain inline cells while masking contained pointees.
         // A completed shared borrow already carries a checked inline view of
         // its exact referent. Retain that typed observation at initialization;
@@ -1220,13 +1245,35 @@ impl StructuralJudge<'_> {
         let observed =
             super::super::structural_terms::shared_inline_observation_type(self.program, &value)
                 .filter(|observed| {
-                    crate::declared_carriers_match(self.program, reference, *observed)
+                    crate::declared_carriers_match(self.program, observation_reference, *observed)
                 })
                 .map(|_| value.clone())
-                .or_else(|| self.owned_argument_observation(reference, &value));
+                .or_else(|| self.owned_argument_observation(observation_reference, &value));
         let Some(value) = observed else {
             return;
         };
+        // Initialization transports independently established nominal validity
+        // with this completed owned value. A destination annotation alone is
+        // never admission; authenticate the exact initializer in this scope.
+        let admitted = self
+            .runtime_declaration_scope()
+            .and_then(|(_, state)| self.program.state_local_declaration(state, symbol))
+            .map(|(_, local)| local.initial_value)
+            .filter(|initial| {
+                crate::field_domains::owned_nominal_data_definition(self.program, reference)
+                    .is_some()
+                    && self.has_admitted_nominal_subject(*initial, &value, reference)
+            });
+        if let Some(anchor) = admitted {
+            std::sync::Arc::make_mut(&mut self.completed_nominal_captures).push(
+                super::CompletedNominalCapture {
+                    anchor,
+                    reference,
+                    value: value.clone(),
+                    observed_value: value.clone(),
+                },
+            );
+        }
         self.retain_storage_value(
             CapturedStorageCoordinate {
                 root: facts::PlaceRoot::Symbol(symbol),

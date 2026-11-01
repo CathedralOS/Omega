@@ -1,0 +1,49 @@
+// A case view retains its original generic subject and admitted case-dependent type equations so the selected payload returns as T without a cast.
+// Expected exit: 0
+data Value<T> [copy]
+requires ((self in Value::Integer)) || ((self in Value::Boolean) && T == bool)
+{ request: u64; enabled: bool; case Integer(value: i32); case Boolean(value: bool); }
+machine extract<T>(formed: Value<T>) -> T {
+    let Value { request as _, enabled as _, case as operation } = formed;
+    match operation {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine produce_bool(request: u64) -> Value<bool> {
+    Value::Boolean { request: request, enabled: true, value: request == 17 }
+}
+machine produce_int(request: u64) -> Value<i32> {
+    let narrowed: u8 = match request == 17 { true -> 42 false -> 57 };
+    Value::Integer { request: request, enabled: true, value: narrowed as i32 }
+}
+machine observe_bool(formed: Value<bool>, request: u64, expected: bool) -> bool {
+    let identifier: u64 = formed.request;
+    let active: bool = formed.enabled;
+    let result: bool = extract<bool>(formed);
+    identifier == request && active && result == expected
+}
+machine observe_int(formed: Value<i32>, request: u64, expected: i32) -> bool {
+    let identifier: u64 = formed.request;
+    let active: bool = formed.enabled;
+    let result: i32 = extract<i32>(formed);
+    identifier == request && active && result == expected
+}
+const BoolFirst: Value<bool> = Value::Boolean { request: 17, enabled: true, value: true };
+const BoolSecond: Value<bool> = Value::Boolean { request: 23, enabled: true, value: false };
+machine exercise_bool(request: u64, expected: bool) -> bool {
+    let formed: Value<bool> = match request == 17 { true -> BoolFirst false -> BoolSecond };
+    observe_bool(formed, request, expected)
+}
+const IntFirst: Value<i32> = Value::Integer { request: 17, enabled: true, value: 42 };
+const IntSecond: Value<i32> = Value::Integer { request: 23, enabled: true, value: 57 };
+machine exercise_int(request: u64, expected: i32) -> bool {
+    let formed: Value<i32> = match request == 17 { true -> IntFirst false -> IntSecond };
+    observe_int(formed, request, expected)
+}
+machine main() crashes Trap {
+    transition exercise_bool(17, true) && exercise_bool(23, false) && exercise_int(17, 42) && exercise_int(23, 57) {
+        true -> done() _ -> bad()
+    }
+    machine done() {} machine bad() { crash Trap; }
+}

@@ -1,0 +1,118 @@
+use psi::source::source;
+use psi::resolution::resolution;
+use psi::typing::calls;
+use psi::typing::expressions;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::typer;
+
+// A destination constrains the results of its value tree, including every
+// selected arm. It does not change any operand's produced type or prove an
+// equation; ordinary admission and checking retain those obligations.
+public machine Typer::expect_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, destination: u64 in Trapping)
+crashes Trap
+{
+    Typer::set_expected(typer, root, destination);
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> next(typer, sources, syntax, resolution, tree.first_row, root + 1) }
+    machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, next: u64 in Trapping) {
+        transition next > low && typer.output.accepted { true -> node(typer, sources, syntax, resolution, low, next - 1) _ -> done() }
+    }
+    machine node(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        let expected: u64 in Trapping = Typer::expected_type(typer, index);
+        transition expression.kind == ExpressionKind::Match && expected > 0 {
+            true -> arm(typer, sources, syntax, resolution, low, index, expression, expected, 0)
+            _ -> constructed(typer, sources, syntax, resolution, low, index, expression, expected)
+        }
+    }
+    machine arm(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, expected: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < expression.count {
+            true -> selected(typer, sources, syntax, resolution, low, index, expression, expected, offset)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine selected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, expected: u64 in Trapping, offset: u64 in Trapping) {
+        let selected: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        Typer::set_expected(typer, selected.target, expected);
+        transition { _ -> arm(typer, sources, syntax, resolution, low, index, expression, expected, offset + 1) }
+    }
+    machine constructed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, expected: u64 in Trapping) {
+        let owner: TypeRow = TypeTable::row(&typer.output.types, expected);
+        transition expression.kind == ExpressionKind::Construct && owner.kind == TypeKind::Data {
+            true -> constructor(typer, sources, syntax, resolution, low, index, expression, owner)
+            _ -> array(typer, sources, syntax, resolution, low, index, expression, owner)
+        }
+    }
+    machine constructor(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow) {
+        let selected: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+        transition selected {
+            ValueBinding::Data { item } -> matching(typer, sources, syntax, resolution, low, index, expression, owner, item, false, 0)
+            ValueBinding::DataCase { item, data_case } -> matching(typer, sources, syntax, resolution, low, index, expression, owner, item, true, data_case)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine matching(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow, item: u64 in Trapping, has_case: bool, data_case: u64 in Trapping) {
+        transition owner.item == item {
+            true -> field(typer, sources, syntax, resolution, low, index, expression, owner, SyntaxTrees::data_item(syntax, item), has_case, data_case, 0)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow, declared: DataItem, has_case: bool, data_case: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < expression.count {
+            true -> component(typer, sources, syntax, resolution, low, index, expression, owner, declared, has_case, data_case, offset)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine component(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow, declared: DataItem, has_case: bool, data_case: u64 in Trapping, offset: u64 in Trapping) {
+        let written: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
+        let reference: u64 in Trapping = Typer::member_field_type(sources, syntax, declared, has_case, data_case, written.name);
+        transition reference < 18446744073709551615 {
+            true -> declared_type(typer, sources, syntax, resolution, low, index, expression, owner, declared, has_case, data_case, offset, written, reference)
+            _ -> field(typer, sources, syntax, resolution, low, index, expression, owner, declared, has_case, data_case, offset + 1)
+        }
+    }
+    machine declared_type(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow, declared: DataItem, has_case: bool, data_case: u64 in Trapping, offset: u64 in Trapping, written: ConstructField, reference: u64 in Trapping) {
+        let actual: u64 in Trapping = Typing::reference_type(&typer.output, reference);
+        let destination: u64 in Trapping = Typer::substitute(typer, syntax, actual, owner, written.source_span);
+        Typer::set_expected(typer, written.value, destination);
+        transition { _ -> field(typer, sources, syntax, resolution, low, index, expression, owner, declared, has_case, data_case, offset + 1) }
+    }
+    machine array(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, owner: TypeRow) {
+        transition expression.kind == ExpressionKind::Array && owner.kind == TypeKind::Array {
+            true -> element(typer, sources, syntax, resolution, low, index, expression, owner.inner, 0)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine element(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, expected: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < expression.count {
+            true -> element_type(typer, sources, syntax, resolution, low, index, expression, expected, offset)
+            _ -> next(typer, sources, syntax, resolution, low, index)
+        }
+    }
+    machine element_type(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, expected: u64 in Trapping, offset: u64 in Trapping) {
+        Typer::set_expected(typer, SyntaxTrees::argument(syntax, expression.first + offset), expected);
+        transition { _ -> element(typer, sources, syntax, resolution, low, index, expression, expected, offset + 1) }
+    }
+    machine done() {}
+}
+public machine Typer::set_expected(typer: &mut Typer, index: u64 in Trapping, expected: u64 in Trapping)
+crashes Trap
+{
+    transition index < 131072 { true -> stored(typer, index, expected) _ -> full(typer) }
+    machine stored(typer: &mut Typer, index: u64 in Trapping, expected: u64 in Trapping)
+    requires index < 131072
+    { typer.expected_types[index] = expected; }
+    machine full(typer: &mut Typer) {
+        let span: SourceSpan = SourceSpan { source: SourceId { value: 0 }, span: Span { start: 0, end: 0 } };
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, span);
+    }
+}
+public machine Typer::expected_type(typer: &Typer, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < 131072 { true -> read(typer, index) _ -> 0 }
+    machine read(typer: &Typer, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 131072
+    { typer.expected_types[index] }
+}

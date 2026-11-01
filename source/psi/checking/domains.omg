@@ -1,3 +1,5 @@
+use psi::checking::cases;
+use psi::checking::constructions;
 use psi::checking::arrivals;
 use psi::checking::checker;
 use psi::checking::contracts;
@@ -118,6 +120,8 @@ crashes Trap
         let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
+        let subject: Value = Checker::place_value(checker, field.parent);
+        let required: bool = Checker::data_predicates(checker, syntax, resolution, typing, subject, item, false);
         let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
         transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0) }
@@ -142,6 +146,8 @@ crashes Trap
         checker.zone = checker.saved[slot];
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
+        let subject: Value = Checker::place_value(checker, field.parent);
+        let required: bool = Checker::data_predicates(checker, syntax, resolution, typing, subject, item, false);
         let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
         checker.saved[slot] = checker.zone;
@@ -165,7 +171,7 @@ crashes Trap
 
     machine climb(checker: &Checker, syntax: &SyntaxTrees, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let entry: Place = Checker::place_at(checker, current - 1);
-        transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Length) && entry.parent > 0 && depth < 256 {
+        transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Payload || entry.kind == PlaceKind::Length) && entry.parent > 0 && depth < 256 {
             true -> climb(checker, syntax, entry.parent, depth + 1)
             _ -> root(syntax, entry)
         }
@@ -353,8 +359,7 @@ crashes Trap
 
 // Whether storing the field place `written` (one-based) left its value's
 // domain intact: every fact naming the field holds as the value's fields
-// now are. A field a case's own `where` fact names is not proved: which case
-// is active is not known here.
+// now are, including conditional predicates selected by the exact live tag.
 public machine Checker::domain_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, written: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -368,12 +373,13 @@ crashes Trap
 
     machine data(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, field: Place, item_handle: u64 in Trapping) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
-        let cases: bool = Checker::case_facts_name(syntax, resolution, item, field.handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
+        let subject: Value = Checker::place_value(checker, field.parent);
+        let required: bool = Checker::data_predicates_after_write(checker, syntax, resolution, typing, subject, item, field);
         let held: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, true);
         checker.fields_parent = parent;
-        held && !cases
+        required && held
     }
 
     machine held() -> bool {
@@ -381,193 +387,10 @@ crashes Trap
     }
 }
 
-// Whether any case's own `where` fact of a data declaration names common
-// field `wanted`.
-public machine Checker::case_facts_name(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition { _ -> next(syntax, resolution, item, wanted, 0) }
-
-    machine next(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping, offset: u64 in Trapping) -> bool {
-        transition offset < item.case_count {
-            true -> declared(syntax, resolution, item, wanted, offset)
-            _ -> none()
-        }
-    }
-
-    machine declared(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping, offset: u64 in Trapping) -> bool {
-        let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
-        transition { _ -> clause(syntax, resolution, item, wanted, offset, data_case, 0) }
-    }
-
-    machine clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping, offset: u64 in Trapping, data_case: DataCase, index: u64 in Trapping) -> bool {
-        transition index < data_case.clause_count {
-            true -> fact(syntax, resolution, item, wanted, offset, data_case, index)
-            _ -> next(syntax, resolution, item, wanted, offset + 1)
-        }
-    }
-
-    machine fact(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping, offset: u64 in Trapping, data_case: DataCase, index: u64 in Trapping) -> bool {
-        let clause: Clause = SyntaxTrees::clause(syntax, data_case.first_clause + index);
-        transition clause.kind == ClauseKind::Where && clause.has_expression {
-            true -> named(syntax, resolution, item, wanted, offset, data_case, index, clause.expression)
-            _ -> clause(syntax, resolution, item, wanted, offset, data_case, index + 1)
-        }
-    }
-
-    machine named(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        item: DataItem,
-        wanted: u64 in Trapping,
-        offset: u64 in Trapping,
-        data_case: DataCase,
-        index: u64 in Trapping,
-        root: u64 in Trapping
-    ) -> bool {
-        let mentions: bool = Checker::mentions_field(syntax, resolution, root, wanted);
-        transition mentions {
-            true -> some()
-            _ -> clause(syntax, resolution, item, wanted, offset, data_case, index + 1)
-        }
-    }
-
-    machine some() -> bool {
-        true
-    }
-
-    machine none() -> bool {
-        false
-    }
-}
-
-// A chosen case arm assumes its case's own `where` facts
-// (wiki/spec/language/data_and_literals.md#case-constraints: matching
-// contributes the selected case's conditions). Its payload fields stand for
-// the arm's binders, unknown for one the arm binds no name for, and its
-// common fields for the fields of the subject's place.
-public machine Checker::assume_case_facts(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
-    subject: u64 in Trapping,
-    arm: TransitionArm,
-    data_case: u64 in Trapping
-)
-crashes Trap
-{
-    let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
-    let facts: bool = Checker::declares(syntax, selected.first_clause, selected.clause_count, ClauseKind::Where);
-    transition facts && selected.payload_field_count <= 64 {
-        true -> unknown(checker, syntax, resolution, typing, subject, arm, selected, 0)
-        _ -> done()
-    }
-
-    machine unknown(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, selected: DataCase, slot: u64 in Trapping) {
-        transition slot < selected.payload_field_count {
-            true -> unknowable(checker, syntax, resolution, typing, subject, arm, selected, slot)
-            _ -> binders(checker, syntax, resolution, typing, subject, arm, selected, 0)
-        }
-    }
-
-    machine unknowable(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, selected: DataCase, slot: u64 in Trapping) {
-        let value: Value = Value::unknown();
-        Checker::set_argument(checker, slot, value);
-        transition { _ -> unknown(checker, syntax, resolution, typing, subject, arm, selected, slot + 1) }
-    }
-
-    machine binders(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, selected: DataCase, offset: u64 in Trapping) {
-        transition offset < arm.field_count {
-            true -> binder(checker, syntax, resolution, typing, subject, arm, selected, offset)
-            _ -> assumed(checker, syntax, resolution, typing, subject, selected)
-        }
-    }
-
-    machine binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, selected: DataCase, offset: u64 in Trapping) {
-        let handle: u64 in Trapping = arm.first_field + offset;
-        let pattern_field: PatternField = SyntaxTrees::pattern_field(syntax, handle);
-        let member: MemberTarget = Typing::binder_member(typing, handle);
-        let slot: u64 in Trapping = Checker::payload_slot(selected, member);
-        transition !pattern_field.has_value && !pattern_field.is_waived && slot < selected.payload_field_count {
-            true -> bound(checker, syntax, resolution, typing, subject, arm, selected, offset, handle, slot)
-            _ -> binders(checker, syntax, resolution, typing, subject, arm, selected, offset + 1)
-        }
-    }
-
-    machine bound(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        subject: u64 in Trapping,
-        arm: TransitionArm,
-        selected: DataCase,
-        offset: u64 in Trapping,
-        handle: u64 in Trapping,
-        slot: u64 in Trapping
-    ) {
-        let type_handle: u64 in Trapping = Typing::binder_type(typing, handle);
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Binder, handle, 0, type_handle);
-        let value: Value = Checker::place_value(checker, place);
-        Checker::set_argument(checker, slot, value);
-        transition { _ -> binders(checker, syntax, resolution, typing, subject, arm, selected, offset + 1) }
-    }
-
-    machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, selected: DataCase) {
-        let owner: Value = Checker::value_at(checker, subject);
-        let substituting: bool = checker.field_values;
-        let payloads: bool = checker.payload_values;
-        let payload_first: u64 in Trapping = checker.payload_first;
-        let payload_slot: u64 in Trapping = checker.payload_slot;
-        let arguments: u64 in Trapping = checker.argument_count;
-        let parent: u64 in Trapping = checker.fields_parent;
-        checker.field_values = false;
-        checker.payload_values = true;
-        checker.payload_first = selected.first_payload_field;
-        checker.payload_slot = 0;
-        checker.argument_count = selected.payload_field_count;
-        checker.fields_parent = owner.place;
-        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, selected.first_clause, selected.clause_count, ClauseKind::Where, false);
-        checker.field_values = substituting;
-        checker.payload_values = payloads;
-        checker.payload_first = payload_first;
-        checker.payload_slot = payload_slot;
-        checker.argument_count = arguments;
-        checker.fields_parent = parent;
-    }
-
-    machine done() {}
-}
-
-// A payload member's offset among the selected case's payload fields, or
-// the case's payload count for any other member.
-public machine Checker::payload_slot(selected: DataCase, member: MemberTarget) -> u64 in Trapping {
-    transition member {
-        MemberTarget::Payload { field } -> payload(selected, field)
-        _ -> none(selected)
-    }
-
-    machine payload(selected: DataCase, field: u64 in Trapping) -> u64 in Trapping {
-        transition field >= selected.first_payload_field && field - selected.first_payload_field < selected.payload_field_count {
-            true -> slot(field - selected.first_payload_field)
-            _ -> none(selected)
-        }
-    }
-
-    machine slot(offset: u64 in Trapping) -> u64 in Trapping {
-        offset
-    }
-
-    machine none(selected: DataCase) -> u64 in Trapping {
-        selected.payload_field_count
-    }
-}
-
 // Whether a value of data `item_handle`, of case `data_case` when
 // `has_case`, with the construction fields from `first` (`count` of them)
-// written, establishes its data's `where` facts and its case's own: each
-// fact holds with every field name standing for the value written there,
+// written, establishes its default predicates: every fact holds with the
+// exact provisional subject and the field values written there,
 // zero for a field left out (wiki/spec/language/dependent_values.md:
 // construction proves the domain; data_and_literals.md#case-constraints:
 // construction proves the selected case's conditions). Common and payload
@@ -703,26 +526,17 @@ crashes Trap
     ) -> bool {
         let substituting: bool = checker.field_values;
         let field_first: u64 in Trapping = checker.field_first;
-        let payloads: bool = checker.payload_values;
-        let payload_first: u64 in Trapping = checker.payload_first;
-        let payload_slot: u64 in Trapping = checker.payload_slot;
         let arguments: u64 in Trapping = checker.argument_count;
         checker.field_values = true;
         checker.field_first = item.first_field;
-        checker.payload_values = true;
-        checker.payload_first = selected.first_payload_field;
-        checker.payload_slot = item.field_count;
         checker.argument_count = total;
+        Checker::seed_construction_subject(checker, syntax, typing, item, selected, 0);
         let required: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, true);
         let retired: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Where, true);
-        let selected_facts: bool = Checker::decide_facts(checker, syntax, resolution, typing, selected.first_clause, selected.clause_count, ClauseKind::Where, true);
         checker.field_values = substituting;
         checker.field_first = field_first;
-        checker.payload_values = payloads;
-        checker.payload_first = payload_first;
-        checker.payload_slot = payload_slot;
         checker.argument_count = arguments;
-        required && retired && selected_facts
+        required && retired
     }
 
     machine unproved() -> bool {
@@ -749,8 +563,6 @@ crashes Trap
         let mut empty: DataCase;
         empty.first_payload_field = 0;
         empty.payload_field_count = 0;
-        empty.first_clause = 0;
-        empty.clause_count = 0;
         empty
     }
 }
@@ -788,4 +600,141 @@ crashes Trap
     machine none() -> u64 in Trapping {
         18446744073709551615
     }
+}
+
+// The default predicate is about this exact completed value. Only established
+// roots may assume it; a provisional construction owes it from written inputs.
+public machine Checker::data_predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, item: DataItem, proving: bool) -> bool
+crashes Trap
+{
+    let established: bool = Checker::established(checker, syntax, subject.place);
+    transition proving || established {
+        true -> decided(checker, syntax, resolution, typing, subject, item, proving)
+        _ -> false
+    }
+    machine decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, item: DataItem, proving: bool) -> bool {
+        let previous: Value = checker.subject;
+        let subjecting: bool = checker.subjecting;
+        let previous_template: u64 in Trapping = checker.static_template;
+        checker.static_template = 0;
+        checker.subject = subject;
+        checker.subjecting = true;
+        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, proving);
+        checker.subject = previous;
+        checker.subjecting = subjecting;
+        checker.static_template = previous_template;
+        held
+    }
+}
+
+machine Checker::seed_construction_subject(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, item: DataItem, selected: DataCase, offset: u64 in Trapping)
+crashes Trap
+{
+    transition offset < item.field_count + selected.payload_field_count {
+        true -> component(checker, syntax, typing, item, selected, offset)
+        _ -> done()
+    }
+    machine component(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, item: DataItem, selected: DataCase, offset: u64 in Trapping) {
+        let common: bool = offset < item.field_count;
+        let field: u64 in Trapping = match common { true -> item.first_field + offset false -> selected.first_payload_field + (offset - item.field_count) };
+        let kind: PlaceKind = match common { true -> PlaceKind::Field false -> PlaceKind::Payload };
+        let declared: DataField = match common { true -> SyntaxTrees::field(syntax, field) false -> SyntaxTrees::payload_field(syntax, field) };
+        let type_handle: u64 in Trapping = Typing::reference_type(typing, declared.type_reference);
+        let value: Value = Checker::argument_value(checker, offset);
+        let parent: u64 in Trapping = checker.subject.place;
+        Checker::write_pending_component(checker, typing, kind, parent, field, type_handle, value);
+        transition { _ -> Checker::seed_construction_subject(checker, syntax, typing, item, selected, offset + 1) }
+    }
+    machine done() {}
+}
+
+// Only predicates whose read footprint intersects the changed component need
+// restoration. The established owner already owes every other predicate; an
+// unrelated field store cannot invalidate its tag or another field's value.
+// Calls and non-case memberships retain the conservative whole-owner footprint.
+machine Checker::data_predicates_after_write(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: Value, item: DataItem, written: Place) -> bool
+crashes Trap
+{
+    let previous: Value = checker.subject;
+    let subjecting: bool = checker.subjecting;
+    checker.subject = subject;
+    checker.subjecting = true;
+    let held: bool = Checker::restore_data_predicates(checker, syntax, resolution, typing, item.first_clause, item.first_clause + item.clause_count, written);
+    checker.subject = previous;
+    checker.subjecting = subjecting;
+    held
+}
+
+machine Checker::restore_data_predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, written: Place) -> bool
+crashes Trap
+{
+    transition index < end { true -> clause(checker, syntax, resolution, typing, index, end, written) _ -> result(true) }
+    machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, written: Place) -> bool {
+        let current: Clause = SyntaxTrees::clause(syntax, index);
+        transition current.kind == ClauseKind::Requires && current.has_expression {
+            true -> predicate(checker, syntax, resolution, typing, index, end, written, current.expression)
+            _ -> next(checker, syntax, resolution, typing, index, end, written)
+        }
+    }
+    machine predicate(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, written: Place, root: u64 in Trapping) -> bool {
+        let affected: bool = Checker::predicate_reads_component(syntax, resolution, typing, root, written);
+        transition affected { true -> owed(checker, syntax, resolution, typing, index, end, written, root) _ -> next(checker, syntax, resolution, typing, index, end, written) }
+    }
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, written: Place, root: u64 in Trapping) -> bool {
+        let typed: bool = Typing::expression_type(typing, root) == typing.boolean;
+        let held: bool = typed && Checker::decide_fact(checker, syntax, resolution, typing, root, true);
+        transition held { true -> next(checker, syntax, resolution, typing, index, end, written) _ -> result(false) }
+    }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, written: Place) -> bool {
+        transition { _ -> Checker::restore_data_predicates(checker, syntax, resolution, typing, index + 1, end, written) }
+    }
+    machine result(held: bool) -> bool { held }
+}
+
+machine Checker::predicate_reads_component(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place) -> bool
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> node(syntax, resolution, typing, root, written, tree.first_row) }
+    machine node(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        transition index <= root { true -> expression(syntax, resolution, typing, root, written, index) _ -> result(false) }
+    }
+    machine expression(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        let current: Expression = SyntaxTrees::expression(syntax, index);
+        transition current.kind == ExpressionKind::Call || current.kind == ExpressionKind::Cast || current.kind == ExpressionKind::Unary || current.kind == ExpressionKind::Match {
+            true -> whole_or_negation(syntax, resolution, typing, root, written, index, current)
+            _ -> membership(syntax, resolution, typing, root, written, index, current)
+        }
+    }
+    machine whole_or_negation(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping, current: Expression) -> bool {
+        transition current.kind == ExpressionKind::Unary && current.operator == OperatorKind::Not { true -> next(syntax, resolution, typing, root, written, index) _ -> result(true) }
+    }
+    machine membership(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping, current: Expression) -> bool {
+        transition current.kind == ExpressionKind::Membership { true -> membership_binding(syntax, resolution, typing, root, written, index) _ -> selected(syntax, resolution, typing, root, written, index) }
+    }
+    machine membership_binding(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, index);
+        transition binding { ValueBinding::DataCase { item as _, data_case as _ } -> next(syntax, resolution, typing, root, written, index) _ -> result(true) }
+    }
+    machine selected(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        let selection: Selection = Typing::selection(typing, index);
+        transition selection {
+            Selection::Field { field } -> field(syntax, resolution, typing, root, written, index, PlaceKind::Field, field)
+            Selection::PayloadField { data_case as _, field } -> field(syntax, resolution, typing, root, written, index, PlaceKind::Payload, field)
+            Selection::Machine { handle as _ } -> result(true)
+            Selection::Binder { parameter as _ } -> result(true)
+            _ -> bare(syntax, resolution, typing, root, written, index)
+        }
+    }
+    machine bare(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, index);
+        transition binding { ValueBinding::Field { field } -> field(syntax, resolution, typing, root, written, index, PlaceKind::Field, field) _ -> next(syntax, resolution, typing, root, written, index) }
+    }
+    machine field(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping, kind: PlaceKind, field: u64 in Trapping) -> bool {
+        transition written.kind == kind && written.handle == field { true -> result(true) _ -> next(syntax, resolution, typing, root, written, index) }
+    }
+    machine next(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, written: Place, index: u64 in Trapping) -> bool {
+        transition { _ -> node(syntax, resolution, typing, root, written, index + 1) }
+    }
+    machine result(affected: bool) -> bool { affected }
 }

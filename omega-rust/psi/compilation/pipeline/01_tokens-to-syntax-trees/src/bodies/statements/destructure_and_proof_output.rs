@@ -11,131 +11,111 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{StatementHandle, StatementNode, TableLocalData};
 use tokens::{KeywordKind, PunctuationKind};
 
-/// RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18, ch6 growth):
-/// `let { x, y as horizontal, z as _ } = point;` -- exhaustive by law
-/// (validation compares the spelled set against the definition), `as`
-/// renames, `as _` waives, colon and arrow rejected. Desugars to one
-/// MARKER let carrying the spelled field set in its generated name
-/// (`__destructure#x#y#z`, the exhaustiveness carrier) plus one
-/// Unit-sentinel let per BOUND field reading the place's member. V1 gates
-/// the value to a PLACE (Name/member chain) so the shared receiver
-/// evaluates as pure reads. Returns None when the shape is not
-/// `let {` -- ordinary lets flow to the plain parser.
+/// Local decomposition uses the same selectors as dispatch. Capture the
+/// initializer once even when it is a call; the metadata binding observes that
+/// capture, and ordinary field bindings retain the usual move/copy checks.
+/// Names distinguish lexical declarations only. They never encode coverage.
 pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<StatementHandle>, Input<'tokens, 'source>)> {
-    use syntax_trees::expression::{ExpressionNode, TableMemberExpression};
+) -> Result<
+    Option<(
+        HandleSpan<syntax_trees::statement::StatementHandle>,
+        Input<'tokens, 'source>,
+    )>,
+    ParseError,
+> {
+    use syntax_trees::expression::{
+        ExpressionHandle, ExpressionNode, MatchFieldAction, TableMemberExpression,
+    };
+    use syntax_trees::statement::TableLocalPattern;
 
     if !input.at_keyword(KeywordKind::Let) {
-        return None;
+        return Ok(None);
     }
-    let after_let = input.take_keyword(KeywordKind::Let, "let").ok()?;
-    if !after_let.at_punctuation(PunctuationKind::LeftBrace) {
-        return None;
-    }
-    let mut rest = after_let
-        .take_punctuation(PunctuationKind::LeftBrace, "{")
-        .ok()?;
-    // (field, binding-or-None-for-waived)
-    let mut fields: Vec<(Identifier, Option<Identifier>)> = Vec::new();
-    loop {
-        if rest.at_punctuation(PunctuationKind::RightBrace) {
-            rest = rest
-                .take_punctuation(PunctuationKind::RightBrace, "}")
-                .ok()?;
-            break;
-        }
-        let (field, after_field) = rest.take_identifier().ok()?;
-        // Colon and arrow are REJECTED spellings (the law: bind by NAME;
-        // `as` renames). Surfacing them as a hard parse error would need a
-        // Result path; the try-parse contract returns None and the plain
-        // let parser produces its own colon-shaped error -- acceptable v1.
-        let mut binding = Some(field.clone());
-        let mut after_binding = after_field;
-        if after_binding.at_keyword(KeywordKind::As) {
-            let after_as = after_binding.take_keyword(KeywordKind::As, "as").ok()?;
-            if after_as.at_contextual("_") {
-                binding = None;
-                after_binding = after_as.take_contextual("_").ok()?;
-            } else {
-                let (renamed, after_renamed) = after_as.take_identifier().ok()?;
-                if renamed.as_str(syntax_trees) == "_" {
-                    binding = None;
-                } else {
-                    binding = Some(renamed);
-                }
-                after_binding = after_renamed;
-            }
-        }
-        fields.push((field, binding));
-        if after_binding.at_punctuation(PunctuationKind::Comma) {
-            rest = after_binding
-                .take_punctuation(PunctuationKind::Comma, ",")
-                .ok()?;
+    let after_let = input.take_keyword(KeywordKind::Let, "let")?;
+    let positional = after_let.at_punctuation(PunctuationKind::LeftParen);
+    let (head, fields, rest) = if positional {
+        let (fields, rest) = crate::patterns::parse_positional_fields(syntax_trees, after_let)?;
+        (ExpressionHandle::invalid(), fields, rest)
+    } else {
+        let (head, pattern_input) = if after_let.at_punctuation(PunctuationKind::LeftBrace) {
+            (ExpressionHandle::invalid(), after_let)
         } else {
-            rest = after_binding;
+            // An ordinary `let name: Type` must stay on the ordinary declaration
+            // route. Only a declaration path immediately followed by `{` names a
+            // structural pattern; no initializer is parsed speculatively.
+            let Ok((path, rest)) =
+                crate::input::token_cursor::parse_path_handle_span(after_let, |member| {
+                    exprs(syntax_trees).append_identifier_path_member(member)
+                })
+            else {
+                return Ok(None);
+            };
+            if !rest.at_punctuation(PunctuationKind::LeftBrace) {
+                return Ok(None);
+            }
+            (exprs(syntax_trees).insert(ExpressionNode::Name(path)), rest)
+        };
+        let (fields, rest) =
+            crate::patterns::parse_destructure_fields(syntax_trees, pattern_input)?;
+        (head, fields, rest)
+    };
+    let rest = rest.take_punctuation(PunctuationKind::Equal, "=")?;
+    let (value, rest) = parse_expression_handle(syntax_trees, rest)?;
+    let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    let mut names = Vec::new();
+    for field in &fields.fields {
+        if let MatchFieldAction::Bind(binding) = &field.action {
+            let name = binding.as_str(syntax_trees);
+            if names.contains(&name) {
+                return Err(input.error_here(format!(
+                    "pattern binding `{name}` is introduced more than once"
+                )));
+            }
+            names.push(name);
         }
     }
-    if fields.is_empty() {
-        return None;
-    }
-    let rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
-    let (value, rest) = parse_expression_handle(syntax_trees, rest).ok()?;
-    let rest = rest
-        .take_punctuation(PunctuationKind::Semicolon, ";")
-        .ok()?;
-    // V1 place gate: the destructured value must be a Name or member chain
-    // (pure re-readable place; calls would double-evaluate).
-    fn is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-        match exprs_of(syntax_trees).expression(expression) {
-            ExpressionNode::Name(_) => true,
-            ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
-            _ => false,
-        }
-    }
-    if !is_place(syntax_trees, value) {
-        return None;
-    }
-
-    // The MARKER let: name encodes the spelled field set (bound AND
-    // waived) -- validation's exhaustiveness carrier; its initializer is
-    // the place itself (types the marker; names the receiver).
-    // `#` cannot occur in an authored identifier, so even fields containing
-    // repeated underscores retain one unambiguous marker component. This is
-    // the same delimiter as the arm-pattern marker family.
-    let mut marker_name = String::from("__destructure");
-    for (field, _) in &fields {
-        marker_name.push('#');
-        marker_name.push_str(field.as_str(syntax_trees));
-    }
-    let marker = syntax_trees
+    let ordinal = syntax_trees.statements.statement_count();
+    let capture_name = Identifier::generated(format!("__pattern_subject#{ordinal}"));
+    let pattern_fields = exprs(syntax_trees).insert_match_fields(fields.fields.clone());
+    let capture = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
-            role: language_core::LocalBindingRole::RecordPattern,
-            name: Identifier::generated(marker_name),
+            pattern: Some(TableLocalPattern {
+                head,
+                fields: pattern_fields,
+                has_rest: fields.has_rest,
+                positional,
+            }),
+            role: language_core::LocalBindingRole::DispatchSubject,
+            name: capture_name.clone(),
             type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             initial_value: value,
             is_mutable: false,
             relevance: language_core::BindingRelevance::Relevant,
         }));
-    let marker = items(syntax_trees).append_statement_handle(marker);
+    let capture = items(syntax_trees).append_statement_handle(capture);
+    let name = exprs(syntax_trees).append_identifier_path_member(capture_name);
+    let receiver =
+        exprs(syntax_trees).insert(ExpressionNode::Name(HandleSpan::from_parts(name, 1)));
     let mut statements = crate::handle_spans::HandleSpanBuilder::new();
-    statements.push(marker);
-
-    for (field, binding) in fields {
-        let Some(binding) = binding else {
-            continue; // waived: spelled in the marker, no binding minted
+    statements.push(capture);
+    for field in fields.fields {
+        let MatchFieldAction::Bind(binding) = field.action else {
+            continue;
         };
         let member = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: value,
+            selector: field.selector,
+            receiver,
             access_source_span: Default::default(),
-            member: field,
+            member: field.member,
             case_variant: None,
         }));
-        let statement = syntax_trees
+        let local = syntax_trees
             .statements
             .insert(StatementNode::LocalData(TableLocalData {
+                pattern: None,
                 role: language_core::LocalBindingRole::Value,
                 name: binding,
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
@@ -143,10 +123,21 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
             }));
-        statements.push(items(syntax_trees).append_statement_handle(statement));
+        statements.push(items(syntax_trees).append_statement_handle(local));
     }
-
-    Some((statements.finish(), rest))
+    let completion = syntax_trees
+        .statements
+        .insert(StatementNode::LocalData(TableLocalData {
+            pattern: None,
+            role: language_core::LocalBindingRole::RecordPattern,
+            name: Identifier::generated(format!("__pattern_end#{ordinal}")),
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: receiver,
+            is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }));
+    statements.push(items(syntax_trees).append_statement_handle(completion));
+    Ok(Some((statements.finish(), rest)))
 }
 
 /// Chapter-10 proof-output binding:

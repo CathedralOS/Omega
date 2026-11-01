@@ -1,0 +1,56 @@
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::types::ownership;
+use psi::typing::typer;
+use psi::typing::expressions;
+
+// A view retains the exact source but owns only the active payload. Publish
+// its disposition from the original application's payload roster, separately
+// from common-field obligations and from the unchanged physical schema.
+public machine Typer::case_view_type(typer: &mut Typer, syntax: &SyntaxTrees, subject: u64 in Trapping, span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    let mut view: TypeRow = TypeRow::of(TypeKind::CaseView);
+    view.inner = subject;
+    let handle: u64 in Trapping = Typer::intern(typer, view, span);
+    let original: TypeRow = TypeTable::row(&typer.output.types, subject);
+    let initial: DataMultiplicity = Typing::multiplicity(syntax, &typer.output, subject);
+    transition original.kind == TypeKind::Reference {
+        true -> finished(typer, handle, initial)
+        _ -> owned(typer, syntax, subject, span, handle, initial)
+    }
+    machine owned(typer: &mut Typer, syntax: &SyntaxTrees, subject: u64 in Trapping, span: SourceSpan, handle: u64 in Trapping, initial: DataMultiplicity) -> u64 in Trapping {
+        let base: u64 in Trapping = Typer::case_subject(typer, subject);
+        let owner: TypeRow = TypeTable::row(&typer.output.types, base);
+        transition owner.kind == TypeKind::Data { true -> declared(typer, syntax, span, handle, initial, owner) _ -> finished(typer, handle, DataMultiplicity::Linear) }
+    }
+    machine declared(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, handle: u64 in Trapping, initial: DataMultiplicity, owner: TypeRow) -> u64 in Trapping {
+        let item: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        transition { _ -> data_case(typer, syntax, span, handle, initial, owner, item, 0) }
+    }
+    machine data_case(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, handle: u64 in Trapping, mode: DataMultiplicity, owner: TypeRow, item: DataItem, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < item.case_count && typer.output.accepted { true -> selected(typer, syntax, span, handle, mode, owner, item, offset) _ -> finished(typer, handle, mode) }
+    }
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, handle: u64 in Trapping, mode: DataMultiplicity, owner: TypeRow, item: DataItem, offset: u64 in Trapping) -> u64 in Trapping {
+        let current: u64 in Trapping = item.first_case + offset;
+        let selected: DataCase = SyntaxTrees::data_case(syntax, current);
+        let possible: bool = owner.domain != DomainBinding::Case || owner.domain_item == current;
+        transition possible { true -> field(typer, syntax, span, handle, mode, owner, item, offset, selected, 0) _ -> data_case(typer, syntax, span, handle, mode, owner, item, offset + 1) }
+    }
+    machine field(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, handle: u64 in Trapping, mode: DataMultiplicity, owner: TypeRow, item: DataItem, offset: u64 in Trapping, selected: DataCase, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < selected.payload_field_count && typer.output.accepted { true -> payload(typer, syntax, span, handle, mode, owner, item, offset, selected, index) _ -> data_case(typer, syntax, span, handle, mode, owner, item, offset + 1) }
+    }
+    machine payload(typer: &mut Typer, syntax: &SyntaxTrees, span: SourceSpan, handle: u64 in Trapping, mode: DataMultiplicity, owner: TypeRow, item: DataItem, offset: u64 in Trapping, selected: DataCase, index: u64 in Trapping) -> u64 in Trapping {
+        let declared: DataField = SyntaxTrees::payload_field(syntax, selected.first_payload_field + index);
+        let raw: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
+        let actual: u64 in Trapping = Typer::substitute(typer, syntax, raw, owner, span);
+        let contribution: DataMultiplicity = Typing::multiplicity(syntax, &typer.output, actual);
+        let combined: DataMultiplicity = Typing::join_multiplicity(mode, contribution);
+        transition { _ -> field(typer, syntax, span, handle, combined, owner, item, offset, selected, index + 1) }
+    }
+    machine finished(typer: &mut Typer, handle: u64 in Trapping, mode: DataMultiplicity) -> u64 in Trapping {
+        Typing::set_case_view_multiplicity(&mut typer.output, handle, mode);
+        handle
+    }
+}

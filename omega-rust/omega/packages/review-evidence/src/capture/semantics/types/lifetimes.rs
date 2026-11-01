@@ -95,6 +95,9 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
     }
 
     let topology = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            framed_identity("case-view", &[review_child!(*subject)?])
+        }
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {

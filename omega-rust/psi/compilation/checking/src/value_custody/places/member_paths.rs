@@ -80,7 +80,9 @@ pub(super) fn collect_member_path(
         ),
         ExpressionNode::Member(member) => {
             let mut names = collect_member_path(program, member.receiver)?;
-            names.push(member.member.as_str().to_owned());
+            if member.selector != language_core::DataComponentSelector::Case {
+                names.push(member.member.as_str().to_owned());
+            }
             Some(names)
         }
         _ => None,
@@ -119,17 +121,31 @@ pub(crate) fn first_unknown_nested_field(
         let receiver_type =
             declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
         let container = data_definition_for_type(program, receiver_type)?;
-        let field_exists = match member.case_variant.as_ref() {
-            // A case projection names exactly one variant's payload field.
-            Some(_) => {
-                super::projected_members::applied_data_member_field(program, receiver_type, member)
-                    .is_some()
+        let field_exists = if program.type_reference_table.has_case_view(receiver_type)
+            && member.selector != language_core::DataComponentSelector::Case
+        {
+            super::projected_members::applied_data_member_field(program, receiver_type, member)
+                .is_some()
+        } else if member.selector == language_core::DataComponentSelector::Case {
+            program
+                .data_members(container)
+                .iter()
+                .any(|member| member.as_variant().is_some())
+        } else {
+            match member.case_variant.as_ref() {
+                // A case projection names exactly one variant's payload field.
+                Some(_) => super::projected_members::applied_data_member_field(
+                    program,
+                    receiver_type,
+                    member,
+                )
+                .is_some(),
+                // An unprojected read (`choice.view`) names a common field or a
+                // payload field by its spelling, exactly as `declared_place_type_raw`
+                // types it. Whether that payload's case is live is the selected-case
+                // proof's question; this diagnostic reports only absent members.
+                None => data_field_or_payload(program, container, member.member.as_str()).is_some(),
             }
-            // An unprojected read (`choice.view`) names a common field or a
-            // payload field by its spelling, exactly as `declared_place_type_raw`
-            // types it. Whether that payload's case is live is the selected-case
-            // proof's question; this diagnostic reports only absent members.
-            None => data_field_or_payload(program, container, member.member.as_str()).is_some(),
         };
         return (!field_exists).then(|| {
             (

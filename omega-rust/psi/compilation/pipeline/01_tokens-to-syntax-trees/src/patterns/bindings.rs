@@ -17,6 +17,7 @@ type SubjectCopies = Vec<(Handle<MatchSubjectCapture>, Handle<MatchSubjectCaptur
 
 #[derive(Clone)]
 pub(crate) struct DestructureBinding {
+    pub(crate) selector: language_core::DataComponentSelector,
     pub(crate) binding: Identifier,
     pub(crate) member: Identifier,
     pub(crate) case_variant: Option<Identifier>,
@@ -187,6 +188,7 @@ fn rewrite_expression(
             })
         }
         ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
+            selector: member.selector,
             receiver: rewrite_expression(syntax_trees, member.receiver, subject, fields, captures),
             access_source_span: member.access_source_span,
             member: member.member,
@@ -197,10 +199,11 @@ fn rewrite_expression(
             access: inner.access,
         }),
         ExpressionNode::Name(path) => {
-            if let Some((field, case_variant)) =
+            if let Some((selector, field, case_variant)) =
                 single_destructured_field_name(syntax_trees, path, fields)
             {
                 ExpressionNode::Member(TableMemberExpression {
+                    selector,
                     receiver: subject,
                     access_source_span: Default::default(),
                     member: field,
@@ -296,7 +299,11 @@ fn single_destructured_field_name(
     syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
     fields: &[DestructureBinding],
-) -> Option<(Identifier, Option<Identifier>)> {
+) -> Option<(
+    language_core::DataComponentSelector,
+    Identifier,
+    Option<Identifier>,
+)> {
     let members = exprs_of(syntax_trees).identifier_path_members(path);
     let [member] = members else {
         return None;
@@ -304,5 +311,11 @@ fn single_destructured_field_name(
     fields
         .iter()
         .find(|field| field.binding.as_str(syntax_trees) == member.as_str(syntax_trees))
-        .map(|field| (field.member.clone(), field.case_variant.clone()))
+        .map(|field| {
+            (
+                field.selector,
+                field.member.clone(),
+                field.case_variant.clone(),
+            )
+        })
 }

@@ -49,6 +49,9 @@ impl Evaluator<'_> {
                 self.resolve_place(expression, frame)
             }
             ExpressionNode::Member(member) => {
+                if member.selector == language_core::DataComponentSelector::Case {
+                    return self.eval_read_cell(member.receiver, frame);
+                }
                 if let Some(value) = self.read_mutable_record_recast_target(expression, frame)? {
                     return self.allocate_cell(value);
                 }

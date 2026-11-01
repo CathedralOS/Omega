@@ -1283,7 +1283,9 @@ impl ExpressionTable {
                     )
             }
             (ExpressionNode::Member(x), ExpressionNode::Member(y)) => {
-                x.member_symbol == y.member_symbol
+                x.selector == y.selector
+                    && x.case_variant == y.case_variant
+                    && x.member_symbol == y.member_symbol
                     && x.member.as_str() == y.member.as_str()
                     && self.expressions_structurally_equal(x.receiver, y.receiver)
             }
@@ -1561,6 +1563,7 @@ pub struct RangeExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemberExpression {
+    pub selector: language_core::DataComponentSelector,
     pub receiver: Expression,
     pub member_symbol: SymbolHandle,
     pub member: Identifier,
@@ -1571,6 +1574,7 @@ pub struct MemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMemberExpression {
+    pub selector: language_core::DataComponentSelector,
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: Identifier,
@@ -2231,6 +2235,7 @@ pub struct TableDestructurePattern {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
+    pub selector: language_core::DataComponentSelector,
     pub member: Identifier,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,

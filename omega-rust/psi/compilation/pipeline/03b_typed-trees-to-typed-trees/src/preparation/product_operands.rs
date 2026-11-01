@@ -642,6 +642,9 @@ impl Lower<'_> {
             return Ok(reference);
         }
         let node = match self.graph.types.get(handle).clone() {
+            ProductOperandType::CaseView(subject) => TypeReferenceNode::CaseView {
+                subject: self.ty(subject)?,
+            },
             ProductOperandType::CanonicalConst(value) => TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
                 name: Identifier::generated(value.atom()),

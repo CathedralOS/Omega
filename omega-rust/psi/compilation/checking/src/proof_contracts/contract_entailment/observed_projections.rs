@@ -461,8 +461,8 @@ fn inline_projection_source(
     // Default-domain predicates name the nominal value, while a checked
     // shared borrow retains its exact reference shell. Both views project the
     // same authenticated inline cells; neither may cross a reference child.
-    (crate::declared_carriers_match(program, reference, observed)
-        || crate::declared_carriers_match(program, reference, shell.referee))
+    (super::structural_terms::observed_carriers_match(program, reference, observed)
+        || super::structural_terms::observed_carriers_match(program, reference, shell.referee))
     .then_some(())?;
     let StructuralTerm::ObservedValue { value, .. } = value else {
         return None;

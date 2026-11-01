@@ -281,6 +281,9 @@ fn walk_bounded_type<Context: Clone>(
     on_constrained: &mut impl FnMut(Context, TypeReferenceHandle, HandleSpan<TypeConstraintNode>),
 ) {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            walk_bounded_type(program, *subject, context, on_constrained)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             walk_bounded_type(program, *referee, context, on_constrained);
         }

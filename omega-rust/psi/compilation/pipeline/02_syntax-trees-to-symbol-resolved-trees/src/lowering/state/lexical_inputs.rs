@@ -51,6 +51,10 @@ pub(crate) fn lower_local_declaration(
         symbol: SymbolHandle::invalid(),
         name: crate::lowering::name::lower_name(syntax, &local.name),
         storage: LocalDataStorage {
+            pattern: local
+                .pattern
+                .map(|pattern| lower_local_pattern(lowerer, syntax, pattern))
+                .transpose()?,
             role: local.role,
             type_reference,
             initial_value: symbol_resolved_trees::expression::ExpressionHandle::invalid(),
@@ -112,5 +116,46 @@ pub(crate) fn lower_state_lexical_inputs(
             }
         }
         Ok(inputs)
+    })
+}
+
+/// Keep selectors as declaration metadata rather than recovering them from a
+/// generated local's spelling. Evaluation stays on the ordinary initializer.
+fn lower_local_pattern(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    pattern: syntax::statement::TableLocalPattern,
+) -> Result<symbol_resolved_trees::statement::TableLocalPattern, Diagnostic> {
+    use crate::lowering::expression::{expression_table, lower_expression_into_table};
+    use symbol_resolved_trees::expression::{MatchFieldAction, TableMatchField};
+    let head = if pattern.head.is_valid() {
+        lower_expression_into_table(lowerer, syntax, pattern.head)?
+    } else {
+        symbol_resolved_trees::expression::ExpressionHandle::invalid()
+    };
+    let mut fields = Vec::new();
+    for field in syntax.expressions.match_fields(pattern.fields) {
+        let action = match &field.action {
+            syntax::expression::MatchFieldAction::Bind(name) => {
+                MatchFieldAction::Bind(crate::lowering::name::lower_name(syntax, name))
+            }
+            syntax::expression::MatchFieldAction::Equal(value) => {
+                MatchFieldAction::Equal(lower_expression_into_table(lowerer, syntax, *value)?)
+            }
+            syntax::expression::MatchFieldAction::Waive => MatchFieldAction::Waive,
+        };
+        fields.push(TableMatchField {
+            selector: field.selector,
+            member: crate::lowering::name::lower_name(syntax, &field.member),
+            field_symbol: SymbolHandle::invalid(),
+            action,
+        });
+    }
+    let fields = expression_table(lowerer).insert_match_fields(fields);
+    Ok(symbol_resolved_trees::statement::TableLocalPattern {
+        head,
+        fields,
+        has_rest: pattern.has_rest,
+        positional: pattern.positional,
     })
 }

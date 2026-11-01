@@ -331,6 +331,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
+            retirement.state.symbol,
             retirement.prepared_calls,
             retirement.results,
             owner_source.clone(),

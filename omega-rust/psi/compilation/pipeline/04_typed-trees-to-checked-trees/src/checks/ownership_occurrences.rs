@@ -212,7 +212,11 @@ pub(super) fn statement_steps_at_evaluation(
     };
     match statement {
         StatementNode::Assembly(_) => {}
-        StatementNode::LocalData(local) => order.expression(local.initial_value, false),
+        StatementNode::LocalData(local) => {
+            if local.role.has_ordinary_initializer() {
+                order.expression(local.initial_value, false);
+            }
+        }
         StatementNode::Expression(expression) => order.expression(*expression, false),
         StatementNode::Assignment(assignment) => {
             order.selectors(assignment.target, false);

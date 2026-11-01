@@ -173,6 +173,7 @@ fn common_paths(alternatives: &[&[Path]]) -> Vec<Path> {
 struct Query<'a> {
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
+    state: SymbolHandle,
     results: &'a Results,
     source: CheckedUnitStructuralArgumentSourcePlan,
     source_is_unrestricted: bool,
@@ -186,6 +187,7 @@ struct Query<'a> {
 pub(in crate::execution::terminal_unit) fn transfers(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &super::structural_value_calls::PreparedCalls,
     results: &Results,
     binding: u32,
@@ -198,6 +200,7 @@ pub(in crate::execution::terminal_unit) fn transfers(
     from_storage(
         program,
         facts,
+        state,
         prepared_calls,
         results,
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -212,6 +215,7 @@ pub(in crate::execution::terminal_unit) fn transfers(
 pub(in crate::execution::terminal_unit) fn from_storage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &super::structural_value_calls::PreparedCalls,
     results: &Results,
     source: CheckedUnitStructuralArgumentSourcePlan,
@@ -242,6 +246,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
     let query = Query {
         program,
         facts,
+        state,
         results,
         source,
         source_is_unrestricted,
@@ -295,6 +300,7 @@ pub(in crate::execution::terminal_unit) fn has_computation_transfer(
     let query = Query {
         program,
         facts,
+        state,
         results,
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
@@ -332,6 +338,7 @@ pub(super) struct ParameterVacancies {
 pub(super) fn parameter_vacancies(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &super::structural_value_calls::PreparedCalls,
     parameter_index: u32,
     parameter_position: u32,
@@ -342,6 +349,7 @@ pub(super) fn parameter_vacancies(
     let query = Query {
         program,
         facts,
+        state,
         results: &[],
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         source_is_unrestricted: parameter_multiplicity == Multiplicity::Unrestricted,
@@ -581,15 +589,15 @@ impl Query<'_> {
             return Some(Transfers::default());
         };
         let values = &self.facts.values.structural_values;
-        let mut roots = values
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| root.expression == expression);
-        let root = roots.next()?;
-        if roots.next().is_some() {
-            return None;
-        }
+        // A saved subject names the completed dispatch value, not another
+        // producer. Rejoin its exact capture within this state's namespace;
+        // transfer analysis does not replay the initializer or grant access.
+        let root = values.completed_expression_dependency(
+            &self.program.expression_table,
+            self.state,
+            None,
+            expression,
+        )?;
         self.value(
             root.root,
             &argument.path,

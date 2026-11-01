@@ -88,10 +88,12 @@ pub(super) fn check_call_requires(
             state_flow,
             call_flow,
             nominal_requirements,
+            call_frames,
             diagnostics,
         );
     });
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
+    let mut result_memberships = crate::flow::CapturedResultMemberships::new(facts);
     for requires_context in facts
         .flow
         .semantic_constraint_contexts(call_flow.requires_constraints)
@@ -99,7 +101,15 @@ pub(super) fn check_call_requires(
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
             let membership = phase_profile::scope("05.d.7.3b.1c.membership", || {
-                super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact)
+                super::call_values::membership_evidence(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    fact,
+                    &mut result_memberships,
+                    call_frames,
+                )
             });
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
                 let requirement_contexts =
@@ -129,7 +139,8 @@ pub(super) fn check_call_requires(
                         )
                     });
                 let satisfied = phase_profile::scope("05.d.7.3b.1e.proves_core", || {
-                    selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
+                    case.is_some_and(|case| case.retained_result)
+                        || selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
                         || captured_judgment.unwrap_or_else(|| match fact.payload {
                             FactPayload::ContractBooleanExpression { expression, .. } => {
                                 boolean_requirements::proves(
@@ -717,6 +728,51 @@ fn proven_predicates_grant_domain(
     let Some(subject) = validation::canonical_place_from_expression(program, value) else {
         return false;
     };
+    // Observe the complete admitted value before splitting a proposition into
+    // scalar leaves. In particular, a case-dependent disjunction can hold on
+    // every result of a selection without either disjunct holding globally.
+    // This is the same completed-value owner used by writes and result domains.
+    // Reference-bearing values still owe invocation-live observations below;
+    // an old captured referent cannot qualify a later call after another actual
+    // changes its backing.
+    let completed = (|| {
+        let symbol = subject.root.as_symbol()?;
+        let parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
+        let position = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)?;
+        let actual = super::call_values::actual_at(
+            program,
+            state_flow,
+            call_flow,
+            position,
+            subject.segments.clone(),
+        )?;
+        let argument = actual.argument?;
+        let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
+        let state = program.state_by_symbol(state_flow.state_symbol)?;
+        let reference =
+            validation::expression_result_type_reference(program, machine, state, argument)?;
+        let frames = call_frames?;
+        if !frames.value_is_reference_free(reference) {
+            return None;
+        }
+        Some(predicates.iter().all(|(predicate_domain, predicate)| {
+            validation::completed_value_proves_bound_domain_predicate(
+                program,
+                machine,
+                state,
+                call_flow.statement_index,
+                argument,
+                predicate_domain,
+                *predicate,
+                &actual.path,
+            )
+        }))
+    })();
+    if completed == Some(true) {
+        return true;
+    }
     // The declaration supplies goals, never premises. Bind its subject to the
     // exact formal, then use the same captured actuals and observation epochs
     // as an ordinary Boolean contract. Display labels cannot identify storage

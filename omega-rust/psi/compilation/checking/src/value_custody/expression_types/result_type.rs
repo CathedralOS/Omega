@@ -536,6 +536,9 @@ fn result_type(
         }
         ExpressionNode::Member(member) => result_type(program, owner, member.receiver, active)
             .and_then(|receiver| {
+                if member.selector == language_core::DataComponentSelector::Case {
+                    return program.type_reference_table.case_view_reference(receiver);
+                }
                 // A compiler-owned measure (`len`, `capacity`) of a fixed array
                 // or slice is a `u64` count, not a declared data field.
                 if crate::collection_operations::collection_measure_member(

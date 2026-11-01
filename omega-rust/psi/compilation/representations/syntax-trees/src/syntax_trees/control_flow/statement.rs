@@ -262,6 +262,10 @@ pub struct TableCall {
 )]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
+    /// Authored decomposition belongs to the binding, independently of its
+    /// generated diagnostic name. The initializer is evaluated by the ordinary
+    /// local capture; this record retains the selectors checked against it.
+    pub pattern: Option<TableLocalPattern>,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: ExpressionHandle,
@@ -271,6 +275,22 @@ pub struct TableLocalData {
     /// `let name [erased]: T` -- a proof-side local with no runtime storage;
     /// the same binding-occurrence marker as an erased data field.
     pub relevance: language_core::BindingRelevance,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
+pub struct TableLocalPattern {
+    pub head: crate::expression::ExpressionHandle,
+    pub fields: HandleSpan<crate::expression::TableMatchField>,
+    pub has_rest: bool,
+    pub positional: bool,
 }
 
 #[derive(

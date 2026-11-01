@@ -353,6 +353,49 @@ fn visit(
     }
     active.push(reference);
     let result = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            if validation::reference_shell(program, *subject).is_some() {
+                Some(())
+            } else {
+                let carrier = validation::unwrapped_type_reference(program, *subject)?;
+                let symbol = program.type_reference_table.type_symbol(carrier);
+                let mut nested = substitutions.to_vec();
+                if let TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    ..
+                } = program.type_reference_table.type_reference(carrier)
+                {
+                    let data = program.data_definition_by_symbol(*base_symbol)?;
+                    let parameters = program.data_type_parameters(data);
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(*arguments);
+                    if parameters.len() != arguments.len() {
+                        return None;
+                    }
+                    nested.extend(
+                        parameters
+                            .iter()
+                            .zip(arguments)
+                            .map(|(parameter, argument)| (parameter.symbol, *argument)),
+                    );
+                }
+                visit_owner(
+                    program,
+                    symbol,
+                    *subject,
+                    &nested,
+                    removed,
+                    active,
+                    path,
+                    leaves,
+                    has_erased_obligations,
+                    inactive_case,
+                    true,
+                )
+            }
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,
@@ -404,6 +447,7 @@ fn visit(
             leaves,
             has_erased_obligations,
             inactive_case,
+            false,
         ),
         TypeReferenceNode::Generic {
             base_symbol,
@@ -436,6 +480,7 @@ fn visit(
                 leaves,
                 has_erased_obligations,
                 inactive_case,
+                false,
             )
         }
         // A selector names an implementation table and owns no data, so it
@@ -491,6 +536,7 @@ fn visit_owner(
     leaves: &mut Vec<CleanupLeaf>,
     has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
+    case_only: bool,
 ) -> Option<()> {
     let symbol = program
         .machine_by_symbol(symbol)
@@ -508,9 +554,13 @@ fn visit_owner(
             _ => None,
         };
     };
-    let nominal = validation::nominal_cleanup_machine_for_type(program, reference, substitutions)
-        .map(|machine| machine.symbol);
-    if data.properties.multiplicity == Multiplicity::Linear && nominal.is_none() {
+    let nominal = (!case_only)
+        .then(|| {
+            validation::nominal_cleanup_machine_for_type(program, reference, substitutions)
+                .map(|machine| machine.symbol)
+        })
+        .flatten();
+    if !case_only && data.properties.multiplicity == Multiplicity::Linear && nominal.is_none() {
         return None;
     }
     if let Some(target) = nominal {
@@ -533,7 +583,7 @@ fn visit_owner(
     let mut matched = 0;
     for member in program.data_members(data) {
         match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => {
+            DataMember::Field(field) if !case_only && !field.relevance.is_erased() => {
                 let child = selected(
                     removed,
                     PlaceSegment::Field {
@@ -654,8 +704,13 @@ fn visit_owner(
                 }
             }
             DataMember::Field(field) => {
-                *has_erased_obligations |=
-                    erased_subject_needs_disposition(program, field.type_reference, substitutions);
+                if !case_only {
+                    *has_erased_obligations |= erased_subject_needs_disposition(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                    );
+                }
             }
         }
     }

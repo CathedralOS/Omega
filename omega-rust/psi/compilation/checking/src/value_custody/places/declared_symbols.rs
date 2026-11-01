@@ -10,6 +10,9 @@ pub fn machine_symbol_from_type_reference_handle(
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::CaseView { subject } => {
+            machine_symbol_from_type_reference_handle(program, *subject)
+        }
         typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             machine_symbol_from_type_reference_handle(program, *referee)
         }

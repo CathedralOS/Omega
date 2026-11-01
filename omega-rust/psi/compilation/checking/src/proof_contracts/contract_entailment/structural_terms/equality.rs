@@ -67,6 +67,7 @@ fn identity_carrier(
         return !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
     }
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
             identity_carrier(program, *base_type, active, depth + 1)
         }

@@ -521,6 +521,7 @@ impl Capture<'_> {
                 },
             },
             Source::Member(value) => ProductExpressionKind::Member {
+                selector: value.selector,
                 receiver: self.expression(value.receiver)?,
                 member: self.name(&value.member, value.member_symbol),
             },
@@ -677,6 +678,7 @@ impl Capture<'_> {
                     .iter()
                     .map(|field| {
                         Ok(ProductMatchField {
+                            selector: field.selector,
                             member: self.name(&field.member, field.field_symbol),
                             action: match &field.action {
                                 source_expression::MatchFieldAction::Bind(name) => {

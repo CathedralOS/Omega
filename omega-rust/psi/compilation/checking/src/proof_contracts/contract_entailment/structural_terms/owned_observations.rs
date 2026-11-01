@@ -5,6 +5,23 @@
 use super::StructuralTerm;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Observation compatibility keeps the component's original carrier. Source
+/// projection still authenticates each exposed payload field through its view
+/// type; this comparison grants neither common-field access nor a loan.
+pub(in crate::proof_contracts::contract_entailment) fn observed_carriers_match(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    let subject = |reference| {
+        program
+            .type_reference_table
+            .case_view_subject(reference)
+            .unwrap_or(reference)
+    };
+    crate::declared_carriers_match(program, subject(left), subject(right))
+}
+
 pub(in crate::proof_contracts::contract_entailment) fn owned_observation_type(
     program: &dyn crate::CheckingInput,
     value: &StructuralTerm,
@@ -29,7 +46,7 @@ pub(in crate::proof_contracts::contract_entailment) fn owned_projection_observat
     value: StructuralTerm,
 ) -> StructuralTerm {
     if shared_inline_observation_type(program, &value)
-        .is_some_and(|observed| crate::declared_carriers_match(program, declared, observed))
+        .is_some_and(|observed| observed_carriers_match(program, declared, observed))
     {
         value
     } else if crate::reference_shell(program, declared).is_some() {
@@ -63,7 +80,7 @@ pub(in crate::proof_contracts::contract_entailment) fn shared_inline_observation
     let shell = crate::reference_shell(program, *observed_type)?;
     if shell.access != language_semantics::ReferenceAccess::Shared
         || crate::slice_view_shell(program, *observed_type, &[]).is_some()
-        || !crate::declared_carriers_match(
+        || !observed_carriers_match(
             program,
             shell.referee,
             owned_observation_type(program, value)?,

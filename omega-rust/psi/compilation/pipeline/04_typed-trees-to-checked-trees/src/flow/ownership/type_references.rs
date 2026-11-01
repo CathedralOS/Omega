@@ -47,6 +47,9 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
     }
 
     match program.type_reference_table.type_reference(return_type) {
+        typed_trees::types::TypeReferenceNode::CaseView { subject } => {
+            classify_operator_result_ownership(program, *subject)
+        }
         // `&[T]`, `&mut [T]`, `&string`, `&T` — a borrowed view/window.
         typed_trees::types::TypeReferenceNode::Reference { .. } => {
             OperatorResultOwnership::BorrowedView

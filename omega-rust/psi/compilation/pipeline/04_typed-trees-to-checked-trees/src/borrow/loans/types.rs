@@ -3,6 +3,9 @@ pub(super) fn is_reference_type(
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::CaseView { subject } => {
+            is_reference_type(program, *subject)
+        }
         typed_trees::types::TypeReferenceNode::Reference { .. } => true,
         typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             is_reference_type(program, *base_type)
@@ -22,6 +25,9 @@ pub(crate) fn reference_borrow_access_kind(
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::BorrowAccessKind> {
     match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::CaseView { subject } => {
+            reference_borrow_access_kind(program, *subject)
+        }
         typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
             Some(checked_trees::BorrowAccessKind::from(*access))
         }

@@ -1,0 +1,21 @@
+// An irrefutable binding retires its waived owned residual exactly once.
+// Expected exit: 0
+use omega::language::core::drop;
+data Counter { value: u32 in Wrapping; }
+data Token { counter: &mut Counter; }
+data Pair { left: Token; right: Token; }
+machine Token::drop(token: &mut Token) { token.counter.value = token.counter.value + 1; }
+machine exercise(choose_left: bool) -> bool {
+    let mut left_count: Counter = Counter { value: 0 };
+    let mut right_count: Counter = Counter { value: 0 };
+    let Pair { left, right as _ } = match choose_left {
+        true -> Pair { left: Token { counter: &mut left_count }, right: Token { counter: &mut right_count } }
+        false -> Pair { left: Token { counter: &mut left_count }, right: Token { counter: &mut right_count } }
+    };
+    drop(left);
+    (left_count.value as u32) == 1 && (right_count.value as u32) == 1
+}
+machine main() crashes Trap {
+    transition exercise(true) && exercise(false) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

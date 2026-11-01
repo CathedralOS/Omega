@@ -228,8 +228,8 @@ pub use static_path::{
     canonical_case_leaf_type, canonical_storage_dependencies, canonical_structural_path_tip,
     canonical_structural_storage_path, constant_runtime_index, interior_member_borrow,
     qualification_path_carrier, runtime_index_bound, runtime_index_selects,
-    structural_memberships_disjoint_from_write, structural_paths_may_overlap,
-    structural_paths_select_same_location,
+    structural_memberships_disjoint_from_write, structural_move_may_invalidate_case_tag,
+    structural_paths_may_overlap, structural_paths_select_same_location,
 };
 pub use storage_regions::{
     StorageRegion, canonical_field_storage_region, crosses_unaliased_reference,

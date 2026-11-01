@@ -669,6 +669,9 @@ fn substitute_call_type_arguments(
         substitute_call_type_arguments(table, application, substitutions)?;
     }
     match table.type_reference(reference).clone() {
+        Node::CaseView { subject } => {
+            substitute_call_type_arguments(table, subject, substitutions)?
+        }
         Node::Named { symbol, .. } => {
             if let Some((_, concrete)) = substitutions
                 .iter()

@@ -498,6 +498,7 @@ crashes Trap
             ResolveDiagnosticCode::LifetimeArgumentCount -> diagnostic_tag(resolver_harness, output, 35)
             ResolveDiagnosticCode::MeasureForm -> diagnostic_tag(resolver_harness, output, 36)
             ResolveDiagnosticCode::UnknownMeasureComponent -> diagnostic_tag(resolver_harness, output, 37)
+            ResolveDiagnosticCode::BindingScopeCapacityExceeded -> diagnostic_tag(resolver_harness, output, 38)
         }
     }
 
@@ -601,13 +602,27 @@ crashes Trap
             ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0)
             ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
-            ValueBinding::PayloadField { field } -> value_tag(resolver_harness, output, index, 15, field, 0)
             ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
+            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 19, item, 0)
+            ValueBinding::TypeOperand { binding } -> static_type_row(resolver_harness, output, index, binding)
             ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
             ValueBinding::LayoutQuery { query } -> layout_row(resolver_harness, output, index, query)
         }
     }
 
+
+    machine static_type_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, binding: TypeBinding) {
+        transition binding {
+            TypeBinding::Builtin { builtin } -> static_builtin(resolver_harness, output, index, builtin)
+            TypeBinding::Data { item } -> value_tag(resolver_harness, output, index, 20, 2, item)
+            TypeBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 20, 3, parameter)
+            _ -> value_tag(resolver_harness, output, index, 20, 0, 0)
+        }
+    }
+    machine static_builtin(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, builtin: BuiltinType) {
+        let tag: u64 in Trapping = ResolverHarness::builtin_tag(builtin);
+        ResolverHarness::value_tag(resolver_harness, output, index, 20, 1, tag);
+    }
     // A layout query: 1 `size_of`, 2 `align_of`.
     machine layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
         transition query {
@@ -660,30 +675,36 @@ crashes Trap
         index: u64 in Trapping,
         builtin: BuiltinType
     ) {
+        let tag: u64 in Trapping = ResolverHarness::builtin_tag(builtin);
+        ResolverHarness::type_row(resolver_harness, output, index, 1, tag);
+    }
+
+    machine builtin_tag(builtin: BuiltinType) -> u64 in Trapping {
         transition builtin {
-            BuiltinType::Bool -> type_row(resolver_harness, output, index, 1, 0)
-            BuiltinType::I8 -> type_row(resolver_harness, output, index, 1, 1)
-            BuiltinType::I16 -> type_row(resolver_harness, output, index, 1, 2)
-            BuiltinType::I32 -> type_row(resolver_harness, output, index, 1, 3)
-            BuiltinType::I64 -> type_row(resolver_harness, output, index, 1, 4)
-            BuiltinType::U8 -> type_row(resolver_harness, output, index, 1, 5)
-            BuiltinType::U16 -> type_row(resolver_harness, output, index, 1, 6)
-            BuiltinType::U32 -> type_row(resolver_harness, output, index, 1, 7)
-            BuiltinType::U64 -> type_row(resolver_harness, output, index, 1, 8)
-            BuiltinType::Address -> type_row(resolver_harness, output, index, 1, 9)
-            BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10)
-            BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11)
-            BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12)
-            BuiltinType::Result -> type_row(resolver_harness, output, index, 1, 13)
-            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 14)
-            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 15)
-            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 16)
-            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 17)
-            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 18)
-            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 19)
-            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 20)
-            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 21)
+            BuiltinType::Bool -> code(0)
+            BuiltinType::I8 -> code(1)
+            BuiltinType::I16 -> code(2)
+            BuiltinType::I32 -> code(3)
+            BuiltinType::I64 -> code(4)
+            BuiltinType::U8 -> code(5)
+            BuiltinType::U16 -> code(6)
+            BuiltinType::U32 -> code(7)
+            BuiltinType::U64 -> code(8)
+            BuiltinType::Address -> code(9)
+            BuiltinType::F32 -> code(10)
+            BuiltinType::F64 -> code(11)
+            BuiltinType::Slice -> code(12)
+            BuiltinType::Result -> code(13)
+            BuiltinType::SyscallResult -> code(14)
+            BuiltinType::Terminal -> code(15)
+            BuiltinType::Never -> code(16)
+            BuiltinType::UInt -> code(17)
+            BuiltinType::Int -> code(18)
+            BuiltinType::AtomicBool -> code(19)
+            BuiltinType::AtomicU32 -> code(20)
+            BuiltinType::AtomicU64 -> code(21)
         }
+        machine code(tag: u64 in Trapping) -> u64 in Trapping { tag }
     }
 
     machine type_row(

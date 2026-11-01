@@ -8,7 +8,6 @@ use validation::CanonicalPlace;
 use super::canonical_place_segments_may_overlap;
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::PlaceRoot;
-use typed_trees::types::TypeReferenceNode;
 use typed_trees::{machine::Machine, statement::StatementNode};
 
 mod result_candidates;
@@ -116,13 +115,7 @@ pub(crate) fn local_reference_storage_before_statement(
     if declarations.next().is_some() {
         return None;
     }
-    let reference = program
-        .type_reference_table
-        .unconstrained_type_reference(local.type_reference);
-    if !matches!(
-        program.type_reference_table.type_reference(reference),
-        TypeReferenceNode::Reference { .. }
-    ) {
+    if validation::reference_shell(program, local.type_reference).is_none() {
         return Some(place);
     }
     let (root, mut segments) = frames.local_reference_origin_before_statement(

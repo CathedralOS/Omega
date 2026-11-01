@@ -1,0 +1,66 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::typer;
+
+// Type names in facts have no runtime type. Prepare their separate static
+// vocabulary before bodies so ordinary scoped type equations can constrain
+// formation; the later fact pass still owes every complete Boolean expression.
+public machine Typer::prepare_static_operands(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution)
+crashes Trap
+{
+    transition { _ -> next(typer, syntax, resolution, 0) }
+    machine next(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < syntax.expression_count && typer.output.accepted { true -> selected(typer, syntax, resolution, index) _ -> done() }
+    }
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, index);
+        transition binding {
+            ValueBinding::TypeOperand { binding as selected } -> operand(typer, syntax, resolution, index, selected)
+            _ -> next(typer, syntax, resolution, index + 1)
+        }
+    }
+    machine operand(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, binding: TypeBinding) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        let handle: u64 in Trapping = Typer::static_named_type(typer, syntax, binding, expression.source_span);
+        Typing::set_static_operand_type(&mut typer.output, index, handle);
+        let mut coordinate: TypeRow = TypeRow::of(TypeKind::Builtin);
+        coordinate.builtin = BuiltinType::U64;
+        let type_handle: u64 in Trapping = Typer::intern(typer, coordinate, expression.source_span);
+        typer.output.static_index_type = type_handle;
+        transition { _ -> next(typer, syntax, resolution, index + 1) }
+    }
+    machine done() {}
+}
+
+machine Typer::static_named_type(typer: &mut Typer, syntax: &SyntaxTrees, binding: TypeBinding, source_span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition binding {
+        TypeBinding::Builtin { builtin } -> builtin(typer, builtin, source_span)
+        TypeBinding::GenericParameter { parameter } -> generic(typer, parameter, source_span)
+        TypeBinding::Data { item } -> data(typer, syntax, item, source_span)
+        _ -> unsupported(typer, source_span)
+    }
+    machine builtin(typer: &mut Typer, builtin: BuiltinType, source_span: SourceSpan) -> u64 in Trapping {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = builtin;
+        transition builtin == BuiltinType::Slice || builtin == BuiltinType::Result || builtin == BuiltinType::SyscallResult || builtin == BuiltinType::UInt || builtin == BuiltinType::Int { true -> unsupported(typer, source_span) _ -> retained(typer, row, source_span) }
+    }
+    machine generic(typer: &mut Typer, parameter: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping {
+        let mut row: TypeRow = TypeRow::of(TypeKind::GenericParameter);
+        row.item = parameter;
+        transition { _ -> retained(typer, row, source_span) }
+    }
+    machine data(typer: &mut Typer, syntax: &SyntaxTrees, item: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Data);
+        row.item = item;
+        transition Typer::applied_parameter_count(syntax, item) == 0 { true -> retained(typer, row, source_span) _ -> unsupported(typer, source_span) }
+    }
+    machine retained(typer: &mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping { Typer::intern(typer, row, source_span) }
+    machine unsupported(typer: &mut Typer, source_span: SourceSpan) -> u64 in Trapping {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedTypeForm, source_span);
+        0
+    }
+}

@@ -42,6 +42,7 @@ public data Admission [copy] {
     case Read;
     // An anonymous value with a fractional part at an integer destination.
     case Fraction;
+    case TypeEquation;
 }
 
 public machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -131,6 +132,17 @@ crashes Trap
         let same: bool = TypeTable::same_carrier(&typer.output.types, wanted, given);
         transition same {
             true -> requalified(typer, syntax, wanted, given, expression)
+            _ -> equation(typer, syntax, wanted, given, actual, expression)
+        }
+    }
+
+    // Open type parameters may be equal under scoped static facts. Formation
+    // keeps the obligation explicit; this is never evidence of that equality.
+    machine equation(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let open: bool = wanted.kind == TypeKind::GenericParameter || given.kind == TypeKind::GenericParameter;
+        let plain: bool = wanted.domain == DomainBinding::Unqualified && given.domain == DomainBinding::Unqualified;
+        transition open && plain {
+            true -> Admission::TypeEquation
             _ -> lending(typer, syntax, wanted, given, actual, expression)
         }
     }
@@ -396,6 +408,7 @@ crashes Trap
             Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
             Admission::SharedReborrow -> mark_lent(typer, expression)
             Admission::Qualified -> qualified(typer, expression)
+            Admission::TypeEquation -> equation(typer, expression)
             Admission::Read -> read(typer, expression)
             Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
             Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction)
@@ -431,6 +444,11 @@ crashes Trap
             true -> mark_lent(typer, expression)
             _ -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
         }
+    }
+
+    machine equation(typer: &mut Typer, expression: u64 in Trapping) -> bool {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::TypeEquation);
+        transition { _ -> admitted() }
     }
 
     machine qualified(typer: &mut Typer, expression: u64 in Trapping) -> bool {
@@ -494,6 +512,7 @@ crashes Trap
         Admission::SharedLend -> yes()
         Admission::SharedReborrow -> yes()
         Admission::Qualified -> yes()
+        Admission::TypeEquation -> yes()
         Admission::Read -> yes()
         _ -> no()
     }

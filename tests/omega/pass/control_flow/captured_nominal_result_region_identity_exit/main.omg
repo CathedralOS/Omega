@@ -21,21 +21,24 @@ machine repeated<'loan>(cell: &'loan Cell) -> Pair<'loan, 'loan> {
     Pair::Received { stamp: 29, left: cell, right: cell }
 }
 machine observe_one(cell: &Cell) -> u64 {
-    transition returned(cell) {
-        Message::Missing { stamp, .. } -> stamp
-        Message::Received { stamp, .. } -> stamp
+    let Message { stamp, case as operation } = returned(cell);
+    transition operation {
+        Message::Missing { .. } -> stamp
+        Message::Received { .. } -> stamp
     }
 }
 machine observe_permuted(left: &Cell, right: &Cell) -> u64 {
-    transition permuted(left, right) {
-        Pair::Missing { stamp, .. } -> stamp
-        Pair::Received { stamp, .. } -> stamp
+    let Pair { stamp, case as operation } = permuted(left, right);
+    transition operation {
+        Pair::Missing { .. } -> stamp
+        Pair::Received { .. } -> stamp
     }
 }
 machine observe_repeated(cell: &Cell) -> u64 {
-    transition repeated(cell) {
-        Pair::Missing { stamp, .. } -> stamp
-        Pair::Received { stamp, .. } -> stamp
+    let Pair { stamp, case as operation } = repeated(cell);
+    transition operation {
+        Pair::Missing { .. } -> stamp
+        Pair::Received { .. } -> stamp
     }
 }
 machine main() crashes Trap {

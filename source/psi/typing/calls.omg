@@ -11,6 +11,7 @@ use psi::typing::expressions;
 use psi::typing::generics;
 use psi::typing::references;
 use psi::typing::typer;
+use psi::typing::expectations;
 
 // Calls and constructions (wiki/spec/language/expressions.md#calls-places-and-temporaries).
 // Resolution bound a callee to the first machine of its overload family:
@@ -775,6 +776,32 @@ crashes Trap
         has_case: bool,
         data_case: u64 in Trapping
     ) {
+        let expected: u64 in Trapping = Typer::expected_type(typer, index);
+        let receiving: TypeRow = TypeTable::row(&typer.output.types, expected);
+        let contextual: bool = receiving.kind == TypeKind::Data && receiving.item == item
+            && receiving.argument_count == Typer::applied_parameter_count(syntax, item);
+        transition contextual {
+            true -> contextual_type(typer, sources, syntax, index, expression, item, declared, has_case, data_case, receiving)
+            _ -> inferred(typer, sources, syntax, index, expression, item, declared, has_case, data_case)
+        }
+    }
+
+    // A receiving declaration supplies static arguments, never validity or
+    // authority. Fields are admitted normally and checking must still prove
+    // the constructor's predicates from its actual fields and selected tag.
+    machine contextual_type(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, item: u64 in Trapping, declared: DataItem, has_case: bool, data_case: u64 in Trapping, receiving: TypeRow) {
+        let mut owner: TypeRow = TypeRow::of(TypeKind::Data);
+        owner.item = item;
+        owner.first_argument = receiving.first_argument;
+        owner.argument_count = receiving.argument_count;
+        Typer::begin_bindings(typer);
+        Typer::bind_data_arguments(typer, syntax, owner);
+        let handle: u64 in Trapping = Typer::intern(typer, owner, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+        Typer::construct_fields(typer, sources, syntax, expression, declared, has_case, data_case, true, 0);
+    }
+
+    machine inferred(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, item: u64 in Trapping, declared: DataItem, has_case: bool, data_case: u64 in Trapping) {
         let inferred: bool = Typer::infer_construction(typer, sources, syntax, expression, declared, has_case, data_case);
         transition inferred {
             true -> applied_type(typer, sources, syntax, index, expression, item, declared, has_case, data_case)

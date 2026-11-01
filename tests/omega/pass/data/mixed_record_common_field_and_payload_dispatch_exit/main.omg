@@ -50,7 +50,7 @@ ensures result <= 100
 {
     let token: Token = stream.tokens[index];
     transition token {
-        Token::Mark { start as _, end as _, kind: Kind::B } -> (token.start)
+        Token::Mark { kind: Kind::B } -> (token.start)
         _ -> (token.end)
     }
 }

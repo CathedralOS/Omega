@@ -511,6 +511,9 @@ fn validate_boundary_trait_value_placement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            validate_boundary_trait_value_placement(program, *subject, owner, diagnostics)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             validate_boundary_trait_value_placement(program, *referee, owner, diagnostics);
         }
@@ -658,6 +661,7 @@ fn validate_type_reference_node(
             );
         };
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => validate_node!(*subject, false),
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {

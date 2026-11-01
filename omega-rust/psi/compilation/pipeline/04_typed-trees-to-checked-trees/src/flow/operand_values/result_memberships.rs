@@ -44,12 +44,19 @@ impl<'facts> CapturedResultMemberships<'facts> {
         observation: &FlowOperandFact,
         domain: symbols::SymbolHandle,
         identity: language_semantics::SemanticDomainId,
+        frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> bool {
         let _profile = phase_profile::guard("05.captured_result_membership");
         if !value.operand.belongs_to(&self.facts.flow.control) {
             return false;
         }
         let source = value.operand.row();
+        // A known reference-free completed result owns an immutable value.
+        // Its declared promise has no live storage dependency to enumerate.
+        // Opaque and reference-bearing results retain the explicit dependency
+        // requirement and the same intervening-write check below.
+        let detached =
+            frames.is_some_and(|frames| frames.value_is_reference_free(source.type_reference));
         let Some(writes) = phase_profile::scope("05.captured_result_membership.writes", || {
             operand_contents_writes_between(program, &self.facts.flow, source, observation)
         }) else {
@@ -73,7 +80,7 @@ impl<'facts> CapturedResultMemberships<'facts> {
             promise.domain == domain
                 && promise.instance == identity
                 && promise.path == value.projection.remaining.as_slice()
-                && !promise.dependencies.is_empty()
+                && (detached || !promise.dependencies.is_empty())
                 && promise.dependencies.iter().all(|dependency| {
                     writes.iter().all(|(_, write)| {
                         let Some(place) = dependency.as_place() else {

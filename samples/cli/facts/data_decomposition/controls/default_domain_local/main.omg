@@ -1,0 +1,14 @@
+// Widening a u8 retains its range in the original case constructor's default domain.
+// Expected exit: 0
+data ByteRead requires (self in ByteRead::Eof) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 255)) {
+    case Eof;
+    case Byte(value: i32);
+}
+machine byte(value: u8) -> ByteRead { let widened: i32 = value as i32; ByteRead::Byte { value: widened } }
+machine exercise() -> bool {
+    match byte(17) { ByteRead::Byte { value } -> value == 17 ByteRead::Eof -> false }
+}
+machine main() crashes Trap {
+    transition exercise() { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

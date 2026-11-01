@@ -691,7 +691,14 @@ impl<'program> ShapeCollector<'program> {
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<TypeIdentityId> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if let Some(subject) = self
+            .program
+            .type_reference_table
+            .case_view_subject(reference)
+        {
+            return self.add_stored_type(subject, binders, substitutions);
+        }
         let reference = substituted_formal_type(self.program, reference, substitutions);
         if let Some(shell) = slice_view_shell(self.program, reference, substitutions) {
             let canonical = self.add_type(reference, binders, substitutions)?;
@@ -795,7 +802,17 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<TypeIdentityId> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if let Some(subject) = self
+            .program
+            .type_reference_table
+            .case_view_subject(type_reference)
+        {
+            // The view retains its original schema and physical storage. Its
+            // source type and checked ownership paths restrict the exposed
+            // component; shape collection creates no second data declaration.
+            return self.collect_type(subject, binders, substitutions);
+        }
         // A borrowed occurrence erases its outer access edge once. Its storage
         // may itself be a reference, which occupies a descriptor rather than
         // inline backing. Register the same stored shape used by fields/results.

@@ -78,9 +78,34 @@ pub(super) fn call_target(
     children: &Arena<TypeReference>,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
+    receiver_data(
+        machine,
+        parameters,
+        state_symbol,
+        call.receiver,
+        table,
+        children,
+        symbols,
+    )
+    .map(|owner| machine.attached_call_target(symbols, owner, &call.target))
+    .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// Exact nominal declaration reached by a resolved value's declared storage
+/// path. Calls and other incomplete values supply no guessed declaration.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::symbols) fn receiver_data(
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    receiver: ExpressionHandle,
+    table: &ExpressionTable,
+    children: &Arena<TypeReference>,
+    symbols: &SymbolTable,
+) -> Option<SymbolHandle> {
     let resolve = || {
         let mut projections = Vec::new();
-        let mut expression = call.receiver;
+        let mut expression = receiver;
         let name = loop {
             expression = match table.expression(expression) {
                 node @ ExpressionNode::Indexed(indexed) => {
@@ -213,8 +238,7 @@ pub(super) fn call_target(
         if !owner.is_valid() || symbols.get(owner).kind != SymbolKind::Data {
             return None;
         }
-        let target = machine.attached_call_target(symbols, owner, &call.target);
-        target.is_valid().then_some(target)
+        Some(owner)
     };
-    resolve().unwrap_or_else(SymbolHandle::invalid)
+    resolve()
 }

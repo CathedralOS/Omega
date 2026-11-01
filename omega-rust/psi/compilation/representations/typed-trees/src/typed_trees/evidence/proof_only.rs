@@ -192,6 +192,9 @@ fn proof_only_mention_in(
         return None;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            proof_only_mention_in(reasons, program, *subject)
+        }
         TypeReferenceNode::Named { symbol, name } => reasons
             .contains_key(&symbol.arena_index())
             .then(|| name.clone()),
@@ -311,6 +314,9 @@ impl ProofOnlyClassification {
             return false;
         }
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::CaseView { subject } => {
+                self.borrows_proof_only_data(program, *subject)
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 self.proof_only_mention(program, *referee).is_some()
             }
@@ -499,6 +505,9 @@ fn collect_inline_data_edges(
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_inline_data_edges(program, *subject, edge)
+        }
         TypeReferenceNode::Named { symbol, name } => {
             if symbol.is_valid() {
                 edge(*symbol, name.clone());
