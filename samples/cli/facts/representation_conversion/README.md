@@ -42,6 +42,10 @@ reserves that name as an unimplemented builtin. Removing that obsolete
 reservation in both producers permits ordinary library ownership while leaving
 the primitive shadowing fence intact. Runtime acceptance is still pending.
 
+The independent [primitive shadow control](controls/primitive_shadow/invalid/main.omg)
+continues to reject an ordinary declaration named `Int`; retiring `Result` does
+not weaken the actual primitive fence.
+
 The remaining six transport places, other hosts, universal agreement proofs,
 the `Representation` agreement bundle, reflection-specialized generic codecs,
 independent-package/resource-backed adapters and the parent capability remain
