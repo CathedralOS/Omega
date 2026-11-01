@@ -776,7 +776,7 @@ fn runtime_fact_for_parameters(
     );
     if term
         .as_ref()
-        .is_some_and(StructuralTerm::is_mathematical_predicate)
+        .is_some_and(StructuralTerm::is_checked_predicate)
     {
         return true;
     }

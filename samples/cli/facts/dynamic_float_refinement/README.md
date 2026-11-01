@@ -177,3 +177,6 @@ Broader interval arithmetic chains, non-orderable float NaN handling across arit
 
 The [named mathematical interval production](alias_contract/README.md) carries
 the same IEEE guarantee through checked aliases and public caller preconditions.
+
+The [transparent input-predicate production](input_alias/README.md) carries the
+same IEEE fact through named caller preconditions at selector calls.

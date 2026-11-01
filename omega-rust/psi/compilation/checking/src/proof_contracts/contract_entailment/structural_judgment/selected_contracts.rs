@@ -1327,7 +1327,7 @@ pub(super) fn capture_guarantees(
         crate::parameter_expression_result_type_reference(program, scope, parameters, expression)
             .and_then(|reference| program.primitive_type_reference(reference))
             == Some(typed_trees::types::PrimitiveType::Bool);
-    if boolean || predicate.is_mathematical_predicate() {
+    if boolean || predicate.is_checked_predicate() {
         // Normal return establishes this exact public predicate. Keeping its
         // truth does not turn IEEE equality into identity or select an arm of
         // a disjunction. Each later consumer authenticates the selected meaning.

@@ -7,7 +7,6 @@
 
 use super::StructuralTerm;
 use crate::mathematical_applications::{PreparedConstantMeaning, PreparedMathematicalView};
-use numerics::literals::FloatFormat;
 use numerics::literals::FloatLiteral;
 use proof_admission::{Term, TermHandle};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -93,11 +92,12 @@ fn read_term(
                     Some(StructuralTerm::Integer(value.clone()))
                 }
                 (PreparedConstantMeaning::FloatLiteral { format, bits }, []) => {
-                    let value = match format {
-                        FloatFormat::F32 => f64::from(f32::from_bits(*bits as u32)),
-                        FloatFormat::F64 => f64::from_bits(*bits),
-                    };
-                    Some(StructuralTerm::Float(FloatLiteral::from_f64(value)))
+                    // Retain the producer's already landed format and bits.
+                    // Rebuilding an anonymous f64 literal loses the f32 lane
+                    // and cannot authenticate an IEEE bound observation.
+                    Some(StructuralTerm::Float(
+                        FloatLiteral::from_bits(*format, *bits)?,
+                    ))
                 }
                 (
                     PreparedConstantMeaning::FloatRelation {
