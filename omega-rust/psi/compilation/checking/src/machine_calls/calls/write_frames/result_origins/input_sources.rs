@@ -109,6 +109,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         inputs,
     )?;
     let mut sources = Vec::new();
+    let mut matched_logical = false;
     for leaf in actual_leaves.references {
         if !application_source_reaches_leaf(
             program,
@@ -123,6 +124,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
             if relative.source.segments.len() != leaf.local_segments.len() {
                 return None;
             }
+            matched_logical = true;
             for dependency in leaf.lifetime_dependencies? {
                 let source = ReferenceSource::captured_dependency(dependency);
                 if !sources.contains(&source) {
@@ -154,9 +156,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     }
     // A selected reference cannot become private just because its selected
     // payload or element supplied no corresponding actual reference leaf.
-    (!sources.is_empty()
-        || boundary.kind == super::super::stored_origins::StoredOriginKind::LifetimeDependency)
-        .then_some(sources)
+    (!sources.is_empty() || matched_logical).then_some(sources)
 }
 
 /// The declared boundary above proves this is a stored reference, and the

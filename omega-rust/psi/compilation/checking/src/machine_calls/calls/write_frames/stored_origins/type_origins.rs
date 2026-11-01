@@ -423,6 +423,21 @@ fn walk_declared_origins(
             _ => return None,
         }
     }
+    if detail == OriginDetail::Paths && retained_paths.is_none() {
+        // A successful physical walk does not close an unknown logical
+        // frontier. Preserve each opaque region beside known siblings; if
+        // no region names the incompleteness, withhold the entire query.
+        let mut retained_unknown = false;
+        for leaf in &mut origins.references {
+            if leaf.kind == super::StoredOriginKind::OpaqueRegion {
+                leaf.lifetime_dependencies = None;
+                retained_unknown = true;
+            }
+        }
+        if !retained_unknown {
+            return None;
+        }
+    }
     // Protocol lifetime debt is independent of the carrier's scalar layout.
     // The canonical loan frontier owns these paths and phantom distinctions.
     if detail == OriginDetail::Paths
