@@ -195,6 +195,19 @@ retired-syntax deletions to completion.
     predicate handback with current storage versions, including `window_demo`'s
     guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
     60-frame bounds; preserve that sample's existing guards and operation.
+    [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
+    establishes the nine-place captured-read prerequisite after disjoint writes;
+    full GUI qualification remains open. Mixed-predicate restoration windows
+    must still withhold temporarily false bounds from scalar snapshots:
+    `start = -1; let saved = start;` followed by restoring `start >= 0 && start <= end`
+    must not justify `require_nonnegative(saved)`. Both the fixed `225551dd818`
+    baseline and the captured-read repair currently accept that invalid control;
+    the ordinary arithmetic read query remains to repair.
+    The integrated `6c8950d4825` producer also refuses the unchanged guarded
+    `frame_fields` / `parse` calls after opaque callbacks in
+    [CompactBinary](source/library/std/wire.omg); SDK checking stops there before
+    WindowDemo qualification. Preserve those caller guards and callback contracts
+    while repairing this remaining call-fact frontier.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in

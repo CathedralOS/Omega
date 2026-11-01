@@ -1899,6 +1899,12 @@ impl<'program> StructuralJudge<'program> {
                         value = judge.capture_unknown_value(expression, scope)?;
                     }
                     if !receiver_changed {
+                        judge.intake_completed_storage_bounds(
+                            scope.0,
+                            scope.1,
+                            expression,
+                            &value,
+                        );
                         judge.observe_completed_storage_read(
                             scope.0,
                             scope.1,

@@ -185,6 +185,24 @@ fail/facts/c_layout_scalar_record_through_other_state_wrong_policy_rejected reje
 	machine `inspect` state `entry` local `value` expects `LayoutStorage<Record, CAbiPolicy<Record>>`, but the value is delivered as `LayoutStorage<Record, OtherPolicy>`
 fail/facts/c_layout_scalar_record_through_target_body_wrong_policy_rejected rejected 4917ms expected @035d82f9f4c1
 	machine `verify` state `entry` local `value` expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
+fail/facts/captured_storage_bounds_through_call_result_rejected rejected 2559ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_const_name_rejected rejected 938ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_field_rejected rejected 825ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_local_rejected rejected 1093ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_match_join_rejected rejected 1625ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_other_machine_rejected rejected 1360ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_other_state_rejected rejected 1348ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_parameter_rejected rejected 1434ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_target_body_rejected rejected 1187ms @9150cfa6fe03
+	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 	match arms produce incompatible values
@@ -4376,6 +4394,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 3
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 4105ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 3175ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 4126ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/captured_storage_bounds_through_call_result_exit checked 5687ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_const_name_exit checked 6463ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_field_exit checked 5682ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_local_exit checked 7585ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_match_join_exit checked 8944ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_other_machine_exit checked 8944ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_other_state_exit checked 6650ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_parameter_exit checked 9175ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_target_body_exit checked 7686ms check-target:macos_arm64 @9150cfa6fe03
 pass/facts/captured_window_slot_retirement_arbitrary_incoming_selector_exit checked 1146ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_descriptor_restore_uses_fresh_occurrence_exit checked 1181ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_distinct_family_occurrences_exit checked 1139ms check-target:macos_arm64 @04f5793fae62
