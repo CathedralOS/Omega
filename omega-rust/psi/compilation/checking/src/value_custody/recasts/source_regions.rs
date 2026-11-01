@@ -1,11 +1,11 @@
 //! Physical inventories of source places, including builtin collection windows.
 //!
 //! A window has no invented fixed-array type. Its declared element inventory
-//! repeats only over its proved extent; source leaf validity and observation
+//! is restricted to its proved extent; source leaf validity and observation
 //! protocols remain on that inventory. This query grants no borrow authority.
 
 use super::record_representation::{
-    MutableRecordRepresentation, repeat_representation, type_representation,
+    MutableRecordRepresentation, array_region_representation, type_representation,
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
@@ -65,8 +65,8 @@ pub(super) fn source_representation(
         return Err("recast source window must retain its collection's qualifications");
     }
     let TypeReferenceNode::FixedArray {
-        element_type,
         length: FixedArrayLength::Literal(extent),
+        ..
     } = program.type_reference_table.type_reference(collection)
     else {
         return Err("recast source window needs a proved fixed collection extent");
@@ -99,11 +99,9 @@ pub(super) fn source_representation(
     if start > end || end > *extent {
         return Err("recast source window lies outside its declared collection extent");
     }
-    let element = type_representation(program, *element_type)
-        .ok_or("recast source window element has no fixed representation inventory")?;
     // Fixed arrays use the element's padded size as their stride. A source
     // element already owes alignment, so every admitted interior start retains
-    // that alignment. Repetition includes every byte of the selected window.
-    repeat_representation(&element, end - start, element.size)
-        .ok_or("recast source window representation overflows")
+    // that alignment. The selected inventory includes the complete window.
+    array_region_representation(program, collection, start, end)
+        .ok_or("recast source window has no bounded fixed representation inventory")
 }
