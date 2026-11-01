@@ -11,7 +11,7 @@ use symbol_resolved_trees::{
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::lexical_value_head;
-use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
+use crate::symbols::scope::MachineScope;
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::name::DiagnosticName;
 
@@ -248,9 +248,32 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
     child_types: &mut Arena<TypeReference>,
     type_reference: &mut TypeReference,
 ) {
+    assign_type_value_expressions_with_declarations(
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expressions,
+        child_types,
+        type_reference,
+        &[],
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assign_type_value_expressions_with_declarations(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    expressions: &mut ExpressionTable,
+    child_types: &mut Arena<TypeReference>,
+    type_reference: &mut TypeReference,
+    declaration_references: &[source::SourceSpan],
+) {
     let mut child = |handle: Handle<TypeReference>| {
         let mut reference = child_types.get(handle).clone();
-        assign_type_value_expression_symbols(
+        assign_type_value_expressions_with_declarations(
             symbols,
             machine,
             parameters,
@@ -258,6 +281,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
             expressions,
             child_types,
             &mut reference,
+            declaration_references,
         );
         *child_types.get_mut(handle) = reference;
     };
@@ -340,7 +364,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                         minimum, maximum, ..
                     } => {
                         for expression in [*minimum, *maximum] {
-                            assign_statement_expression_symbols(
+                            crate::symbols::expressions::assign_expression_with_declaration_references(
                                 symbols,
                                 machine,
                                 parameters,
@@ -348,13 +372,14 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                                 expressions,
                                 child_types,
                                 expression,
+                                declaration_references,
                             );
                         }
                     }
                     TypeConstraint::Domain(domain) => {
                         for handle in domain.arguments.handles() {
                             let mut reference = child_types.get(handle).clone();
-                            assign_type_value_expression_symbols(
+                            assign_type_value_expressions_with_declarations(
                                 symbols,
                                 machine,
                                 parameters,
@@ -362,6 +387,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                                 expressions,
                                 child_types,
                                 &mut reference,
+                                declaration_references,
                             );
                             *child_types.get_mut(handle) = reference;
                         }
@@ -377,7 +403,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
             }
             // Resolve lexical subjects before determining whether an index is
             // closed. A runtime binding cannot become a same-named constant.
-            assign_statement_expression_symbols(
+            crate::symbols::expressions::assign_expression_with_declaration_references(
                 symbols,
                 machine,
                 parameters,
@@ -385,14 +411,16 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expressions,
                 child_types,
                 expression.expression,
+                declaration_references,
             );
         }
         TypeReference::AliasUse {
             expansion,
             application,
+            definition_references,
             ..
         } => {
-            assign_type_value_expression_symbols(
+            assign_type_value_expressions_with_declarations(
                 symbols,
                 machine,
                 parameters,
@@ -400,8 +428,11 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expressions,
                 child_types,
                 application,
+                declaration_references,
             );
-            assign_type_value_expression_symbols(
+            let mut references = declaration_references.to_vec();
+            references.extend_from_slice(definition_references);
+            assign_type_value_expressions_with_declarations(
                 symbols,
                 machine,
                 parameters,
@@ -409,6 +440,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expressions,
                 child_types,
                 expansion,
+                &references,
             );
         }
         TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}

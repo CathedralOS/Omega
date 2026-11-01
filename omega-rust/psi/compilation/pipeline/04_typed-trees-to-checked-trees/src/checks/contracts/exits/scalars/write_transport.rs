@@ -110,9 +110,9 @@ impl ExitScalars<'_, '_> {
                     if matches!(place.root, PlaceRoot::Symbol(root) if root == local.symbol)
                         && place.segments.is_empty()
                     {
-                        if local.initial_value.is_valid() {
-                            write = Some((index, local.initial_value));
-                        }
+                        write = local
+                            .ordinary_value_initializer()
+                            .map(|value| (index, value));
                         later_writes.push(place.clone());
                         break;
                     }

@@ -125,6 +125,8 @@ fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d
 	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/atomic_bounded_resident/prior_guarantee_is_not_zero rejected 3272ms expected @cff664f7a5bb+wt
+	cannot prove ensures contract for exit from observe at statement 3: result == 0
 fail/facts/atomic_operand_carrier_once_both_operands_rejected rejected 5465ms expected @89c92b530e12
 	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -310,6 +312,18 @@ fail/facts/coupled_requires_construction_parameter_rejected rejected 1329ms expe
 fail/facts/coupled_requires_construction_target_body_rejected rejected 1636ms expected @b9a2381a9f27+wt
 	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/darwin_stat_abi/record_darwin_file_times_array_rejected rejected 25787ms expected @1a31aa120cdd
+	machine `main` state `entry` local `transported` expects `[DarwinTimespec; 2]`, but the value is delivered as `[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`
+	argument `value` for state `check` expects `&[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`, got `named value`
+fail/facts/darwin_stat_abi/record_through_field_rejected rejected 29347ms expected @1a31aa120cdd
+	construction of `Holder` field `value` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, OtherPolicy>`
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+fail/facts/darwin_stat_abi/record_through_local_rejected rejected 28148ms expected @1a31aa120cdd
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms expected @1a31aa120cdd
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -1595,6 +1609,8 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 957ms expected @143d3f1669fb
+	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 604ms expected @8436ab6a7742
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 787ms expected @9d8ac725f3d8
 	machine `field` requires type predicate does not hold for the supplied arguments
@@ -4419,7 +4435,7 @@ pass/facts/atomic_bounded_fetch/other_state checked 3012ms check-target:macos_ar
 pass/facts/atomic_bounded_fetch/parameter checked 2972ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_fetch/target_body checked 2860ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/call_result checked 2249ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/atomic_bounded_resident/composition checked 3792ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/atomic_bounded_resident/composition checked 6442ms check-target:macos_arm64 @cff664f7a5bb+wt
 pass/facts/atomic_bounded_resident/const_name checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/field checked 3003ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/local checked 3561ms check-target:macos_arm64 @ccdb99ca2214
@@ -5686,6 +5702,10 @@ pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 6168ms che
 pass/facts/crash_entry_signed_zero_through_other_state_exit checked 5748ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 6815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 6697ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/darwin_file_times_array_exit checked 78758ms check-target:macos_arm64 @1a31aa120cdd
+pass/facts/darwin_stat_abi_through_field_exit checked 89402ms check-target:macos_arm64 @1a31aa120cdd
+pass/facts/darwin_stat_abi_through_local_exit checked 90336ms check-target:macos_arm64 @1a31aa120cdd
+pass/facts/darwin_stat_abi_through_parameter_exit checked 91331ms check-target:macos_arm64 @1a31aa120cdd
 pass/facts/data_where_private_write_multiple_arrivals_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_snapshot_exit checked 3281ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_through_call_result_exit checked 3348ms check-target:macos_arm64 @ccdb99ca2214
@@ -6362,15 +6382,15 @@ pass/facts/foreign_scalar_record_result_through_other_machine_exit checked 3916m
 pass/facts/foreign_scalar_record_result_through_other_state_exit checked 3973ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_parameter_exit checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_scalar_record_result_through_target_body_exit checked 3908ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_call_result_exit checked 3860ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_const_name_exit checked 3252ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_field_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_local_exit checked 3417ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_match_join_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_other_machine_exit checked 2915ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_other_state_exit checked 4402ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_parameter_exit checked 4015ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/four_variant_enum_payload_bound_through_target_body_exit checked 3659ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/four_variant_enum_payload_bound_through_call_result_exit checked 42435ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_const_name_exit checked 34494ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_field_exit checked 31426ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_local_exit checked 54833ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_match_join_exit checked 27453ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_other_machine_exit checked 29904ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_other_state_exit checked 31131ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_parameter_exit checked 38553ms check-target:macos_arm64 @6e5131c510b9+wt
+pass/facts/four_variant_enum_payload_bound_through_target_body_exit checked 45290ms check-target:macos_arm64 @6e5131c510b9+wt
 pass/facts/free_entry_local_state_through_call_result_exit checked 3698ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/free_entry_local_state_through_const_name_exit checked 3291ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/free_entry_local_state_through_field_exit checked 3143ms check-target:macos_arm64 @ccdb99ca2214
@@ -9653,6 +9673,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/transparent_alias_rhs_const_expression_exit checked 7601ms check-target:macos_arm64 @143d3f1669fb
+pass/facts/transparent_alias_rhs_declaration_scope_exit checked 4008ms check-target:macos_arm64 @8436ab6a7742
 pass/facts/typed_reflection_active_case_selected_layout_alias_exit checked 11634ms check-target:macos_arm64 @9d8ac725f3d8
 pass/facts/typed_reflection_active_case_selected_layout_exit checked 12161ms check-target:macos_arm64 @dd3a6c22f839
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
@@ -10159,8 +10180,7 @@ pass/filesystem/runtime_portable_directory_names_exit rejected 29061ms check-tar
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_metadata_availability_exit rejected 123037ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_removal_walk::windows_x86_64::next", reason: "local refinement lost its machine identity", gap: None })
-pass/filesystem/runtime_portable_metadata_exit rejected 28536ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
+pass/filesystem/runtime_portable_metadata_exit checked 234009ms check-target:macos_arm64 @d2be883ccac9
 pass/filesystem/runtime_portable_permissions_exit rejected 28123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit rejected 188939ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -11652,6 +11672,7 @@ pass/ownership/partial_carrier_refill_exit checked 3358ms check-target:macos_arm
 pass/ownership/partial_field_move_compile checked 2514ms @ccdb99ca2214
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 2476ms @ccdb99ca2214
 pass/ownership/registration_capacity_case_round_trip checked 12479ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/registration_owned_claim_retains_provenance_exit checked 7936ms check-target:macos_arm64 @792437fa610e
 pass/ownership/runtime_affine_selected_field_frontier_exit checked 3716ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_captured_selector_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11724ms check-target:macos_arm64 @ccdb99ca2214
@@ -18850,7 +18871,8 @@ fail/facts/atomic_bounded_resident/parameter rejected 532ms expected @ccdb99ca22
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_bounded_resident/prior_before_event rejected 1101ms expected @ccdb99ca2214
 	machine `reject` state `entry` local `prior` cannot consume its atomic result before the event completes
-fail/facts/atomic_bounded_resident/prior_is_not_zero checked 2764ms @ccdb99ca2214
+fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 734ms expected @cff664f7a5bb+wt
+	exact arithmetic in machine `reject` state `entry` local `invalid` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/atomic_bounded_resident/target_body rejected 510ms expected @ccdb99ca2214
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_bounded/call_result rejected 830ms expected @ccdb99ca2214
@@ -23066,27 +23088,25 @@ fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 2573
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 2216ms expected @ccdb99ca2214
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 2230ms unexpected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 45920ms expected @6e5131c510b9+wt
 	cannot prove ensures contract for exit from extract_payload at statement 7: result >= 40 && result <= 80
-fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 2887ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 10937ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 2999ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 18519ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 2587ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 17587ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 2914ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 16980ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 3158ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 14032ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 2901ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 9988ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 3085ms expected @ccdb99ca2214
+fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 13277ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 3229ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 12186ms expected @6e5131c510b9+wt
+	cannot prove requires contract for call verify_payload from X86TargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
+	cannot prove requires contract for call verify_payload from ArmTargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
 fail/facts/free_entry_local_state_through_call_result_unprovided rejected 3963ms expected @ccdb99ca2214
 	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
 	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
@@ -32160,7 +32180,9 @@ fail/ownership/registration_claim_cannot_reconstruct rejected 2264ms expected @c
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$4726bbffdd10bf5d$0 state entry after statement 0: value does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
 	construction value is not proven in domain `Registration::Held` in replace state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from replace, state entry, at statement 0: Registration requires Registration::Held
-fail/ownership/registration_owned_claim_cannot_requalify checked 3667ms @ccdb99ca2214
+fail/ownership/registration_owned_claim_cannot_requalify rejected 3090ms expected @792437fa610e
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: capacity requires Capacity::Held
 fail/ownership/runtime_singleton_selector_moved_element rejected 2378ms expected @ccdb99ca2214
 	cannot use `tokens[0]` in machine `main` state `entry` (statement 3) after `tokens[0]` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `tokens[0]` first
 fail/ownership/runtime_unknown_selector_partial_cleanup rejected 2342ms expected @ccdb99ca2214
@@ -34177,7 +34199,8 @@ fail/termination/ranked_index_call_prefix_write rejected 2821ms unexpected @ccdb
 	cannot prove requires contract for call scan from scan: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/rankless_boundary_progress_unpromised rejected 1631ms expected @ccdb99ca2214
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/rankless_callback_suffix checked 2251ms @ccdb99ca2214
+fail/termination/rankless_callback_suffix rejected 2572ms expected @792437fa610e
+	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/rankless_family_member_reentry checked 2793ms @ccdb99ca2214
 fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca2214
 	terminating machine greatest_common_divisor: cannot prove strict rank decrease on a recurrent arrival: the transition from `greatest_common_divisor` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step

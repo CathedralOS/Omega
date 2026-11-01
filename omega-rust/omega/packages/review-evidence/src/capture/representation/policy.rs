@@ -9,6 +9,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::calling::project_checked_calling_policy;
 use crate::capture::refusal;
 use crate::capture::semantics::declarations::owned_identity;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::record::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -49,6 +50,7 @@ pub(crate) fn project_checked_representation_policy<'a>(
     let producer_availability = availability::project(compilation, package)?;
     let selected_availability = selections::project(compilation, package, &selections)?;
     let mut demands = Vec::new();
+    let mut signatures = SignatureProjection::new(*compilation);
     for realization in &compilation
         .custody
         .providers()
@@ -60,7 +62,7 @@ pub(crate) fn project_checked_representation_policy<'a>(
         if uses.is_empty() || selected_availability.is_empty() {
             continue;
         }
-        let calling = project_checked_calling_policy(compilation, realization)?;
+        let calling = project_checked_calling_policy(&mut signatures, realization)?;
         for selection in &selected_availability {
             let matches = calling
                 .opaque_uses()
@@ -90,6 +92,7 @@ pub(crate) fn project_checked_representation_policy<'a>(
             });
         }
     }
+    drop(signatures);
     demands.sort_by(PackagePolicyRepresentationDemand::compare_application);
     demands.dedup();
     let policy = PackagePolicyRepresentation {

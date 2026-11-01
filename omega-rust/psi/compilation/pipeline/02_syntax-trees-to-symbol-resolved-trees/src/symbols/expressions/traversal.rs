@@ -37,6 +37,7 @@ macro_rules! context_wrapped {
                 state_symbol,
                 expression_table,
                 child_type_references,
+                declaration_references: &[],
             }
             .$method($parameter);
         }
@@ -98,6 +99,32 @@ pub(in crate::symbols) fn assign_statement_expression_symbols(
     );
 }
 
+/// Alias RHS references retain their exact authored occurrences independently
+/// from substituted caller inputs. Only those references use declaration lookup;
+/// the same expression walk resolves every other leaf in its ordinary context.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::symbols) fn assign_expression_with_declaration_references(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut ExpressionTable,
+    child_type_references: &mut arena::Arena<TypeReference>,
+    expression: ExpressionHandle,
+    declaration_references: &[source::SourceSpan],
+) {
+    ExpressionSymbolContext {
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expression_table,
+        child_type_references,
+        declaration_references,
+    }
+    .assign_expression_table_symbols(expression);
+}
+
 context_wrapped! {
     assign_expression_span_symbols(
         expressions: HandleSpan<ExpressionHandle>
@@ -120,6 +147,7 @@ struct ExpressionSymbolContext<'visit, 'scope> {
     state_symbol: SymbolHandle,
     expression_table: &'visit mut ExpressionTable,
     child_type_references: &'visit mut arena::Arena<TypeReference>,
+    declaration_references: &'visit [source::SourceSpan],
 }
 
 impl ExpressionSymbolContext<'_, '_> {
@@ -299,6 +327,40 @@ impl ExpressionSymbolContext<'_, '_> {
                 self.assign_expression_table_symbols(unary.operand);
             }
             ExpressionNode::Name(path) => {
+                // The source span rejoins the selected alias's original RHS
+                // occurrence, not a spelling-based declaration classification.
+                if self
+                    .declaration_references
+                    .contains(&self.expression_table.source_span(expression))
+                {
+                    let declaration = MachineScope {
+                        symbol: SymbolHandle::invalid(),
+                        lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+                        attached_machines: self.machine.attached_machines,
+                        resolution_indexes: self.machine.resolution_indexes,
+                        type_parameters: &[],
+                        attached_data_symbol: SymbolHandle::invalid(),
+                        inherited_data_members: None,
+                        owned_data: &[],
+                        prior_statements: &[],
+                        data_definitions: self.machine.data_definitions,
+                        type_aliases: self.machine.type_aliases,
+                        data_members: self.machine.data_members,
+                        data_type_parameters: self.machine.data_type_parameters,
+                        data_payload_fields: self.machine.data_payload_fields,
+                        type_constraints: self.machine.type_constraints,
+                    };
+                    assign_name_symbol(
+                        self.symbols,
+                        &declaration,
+                        &[],
+                        SymbolHandle::invalid(),
+                        self.expression_table,
+                        &path,
+                        expression,
+                    );
+                    return;
+                }
                 assign_name_symbol(
                     self.symbols,
                     self.machine,
