@@ -5473,15 +5473,6 @@ pass/facts/narrow_to_wide_sign_extension_through_other_machine_exit built 1895ms
 pass/facts/narrow_to_wide_sign_extension_through_other_state_exit built 2054ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_sign_extension_through_parameter_exit built 1996ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_sign_extension_through_target_body_exit built 1974ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_call_result_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_const_name_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_field_exit built 2016ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_local_exit built 2019ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_match_join_exit built 2074ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_exit built 2134ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_other_state_exit built 1972ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_parameter_exit built 2015ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_16to32_extension_through_target_body_exit built 2849ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit built 1955ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_16to64_extension_through_const_name_exit built 1993ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_16to64_extension_through_field_exit built 1967ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -5500,24 +5491,6 @@ pass/facts/narrow_to_wide_signed_32to64_extension_through_other_machine built 21
 pass/facts/narrow_to_wide_signed_32to64_extension_through_other_state built 2021ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_32to64_extension_through_parameter built 2031ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_32to64_extension_through_target_body built 1934ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_call_result_exit built 2117ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_const_name_exit built 2002ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_field_exit built 1923ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_local_exit built 2003ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_match_join_exit built 2066ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_other_machine_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_other_state_exit built 1864ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_parameter_exit built 1943ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to16_extension_through_target_body_exit built 1967ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_call_result_exit built 1948ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_const_name_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_field_exit built 1954ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_local_exit built 1952ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_match_join_exit built 1967ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_exit built 1977ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_other_state_exit built 2089ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_parameter_exit built 1945ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_signed_8to32_extension_through_target_body_exit built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit built 1955ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_8to64_extension_through_const_name_exit built 2011ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_8to64_extension_through_field_exit built 1858ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -5527,15 +5500,6 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit buil
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit built 1999ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit built 2015ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 2729ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_exit built 1961ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_exit built 2027ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_field_exit built 1952ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_local_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_match_join_exit built 2095ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_other_machine_exit built 1971ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_other_state_exit built 2109ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_parameter_exit built 2114ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_target_body_exit built 2718ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit built 1928ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit built 1983ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit built 2063ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -5554,24 +5518,6 @@ pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_machine_exit b
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_state_exit built 2013ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_parameter_exit built 1992ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_target_body_exit built 2579ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_call_result_exit built 2548ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_const_name_exit built 2564ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_field_exit built 2614ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_local_exit built 2690ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_match_join_exit built 2633ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_other_machine_exit built 2583ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_other_state_exit built 2662ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_parameter_exit built 2523ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_target_body_exit built 2606ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_call_result_exit built 1961ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_const_name_exit built 1967ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_field_exit built 2015ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_local_exit built 2021ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_match_join_exit built 2009ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_other_machine_exit built 2061ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_other_state_exit built 2098ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_parameter_exit built 2079ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_target_body_exit built 1902ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_exit built 2617ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_exit built 2588ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_field_exit built 2699ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
