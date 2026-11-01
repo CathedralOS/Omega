@@ -2574,6 +2574,15 @@ pass/facts/correlated_invariant_store_through_other_machine_exit built 3222ms ex
 pass/facts/correlated_invariant_store_through_other_state_exit built 3173ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/correlated_invariant_store_through_parameter_exit built 3197ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/correlated_invariant_store_through_target_body_exit built 3277ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/coupled_requires_construction_call_result_exit built 7528ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_const_name_exit built 6432ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_field_exit built 7476ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_local_exit built 7548ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_match_join_exit built 6497ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_other_machine_exit built 6468ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_other_state_exit built 7493ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_parameter_exit built 7419ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
+pass/facts/coupled_requires_construction_target_body_exit built 6544ms exit:0 interpreter-exit:0 interpreter:agrees @b9a2381a9f27+wt
 pass/facts/crash_entry_boolean_view_call_result_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/crash_entry_boolean_view_const_name_exit built 3106ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/crash_entry_boolean_view_exit built 2637ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -261,6 +261,12 @@ fn is_potential_integer_premise(predicate: &StructuralTerm, truth: &StructuralTe
             {
                 return false;
             }
+            // An equation whose stored side is executable integer arithmetic
+            // keeps its operand relation for the integer owner.
+            if super::integer_predicates::scalar_arithmetic_carrier(predicate).is_some() {
+                return term_may_produce_mathematical_value(other)
+                    || super::integer_predicates::scalar_arithmetic_carrier(other).is_some();
+            }
             term_may_produce_mathematical_value(predicate)
                 && term_may_produce_mathematical_value(other)
         }
