@@ -1,0 +1,3 @@
+// Expected error contains: write-only
+machine read(value: &write u64) -> u64 { value as u64 }
+machine main() {}

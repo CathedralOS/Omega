@@ -26,6 +26,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "native_layout_controls.rs"]
+mod native_layout_controls;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
 #[path = "scalar_issuer_controls.rs"]
@@ -51,6 +53,7 @@ enum InspectionControls {
     BoundaryProviders,
     BehaviorAdmission,
     CallbackTelescope,
+    NativeLayouts,
     ScalarIssuer,
 }
 
@@ -142,6 +145,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "callback-telescope-controls"] => {
                 (*machine, false, Some(InspectionControls::CallbackTelescope))
             }
+            [machine, "native-layout-controls"] => {
+                (*machine, false, Some(InspectionControls::NativeLayouts))
+            }
             [machine, "scalar-issuer-controls"] => {
                 (*machine, false, Some(InspectionControls::ScalarIssuer))
             }
@@ -171,6 +177,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
                     | InspectionControls::CallbackTelescope
+                    | InspectionControls::NativeLayouts
             )
         );
         let product = if provider_controls {
@@ -235,6 +242,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .ok_or("provider controls need a retained Terminal product")?;
             drop(prepared);
             if matches!(
+                conformance_controls,
+                Some(InspectionControls::NativeLayouts)
+            ) {
+                native_layout_controls::inspect(&retained)?;
+                observations.push("native-layout-controls:match".into());
+            } else if matches!(
                 conformance_controls,
                 Some(InspectionControls::CallbackTelescope)
             ) {
@@ -353,6 +366,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
                 | InspectionControls::CallbackTelescope
+                | InspectionControls::NativeLayouts
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

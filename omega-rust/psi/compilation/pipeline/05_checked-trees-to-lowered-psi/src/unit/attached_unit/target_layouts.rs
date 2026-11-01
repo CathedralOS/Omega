@@ -176,11 +176,8 @@ pub(super) fn lower(
                 });
             }
             let geometry = &alternative.geometry;
-            if !geometry.private_callback_demands.is_empty() {
-                return unsupported(
-                    "target layout publication cannot discard private callback demands",
-                );
-            }
+            // The companion native-layout catalog retains the complete report
+            // and each selected private slot; this row owns semantic storage.
             let byte_size = geometry
                 .validated_layout
                 .size

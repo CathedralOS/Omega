@@ -32,6 +32,10 @@ pub use prepared_roots::{
 
 mod callback_application;
 mod calling_policies;
+mod native_layouts;
+pub use native_layouts::{
+    NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization, NativeRecordLayout,
+};
 mod unoptimized_behavior;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{

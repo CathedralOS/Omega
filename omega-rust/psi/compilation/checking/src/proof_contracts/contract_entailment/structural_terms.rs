@@ -90,6 +90,20 @@ pub(super) fn conversion_term(
     source: typed_trees::types::TypeReferenceHandle,
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
+    // A primitive conversion may read an authenticated scalar referent. Its
+    // completed contents have the referent's carrier, not the descriptor's.
+    // Keep this value-dependent cut here: the type-only conversion predicate
+    // must not erase a reference read or manufacture a returned loan's origin.
+    let source = if !cast.form.is_recast()
+        && crate::reference_shell(program, source).is_some()
+        && scalar_operand_is_observed(program, source, &value)
+    {
+        crate::value_custody::expression_types::readable_observation_type_reference(
+            program, source,
+        )?
+    } else {
+        source
+    };
     if !denotation_preserving_conversion(program, cast, source) {
         return scalar_representation_term(program, cast, source, value);
     }

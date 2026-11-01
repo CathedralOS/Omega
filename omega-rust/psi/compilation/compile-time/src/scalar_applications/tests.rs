@@ -463,18 +463,31 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
     let mut record = module.structural_types[3].clone();
     record.id = type_id(7);
     record.identity = identities.intern("graph::type7");
+    let fields: Vec<_> = [5, 6]
+        .into_iter()
+        .map(|identity| terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(identity).unwrap(),
+            identity: identities.intern(&format!("graph::type7::field{identity}")),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Structural(type_id(identity)),
+            storage: None,
+        })
+        .collect();
+    module.native_layouts.insert(
+        record.id,
+        record.identity,
+        terminal_psi::TerminalIdentityIndex::ABSENT,
+        fields
+            .iter()
+            .map(|field| terminal_psi::NativeLayoutFieldIdentity {
+                field: field.id,
+                declaration_identity: field.identity,
+            }),
+        [],
+    );
     record.shape = StructuralTypeShape::Record {
         storage: terminal_psi::StructuralRecordStorage::Packed,
-        fields: [5, 6]
-            .into_iter()
-            .map(|identity| terminal_psi::StructuralFieldDeclaration {
-                id: semantic_vocabulary::StructuralFieldId::new(identity).unwrap(),
-                identity: identities.intern(&format!("graph::type7::field{identity}")),
-                relevance: terminal_psi::BindingRelevance::Relevant,
-                field_type: terminal_psi::StructuralFieldType::Structural(type_id(identity)),
-                storage: None,
-            })
-            .collect(),
+        fields,
     };
     module.structural_types.push(record);
     module.identities = identities.build();

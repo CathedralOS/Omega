@@ -1505,84 +1505,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(data.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, data.symbol);
-        visit_symbol(retained, data.symbol);
-        if retained.derived_declaration_references() && !program.plan_laid_layouts.is_empty() {
-            for plan in program
-                .plan_laid_layouts
-                .iter()
-                .filter(|plan| plan.data_symbol == data.symbol)
-            {
-                visit_symbol(retained, plan.schema_symbol);
-                visit_symbol(retained, plan.policy_symbol);
-                visit_symbol(retained, plan.policy_plan_machine_symbol);
-                for alternative in plan.target_layouts(program) {
-                    retained.layout_realization_dependency(alternative.machine);
-                }
-                for geometry in plan.geometries(program) {
-                    for demand in &geometry.private_callback_demands {
-                        visit_closed_conformance(
-                            program,
-                            retained,
-                            &demand.slot_application.application,
-                        );
-                    }
-                }
-            }
-        }
-        if retained.derived_declaration_references() && !program.access_view_plans.is_empty() {
-            for plan in program
-                .access_view_plans
-                .iter()
-                .filter(|plan| plan.data_symbol == data.symbol)
-            {
-                visit_symbol(retained, plan.schema_symbol);
-                visit_symbol(retained, plan.policy_symbol);
-                visit_symbol(retained, plan.policy_plan_machine_symbol);
-                for field in &plan.fields {
-                    visit_type_reference(program, retained, field.accessor_type);
-                    visit_type_reference(program, retained, field.value_type);
-                    if let Some(resident) = &field.atomic_resident {
-                        visit_type_reference(program, retained, resident.resident_type);
-                    }
-                }
-            }
-        }
-        visit_type_parameters(program, retained, data.type_parameters);
-        for bound in &data.conformance_bounds {
-            visit_symbol(retained, bound.trait_symbol);
-            for argument in &bound.arguments {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        if data.predicate_subject_symbol.is_valid() {
-            visit_symbol(retained, data.predicate_subject_symbol);
-            visit_type_reference(program, retained, data.predicate_subject_type);
-        }
-        if let Some(instance) = data.generic_instance {
-            visit_type_reference(program, retained, instance);
-        }
-        if let Some(quotient) = &data.quotient {
-            visit_type_reference(program, retained, quotient.carrier);
-            visit_symbol(retained, quotient.relation_symbol);
-        }
-        if let Some(selection) = &data.cleanup_selection {
-            visit_cleanup_selection(program, retained, selection);
-        }
-        visit_proof_facts(program, retained, data.where_facts);
-        for member in program.data_members(data) {
-            match member {
-                crate::data::DataMember::Field(field) => {
-                    visit_type_reference(program, retained, field.type_reference);
-                }
-                crate::data::DataMember::Variant(variant) => {
-                    for field in program.data_payload_fields(variant) {
-                        visit_type_reference(program, retained, field.type_reference);
-                    }
-                    visit_proof_facts(program, retained, variant.where_facts);
-                }
-            }
-        }
+        visit_data(program, retained, data);
     }
 
     for definition in program.traits() {
@@ -1868,6 +1791,99 @@ fn visit_proposition_formula(
         }
         PropositionFormula::BooleanExpression(expression) => {
             visit_expression(program, retained, *expression);
+        }
+    }
+}
+
+/// Traverse one data declaration's vocabulary without changing roots.
+fn visit_data(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    data: &crate::data::DataDefinition,
+) {
+    visit_declaration_dependencies(program, retained, data.symbol);
+    visit_symbol(retained, data.symbol);
+    if retained.derived_declaration_references() && !program.plan_laid_layouts.is_empty() {
+        for plan in program
+            .plan_laid_layouts
+            .iter()
+            .filter(|plan| plan.data_symbol == data.symbol)
+        {
+            // A layout keeps its complete constructor and selected policy
+            // application, not only the lowered schema and plan symbols.
+            // Premise checking still needs the constructor's own telescope
+            // and core contract after this Source closure is projected.
+            visit_type_reference(program, retained, plan.application);
+            visit_type_reference(program, retained, plan.semantic_type);
+            visit_closed_conformance(program, retained, &plan.policy_application);
+            visit_symbol(retained, plan.schema_symbol);
+            visit_symbol(retained, plan.policy_symbol);
+            visit_symbol(retained, plan.policy_plan_machine_symbol);
+            for alternative in plan.target_layouts(program) {
+                retained.layout_realization_dependency(alternative.machine);
+            }
+            for geometry in plan.geometries(program) {
+                for demand in &geometry.private_callback_demands {
+                    visit_closed_conformance(
+                        program,
+                        retained,
+                        &demand.slot_application.application,
+                    );
+                }
+            }
+        }
+    }
+    if retained.derived_declaration_references() && !program.access_view_plans.is_empty() {
+        for plan in program
+            .access_view_plans
+            .iter()
+            .filter(|plan| plan.data_symbol == data.symbol)
+        {
+            visit_symbol(retained, plan.schema_symbol);
+            visit_symbol(retained, plan.policy_symbol);
+            visit_symbol(retained, plan.policy_plan_machine_symbol);
+            for field in &plan.fields {
+                visit_type_reference(program, retained, field.accessor_type);
+                visit_type_reference(program, retained, field.value_type);
+                if let Some(resident) = &field.atomic_resident {
+                    visit_type_reference(program, retained, resident.resident_type);
+                }
+            }
+        }
+    }
+    visit_type_parameters(program, retained, data.type_parameters);
+    for bound in &data.conformance_bounds {
+        visit_symbol(retained, bound.trait_symbol);
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    if data.predicate_subject_symbol.is_valid() {
+        visit_symbol(retained, data.predicate_subject_symbol);
+        visit_type_reference(program, retained, data.predicate_subject_type);
+    }
+    if let Some(instance) = data.generic_instance {
+        visit_type_reference(program, retained, instance);
+    }
+    if let Some(quotient) = &data.quotient {
+        visit_type_reference(program, retained, quotient.carrier);
+        visit_symbol(retained, quotient.relation_symbol);
+    }
+    if let Some(selection) = &data.cleanup_selection {
+        visit_cleanup_selection(program, retained, selection);
+    }
+    visit_proof_facts(program, retained, data.where_facts);
+    for member in program.data_members(data) {
+        match member {
+            crate::data::DataMember::Field(field) => {
+                visit_type_reference(program, retained, field.type_reference);
+            }
+            crate::data::DataMember::Variant(variant) => {
+                for field in program.data_payload_fields(variant) {
+                    visit_type_reference(program, retained, field.type_reference);
+                }
+                visit_proof_facts(program, retained, variant.where_facts);
+            }
         }
     }
 }

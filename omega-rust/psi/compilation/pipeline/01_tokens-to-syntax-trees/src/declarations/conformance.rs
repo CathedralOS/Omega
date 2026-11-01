@@ -61,6 +61,10 @@ fn parse_conformance_members<'tokens, 'source>(
     let mut members = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let is_public = input.at_keyword(KeywordKind::Public);
+        if is_public {
+            input = input.take_keyword(KeywordKind::Public, "public")?;
+        }
         if !input.at_keyword(KeywordKind::Machine) {
             return Err(input.error_here(
                 "a named implementation declares each requirement as an inline `machine` member; \
@@ -70,6 +74,7 @@ fn parse_conformance_members<'tokens, 'source>(
         }
         let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
+        machine.is_public = is_public;
         if machine.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
