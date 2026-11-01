@@ -40,7 +40,7 @@ Run `omega --check tests/omega/pass/build/nested_generated_dependency_dual_purpo
 The ordinary public Build API can also measure a two-target native request:
 
 ```sh
-OMEGA_PHASE_PROFILE=1 package_batch --native-evidence --compare-single-targets --run \
+XDG_CACHE_HOME="$(mktemp -d)" OMEGA_PHASE_PROFILE=1 package_batch --native-evidence --compare-single-targets --run \
   --targets linux_x86_64,windows_x86_64 \
   tests/omega/pass/build/nested_generated_dependency_dual_purpose/main.omg 1 1 3 4
 ```
@@ -52,3 +52,7 @@ ordinary discovery scheduler retains each immutable source once; purpose-specifi
 Product inputs remain separate. Four purpose occurrences are not four Build
 activations. These coarse counters do not establish numbered Psi-once coverage
 or general delegated-context reuse applicability.
+
+The private empty cache makes the fresh-check count reproducible. Retained proof
+reuse can reduce actual checking work on a warm cache; independent image
+comparisons run after the measured counters and may reuse those proofs.
