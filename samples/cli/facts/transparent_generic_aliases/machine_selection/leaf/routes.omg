@@ -1,12 +1,8 @@
 module routes;
 
-public data Carrier<machine Selected> [copy]
-requires machine Selected(value: u64) -> u64;
-{ value: u64; }
-
 public data Routed<machine Selected>
 requires machine Selected(value: u64) -> u64;
-= Carrier<Selected>;
+= Erased<Selected>;
 
 public data Erased<machine Selected>
 requires machine Selected(value: u64) -> u64;
