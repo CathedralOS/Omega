@@ -12,6 +12,8 @@ Contents classification treats a declared implementation argument as non-storage
 
 Optimized Rust producer `9df73bde3f84b50cd04cd77682afb95f46c18bd3` (Mac ARM64, image `ced04afa3402b39ffee569534002dfbd8b40f87df2b219cbf5b7679ad7bb4ace`) observes native/Terminal exit-zero agreement for value 42 and all six intended refusals in 37 seconds. The original declaration-only positive and the active caller already checked on the preceding producer; its native result classification failed before the contents repair.
 
+The first transport batch adds [local](local/main.omg), [field](field/main.omg) and [parameter](parameter/main.omg), each with an adjacent region-only twin. Their programs keep the same original declarations, index 7, value 42 and forwarding operation. The field place forwards a data-owned implementation promise into `Holder`; [wrong data promise](wrong_data_promise/main.omg) refuses a data binder that promises `Other` rather than `Tag`.
+
 This root executes the named historical continuation witness. It does not close the nine-place row or the parent capability; other-host execution remains a separate frontier. Raw contents queries supplied only untyped implementation substitutions retain their existing conservative limitation; this root's exact application path does not establish that separate input route.
 
 Rules: [conformance telescope identity](../../../../wiki/spec/language/conformances.md#declaration-and-selection), [closed applications](../../../../wiki/spec/language/generics.md#closed-applications-and-canonical-identity), and [lifetime binders](../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications).
