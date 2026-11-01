@@ -9,3 +9,10 @@ This is a focused architecture witness for PROVIDER-SELECTION-AFTER-TERMINAL,
 not a complete fact row or a claim that all provider Source dependencies are gone.
 Target-deferred scalar-demand completion has separate receiving-boundary tests;
 this program's width is target invariant.
+
+The [wrong-arity control](../../../fail/build/default_component_abi_wrong_arity/main.omg)
+must reject its incomplete receiver application rather than falling back to a
+different provider. Component verification and native selection join the same
+complete closed-candidate roster under the exact selecting declaration. Terminal
+execution transfers the actual scalar/array contents into the child; equal
+layout or an opaque token does not supply those contents.

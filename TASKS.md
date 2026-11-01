@@ -517,9 +517,9 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
-  - Move opaque selection, source-qualified review and default ABI signature
-    materialization onto canonical Terminal Psi, so target planning
-    drops its source-side signature preparation and passes source-discard/reload.
+  - Move opaque selection and source-qualified review onto canonical Terminal
+    Psi, so target planning drops its source-side signature preparation and
+    passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
     declarations: host classification's catalog-local source join, typed
     constant/comparison evaluation (including Early Build's typed-only

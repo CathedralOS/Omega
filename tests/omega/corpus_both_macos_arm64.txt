@@ -23,6 +23,7 @@ pass/borrows/runtime_nested_byte_field_capture_exit built 1142ms exit:0 interpre
 pass/borrows/runtime_reference_result_alias_case_payload_exit built 7010ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
 pass/borrows/runtime_reference_result_case_payload_exit built 6928ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
 pass/borrows/runtime_write_only_disjoint_field_predicates_exit built 1478ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
+pass/build/default_component_abi_extents built 3367ms exit:0 interpreter-exit:0 interpreter:agrees @fc8f93fd5c6e+wt
 pass/build/native_component_case_cycle built 1825ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/build/native_component_case_loan_cycle built 1179ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/build/package_owned_callable_identity built 1676ms exit:0 interpreter-exit:0 interpreter:agrees @946b56944a1b
