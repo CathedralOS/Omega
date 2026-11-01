@@ -43,7 +43,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
         else {
             return None;
@@ -66,7 +66,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let source = self.structural_value(receiver, actual)?;
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             logical_root_type_identity: Default::default(),
             path: Vec::new(),
