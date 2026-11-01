@@ -837,10 +837,11 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
-    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md)
-    and [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md) places,
-    including owner-preserving mixed-scope transport, and captured Product/Build
-    alias transport remain open.
+    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
+    [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
+    and [captured-supplier default-member](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
+    places, including remaining mixed/open scope compositions, and captured
+    Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,
