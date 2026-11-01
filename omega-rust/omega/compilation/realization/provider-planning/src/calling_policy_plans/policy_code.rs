@@ -65,11 +65,12 @@ impl CallingPolicyCode {
         let account = sponsor
             .begin_invocation(measurement, limits.maximum_fuel_units())
             .map_err(|error| error.to_string())?;
+        let signature = signature.policy_signature()?;
         super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact: &self.artifact,
             entry: terminal_psi::TargetMachineCallable::Machine(*entry),
             target,
-            signature,
+            signature: &signature,
             account,
         })
         .map(|(plan, _usage)| plan)

@@ -510,48 +510,12 @@ pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
-    let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
-    let mut callback_binding_rows = arena::HandleSpan::empty();
-    for binder in &signature.callback_binders {
-        callback_bindings.append_to_span(
-            &mut callback_binding_rows,
-            calling_conventions::BoundaryCallbackBinding {
-                binder: binder.binder,
-                requirement: binder.requirement,
-                static_machine_ordinal: binder.static_machine_ordinal,
-                requirement_identity: binder.requirement_identity.clone(),
-                invokes_synchronously: binder.invokes_synchronously,
-            },
-        );
-    }
-    let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
-    let mut native_parameter_rows = arena::HandleSpan::empty();
-    for parameter in &signature.native_parameters {
-        native_parameters.append_to_span(
-            &mut native_parameter_rows,
-            calling_conventions::BoundaryNativeParameterGeometry {
-                identity: parameter.identity,
-                native_ordinal: parameter.native_ordinal,
-                origin: parameter.origin,
-                shape: parameter.shape,
-            },
-        );
-    }
-    let mut callback_layouts = arena::Arena::with_capacity(signature.callback_layout_catalog.len());
-    let mut callback_layout_rows = arena::HandleSpan::empty();
-    for entry in &signature.callback_layout_catalog {
-        callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
-    }
+    let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
         requirement_identity: signature.owner_requirement_identity().to_owned(),
-        target: signature.native_target(), report_fingerprint: 0, commitment: [0;32],
+        target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),
-        signature: calling_conventions::BoundarySignatureGeometry {
-            shapes: signature.shapes().to_vec(), fields: signature.fields().to_vec(),
-            parameters: signature.parameters().to_vec(), result: signature.result(),
-            native_parameters, native_parameter_rows, callback_layouts, callback_layout_rows,
-            callback_bindings, callback_binding_rows,
-        },
+        signature: policy.geometry,
         opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
             calling_conventions::BoundaryOpaqueApplication {
                 shape_root: use_.shape_root(), application_report_fingerprint: use_.application_report_fingerprint(),
@@ -562,7 +526,65 @@ pub(super) fn source_free_application(
                     representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
-        callback_context: callback_materialization_context(signature),
+        callback_context: policy.callbacks,
         callback_context_closed: false,
     })
+}
+
+impl MaterializedBoundarySignature {
+    /// Detach the ABI input from source correspondence. Native publication and
+    /// policy activation consume this same projection, including unused callback
+    /// binders and every target-closed destination demand.
+    pub fn policy_signature(&self) -> Result<super::CallingPolicySignature, String> {
+        let signature = self;
+        let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
+        let mut callback_binding_rows = arena::HandleSpan::empty();
+        for binder in &signature.callback_binders {
+            callback_bindings.append_to_span(
+                &mut callback_binding_rows,
+                calling_conventions::BoundaryCallbackBinding {
+                    binder: binder.binder,
+                    requirement: binder.requirement,
+                    static_machine_ordinal: binder.static_machine_ordinal,
+                    requirement_identity: binder.requirement_identity.clone(),
+                    invokes_synchronously: binder.invokes_synchronously,
+                },
+            );
+        }
+        let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
+        let mut native_parameter_rows = arena::HandleSpan::empty();
+        for parameter in &signature.native_parameters {
+            native_parameters.append_to_span(
+                &mut native_parameter_rows,
+                calling_conventions::BoundaryNativeParameterGeometry {
+                    identity: parameter.identity,
+                    native_ordinal: parameter.native_ordinal,
+                    origin: parameter.origin,
+                    shape: parameter.shape,
+                },
+            );
+        }
+        let mut callback_layouts =
+            arena::Arena::with_capacity(signature.callback_layout_catalog.len());
+        let mut callback_layout_rows = arena::HandleSpan::empty();
+        for entry in &signature.callback_layout_catalog {
+            callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
+        }
+        Ok(super::CallingPolicySignature {
+            target: signature.native_target(),
+            geometry: calling_conventions::BoundarySignatureGeometry {
+                shapes: signature.shapes().to_vec(),
+                fields: signature.fields().to_vec(),
+                parameters: signature.parameters().to_vec(),
+                result: signature.result(),
+                native_parameters,
+                native_parameter_rows,
+                callback_layouts,
+                callback_layout_rows,
+                callback_bindings,
+                callback_binding_rows,
+            },
+            callbacks: callback_materialization_context(signature),
+        })
+    }
 }

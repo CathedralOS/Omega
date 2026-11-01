@@ -600,6 +600,16 @@ Independent execution support.
 
 ### Callback custody boundaries
 
+Calling-policy execution consumes a source-free `CallingPolicySignature`:
+the canonical `BoundarySignatureGeometry`, target and complete callback
+obligations. Its input encoder and returned-plan validator live together in
+[policy_signature.rs](../realization/provider-planning/src/calling_policy_plans/policy_signature.rs).
+Native application publication uses that same geometry projection. Source
+symbols used by package review and layout preparation never enter the policy
+activation. Preparation still reads source for ordinary/opaque layouts and
+inline callback slots; moving those owners after Terminal publication and
+removing the separate policy-code publication remain unfinished.
+
 Retained-product callback and checked-scope composition must close through
 actual native publication, not a zero-payload layout or provider-selection check.
 Widening scalar-provider forwarding additionally requires preserved incoming
