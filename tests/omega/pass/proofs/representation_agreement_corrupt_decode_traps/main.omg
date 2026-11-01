@@ -1,0 +1,85 @@
+// Expected crash: Trap (native illegal-instruction signal and Terminal Trap).
+// Runtime counterfactual: the preservation-only corrupted decoder is selected
+// without an agreement claim. The unchanged field observer must execute Trap.
+use omega::language::core::conversion;
+
+data Pair [copy] { first: u8; last: u8; }
+data FirstFrame [copy] { tag: u8; first: u8; last: u8; }
+data SecondFrame [copy] { tag: u8; first: u8; last: u8; }
+data Failure [copy] { case InvalidTag; }
+
+WriteFirst satisfies TryFrom<Pair, FirstFrame, Failure> {
+    machine try_from(source: Pair) -> Result<FirstFrame, Failure> reaches terminates {
+        Result::Ok { value: FirstFrame { tag: 165u8, first: source.first, last: source.last } }
+    }
+}
+ReadFirst satisfies TryFrom<FirstFrame, Pair, Failure> {
+    machine try_from(source: FirstFrame) -> Result<Pair, Failure> reaches terminates {
+        transition source.tag == 165u8 {
+            true -> Result::Ok { value: Pair { first: source.first, last: source.first } }
+            false -> Result::Err { error: Failure::InvalidTag }
+        }
+    }
+}
+WriteSecond satisfies TryFrom<Pair, SecondFrame, Failure> {
+    machine try_from(source: Pair) -> Result<SecondFrame, Failure> reaches terminates {
+        Result::Ok { value: SecondFrame { tag: 90u8, first: source.last, last: source.first } }
+    }
+}
+ReadSecond satisfies TryFrom<SecondFrame, Pair, Failure> {
+    machine try_from(source: SecondFrame) -> Result<Pair, Failure> reaches terminates {
+        transition source.tag == 90u8 {
+            true -> Result::Ok { value: Pair { first: source.last, last: source.first } }
+            false -> Result::Err { error: Failure::InvalidTag }
+        }
+    }
+}
+// Runtime observation deliberately receives only the ordinary fallible maps,
+// so the agreement theorem is not a premise of its executable verdict.
+machine observe<Frame,
+    Encode satisfies TryFrom<Pair, Frame, Failure>,
+    Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, malformed: Frame) -> bool
+{
+    let encoded: Result<Frame, Failure> = convert<Pair, Frame, Failure, Encode>(value);
+    transition encoded {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as frame } -> inspect<Frame, Decode>(value, frame, malformed)
+    }
+}
+machine inspect<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, frame: Frame, malformed: Frame) -> bool
+{
+    let decoded: Result<Pair, Failure> = convert<Frame, Pair, Failure, Decode>(frame);
+    transition decoded {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as restored } -> reject_malformed<Frame, Decode>(value, restored, malformed)
+    }
+}
+machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, restored: Pair, malformed: Frame) -> bool
+{
+    let refused: Result<Pair, Failure> = convert<Frame, Pair, Failure, Decode>(malformed);
+    transition refused {
+        Result::Err { error as failure } -> (restored.first == value.first && restored.last == value.last)
+        Result::Ok { value as unexpected } -> false
+    }
+}
+
+machine consume(value: Pair) -> bool {
+    let malformed_first: FirstFrame = FirstFrame { tag: 0u8, first: value.first, last: value.last };
+    let malformed_second: SecondFrame = SecondFrame { tag: 0u8, first: value.last, last: value.first };
+    let first_ok: bool = observe<FirstFrame, WriteFirst, ReadFirst>(value, malformed_first);
+    let second_ok: bool = observe<SecondFrame, WriteSecond, ReadSecond>(value, malformed_second);
+    first_ok && second_ok
+}
+
+machine main() crashes Trap {
+    let saved: Pair = Pair { first: 17u8, last: 42u8 };
+    let edge: Pair = Pair { first: 0u8, last: 255u8 };
+    let observed: bool = consume(saved);
+    let endpoint: bool = consume(edge);
+    transition observed && endpoint { true -> done() false -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

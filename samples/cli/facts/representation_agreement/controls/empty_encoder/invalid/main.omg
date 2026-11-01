@@ -1,0 +1,22 @@
+// Coverage is nonvacuous: an encoder refusing every semantic value is invalid.
+use omega::language::core::conversion;
+data Pair [copy] { first: u8; last: u8; }
+data Frame [copy] { tag: u8; first: u8; last: u8; }
+data Failure [copy] { case Unavailable; }
+trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
+    machine * terminates;
+}
+trait Coverage<Encode satisfies ValueConversion<Pair, Frame, Failure>> {
+    machine encode_covers(value: Pair)
+    ensures Encode::try_from(value) in Result::Ok;
+}
+RefuseEveryValue satisfies TryFrom<Pair, Frame, Failure> {
+    machine try_from(value: Pair) -> Result<Frame, Failure> reaches terminates {
+        Result::Err { error: Failure::Unavailable }
+    }
+}
+FalseAgreement satisfies Coverage<RefuseEveryValue> {
+    machine encode_covers(value: Pair)
+    ensures RefuseEveryValue::try_from(value) in Result::Ok { }
+}
+machine main() { }

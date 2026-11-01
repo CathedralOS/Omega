@@ -27,6 +27,7 @@ impl TypedTrees {
             call.requirement_application,
             call.authored_machine_application,
         )
+        .or_else(|| self.named_conformance_call_signature(call))
     }
 
     /// Statement calls select the same complete public logical view as an
@@ -107,9 +108,23 @@ impl TypedTrees {
         // A source evidence child is not the declaring trait's state symbol.
         // Rejoin its exact authored bound before reading the prepared public
         // view, including when its caller-owned type operands remain symbolic.
-        if let Some(machine) = self.machine_by_symbol(lexical_owner)
-            && let Some(bound) = self.conformance_target_requirement(machine, target).ok()?
-        {
+        let binder = self.symbols.get(target).parent;
+        let mut owner = lexical_owner;
+        let mut visited = Vec::new();
+        let bound = loop {
+            if !owner.is_valid() || visited.contains(&owner) {
+                break None;
+            }
+            visited.push(owner);
+            if let Some(bound) = self
+                .evidence_bound_requirement(owner, binder, target)
+                .ok()?
+            {
+                break Some(bound);
+            }
+            owner = self.declaration_scope_parent(owner);
+        };
+        if let Some(bound) = bound {
             if requirement_application.is_valid() {
                 let written = self
                     .applied_requirement_scope(lexical_owner, requirement_application)?

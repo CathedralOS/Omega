@@ -12,6 +12,7 @@ mod conformance_scopes;
 mod domain_scopes;
 mod machine_instances;
 mod machine_selections;
+mod namespaces;
 pub use machine_instances::MachineInstantiation;
 mod payloads;
 mod requirement_instances;
