@@ -431,7 +431,7 @@ fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
             let term = if disjunctive {
                 denotation.disjunction(parts)
             } else {
-                denotation.conjunction(parts)
+                denotation.denote(&proposition)
             }.expect("every ordered member denotes");
             eprintln!("denotation complete; begin independent kernel formation");
             let Term::Sort(expected_sort) = denotation.arena.get(denotation.type_zero) else {
@@ -472,7 +472,7 @@ fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
             let invalid = if disjunctive {
                 denotation.disjunction(&[fresh])
             } else {
-                denotation.conjunction(&[fresh])
+                denotation.denote(&Proposition::Conjunction(vec![fresh]))
             };
             let expected = if disjunctive { "disjunction arity" } else { "conjunction arity" };
             assert!(matches!(invalid, Err(BoundedDenotationError::Certificate(ProofError::RuleConclusionMismatch(actual))) if actual == expected));
@@ -494,7 +494,7 @@ fn connective_denotation_preserves_member_failure_and_declaration_order() {
         let observed = if disjunctive {
             denotation.disjunction(&members)
         } else {
-            denotation.conjunction(&members)
+            denotation.denote(&Proposition::Conjunction(members.to_vec()))
         };
         assert!(matches!(
             observed,
@@ -502,8 +502,8 @@ fn connective_denotation_preserves_member_failure_and_declaration_order() {
                 ProofError::RuleConclusionMismatch("conjunction arity")
             ))
         ));
-        assert!(denotation.denotations.contains_key(&first));
-        assert!(!denotation.denotations.contains_key(&last));
+        assert!(denotation.denotations.cached_atom(&first).is_some());
+        assert!(denotation.denotations.cached_atom(&last).is_none());
         assert_eq!(
             denotation.declarations.len(),
             1,
@@ -982,4 +982,172 @@ fn free_variable_scan_preserves_binder_indices_and_overflow() {
         d.occurs_free(term, u32::MAX),
         "overflow does not skip the unshifted domain"
     );
+}
+
+#[test]
+fn nested_logical_denotation_and_exact_cache_identity_use_default_stack() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        fn nested(last: Proposition) -> Proposition {
+            let mut proposition = last;
+            for depth in 0..8192 {
+                proposition = match depth % 3 {
+                    0 => Proposition::Implication {
+                        premise: Box::new(Proposition::Truth),
+                        conclusion: Box::new(proposition),
+                    },
+                    1 => Proposition::Conjunction(vec![Proposition::Truth, proposition]),
+                    _ => Proposition::Disjunction(vec![Proposition::Falsehood, proposition]),
+                };
+            }
+            proposition
+        }
+        let proposition = nested(Proposition::Truth);
+        PropositionContext::default()
+            .validate(&proposition)
+            .expect("the whole logical proposition is admitted");
+        eprintln!("8192 logical nodes admitted; begin denotation");
+        let mut d = Denotation::new();
+        let term = d
+            .denote(&proposition)
+            .expect("the complete logical tree denotes");
+        eprintln!("logical denotation returned; begin formation and exact cache checks");
+        infer_sort(
+            &mut d.arena,
+            &Context::empty(),
+            term,
+            &mut Budget::new(2_000_000),
+        )
+        .expect("the complete denoted logical type independently forms");
+        let duplicate = nested(Proposition::Truth);
+        let allocated = d.arena.len();
+        assert_eq!(
+            d.denote(&duplicate).unwrap(),
+            term,
+            "equal syntax in distinct source storage reuses only its own denotation"
+        );
+        assert_eq!(
+            d.arena.len(),
+            allocated,
+            "a cache hit does not repeat term publication"
+        );
+        let different = nested(Proposition::Falsehood);
+        let changed = d.denote(&different).unwrap();
+        assert_ne!(
+            changed, term,
+            "one changed leaf cannot reuse the old complete result"
+        );
+        assert!(
+            d.declarations.is_empty(),
+            "logical structure adds no assumption authority"
+        );
+        eprintln!("exact cache checks returned; begin ordinary owned teardown");
+    })
+    .join()
+    .expect("logical denotation, cache and owned teardown stay on a default stack");
+}
+
+#[test]
+fn logical_cache_keeps_exact_syntax_when_leaf_denotations_agree() {
+    use super::super::Denotation;
+    let fixed = Proposition::Equal(literal(2), literal(2));
+    let lifted = crate::lift_fixed_integer_relation(&fixed)
+        .expect("fixed integer equality has its mathematical spelling");
+    let first = Proposition::Implication {
+        premise: Box::new(fixed),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let second = Proposition::Implication {
+        premise: Box::new(lifted),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let mut d = Denotation::new();
+    let left = d.denote(&first).unwrap();
+    let right = d.denote(&second).unwrap();
+    assert_ne!(
+        left, right,
+        "different source syntax keeps distinct complete cache entries"
+    );
+    let Term::Pi {
+        domain: left_domain,
+        codomain: left_body,
+    } = d.arena.get(left)
+    else {
+        panic!("the first implication denotes Pi");
+    };
+    let Term::Pi {
+        domain: right_domain,
+        codomain: right_body,
+    } = d.arena.get(right)
+    else {
+        panic!("the second implication denotes Pi");
+    };
+    assert_eq!(
+        left_domain, right_domain,
+        "the leaves have the same denotation despite different syntax"
+    );
+    assert_eq!(left_body, right_body);
+    for term in [left, right] {
+        let certificate = crate::MathematicalCertificate::with_signature(
+            d.declarations.clone(),
+            Vec::new(),
+            term,
+            d.type_zero,
+        );
+        verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget()).unwrap();
+    }
+    let allocated = d.arena.len();
+    assert_eq!(d.denote(&first).unwrap(), left);
+    assert_eq!(d.denote(&second).unwrap(), right);
+    assert_eq!(d.arena.len(), allocated);
+}
+
+#[test]
+fn logical_cache_preserves_arity_and_first_failure_effects() {
+    use super::super::Denotation;
+    for proposition in [
+        Proposition::Conjunction(Vec::new()),
+        Proposition::Conjunction(vec![atom(900)]),
+        Proposition::Disjunction(Vec::new()),
+        Proposition::Disjunction(vec![atom(900)]),
+    ] {
+        let mut d = Denotation::new();
+        let allocated = d.arena.len();
+        assert!(d.denote(&proposition).is_err());
+        assert_eq!(
+            d.arena.len(),
+            allocated,
+            "invalid arity refuses before any member term"
+        );
+        assert!(d.declarations.is_empty());
+    }
+    for disjunctive in [false, true] {
+        let first = atom(901);
+        let untouched = atom(902);
+        let invalid_member = atom(903);
+        let invalid = Proposition::Disjunction(vec![invalid_member.clone()]);
+        let members = vec![first.clone(), invalid, untouched.clone()];
+        let proposition = if disjunctive {
+            Proposition::Disjunction(members)
+        } else {
+            Proposition::Conjunction(members)
+        };
+        let mut d = Denotation::new();
+        assert!(d.denote(&proposition).is_err());
+        assert_eq!(
+            d.declarations.len(),
+            1,
+            "only the first completed atomic member declares"
+        );
+        assert!(d.denotations.cached_atom(&first).is_some());
+        assert!(
+            d.denotations.cached_atom(&untouched).is_none(),
+            "preparing syntax never publishes a later member"
+        );
+        assert!(
+            d.denotations.cached_atom(&invalid_member).is_none(),
+            "bad arity does not inspect its own members"
+        );
+    }
 }

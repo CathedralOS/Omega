@@ -2,6 +2,8 @@ use super::*;
 use crate::term_matchers::TermMatcher;
 use scheme_dsl::build;
 
+mod logical;
+
 /// Proposition and scalar-term denotation state: the arena the judgment's
 /// terms live in, the declaration signature every constant names, and the
 /// interning tables that give each atom, carrier and scalar value exactly
@@ -96,9 +98,10 @@ pub(super) struct Denotation {
     /// Declaration position → `Constant` node, so equal references share
     /// one handle.
     pub(super) constants: HashMap<u32, TermHandle>,
-    /// Proposition → denoted term cache; denotation is deterministic, so
-    /// the same proposition always denotes to the same handle.
-    pub(super) denotations: BTreeMap<Proposition, TermHandle>,
+    /// Exact source syntax → published denotation. Shallow logical keys keep
+    /// ordered child identities without owning nested proposition trees.
+    /// Preparing syntax alone never publishes a term or assumption.
+    pub(super) denotations: logical::Cache,
 }
 
 /// The shared front of an exact-add/subtract definition-bound check: the
@@ -697,7 +700,7 @@ impl Denotation {
             carrier_bounds: BTreeMap::new(),
             rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
-            denotations: BTreeMap::new(),
+            denotations: logical::Cache::default(),
         }
     }
 
@@ -1736,15 +1739,10 @@ impl Denotation {
         &mut self,
         proposition: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if let Some(&cached) = self.denotations.get(proposition) {
-            return Ok(cached);
-        }
-        let term = self.denote_uncached(proposition)?;
-        self.denotations.insert(proposition.clone(), term);
-        Ok(term)
+        logical::denote(self, proposition)
     }
 
-    pub(super) fn denote_uncached(
+    fn denote_leaf(
         &mut self,
         proposition: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
@@ -1799,15 +1797,10 @@ impl Denotation {
             Proposition::IntegerMathLessOrEqual(left, right) => {
                 self.integer_order_term(false, left, right)?
             }
-            Proposition::Conjunction(conjuncts) => self.conjunction(conjuncts)?,
-            Proposition::Disjunction(disjuncts) => self.disjunction(disjuncts)?,
-            Proposition::Implication {
-                premise,
-                conclusion,
-            } => {
-                let domain = self.denote(premise)?;
-                let codomain = self.denote(conclusion)?;
-                self.arena.insert(Term::Pi { domain, codomain })
+            Proposition::Conjunction(_)
+            | Proposition::Disjunction(_)
+            | Proposition::Implication { .. } => {
+                unreachable!("the logical continuation owns every ordered child and arity check")
             }
             Proposition::ContentConservation(conservation) => {
                 // `l ≡ r` in one algebra denotes `Id` over that
@@ -1825,21 +1818,17 @@ impl Denotation {
 
     /// `⟦c₀ ∧ … ∧ cₙ₋₁⟧` — a right-nested `Σ`, so conjunction
     /// introduction is a nested pair and elimination a projection path.
-    pub(super) fn conjunction(
-        &mut self,
-        conjuncts: &[Proposition],
-    ) -> Result<TermHandle, BoundedDenotationError> {
-        let (mut members, mut tail) = self.connective_members(
-            conjuncts,
-            ProofError::RuleConclusionMismatch("conjunction arity"),
-        )?;
+    fn conjunction_terms(&mut self, mut members: Vec<TermHandle>) -> TermHandle {
+        let mut tail = members
+            .pop()
+            .expect("canonical connective has at least two members");
         while let Some(domain) = members.pop() {
             tail = self.arena.insert(Term::Sigma {
                 domain,
                 codomain: tail,
             });
         }
-        Ok(tail)
+        tail
     }
 
     /// The tagged sum `Σ(t : Two). caseTwo(M, d₀, rest, t)` nests the
@@ -1848,14 +1837,21 @@ impl Denotation {
         &mut self,
         disjuncts: &[Proposition],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let (mut members, mut tail) = self.connective_members(
+        let members = self.connective_members(
             disjuncts,
             ProofError::RuleConclusionMismatch("disjunction arity"),
         )?;
+        Ok(self.disjunction_terms(members))
+    }
+
+    fn disjunction_terms(&mut self, mut members: Vec<TermHandle>) -> TermHandle {
+        let mut tail = members
+            .pop()
+            .expect("canonical connective has at least two members");
         while let Some(first) = members.pop() {
             tail = self.tagged_sum(first, tail);
         }
-        Ok(tail)
+        tail
     }
 
     /// Admit arity before any member, then denote members left to right before
@@ -1866,7 +1862,7 @@ impl Denotation {
         &mut self,
         members: &[Proposition],
         arity_error: ProofError,
-    ) -> Result<(Vec<TermHandle>, TermHandle), BoundedDenotationError> {
+    ) -> Result<Vec<TermHandle>, BoundedDenotationError> {
         if members.len() < 2 {
             return Err(BoundedDenotationError::Certificate(arity_error));
         }
@@ -1874,10 +1870,7 @@ impl Denotation {
         for member in members {
             terms.push(self.denote(member)?);
         }
-        let tail = terms
-            .pop()
-            .expect("canonical connective has at least two members");
-        Ok((terms, tail))
+        Ok(terms)
     }
 
     /// `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, zero_case, one_case, t)`
