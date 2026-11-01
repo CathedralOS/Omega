@@ -1,0 +1,8 @@
+// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
+// Place: other_state
+use my_library::values;
+machine main() crashes Trap {
+    transition ANSWER == 42 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

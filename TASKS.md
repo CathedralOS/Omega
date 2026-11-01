@@ -660,8 +660,8 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     remaining host operations (including an admitted loan-carrier interface for
     explicit host loan returns), and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and static syntax projection in
-    `omega-rust/omega/packages/build-declarations`.
+    evaluation and the live-source/Git static syntax projections in
+    `omega-rust/omega/packages/{build-declarations,package-manager}`.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
