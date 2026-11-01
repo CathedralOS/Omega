@@ -10,12 +10,14 @@ data ReceiptState {
     case Empty;
     case Live(receipt: Receipt);
 }
-boundary requirement ReceiptState::settle(state: ReceiptState);
+boundary trait ReceiptStateSettle {
+    machine settle(state: ReceiptState) reaches;
+}
 data Main {}
 machine Main::main(main: &mut Main) -> i32 {
     let empty: ReceiptState = ReceiptState::Empty;
     let receipt: Receipt = Receipt { code: 7 };
     let live: ReceiptState = ReceiptState::Live { receipt: receipt };
-    ReceiptState::settle(live);
+    ReceiptStateSettle::settle(live);
     0
 }

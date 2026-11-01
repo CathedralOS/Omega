@@ -1,6 +1,6 @@
 // An acyclic satisfier inherits the requirement's published guarantee
 // without repeating either `terminates;` or a private witness — and a
-// `boundary requirement` may publish the same interface (`terminates;`
+// boundary-trait requirement may publish the same interface (`terminates;`
 // + `reaches;`) with its satisfier declared BEFORE it: inheritance
 // does not depend on declaration order.
 trait Value {
@@ -16,10 +16,11 @@ satisfies Direct::value
 {
     9
 }
-data Direct { }
-boundary requirement Direct::value() -> u64
-terminates
-reaches;
+boundary trait Direct {
+    machine value() -> u64
+    terminates
+    reaches;
+}
 
 data Main {}
 machine Main::main(main: &mut Main) {

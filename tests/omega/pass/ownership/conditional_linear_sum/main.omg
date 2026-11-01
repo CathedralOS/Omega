@@ -10,7 +10,9 @@ data ReceiptState {
 
 // The sum's active arm can carry a linear obligation, so disposal is the
 // declared consuming contract — no edge cleanup may retire it implicitly.
-boundary requirement ReceiptState::settle(state: ReceiptState);
+boundary trait ReceiptStateSettle {
+    machine settle(state: ReceiptState) reaches;
+}
 
 data Main {}
 
@@ -18,6 +20,6 @@ machine Main::main() -> i32 {
     let empty: ReceiptState = ReceiptState::Empty;
     let receipt: Receipt = Receipt { code: 7 };
     let live: ReceiptState = ReceiptState::Live { receipt: receipt };
-    ReceiptState::settle(live);
+    ReceiptStateSettle::settle(live);
     0
 }

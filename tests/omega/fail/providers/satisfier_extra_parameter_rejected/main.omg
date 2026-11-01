@@ -35,14 +35,16 @@ machine stateful_exit(state: &mut TallyState, code: i32)
 satisfies Process::exit
 via ForeignBinding::Syscall(60);
 
-// Top-level, operator and token-bearing boundary requirements.
+// A one-member boundary trait, an operator and a token-bearing boundary requirement.
 public data Arithmetic {}
-public boundary requirement Arithmetic::count(value: u64) -> u64;
+public boundary trait ArithmeticCount {
+    machine count(value: u64) -> u64 reaches;
+}
 boundary operator Arithmetic::offset(value: i32) -> i32;
 boundary machine - Arithmetic::select_left(left: i32, right: i32) -> i32;
 
 machine stateful_count(state: &mut TallyState, value: u64) -> u64
-satisfies Arithmetic::count
+satisfies ArithmeticCount::count
 {
     value
 }

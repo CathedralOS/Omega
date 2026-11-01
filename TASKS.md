@@ -405,9 +405,21 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
-    probe to boundary traits with explicit reach clauses, and preserve
-    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 66 std raw platform rows
+    (`std/posix_filesystem_adapter.omg`,
+    `std/targets/{linux_x86_64,macos_arm64}/posix_filesystem_impl.omg`,
+    `std/targets/windows_x86_64/{console_impl,windows_gui_impl}.omg`) to
+    boundary traits. A trait slot is selected whole, so the per-member
+    `select_provider<Owner::member, ...>` rows collapse to one trait row or
+    callers call the leaf satisfier directly (the `*ByteViews` precedent); a
+    call to a trait member adds that trait to the caller's `invokes` edges, so
+    the public portable requirements must not silently gain platform edges.
+  - Migrate `pass/host/runtime_descriptor_{direct_array,nested_array_window,output_streams}_exit`:
+    their foreign `&[u8]` leaves rely on the standalone row's compatibility
+    slice ABI, which trait members refuse without an explicit `Calling<C>`
+    policy.
+  - Preserve source-selected trait tokens
+    (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.

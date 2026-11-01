@@ -1,8 +1,10 @@
-data Window { }
 data WindowBody { }
 
-boundary requirement Window::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
-requires start <= end && end <= bytes.len;
+boundary trait Window {
+    machine middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
+    reaches
+    requires start <= end && end <= bytes.len;
+}
 
 machine WindowBody::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
     satisfies Window::middle

@@ -1,5 +1,5 @@
 // TOP-LEVEL-BOUNDARY-REQUIREMENTS lifetime-parameterized leg: a public
-// `boundary requirement` may carry an erased lifetime telescope
+// boundary-trait requirement may carry an erased lifetime telescope
 // (`CellSource::read<'a>`). The telescope supplies no static call arguments;
 // conformance validates the provider's own telescope as the requirement's
 // positional identity, settlement keys the same owner-keyed dispatch row a
@@ -14,9 +14,10 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-public data CellSource {}
 
-public boundary requirement CellSource::read<'a>(source: &'a [u8]) -> i32;
+public boundary trait CellSource {
+    machine read<'a>(source: &'a [u8]) -> i32 reaches;
+}
 
 data CellSourceProvider {}
 
