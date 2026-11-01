@@ -10,6 +10,17 @@ cleanup:
   such asserts; within an hour of the AGENTS.md ban (#1159), three more PRs
   added 14 reads to product_boundary.rs. The per-file counts in
   `tools/source_text_reads.txt` may only fall.
+- Stage 05 re-derivation. The 2026-10-04 owner ruling (TASKS.md, "Lowering,
+  checker, data-flow, and PCC simplification") makes stage 05 a mechanical
+  lowering of stage 04's plans, and omega-rust/pipeline.md forbids stages from
+  reconstructing missing input facts. In the two weeks to 2026-11-01 stage 05
+  took 124 repairs in 219 commits and changed with stage 04's execution and
+  checks in 39 and 36 commits: each production stage 04 learned needed a
+  matching shape gate or source re-read in stage 05. Two per-file counts may only fall (LOC-VALUE-CUSTODY
+  retires them): shape gates (`unsupported(`, `Unsupported`, `unpinned(`) in
+  `tools/stage05_shape_gates.txt`, and reads of source context (the
+  `TypedTrees` table, `typed_trees::expression` nodes, and `.typed`, the typed
+  trees that checked trees still carry) in `tools/stage05_source_context.txt`.
 - Stale goldens. A row in `tests/omega/corpus_outcomes.txt` states what a run
   observed. PR #958 rewrote 738 variant-payload fixtures and left their rows
   saying `checked` for programs that no longer checked; on 2026-11-01, 4,055
@@ -56,12 +67,16 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from typing import Callable, NamedTuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RUST_ROOT = "omega-rust"
 READS_BASELINE = "tools/source_text_reads.txt"
 STATUS_BASELINE = "tools/contract_status_phrases.txt"
+STAGE05_ROOT = "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+SHAPE_GATE_BASELINE = "tools/stage05_shape_gates.txt"
+SOURCE_CONTEXT_BASELINE = "tools/stage05_source_context.txt"
 CONTRACTS = ("omega-rust/pipeline.md", "wiki/spec")
 DANGLING_BASELINE = "tools/dangling_task_ids.txt"
 TASK_BOARDS = ("TASKS.md", "TASKS_OPTIMIZER.md", "TASKS_BOOTSTRAP.md", "OWNER_QUESTIONS.md")
@@ -103,6 +118,11 @@ STATUS_PHRASE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+# Stage 05 sites that refuse a production stage 04 already checked, and reads
+# that reach past stage 04's plans into the typed source trees.
+SHAPE_GATE = re.compile(r"unsupported\(|Unsupported|unpinned\(")
+SOURCE_CONTEXT = re.compile(r"\b(?:Frozen)?TypedTrees\b|\btyped_trees::expression\b|\.typed\b")
+
 
 def git(*arguments, root=ROOT):
     result = subprocess.run(["git", "-C", str(root), *arguments],
@@ -128,15 +148,9 @@ def count_source_reads(text: str) -> int:
     return included + len(RUNTIME_READ.findall(text))
 
 
-def source_read_counts(root: Path = ROOT) -> dict:
-    counts = {}
-    for path in sorted((root / RUST_ROOT).rglob("*.rs")):
-        if "target" in path.relative_to(root).parts:
-            continue
-        count = count_source_reads(path.read_text(encoding="utf-8", errors="replace"))
-        if count:
-            counts[path.relative_to(root).as_posix()] = count
-    return counts
+def rust_files(root: Path = ROOT) -> list:
+    return sorted(path for path in (root / RUST_ROOT).rglob("*.rs")
+                  if "target" not in path.relative_to(root).parts)
 
 
 def read_baseline(text: str) -> dict:
@@ -146,33 +160,6 @@ def read_baseline(text: str) -> dict:
             count, path = line.split(None, 1)
             baseline[path.strip()] = int(count)
     return baseline
-
-
-def write_baseline(counts: dict) -> str:
-    lines = [
-        "# Source-text reads (include_str!/read_to_string of .rs or .toml) per file.",
-        "# Written by `python tools/check_rules.py --update-source-reads`.",
-        "# Counts may only fall: express the rule as a dependency in",
-        "# tools/check_native_boundary.py, a type or visibility, or a test that runs code.",
-    ]
-    lines += [f"{count} {path}" for path, count in sorted(counts.items())]
-    return "\n".join(lines) + "\n"
-
-
-def source_read_violations(counts: dict, baseline: dict) -> list:
-    violations = []
-    for path in sorted(set(counts) | set(baseline)):
-        now, allowed = counts.get(path, 0), baseline.get(path, 0)
-        if now > allowed:
-            violations.append(
-                f"{path}: {now} source-text reads, baseline {allowed}. Tests check "
-                "behavior or structure, never source text (AGENTS.md): state the "
-                "rule as a dependency, a type, or a test that runs the code.")
-        elif now < allowed:
-            violations.append(
-                f"{path}: {now} source-text reads, baseline {allowed}. Lower the "
-                "baseline: python tools/check_rules.py --update-source-reads")
-    return violations
 
 
 # Status in contracts --------------------------------------------------------
@@ -189,40 +176,95 @@ def contract_files(root: Path = ROOT) -> list:
     return files
 
 
-def status_phrase_counts(root: Path = ROOT) -> dict:
+def stage05_files(root: Path = ROOT) -> list:
+    return sorted(path for path in (root / STAGE05_ROOT).rglob("*.rs")
+                  if "target" not in path.relative_to(root).parts)
+
+
+# Count ratchets -------------------------------------------------------------
+
+class Ratchet(NamedTuple):
+    """A per-file count that may only fall. `baseline` holds `<count> <path>`
+    rows; a rise fails with `advice`, and a fall fails until the author
+    rewrites the baseline with `--<flag>`, so the next change cannot spend it."""
+
+    baseline: str
+    flag: str
+    noun: str
+    files: Callable
+    count: Callable
+    header: tuple
+    advice: str
+
+
+RATCHETS = (
+    Ratchet(
+        READS_BASELINE, "update-source-reads", "source-text reads", rust_files,
+        count_source_reads,
+        ("Source-text reads (include_str!/read_to_string of .rs or .toml) per file.",
+         "Counts may only fall: express the rule as a dependency in",
+         "tools/check_native_boundary.py, a type or visibility, or a test that runs code."),
+        "Tests check behavior or structure, never source text (AGENTS.md): state the "
+        "rule as a dependency, a type, or a test that runs the code."),
+    Ratchet(
+        STATUS_BASELINE, "update-status-phrases", "status phrases", contract_files,
+        count_status_phrases,
+        ("Status phrasing (\"not yet\", \"now passes\", \"exits N on <host>\", an",
+         "\"Implementation status\" heading, ...) per contract file.",
+         "Counts may only fall: put open work on its TASKS.md item, not in the contract."),
+        "Contracts state rules; record where the implementation stands as a remaining "
+        "bullet on the owning TASKS.md item, and phrase the rule without it."),
+    Ratchet(
+        SHAPE_GATE_BASELINE, "update-shape-gates", "stage-05 shape gates", stage05_files,
+        lambda text: len(SHAPE_GATE.findall(text)),
+        ("Stage 05 shape gates (unsupported(, Unsupported, unpinned() per file.",
+         "Counts may only fall: stage 05 is a mechanical lowering of stage 04's plans",
+         "(TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates)."),
+        "Stage 05 lowers stage 04's plans without re-checking them (TASKS.md owner "
+        "ruling 2026-10-04): record the missing decision on the stage 04 plan and "
+        "lower it, or reject the program in checking with a reject twin."),
+    Ratchet(
+        SOURCE_CONTEXT_BASELINE, "update-source-context", "stage-05 source-context reads",
+        stage05_files, lambda text: len(SOURCE_CONTEXT.findall(text)),
+        ("Stage 05 reads of source context (TypedTrees, typed_trees::expression,",
+         ".typed) per file. Counts may only fall: stages do not reconstruct missing",
+         "input facts (omega-rust/pipeline.md \"Public contracts\")."),
+        "Stages cannot reconstruct missing input facts from source context "
+        "(omega-rust/pipeline.md \"Public contracts\"): read the fact from the stage 04 "
+        "plan, and record it there when stage 04 does not yet publish it."),
+)
+
+
+def ratchet_counts(ratchet: Ratchet, root: Path = ROOT) -> dict:
     counts = {}
-    for path in contract_files(root):
-        count = count_status_phrases(path.read_text(encoding="utf-8", errors="replace"))
+    for path in ratchet.files(root):
+        count = ratchet.count(path.read_text(encoding="utf-8", errors="replace"))
         if count:
             counts[path.relative_to(root).as_posix()] = count
     return counts
 
 
-def write_status_baseline(counts: dict) -> str:
-    lines = [
-        "# Status phrasing (\"not yet\", \"now passes\", \"exits N on <host>\", an",
-        "# \"Implementation status\" heading, ...) per contract file.",
-        "# Written by `python tools/check_rules.py --update-status-phrases`.",
-        "# Counts may only fall: put open work on its TASKS.md item, not in the contract.",
-    ]
+def write_ratchet(ratchet: Ratchet, counts: dict) -> str:
+    lines = [f"# {line}" for line in ratchet.header]
+    lines.append(f"# Written by `python tools/check_rules.py --{ratchet.flag}`.")
     lines += [f"{count} {path}" for path, count in sorted(counts.items())]
     return "\n".join(lines) + "\n"
 
 
-def status_phrase_violations(counts: dict, baseline: dict) -> list:
+def ratchet_violations(ratchet: Ratchet, counts: dict, baseline: dict) -> list:
     violations = []
     for path in sorted(set(counts) | set(baseline)):
         now, allowed = counts.get(path, 0), baseline.get(path, 0)
         if now > allowed:
-            violations.append(
-                f"{path}: {now} status phrases, baseline {allowed}. Contracts state "
-                "rules; record where the implementation stands as a remaining bullet "
-                "on the owning TASKS.md item, and phrase the rule without it.")
+            violations.append(f"{path}: {now} {ratchet.noun}, baseline {allowed}. "
+                              f"{ratchet.advice}")
         elif now < allowed:
-            violations.append(
-                f"{path}: {now} status phrases, baseline {allowed}. Lower the "
-                "baseline: python tools/check_rules.py --update-status-phrases")
+            violations.append(f"{path}: {now} {ratchet.noun}, baseline {allowed}. Lower "
+                              f"the baseline: python tools/check_rules.py --{ratchet.flag}")
     return violations
+
+
+SOURCE_READS, STATUS_PHRASES, SHAPE_GATES, SOURCE_CONTEXT_READS = RATCHETS
 
 
 # Dangling task IDs ----------------------------------------------------------
@@ -514,23 +556,20 @@ def main(arguments=None):
     parser.add_argument("--base", help="compare HEAD with this revision "
                         "(default: merge base with origin/main)")
     parser.add_argument("--title", help="pull request title to check as a commit subject")
-    parser.add_argument("--update-source-reads", action="store_true",
-                        help=f"rewrite {READS_BASELINE} from the tree")
-    parser.add_argument("--update-status-phrases", action="store_true",
-                        help=f"rewrite {STATUS_BASELINE} from the tree")
+    for ratchet in RATCHETS:
+        parser.add_argument(f"--{ratchet.flag}", action="store_true",
+                            help=f"rewrite {ratchet.baseline} from the tree")
     parser.add_argument("--update-dangling-task-ids", action="store_true",
                         help=f"rewrite {DANGLING_BASELINE} from the tree")
     options = parser.parse_args(arguments)
-    counts = source_read_counts()
-    statuses = status_phrase_counts()
-    if options.update_source_reads or options.update_status_phrases:
-        if options.update_source_reads:
-            (ROOT / READS_BASELINE).write_text(write_baseline(counts), encoding="utf-8")
-            print(f"check_rules: wrote {len(counts)} files to {READS_BASELINE}")
-        if options.update_status_phrases:
-            (ROOT / STATUS_BASELINE).write_text(write_status_baseline(statuses),
-                                                encoding="utf-8")
-            print(f"check_rules: wrote {len(statuses)} files to {STATUS_BASELINE}")
+    counts = {ratchet: ratchet_counts(ratchet) for ratchet in RATCHETS}
+    updates = [ratchet for ratchet in RATCHETS
+               if getattr(options, ratchet.flag.replace("-", "_"))]
+    for ratchet in updates:
+        (ROOT / ratchet.baseline).write_text(write_ratchet(ratchet, counts[ratchet]),
+                                             encoding="utf-8")
+        print(f"check_rules: wrote {len(counts[ratchet])} files to {ratchet.baseline}")
+    if updates:
         return 0
     dangling = dangling_task_ids(
         citing_documents(),
@@ -540,10 +579,11 @@ def main(arguments=None):
         (ROOT / DANGLING_BASELINE).write_text(text, encoding="utf-8")
         print(f"check_rules: wrote {len(read_dangling_baseline(text))} citations to {DANGLING_BASELINE}")
         return 0
-    violations = source_read_violations(
-        counts, read_baseline((ROOT / READS_BASELINE).read_text(encoding="utf-8")))
-    violations += status_phrase_violations(
-        statuses, read_baseline((ROOT / STATUS_BASELINE).read_text(encoding="utf-8")))
+    violations = []
+    for ratchet in RATCHETS:
+        violations += ratchet_violations(
+            ratchet, counts[ratchet],
+            read_baseline((ROOT / ratchet.baseline).read_text(encoding="utf-8")))
     violations += dangling_task_violations(
         dangling,
         read_dangling_baseline((ROOT / DANGLING_BASELINE).read_text(encoding="utf-8")))
