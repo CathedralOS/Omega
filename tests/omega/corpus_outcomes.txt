@@ -360,9 +360,33 @@ fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input reject
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_other_state_weakened_input rejected 7308ms expected @da76dcbec7ab
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_float_input_alias_through_parameter_weakened_input rejected 5365ms expected @da76dcbec7ab
+fail/facts/dynamic_float_input_alias_through_parameter_weakened_input rejected 14642ms expected @95f6bd2b4430
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_target_body_weakened_input rejected 5124ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_f32_strict rejected 12234ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.25) (needs fact `public_interval(input, 0.0, 0.25)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_false_order_branch rejected 14505ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_nan_branch rejected 10856ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_call_result_weakened_input rejected 15085ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_const_name_weakened_input rejected 19708ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_field_weakened_input rejected 13832ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_local_weakened_input rejected 15968ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_match_join_weakened_input rejected 14772ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_other_machine_weakened_input rejected 13932ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_other_state_weakened_input rejected 16048ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_parameter_weakened_input rejected 16038ms expected @95f6bd2b4430
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alternatives_through_target_body_weakened_input rejected 12987ms expected @95f6bd2b4430
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2053ms expected @13c1304502d6
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
@@ -5768,17 +5792,28 @@ pass/facts/dynamic_float_input_alias_through_local_exit checked 8845ms check-tar
 pass/facts/dynamic_float_input_alias_through_match_join_exit checked 8961ms check-target:macos_arm64 @da76dcbec7ab
 pass/facts/dynamic_float_input_alias_through_other_machine_exit checked 8963ms check-target:macos_arm64 @da76dcbec7ab
 pass/facts/dynamic_float_input_alias_through_other_state_exit checked 8858ms check-target:macos_arm64 @da76dcbec7ab
-pass/facts/dynamic_float_input_alias_through_parameter_exit checked 9841ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_parameter_exit checked 18033ms check-target:macos_arm64 @95f6bd2b4430
 pass/facts/dynamic_float_input_alias_through_target_body_exit checked 8580ms check-target:macos_arm64 @da76dcbec7ab
-pass/facts/dynamic_float_refinement_through_call_result_exit checked 6194ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_const_name_exit checked 7198ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_field_exit checked 7123ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_local_exit checked 5730ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_match_join_exit checked 6595ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_other_machine_exit checked 6313ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_other_state_exit checked 5586ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_parameter_exit checked 6637ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_refinement_through_target_body_exit checked 7071ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/dynamic_float_input_alternatives_equal_exit checked 24468ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_f32_rounded_exit checked 21113ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_call_result_exit checked 21985ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_const_name_exit checked 20284ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_field_exit checked 14988ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_local_exit checked 20196ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_match_join_exit checked 27415ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_other_machine_exit checked 20250ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_other_state_exit checked 16400ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_parameter_exit checked 17653ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_target_body_exit checked 22978ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_call_result_exit checked 21291ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_const_name_exit checked 19279ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_field_exit checked 17880ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_local_exit checked 18156ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_match_join_exit checked 17417ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_other_machine_exit checked 18369ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_other_state_exit checked 21305ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_parameter_exit checked 24066ms check-target:macos_arm64 @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_target_body_exit checked 23009ms check-target:macos_arm64 @95f6bd2b4430
 pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 3649ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 3704ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_trait_dispatch_through_field_exit checked 3682ms check-target:macos_arm64 @ccdb99ca2214
@@ -10360,7 +10395,7 @@ pass/float/float_match_patterns checked 6544ms @ccdb99ca2214
 pass/float/float_ops_surface checked 6605ms @ccdb99ca2214
 pass/float/float_range_field_storage_exit checked 16970ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_saturating_arithmetic_exit checked 15769ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/float_selected_comparison_authority checked 6001ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/float_selected_comparison_authority checked 24119ms check-target:macos_arm64 @95f6bd2b4430
 pass/float/float_to_int_trapping_nan_traps rejected 9930ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 pass/float/float_trapping_overflow_traps checked 15775ms check-target:macos_arm64 @ccdb99ca2214
@@ -22087,23 +22122,23 @@ fail/facts/dynamic_float_alias_through_parameter_outside_interval rejected 4154m
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_alias_through_target_body_outside_interval rejected 3752ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 4061ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 11011ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_const_name_outside_interval rejected 4149ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_const_name_outside_interval rejected 9729ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_field_outside_interval rejected 4414ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_field_outside_interval rejected 12247ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_local_outside_interval rejected 4149ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_local_outside_interval rejected 9177ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_match_join_outside_interval rejected 3820ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_match_join_outside_interval rejected 8675ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_other_machine_outside_interval rejected 4788ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_other_machine_outside_interval rejected 12147ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_other_state_outside_interval rejected 4107ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_other_state_outside_interval rejected 10027ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 4534ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 13824ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 4008ms expected @ccdb99ca2214
+fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 11506ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 2806ms expected @ccdb99ca2214
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -30100,7 +30135,7 @@ fail/float/float_guard_missing_upper_bound rejected 4071ms expected @ccdb99ca221
 	cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0 (needs fact `difference >= 0.5 && difference <= 8.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_range_field_store_outside_range rejected 1867ms expected @ccdb99ca2214
 	data `Ratio`'s default domain is still FALSE at state exit: the invariant window opened on `built` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/float/float_selected_comparison_authority rejected 6007ms expected @ccdb99ca2214
+fail/float/float_selected_comparison_authority rejected 12116ms expected @95f6bd2b4430
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected @ccdb99ca2214
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
@@ -30270,8 +30305,8 @@ fail/float/same_carrier_cast_cannot_mint_finite rejected 1908ms expected @ccdb99
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/saved_ieee_conversion_guard_after_write rejected 2028ms unexpected @ccdb99ca2214
 	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/saved_ieee_guard_copy_after_write rejected 1936ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 4613ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/float/state_constructor_ieee_reflexivity rejected 4340ms expected @ccdb99ca2214
@@ -32262,7 +32297,7 @@ fail/proofs/dyn_requirement_float_nonhost_wider rejected 4668ms expected @ccdb99
 	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/dyn_requirement_float_nonreflexive rejected 4573ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from claim at statement 0: reflexive(value)
-fail/proofs/dyn_requirement_float_public_only rejected 5757ms expected @ccdb99ca2214
+fail/proofs/dyn_requirement_float_public_only rejected 9469ms expected @95f6bd2b4430
 	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/embedded_address_bound_not_strict rejected 1781ms expected @ccdb99ca2214
 	exact arithmetic in machine `offset` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
@@ -33839,7 +33874,7 @@ fail/termination/endpoint_folded_into_payload checked 2846ms @ccdb99ca2214
 fail/termination/explicit_self_without_descent rejected 2130ms expected @ccdb99ca2214
 	terminating machine spin: cannot prove strict rank decrease on a recurrent arrival: the transition from `spin` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `spin` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/float_requirement_disjunction_not_integer_bound rejected 3231ms expected @ccdb99ca2214
+fail/termination/float_requirement_disjunction_not_integer_bound rejected 9902ms expected @95f6bd2b4430
 	cannot prove requires contract for call countdown from countdown: value >= 0.0 || count - 1 <= 4 (needs fact `value >= 0.0 || count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

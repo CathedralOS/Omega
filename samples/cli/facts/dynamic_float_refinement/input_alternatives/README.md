@@ -71,3 +71,32 @@ strictly below that endpoint and must reject the admitted `0.25`.
 
 The wider parent remains open for its other proof mechanisms, operational
 envelopes, Product compiler parity and complete table/other-host qualification.
+
+## Recorded acceptance
+
+Optimized source checkpoint `95f6bd2b44300afdc37712cf585b1f3515adc819`
+was measured on Linux x86-64 with four corpus workers. The scoped Source gate
+records 48 fixtures: 22 checked and 26 rejected with their expected diagnostics.
+The native/Terminal gate records 21 executions, all with both exits 0 and
+agreement. These include the original IEEE nine-place row, the new nine-place
+production, its equality/f32 controls and the unchanged input-alias parameter
+consumer. Operator-selection, saved-observation, integer/IEEE separation and
+public-versus-private guarantee controls retain their intended rejection.
+
+A fresh match-place copy changes only the second expected marker from 13 to 12.
+Ordinary package update succeeds; native execution signals 4 and Terminal
+execution reports `Trap` (CLI exit 255), falsifying the consuming oracle with
+the same final producer. Focused Clippy for `validation` completed with existing
+warnings; the reported borrow in the unchanged comparison reader is
+outside the repair. Formatting and mirror/twin integrity checks pass.
+
+The [replay archive](https://chatgpt.com/api/library/files/libfile_fd3245e81d7c8191aefaa782e1a8073f/download)
+is retained in the author's Library (version 0, access required). It contains
+commands, raw outcomes, canonical context, exact source bundle and producer
+profiles. SHA-256: `0c6cb36c28c0c0612a90fc0a310bb36bbda049fa3e83e8a0e33841f7cf3f2dbd`.
+Extract it at a repository root with fixed base
+`eb9acb01452251ddb0c338fa400fb9cd476c8bc4` available for the source bundle.
+The [measured source](https://github.com/CathedralOS/Omega/commit/95f6bd2b44300afdc37712cf585b1f3515adc819)
+is also retained in the repair's PR history. Final CLI SHA-256:
+`26d0ed4d3fd0e3f49252a81b8a46f12c7a3547d0918ad4d8584912b4c521848c`
+(opt-level 1). No other-host or Product producer execution is claimed.
