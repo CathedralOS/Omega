@@ -20,18 +20,14 @@ mod contract_plan_facts;
 pub(crate) use contract_plan_facts::build_callable_scalar_value_contract_plan;
 mod crash_calls;
 mod crash_entry_values;
-mod expression_children;
 pub(crate) use crash_entry_values::entry_parameter_place_before_statement;
 mod crash_plan_facts;
 mod declaration_calls;
 pub(crate) mod declaration_descriptions;
 mod dynamic_conformance;
-pub(crate) mod proof_applications;
-pub(crate) use expression_children::{
-    push_every_expression_child, push_expression_children, push_match_children,
-};
 pub(crate) mod index_compatibility;
 mod integer_writes;
+pub(crate) mod proof_applications;
 pub(crate) use integer_writes::obligations::integer_write_obligation;
 mod access_views_and_uses;
 mod machine_facts;

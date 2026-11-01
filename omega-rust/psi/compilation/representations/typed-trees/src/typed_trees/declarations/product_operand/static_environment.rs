@@ -359,6 +359,14 @@ impl Capture<'_> {
         reference: types::TypeReferenceHandle,
     ) -> Result<Handle<ProductOperandType>, String> {
         let program = self.program;
+        if program
+            .type_reference_table
+            .type_alias_applications(reference)
+            .next()
+            .is_some()
+        {
+            return Err("captured Build helper static type cannot yet retain transparent alias application obligations".into());
+        }
         if let Some((_, value)) = self.types.iter().find(|(source, _)| *source == reference) {
             return Ok(*value);
         }

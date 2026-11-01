@@ -1,4 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "indexed_storage_address_identity_target_body");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider<SelectedObserve, X86Observe>(builder, linux_x86_64);
 }

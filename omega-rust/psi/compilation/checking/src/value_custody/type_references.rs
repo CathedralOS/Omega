@@ -37,6 +37,7 @@
 //! casts. `type_references_match` and `type_reference_label` compare and
 //! display type references for other validators.
 
+mod alias_arguments;
 mod const_predicates;
 mod constraint_validation;
 mod formation;
@@ -103,6 +104,10 @@ pub enum StaticTypeArgumentOwner<'program> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TypeReferenceOwner<'program> {
+    TypeAlias {
+        name: &'program str,
+        generic_depth: usize,
+    },
     StaticMachineArgument {
         owner: StaticTypeArgumentOwner<'program>,
         generic_depth: usize,
@@ -189,6 +194,13 @@ impl TypeReferenceOwner<'_> {
 
     fn generic_argument(self) -> Self {
         match self {
+            Self::TypeAlias {
+                name,
+                generic_depth,
+            } => Self::TypeAlias {
+                name,
+                generic_depth: generic_depth + 1,
+            },
             Self::StaticMachineArgument {
                 owner,
                 generic_depth,
@@ -301,6 +313,13 @@ impl TypeReferenceOwner<'_> {
 impl fmt::Display for TypeReferenceOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let generic_depth = match self {
+            Self::TypeAlias {
+                name,
+                generic_depth,
+            } => {
+                write!(formatter, "type alias `{name}` expansion")?;
+                *generic_depth
+            }
             Self::StaticMachineArgument {
                 owner,
                 generic_depth,
@@ -599,6 +618,15 @@ fn validate_type_reference_node(
         // value telescope: no declaration, loan or access is created here.
         type_parameter_scope.operand_lifetime_owner = supplying_owner;
     }
+    alias_arguments::validate(
+        program,
+        type_reference,
+        symbols,
+        owner,
+        type_parameter_scope,
+        diagnostics,
+        formation_obligations,
+    );
     macro_rules! validate_node {
         ($type_reference:expr $(,)?) => {
             validate_type_reference_node(

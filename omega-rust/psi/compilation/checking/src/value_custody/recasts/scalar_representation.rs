@@ -388,15 +388,15 @@ pub(super) fn narrow_by_field_representation_bounds(
         return None;
     };
     for bound in bounds {
-        let FieldRepresentationBound::Integer {
-            minimum, maximum, ..
-        } = bound
-        else {
+        let FieldRepresentationBound::Integer { interval, .. } = bound else {
             return None;
         };
         let (carrier_minimum, carrier_maximum) = primitive_integer_extent(primitive)?;
-        let minimum = minimum.unwrap_or(carrier_minimum).max(carrier_minimum);
-        let maximum = maximum.unwrap_or(carrier_maximum).min(carrier_maximum);
+        let minimum = interval.low.unwrap_or(carrier_minimum).max(carrier_minimum);
+        let maximum = interval
+            .high
+            .unwrap_or(carrier_maximum)
+            .min(carrier_maximum);
         let interval = integer_range_bit_patterns(primitive, (minimum, maximum))?;
         *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
     }

@@ -3,27 +3,62 @@
 const OFFSET: u64 = 0;
 data EvenLength where length % 2 == 0 { length: u16; }
 machine observe(value: EvenLength) -> u16 { value.length }
-windows_x86_64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
+boundary trait SelectedProbe {
+    machine probe(count: u64) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires count > 0 && count < 4096;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine probe(count: u64) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires count > 0 && count < 4096
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let length: u16 = (count * 2 + OFFSET) as u16;
+        observe(EvenLength { length: length })
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(count: u64) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires count > 0 && count < 4096
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let length: u16 = (count * 2 + OFFSET) as u16;
+        observe(EvenLength { length: length })
+    }
+}
+
+
 machine main() crashes Trap {
-    transition probe(7) == 14 { true -> done() _ -> bad() }
+    transition SelectedProbe::probe(7) == 14 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

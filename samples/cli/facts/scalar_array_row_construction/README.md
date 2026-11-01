@@ -12,3 +12,15 @@ Reserved Claim Ticket: `bbdfef14137f4cb4bf31bccde1f6de91`
 - **Composition:** Fixed-array rows compose the construction through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming leaf comparison; `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in one row's element carrier (`[u32; 2]` for `[u64; 2]`), leaving the literal's element type unresolved.
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time because a `[u32; 2]` row cannot supply `[u64; 2]` element leaves, strictly preventing carrier mismatches in flattened constructions.
 - **Checked-to-Terminal Psi lowering (`Psi 05-07`):** Projected row leaves lower as structural scalar observations at fixed-index coordinates of the row's canonical place in canonical target-neutral `PSITERM` form, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

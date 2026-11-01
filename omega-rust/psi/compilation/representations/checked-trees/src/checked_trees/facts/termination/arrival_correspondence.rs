@@ -203,6 +203,8 @@ pub struct CheckedRuntimeNaturalState {
 pub struct CheckedRuntimeIntegerRank {
     /// Application decisions remain attached to this exact state/input row.
     pub application: super::CheckedRankApplicationFacts,
+    pub application_bindings: HandleSpan<CheckedRankCoordinateBinding>,
+    pub input_type: TypeReferenceHandle,
     /// Selected declaration applied to this exact input coordinate; ZII is primitive.
     pub measure: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
@@ -218,6 +220,8 @@ impl Default for CheckedRuntimeIntegerRank {
     fn default() -> Self {
         Self {
             application: Default::default(),
+            application_bindings: Default::default(),
+            input_type: TypeReferenceHandle::invalid(),
             measure: SymbolHandle::invalid(),
             coordinate: CheckedRankCoordinateHandle::invalid(),
             parameter_position: 0,

@@ -5,36 +5,66 @@ machine initialize(values: &mut [u16; 4]) {
     values[0] = 37;
     values[3] = 9;
 }
-windows_x86_64 machine evaluate(values: [u16; 4]) -> u16
-requires values[3] == 0
-{
-    let captured: [u16; 4] in ZeroTail = values;
-    65535u16 + captured[3]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine evaluate(values: [u16; 4]) -> u16
-requires values[3] == 0
-{
-    let captured: [u16; 4] in ZeroTail = values;
-    65535u16 + captured[3]
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine evaluate(values: [u16; 4]) -> u16
-requires values[3] == 0
-{
-    let captured: [u16; 4] in ZeroTail = values;
-    65535u16 + captured[3]
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine evaluate(values: [u16; 4]) -> u16
-requires values[3] == 0
-{
-    let captured: [u16; 4] in ZeroTail = values;
-    65535u16 + captured[3]
+
+boundary trait SelectedEvaluate {
+    machine evaluate(values: [u16; 4]) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values[3] == 0;
 }
+
+X86Evaluate satisfies SelectedEvaluate {
+    machine evaluate(values: [u16; 4]) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values[3] == 0
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let captured: [u16; 4] in ZeroTail = values;
+        65535u16 + captured[3]
+    }
+}
+
+ArmEvaluate satisfies SelectedEvaluate {
+    machine evaluate(values: [u16; 4]) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values[3] == 0
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let captured: [u16; 4] in ZeroTail = values;
+        65535u16 + captured[3]
+    }
+}
+
+
 machine main() crashes Trap {
     let mut values: [u16; 4];
     initialize(&mut values);
     values[3] = 0;
-    let answer: u16 = evaluate(values);
+    let answer: u16 = SelectedEvaluate::evaluate(values);
     transition answer == 65535u16 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

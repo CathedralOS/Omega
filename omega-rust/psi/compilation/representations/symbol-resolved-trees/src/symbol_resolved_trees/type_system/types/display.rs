@@ -35,6 +35,9 @@ impl TypeReference {
             },
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
+            TypeReference::AliasUse { expansion, .. } => {
+                expansion.display_name_with(constrained_name)
+            }
         }
     }
 

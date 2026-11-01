@@ -432,10 +432,13 @@ fn expression_children(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
-    crate::facts::push_every_expression_child(
-        program,
+    program.subtree_children(
         program.expression_table.expression(expression),
-        &mut children,
+        typed_trees::SubtreeEdges::STRUCTURAL,
+        |child| {
+            children.push(child);
+            false
+        },
     );
     children
 }

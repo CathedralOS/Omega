@@ -7,6 +7,48 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 
+#[test]
+fn identity_only_reference_transport_closes_geometry_but_not_owned_storage() {
+    for descriptor in [false, true] {
+        let referent = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+        let mut module = terminal_psi::TerminalModule::declarations();
+        module
+            .structural_referents
+            .push(terminal_psi::StructuralReferentIdentity {
+                id: referent,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                foreign_descriptor: descriptor,
+            });
+        let mut recipes = super::TerminalBoundaryRecipes::new(&module, "macos_arm64");
+        let recipe = recipes
+            .reference(referent)
+            .expect("explicit transport role");
+        let mut layout =
+            BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target());
+        let (shape, _) = layout
+            .value_type(recipes.recipes(), recipe)
+            .expect("target geometry");
+        assert_eq!(
+            shape,
+            ValueShape::integer(if descriptor { 16 } else { 8 }, 8)
+        );
+        let error = recipes
+            .value(referent)
+            .expect_err("transport supplied owned storage");
+        assert!(
+            error.contains("no canonical storage declaration"),
+            "{error}"
+        );
+        let unknown = semantic_vocabulary::StructuralTypeId::new(2).unwrap();
+        assert!(
+            recipes
+                .reference(unknown)
+                .unwrap_err()
+                .contains("no retained foreign reference representation")
+        );
+    }
+}
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
@@ -43,8 +85,7 @@ fn records_preserve_padding_float_classification_and_distinct_occurrences() {
         typed("data Padded { tag: u8; value: u64; } data Floats { left: f32; right: f32; }");
     let (recipes, roots) = data_recipes(&typed, &["Padded", "Floats", "Padded"]);
     drop(typed);
-    let mut values =
-        BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target(), &[]);
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target());
     let (padded, padded_root) = values.value_type(&recipes, roots[0]).expect("padded");
     assert_eq!(padded, ValueShape::integer(16, 8));
     let (floats, floats_root) = values.value_type(&recipes, roots[1]).expect("floats");
@@ -76,7 +117,7 @@ fn arrays_and_unsized_references_retain_their_structural_classes() {
         typed("data Values { words: [u16; 3]; slice: &[u8]; text: &string; scalar: &u64; }");
     let (recipes, roots) = data_recipes(&typed, &["Values"]);
     drop(typed);
-    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
     let (shape, root) = values.value_type(&recipes, roots[0]).expect("values");
     assert_eq!(shape, ValueShape::integer(48, 8));
     let graph = values.graph();
@@ -117,8 +158,7 @@ fn unsupported_by_value_carriers_fail_at_layout_construction() {
         let typed = typed(source);
         let (recipes, roots) = data_recipes(&typed, &[name]);
         drop(typed);
-        let mut values =
-            BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
+        let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
         let error = values
             .value_type(&recipes, roots[0])
             .expect_err("unsupported carrier");
@@ -127,7 +167,7 @@ fn unsupported_by_value_carriers_fail_at_layout_construction() {
     let typed = typed("boundary data Opaque;");
     let (recipes, roots) = data_recipes(&typed, &["Opaque"]);
     drop(typed);
-    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
     assert!(
         values
             .value_type(&recipes, roots[0])
@@ -151,6 +191,62 @@ fn shape_capacity_is_checked_before_publishing_an_out_of_range_root() {
     let error = append_boundary_value_shape(&mut shapes, shape).expect_err("capacity");
     assert!(error.contains("normalized shape capacity of 256"));
     assert_eq!(shapes.len(), BOUNDARY_VALUE_SHAPE_CAPACITY);
+}
+
+#[test]
+fn opaque_recipes_keep_exact_roster_coordinates_through_nested_occurrences() {
+    use language_semantics::boundary_values::{
+        BoundaryFieldRecipe, BoundaryValueRecipe, BoundaryValueRecipes,
+    };
+    let mut recipes = BoundaryValueRecipes::default();
+    let word = recipes
+        .values
+        .insert(BoundaryValueRecipe::Integer { byte_size: 8 });
+    let opaque = recipes.values.insert(BoundaryValueRecipe::Opaque {
+        name: "Token".into(),
+        carrier_name: "TokenBytes".into(),
+        selection_ordinal: 41,
+        carrier: word,
+    });
+    let array = recipes.values.insert(BoundaryValueRecipe::FixedArray {
+        element: opaque,
+        length: 3,
+    });
+    let fields = recipes.fields.insert_many([
+        BoundaryFieldRecipe {
+            value: opaque,
+            byte_offset: None,
+        },
+        BoundaryFieldRecipe {
+            value: array,
+            byte_offset: None,
+        },
+    ]);
+    let record = recipes.values.insert(BoundaryValueRecipe::Record {
+        name: "Envelope".into(),
+        fields,
+        storage: None,
+    });
+    // No selected declarations or source handles enter native geometry.
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target());
+    let (shape, _) = values
+        .value_type(&recipes, record)
+        .expect("nested occurrence geometry");
+    assert_eq!(shape, ValueShape::integer(32, 8));
+    values
+        .value_type(&recipes, opaque)
+        .expect("another top-level occurrence");
+    let (shapes, _, occurrences) = values.into_parts();
+    assert_eq!(occurrences.len(), 3);
+    for occurrence in &occurrences {
+        assert_eq!(occurrence.selection_ordinal, 41);
+        assert_eq!(shapes[usize::from(occurrence.shape_root)].byte_size, 8);
+    }
+    assert!(
+        occurrences
+            .windows(2)
+            .all(|pair| pair[0].shape_root != pair[1].shape_root)
+    );
 }
 
 #[test]
@@ -218,7 +314,7 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     });
     let target = target::TargetProfile::UefiX64.native_target();
     let (recipes, roots) = data_recipes(&typed, &["Packed"]);
-    let mut values = BoundaryValueLayout::new(target, &[]);
+    let mut values = BoundaryValueLayout::new(target);
     let (shape, _) = values
         .value_type(&recipes, roots[0])
         .expect("selected layout");
@@ -234,7 +330,7 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     };
     geometry.integer_fields[0].stored_width_bits = 7;
     let (recipes, roots) = data_recipes(&typed, &["Packed"]);
-    let error = BoundaryValueLayout::new(target, &[])
+    let error = BoundaryValueLayout::new(target)
         .value_type(&recipes, roots[0])
         .expect_err("invalid width");
     assert!(error.contains("invalid stored-integer width 7"));
@@ -246,7 +342,7 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     geometry.integer_fields[0].stored_width_bits = 16;
     typed.plan_laid_layouts[0].field_symbols[0] = symbols::SymbolHandle::invalid();
     let (recipes, roots) = data_recipes(&typed, &["Packed"]);
-    let error = BoundaryValueLayout::new(target, &[])
+    let error = BoundaryValueLayout::new(target)
         .value_type(&recipes, roots[0])
         .expect_err("wrong member identity");
     assert!(error.contains("layout publishes"));

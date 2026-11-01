@@ -137,6 +137,37 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::Named { symbol, name, .. } => {
             super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
         }
+        resolved::types::TypeReference::AliasUse {
+            expansion,
+            application,
+            declaration_source,
+            ..
+        } => {
+            let expansion = lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                expansion,
+                None,
+            )?;
+            let reference = match application.as_ref() {
+                resolved::types::TypeReference::Generic(value) => value.base_name.source_span(),
+                resolved::types::TypeReference::Named { name, .. } => name.source_span(),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "type alias application lost its source declaration head",
+                    ));
+                }
+            };
+            let application = lower!(application)?;
+            super::alias_uses::retain_application(
+                source_trees,
+                typed_trees,
+                expansion,
+                application,
+                *declaration_source,
+                reference,
+            )
+        }
         resolved::types::TypeReference::Unit => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Unit)),

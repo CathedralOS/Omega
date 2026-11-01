@@ -824,7 +824,7 @@ delegated_fields! {
 }
 
 wire_record! {
-    Referent: StructuralReferentIdentity { id: Id, identity: Index }
+    Referent: StructuralReferentIdentity { id: Id, identity: Index, foreign_descriptor: Flag }
 }
 
 /// A scalar qualification set, spelled as its identity; zero is the empty set.

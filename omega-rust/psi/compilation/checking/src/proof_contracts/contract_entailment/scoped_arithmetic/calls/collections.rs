@@ -82,7 +82,7 @@ impl<'program> ScopedCalls<'program> {
             let mut actuals = Vec::new();
             for actual in &source.bindings {
                 actuals.push(ScopedArithmeticBinding {
-                    binder: actual.binder,
+                    binder: actual.binder.clone(),
                     value: self.value(&actual.value)?,
                 });
             }

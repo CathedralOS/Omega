@@ -10,40 +10,65 @@ ensures result == buckets.len as u64
     buckets.len as u64
 }
 
-linux_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
+boundary trait SelectedReadAt {
+    machine read_at(value: u64, buckets: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0;
+}
+
+X86ReadAt satisfies SelectedReadAt {
+    machine read_at(value: u64, buckets: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let width: u64 = measure(buckets);
+        buckets[value % width]
+    }
+}
+
+ArmReadAt satisfies SelectedReadAt {
+    machine read_at(value: u64, buckets: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires buckets.len > 0
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let width: u64 = measure(buckets);
+        buckets[value % width]
+    }
 }
 
 machine main() crashes Trap {
     let buckets: [u8; 4] = [7, 8, 9, 6];
-    transition read_at(10, &buckets[..]) == 9 && read_at(15, &buckets[..]) == 6 {
+    transition SelectedReadAt::read_at(10, &buckets[..]) == 9 && SelectedReadAt::read_at(15, &buckets[..]) == 6 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

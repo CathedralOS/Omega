@@ -65,7 +65,7 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) declaration_parameters: &'program [StateParameter],
     pub(super) declaration_scope: Option<DeclarationScope<'program>>,
     /// Completed declaration inputs, captured once before evaluating its body.
-    pub(super) declaration_values: Vec<(SymbolHandle, ComputationHandle)>,
+    pub(super) declaration_values: Vec<(validation::CanonicalPlace, ComputationHandle)>,
     pub(super) authored_parameters: &'program [StateParameter],
     pub(super) parameter_types: &'program [PrimitiveType],
     pub(super) locals: &'program [ScalarLocal],

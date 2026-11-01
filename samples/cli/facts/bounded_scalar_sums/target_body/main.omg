@@ -2,38 +2,54 @@
 // a + b fit result <= 100; no Wrapping domain and no as.
 // Place: another target body. Every target body adds the bounded operands.
 // Expected exit: 0
-linux_x86_64 machine add(a: u64, b: u64) -> u64
-    requires a <= 50 && b <= 50
-    ensures result <= 100
-{
-    a + b
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine add(a: u64, b: u64) -> u64
-    requires a <= 50 && b <= 50
-    ensures result <= 100
-{
-    a + b
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine add(a: u64, b: u64) -> u64
-    requires a <= 50 && b <= 50
-    ensures result <= 100
-{
-    a + b
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine add(a: u64, b: u64) -> u64
-    requires a <= 50 && b <= 50
-    ensures result <= 100
-{
-    a + b
+boundary trait SelectedAdd {
+    machine add(a: u64, b: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a <= 50 && b <= 50 ensures result <= 100;
 }
+
+X86Add satisfies SelectedAdd {
+    machine add(a: u64, b: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a <= 50 && b <= 50 ensures result <= 100
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        a + b
+    }
+}
+
+ArmAdd satisfies SelectedAdd {
+    machine add(a: u64, b: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a <= 50 && b <= 50 ensures result <= 100
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        a + b
+    }
+}
+
 
 machine probe(a: u64, b: u64) -> u64
     requires a <= 50 && b <= 50
 {
-    add(a, b)
+    SelectedAdd::add(a, b)
 }
 
 machine main() crashes Trap {
@@ -43,4 +59,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

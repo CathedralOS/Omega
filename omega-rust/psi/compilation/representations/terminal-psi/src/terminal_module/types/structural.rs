@@ -63,6 +63,9 @@ pub struct StructuralReferentIdentity {
     /// Canonical closed-type export payload. Runtime relationships use `id`,
     /// never a spelling comparison or a reconstructed source application.
     pub identity: TerminalIdentityIndex,
+    /// Checked foreign transport role, even when this type has no demanded
+    /// storage body. A descriptor still grants no dereference or owned layout.
+    pub foreign_descriptor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

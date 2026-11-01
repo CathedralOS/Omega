@@ -15,7 +15,14 @@
 //! loop-bound narrowing -- the ergonomics that keep this from being annotation-
 //! hell -- are S4.)
 //!
-//! This file validates the arithmetic domains of one machine.
+//! This module owns the shared integer interval domain and premise-ordering
+//! oracle used by stage 04, proof obligations, constructor checks and selected
+//! scalar plans. Clients establish selected meaning, operand formation and
+//! live subject identity; the domain computes bounds and composes only those
+//! established premises. Durable fact records remain in their representation
+//! package. No client keeps a parallel private integer interval engine.
+//!
+//! This file also coordinates arithmetic-domain validation of one machine.
 //! `integer_ranges.rs` fits integer literals and casts into primitive
 //! ranges, `float_arithmetic.rs` resolves float arithmetic and float
 //! sources of integer casts, `place_paths.rs` compares place paths,
@@ -33,6 +40,8 @@ pub(crate) use declared_float_facts::record_declared_float_fields;
 pub use declared_float_facts::{DeclaredFloatFieldBound, declared_float_field_bounds};
 mod assignments;
 mod bigint_interval;
+mod difference_bounds;
+pub(crate) use difference_bounds::DifferenceBounds;
 mod bitwise;
 pub(crate) use bitwise::binary as bitwise_binary;
 mod referent_predicates;
@@ -71,7 +80,20 @@ mod guard_requirements;
 mod integer_carriers;
 mod integer_ranges;
 pub(crate) use integer_carriers::{admitted_integer, integer_magnitude, integer_type};
+mod ordering_premises;
+pub use ordering_premises::{
+    IntegerBound, IntegerOrderingRelation, StatedOrderingPremise, integer_bound_offset,
+    integer_bound_terms_equal, premise_chain_proves, premise_proves,
+    propagate_integer_upper_bounds, prove_integer_ordering,
+};
+mod expression_intervals;
 mod interval;
+pub(crate) use expression_intervals::collect_expression_intervals;
+pub use expression_intervals::{ExpressionInterval, PredicateInterval, expression_interval};
+mod integer_sets;
+pub(crate) use integer_sets::IntegerSet;
+mod integer_operations;
+pub use integer_operations::{folded_integer_binary, integer_binary_range};
 mod invariant_bounds;
 pub use guard_requirements::evaluated_call_requires_proven;
 mod live_integer_constraints;

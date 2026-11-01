@@ -350,6 +350,11 @@ fn require_closed_selected_arguments(
         }
         visited.push(handle);
         match trees.child_type_reference(handle) {
+            TypeReference::AliasUse { expansion, .. } => {
+                if !argument_types::closed_type(trees, expansion) {
+                    return Err(reject());
+                }
+            }
             TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
                 if is_binder(*symbol) {
                     return Err(reject());

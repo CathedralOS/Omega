@@ -13,51 +13,13 @@ pub(super) fn expression_is_effectful_for_transparent_result(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            crate::expression_traversal::match_children(program, *dispatch)
-                .any(|child| expression_is_effectful_for_transparent_result(program, child))
+    program.subtree_any(expression, typed_trees::SubtreeEdges::VALUES, |_, node| {
+        if matches!(node, ExpressionNode::Atomic(_) | ExpressionNode::Call(_)) {
+            typed_trees::SubtreeVisit::Found
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => true,
-        ExpressionNode::Binary(binary) => {
-            expression_is_effectful_for_transparent_result(program, binary.left)
-                || expression_is_effectful_for_transparent_result(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => {
-            expression_is_effectful_for_transparent_result(program, cast.value)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_effectful_for_transparent_result(program, indexed.collection)
-                || expression_is_effectful_for_transparent_result(program, indexed.index)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_effectful_for_transparent_result(program, member.receiver)
-        }
-        ExpressionNode::Borrow(inner) => {
-            expression_is_effectful_for_transparent_result(program, inner.target)
-        }
-        ExpressionNode::Unary(unary) => {
-            expression_is_effectful_for_transparent_result(program, unary.operand)
-        }
-        ExpressionNode::ArrayLiteral(elements) => expression_table(program)
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| expression_is_effectful_for_transparent_result(program, *element)),
-        ExpressionNode::Range(range) => {
-            expression_is_effectful_for_transparent_result(program, range.start)
-                || expression_is_effectful_for_transparent_result(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
-        ExpressionNode::TypeExpression(_)
-        | ExpressionNode::SavedSubject(_)
-        | typed_trees::literal_expression_pattern!() => false,
-    }
+    })
 }
 
 pub(super) fn frame_place_root_symbol(

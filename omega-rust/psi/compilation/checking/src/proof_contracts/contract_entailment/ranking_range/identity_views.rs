@@ -56,7 +56,7 @@ pub struct ProjectionStep {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DeclaredScalarView {
     pub measure: SymbolHandle,
-    pub input_carrier: BuiltinTypeAtom,
+    pub input_type: TypeReferenceHandle,
     pub result_carrier: BuiltinTypeAtom,
     pub computation: Option<ScalarViewComputation>,
 }
@@ -73,14 +73,14 @@ pub struct ScalarViewComputation {
 /// body node and its output under the actual captured values. No syntactic
 /// operator family or global monotonicity stands in for that judgment.
 pub struct ComputationBodyShape {
-    pub input_carrier: BuiltinTypeAtom,
+    pub input_type: TypeReferenceHandle,
     pub result_carrier: BuiltinTypeAtom,
     pub parameter: SymbolHandle,
     pub body: ExpressionHandle,
 }
 
-/// Describe a scalar declaration without granting its body a proof. Callers
-/// select identity and structural projections through their own owners first.
+/// Describe an integer-producing declaration without granting its body a
+/// proof. Its input shape and all reads retain their exact declared types.
 pub fn computation_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
@@ -97,10 +97,10 @@ pub fn computation_body_shape(
     {
         return None;
     }
-    let (carrier, _) = integer_carrier(program, parameter.type_reference)?;
+    super::declared_input_shape(program, measure)?;
     let (result, _) = integer_carrier(program, measure.return_type)?;
     Some(ComputationBodyShape {
-        input_carrier: carrier,
+        input_type: parameter.type_reference,
         result_carrier: result,
         parameter: parameter.symbol,
         body: *body,
@@ -133,22 +133,23 @@ pub fn declared_scalar_view(
             && measure_constraints_cover_subject(program, state, subject, &constraints))
         .then_some(DeclaredScalarView {
             measure: measure.symbol,
-            input_carrier: carrier,
+            input_type: measure.parameter.as_ref()?.type_reference,
             result_carrier: carrier,
             computation: None,
         }),
-        Some(MeasureBodyShape::FieldProjection { .. }) => None,
-        None => {
+        Some(MeasureBodyShape::FieldProjection { .. }) | None => {
             let ComputationBodyShape {
-                input_carrier,
+                input_type,
                 result_carrier,
                 parameter,
                 body,
             } = computation_body_shape(program, measure)?;
-            identity_subject_matches(program, state, subject, input_carrier).then_some(
+            let machine = owning_machine(program, state)?;
+            let actual = crate::declared_place_type_raw(program, machine, Some(state), subject)?;
+            super::declared_input_type_matches(program, actual, input_type).then_some(
                 DeclaredScalarView {
                     measure: measure.symbol,
-                    input_carrier,
+                    input_type,
                     result_carrier,
                     computation: Some(ScalarViewComputation { parameter, body }),
                 },
@@ -166,7 +167,7 @@ pub(super) fn computed_measure_value(
     engine: &mut Engine<'_>,
     parameter: SymbolHandle,
     body: ExpressionHandle,
-    input: &super::Polynomial,
+    input: &super::super::arithmetic_judgment::IntegerApplicationInput,
 ) -> Option<super::Polynomial> {
     if !parameter.is_valid() {
         return None;

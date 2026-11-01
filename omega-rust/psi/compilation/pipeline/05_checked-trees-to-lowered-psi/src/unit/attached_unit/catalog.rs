@@ -787,9 +787,28 @@ pub(crate) fn lower_unit_structural_type_roots(
     let referents = referent_ids
         .into_iter()
         .map(|identity| {
+            let mut representations = selected.iter().filter_map(|plan| match &plan.shape {
+                CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity,
+                    foreign_descriptor,
+                    ..
+                } if *referent_identity == identity => Some(*foreign_descriptor),
+                _ => None,
+            });
+            let foreign_descriptor = representations.next().ok_or_else(|| {
+                LoweringError::MissingUnitStructuralType(
+                    "referent has no reference transport declaration".into(),
+                )
+            })?;
+            if representations.any(|other| other != foreign_descriptor) {
+                return unsupported(
+                    "one referent identity has conflicting foreign reference representations",
+                );
+            }
             Ok(StructuralReferentIdentity {
                 id: lookup_type_id(&type_ids, &identity)?,
                 identity: identities.intern(&identity_text(identity)),
+                foreign_descriptor,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -804,6 +823,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
+                ..
             } => {
                 let access = match *access {
                     checked_trees::CheckedStructuralAccess::MutableBorrow => {
@@ -1530,86 +1550,14 @@ pub(super) fn lower_unit_structural_domains(
     Ok((declarations, domain_ids))
 }
 
-fn lower_establishment_route(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    route: language_semantics::DomainEstablishmentRoute,
-) -> Result<terminal_psi::StructuralEstablishmentRoute, LoweringError> {
-    crate::expression_preparation::qualifications::establishment_route(identities, checked, &route)
-}
-
-/// Normalize one authored establishment catalog to its source-free form.
-/// The emitted rows are strictly ordered; each identity is the declaration's
-/// canonical normalized overload identity, so private issuers retain their
-/// exact names without gaining consumer authority. A declaration authorizes its
-/// retained executable applications, not a provider chosen by this pass. Expand
-/// that same roster used by boundary publication; each application's contract
-/// still determines which exact domain instance it can return.
 pub(super) fn lower_establishment_routes(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     routes: &[language_semantics::DomainEstablishmentRoute],
 ) -> Result<Vec<terminal_psi::StructuralEstablishmentRoute>, LoweringError> {
-    let mut lowered = Vec::new();
-    for route in routes {
-        let (owner, requirement) = match route {
-            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-                trait_definition,
-                requirement,
-            } => (*trait_definition, *requirement),
-            language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait,
-                requirement,
-            } => (*boundary_trait, *requirement),
-            language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
-                lowered.push(lower_establishment_route(identities, checked, *route)?);
-                for candidate in checked.machines() {
-                    if candidate.symbol == *machine
-                        || !checked
-                            .typed
-                            .machine_invokes_declaration(candidate.symbol, *machine)
-                            .map_err(LoweringError::Unsupported)?
-                    {
-                        continue;
-                    }
-                    lowered.push(lower_establishment_route(
-                        identities,
-                        checked,
-                        language_semantics::DomainEstablishmentRoute::ExactMachine {
-                            machine: candidate.symbol,
-                        },
-                    )?);
-                }
-                continue;
-            }
-        };
-        let definition =
-            checked
-                .trait_definition_by_symbol(owner)
-                .ok_or(LoweringError::Unsupported(
-                    "domain establishment route names an absent trait",
-                ))?;
-        let declared = checked
-            .trait_machine_signature_by_symbol(definition, requirement)
-            .ok_or(LoweringError::Unsupported(
-                "domain establishment route names an absent requirement",
-            ))?;
-        for signature in checked.executable_requirement_machine_instances(declared) {
-            let mut application = *route;
-            match &mut application {
-                language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-                    requirement,
-                    ..
-                }
-                | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                    requirement,
-                    ..
-                } => *requirement = signature.symbol,
-                language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {}
-            }
-            lowered.push(lower_establishment_route(identities, checked, application)?);
-        }
-    }
+    let mut lowered = crate::expression_preparation::qualifications::establishment_routes(
+        identities, checked, routes,
+    )?;
     lowered.sort();
     if lowered.windows(2).any(|pair| pair[0] == pair[1]) {
         return unsupported("domain establishment catalog retains a duplicate route");

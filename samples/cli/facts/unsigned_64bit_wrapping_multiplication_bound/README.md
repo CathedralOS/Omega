@@ -120,3 +120,15 @@ omega --check samples/cli/facts/unsigned_64bit_wrapping_multiplication_bound/<pl
 - `sample_native_gate.py --filter cli/facts/unsigned_64bit_wrapping_multiplication_bound --jobs 4`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
 - Discrimination: 1-token perturbation (`headroom == 80u64` -> `headroom == 81u64`) causes execution to trap through `crash Trap;` (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`), demonstrating strict oracle discrimination.
 - What remains open: 8-bit, 16-bit, and 32-bit wrapping multiplication bounds, signed wrapping multiplication interval arithmetic, and non-trivial modular wrapping where overflow wraps around $2^{64}$.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

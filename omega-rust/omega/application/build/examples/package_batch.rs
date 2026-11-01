@@ -7,7 +7,7 @@
 //!
 //! Usage: package_batch [--check | --terminal] [--targets name,name]
 //! [--rollback path] [--native-evidence] [--compare-single-targets] [--run]
-//! [--reject target --reason text] [root [sources
+//! [--reject target --reason text --reject-through-stage number] [root [sources
 //! [terminals [builds [settled_checks]]]]]. Defaults describe the two-target
 //! shared_program_distinct_roots_exit fixture: 1 source, 1 Terminal, 1 Build,
 //! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
@@ -54,6 +54,7 @@ struct Request {
     compare_single_targets: bool,
     run_host: bool,
     rejected_target: Option<target::TargetProfile>,
+    rejected_through_stage: Option<usize>,
     rejection_reason: String,
 }
 
@@ -99,6 +100,7 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     let mut compare_single_targets = false;
     let mut run_host = false;
     let mut rejected_target = None;
+    let mut rejected_through_stage = None;
     let mut rejection_reason = "ProgramEntry".to_owned();
     while arguments
         .peek()
@@ -130,6 +132,14 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
             Some("--reason") => {
                 rejection_reason = arguments.next().ok_or("--reason requires text")?
             }
+            Some("--reject-through-stage") => {
+                rejected_through_stage = Some(
+                    arguments
+                        .next()
+                        .ok_or("--reject-through-stage requires a numbered native stage")?
+                        .parse::<usize>()?,
+                );
+            }
             flag => return Err(format!("unknown measurement flag: {flag:?}").into()),
         }
     }
@@ -138,6 +148,12 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     }
     if native_evidence && !phase_profile::enabled() {
         return Err("native invocation observations require OMEGA_PHASE_PROFILE=1".into());
+    }
+    if rejected_through_stage.is_some() && (!native_evidence || rejected_target.is_none()) {
+        return Err("a rejected native stage requires --native-evidence and --reject".into());
+    }
+    if rejected_through_stage.is_some_and(|stage| stage >= 10) {
+        return Err("a numbered native stage must be in 00 through 09".into());
     }
     let root_argument = arguments.next();
     let root = root_argument
@@ -177,6 +193,7 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
         compare_single_targets,
         run_host,
         rejected_target,
+        rejected_through_stage,
         rejection_reason,
     })
 }
@@ -423,6 +440,18 @@ fn observe_native_products(
                 .collect::<Vec<_>>();
             if request.rejected_target == Some(*profile) {
                 assert!(rows.len() <= 1 && rows.iter().all(|row| !row.completed));
+                if let Some(last) = request.rejected_through_stage {
+                    assert_eq!(rows.len(), 1, "the refused target must enter native work");
+                    assert_eq!(
+                        rows[0].stages,
+                        std::array::from_fn(|stage| u64::from(stage <= last)),
+                        "the refused target must retain its exact entered prefix"
+                    );
+                    if last < 9 {
+                        assert_eq!(rows[0].fragment_emission_attempts, 0);
+                        assert_eq!(rows[0].image_emission_attempts, 0);
+                    }
+                }
             } else {
                 assert_eq!(
                     rows.len(),

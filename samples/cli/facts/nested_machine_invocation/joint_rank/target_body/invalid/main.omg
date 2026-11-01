@@ -16,30 +16,68 @@ terminates by remaining
     }
     machine done() {}
 }
-windows_x86_64 machine perform(counter: &mut u64, select: bool) {
-    let remaining: u64 = match select { true -> 7 false -> 0 };
-    count(counter, remaining);
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine perform(counter: &mut u64, select: bool) {
-    let remaining: u64 = match select { true -> 7 false -> 0 };
-    count(counter, remaining);
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine perform(counter: &mut u64, select: bool) {
-    let remaining: u64 = match select { true -> 7 false -> 0 };
-    count(counter, remaining);
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine perform(counter: &mut u64, select: bool) {
-    let remaining: u64 = match select { true -> 7 false -> 0 };
-    count(counter, remaining);
+
+boundary trait SelectedPerform {
+    machine perform(counter: &mut u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Perform satisfies SelectedPerform {
+    machine perform(counter: &mut u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let remaining: u64 = match select { true -> 7 false -> 0 };
+        count(counter, remaining);
+    }
+}
+
+ArmPerform satisfies SelectedPerform {
+    machine perform(counter: &mut u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let remaining: u64 = match select { true -> 7 false -> 0 };
+        count(counter, remaining);
+    }
+}
+
+
 machine main() crashes Trap {
     let mut counted: u64 = 3;
-    perform(&mut counted, true);
+    SelectedPerform::perform(&mut counted, true);
     let matched: bool = counted == 10;
-    perform(&mut counted, false);
+    SelectedPerform::perform(&mut counted, false);
     transition matched && counted == 10 {
         true -> done() false -> bad()
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

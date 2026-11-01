@@ -31,6 +31,23 @@ native execution. Every twin changes only the nested helper's result from its
 supplied `T` to `bool` and rejects at that result. Copies and oracles are pinned
 under `tests/omega/{pass,fail}/facts/nested_machine_invocation/`.
 
+Each twin pins the template line, ``machine `keep` state `entry` terminal
+expression expects `T`, got `bool` ``: the helper's final value judged against
+the enclosing binder with no specialization in play. The specialized copy adds
+its own line, ``... expects `u64`, got `bool` ``. Only the template line shows
+that the helper retained `T`; the specialized line alone would also reject a
+helper that merely resolved `T` to `u64`.
+
+Commit 8f8078662 (PR 942, 2026-10-30) parsed a final value as an unconditional
+value arm, and the shape gate that produces both lines ran only for the old
+expression statement. Until the gate ran for every completion value
+(`validate_completion_value`), the template line was absent and the specialized
+line read ``stores a boolean into a `u64` return value``. All nine twins still
+rejected, but a generic body valid only for the requested instance
+(`bad<T>(value: T) -> T { true }` instantiated at `bool`) compiled. That shape
+is pinned alone, with no specialization diagnostic to stand in for the template
+check, by [the template-versus-instance control](../../../../tests/omega/fail/generics/final_value_judged_against_type_parameter_not_instance/main.omg).
+
 Additional witnesses exercise [static constants](const_context/main.omg),
 [explicit borrowed arguments](borrow_context/main.omg),
 [shadowed static names and a bare result before declarations](shadowing/main.omg),
@@ -110,3 +127,15 @@ descriptor/index fact into the helper that consumes it.
 [Joint private runtime ranks](joint_rank/README.md) carries a natural invocation
 rank through unranked private helper declarations, with preserving edges,
 every-cycle strict descent and explicit borrowed backing across all nine places.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

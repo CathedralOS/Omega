@@ -30,38 +30,55 @@ ensures result == 0i32
     }
 }
 
-linux_x86_64 machine evaluate_diff() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let diff: i32 = compute_diff(125i32, 20i32);
-    verify_diff(diff)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine evaluate_diff() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let diff: i32 = compute_diff(125i32, 20i32);
-    verify_diff(diff)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine evaluate_diff() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let diff: i32 = compute_diff(125i32, 20i32);
-    verify_diff(diff)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine evaluate_diff() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let diff: i32 = compute_diff(125i32, 20i32);
-    verify_diff(diff)
+boundary trait SelectedEvaluateDiff {
+    machine evaluate_diff() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0i32;
+}
+
+X86EvaluateDiff satisfies SelectedEvaluateDiff {
+    machine evaluate_diff() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0i32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff: i32 = compute_diff(125i32, 20i32);
+        verify_diff(diff)
+    }
+}
+
+ArmEvaluateDiff satisfies SelectedEvaluateDiff {
+    machine evaluate_diff() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0i32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff: i32 = compute_diff(125i32, 20i32);
+        verify_diff(diff)
+    }
 }
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    evaluate_diff()
+    SelectedEvaluateDiff::evaluate_diff()
 }
 
 machine main() crashes Trap {
@@ -71,4 +88,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

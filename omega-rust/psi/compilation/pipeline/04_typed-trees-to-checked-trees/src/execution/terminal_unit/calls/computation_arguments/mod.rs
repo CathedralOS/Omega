@@ -692,7 +692,7 @@ pub(in crate::execution) fn borrowed_view_argument(
 /// Resolve the established home first, then apply one owned-storage contract.
 /// Copying snapshots contents; affine arguments move at the exact call occurrence.
 /// Neither operation acquires disposal authority from its storage classification.
-fn owned_argument(
+pub(crate) fn owned_argument(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     machine: SymbolHandle,

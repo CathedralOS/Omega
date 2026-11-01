@@ -4,7 +4,6 @@
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use crate::frozen_program::expression_table;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
 
 /// Whether the containment walk from `root` reaches `target`.
 pub fn expression_contains(
@@ -56,51 +55,13 @@ fn reaches(
     target: ExpressionHandle,
     visited: &mut HashSet<ExpressionHandle>,
 ) -> bool {
-    if !root.is_valid() || !visited.insert(root) {
-        return false;
-    }
-    if root == target {
-        return true;
-    }
-    match expression_table(program).expression(root) {
-        ExpressionNode::Match(dispatch) => {
-            crate::expression_traversal::match_children(program, *dispatch)
-                .any(|child| reaches(program, child, target, visited))
+    program.subtree_any(root, typed_trees::SubtreeEdges::VALUES, |expression, _| {
+        if !visited.insert(expression) {
+            typed_trees::SubtreeVisit::Prune
+        } else if expression == target {
+            typed_trees::SubtreeVisit::Found
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        ExpressionNode::Atomic(atomic) => reaches(program, atomic.value, target, visited),
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|child| reaches(program, *child, target, visited)),
-        ExpressionNode::Binary(binary) => {
-            reaches(program, binary.left, target, visited)
-                || reaches(program, binary.right, target, visited)
-        }
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && reaches(program, call.receiver, target, visited))
-                || expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|child| reaches(program, *child, target, visited))
-        }
-        ExpressionNode::Cast(cast) => reaches(program, cast.value, target, visited),
-        ExpressionNode::Indexed(indexed) => {
-            reaches(program, indexed.collection, target, visited)
-                || reaches(program, indexed.index, target, visited)
-        }
-        ExpressionNode::Member(member) => reaches(program, member.receiver, target, visited),
-        ExpressionNode::Borrow(inner) => reaches(program, inner.target, target, visited),
-        ExpressionNode::Range(range) => {
-            reaches(program, range.start, target, visited)
-                || reaches(program, range.end, target, visited)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| reaches(program, field.value, target, visited)),
-        ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
-        ExpressionNode::TypeExpression(_)
-        | ExpressionNode::SavedSubject(_)
-        | typed_trees::literal_expression_pattern!() => false,
-    }
+    })
 }

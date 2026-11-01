@@ -16,33 +16,59 @@ requires replacement <= 60
     replace(&mut storage.value, replacement);
     storage
 }
-windows_x86_64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
+
+boundary trait SelectedInspect {
+    machine inspect(counter: &mut Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Inspect satisfies SelectedInspect {
+    machine inspect(counter: &mut Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let total: i32 = 70 + counter.value;
+        let neighbors: bool = counter.before == 17 && counter.after == 53;
+        counter.before = 23;
+        transition neighbors { true -> total false -> -99 }
+    }
+}
+
+ArmInspect satisfies SelectedInspect {
+    machine inspect(counter: &mut Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let total: i32 = 70 + counter.value;
+        let neighbors: bool = counter.before == 17 && counter.after == 53;
+        counter.before = 23;
+        transition neighbors { true -> total false -> -99 }
+    }
+}
+
+
 machine compute(storage: &mut Storage) -> i32 {
     let formed: &mut Counter = storage as &mut Counter;
-    inspect(formed)
+    SelectedInspect::inspect(formed)
 }
 machine main() crashes Trap {
     let mut high: Storage = produce(60);
@@ -52,4 +78,12 @@ machine main() crashes Trap {
     transition upper == 130 && lower == -2147483578 && high.before == 23 && low.before == 23 && high.after == 53 && low.after == 53 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

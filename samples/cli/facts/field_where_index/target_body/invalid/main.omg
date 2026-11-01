@@ -10,25 +10,55 @@ data Main where 0 <= k, k <= 4 {
     hits: i32 in Wrapping;
 }
 
-linux_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
-    main.arr[main.k + 1]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
-    main.arr[main.k + 1]
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
-    main.arr[main.k + 1]
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
-    main.arr[main.k + 1]
+
+boundary trait SelectedReadTarget {
+    machine read_target(main: &Main) -> i32 in Wrapping
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86ReadTarget satisfies SelectedReadTarget {
+    machine read_target(main: &Main) -> i32 in Wrapping
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        main.arr[main.k + 1]
+    }
+}
+
+ArmReadTarget satisfies SelectedReadTarget {
+    machine read_target(main: &Main) -> i32 in Wrapping
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        main.arr[main.k + 1]
+    }
 }
 
 machine Main::main(main: &mut Main) {
     main.k = 2;
-    main.r = read_target(main);
+    main.r = SelectedReadTarget::read_target(main);
     transition { _ -> successor(main) }
     machine successor(main: &mut Main) {
-        main.r = read_target(main);
+        main.r = SelectedReadTarget::read_target(main);
         main.hits = main.r;
     }
 }
@@ -37,4 +67,12 @@ machine Main::main(main: &mut Main) {
 machine entry_start() {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    entry_start();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    entry_start();
 }

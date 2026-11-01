@@ -20,10 +20,12 @@ mod capabilities;
 mod data_items;
 mod machine_items;
 mod proof_items;
+mod type_aliases;
 pub use capabilities::*;
 pub use data_items::*;
 pub use machine_items::*;
 pub use proof_items::*;
+pub use type_aliases::*;
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum Item {
@@ -40,6 +42,7 @@ pub enum Item {
     Use(UseItem),
     Machine(Machine),
     Trait(TraitDefinition),
+    TypeAlias(TypeAliasDefinition),
 }
 
 impl Item {
@@ -49,6 +52,14 @@ impl Item {
             return None;
         };
         Some(data)
+    }
+
+    /// A source-owned transparent alias, never a nominal data definition.
+    pub fn as_type_alias(&self) -> Option<&TypeAliasDefinition> {
+        let Item::TypeAlias(alias) = self else {
+            return None;
+        };
+        Some(alias)
     }
 
     /// The domain definition, if this item is one.

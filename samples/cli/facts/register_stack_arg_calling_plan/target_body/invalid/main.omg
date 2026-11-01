@@ -2,56 +2,61 @@
 // Place: another target body (invalid twin).
 // Expected diagnostic: exact subtraction underflow
 
-linux_x86_64 machine calling_plan_seven(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
-) -> u64
-requires
-    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
-    a6 == 60u64 && a7 <= 86u64
-{
-    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
-    let val: u64 = (prefix - 210) + a7;
-    85u64 - val
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine calling_plan_seven(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
-) -> u64
-requires
-    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
-    a6 == 60u64 && a7 <= 86u64
-{
-    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
-    let val: u64 = (prefix - 210) + a7;
-    85u64 - val
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine calling_plan_seven(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
-) -> u64
-requires
-    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
-    a6 == 60u64 && a7 <= 86u64
-{
-    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
-    let val: u64 = (prefix - 210) + a7;
-    85u64 - val
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine calling_plan_seven(
+boundary trait SelectedCallingPlanSeven {
+    machine calling_plan_seven(
     a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
 ) -> u64
-requires
-    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
-    a6 == 60u64 && a7 <= 86u64
-{
-    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
-    let val: u64 = (prefix - 210) + a7;
-    85u64 - val
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 && a6 == 60u64 && a7 <= 86u64;
+}
+
+X86CallingPlanSeven satisfies SelectedCallingPlanSeven {
+    machine calling_plan_seven(
+    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
+) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 && a6 == 60u64 && a7 <= 86u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
+        let val: u64 = (prefix - 210) + a7;
+        85u64 - val
+    }
+}
+
+ArmCallingPlanSeven satisfies SelectedCallingPlanSeven {
+    machine calling_plan_seven(
+    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64
+) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 && a6 == 60u64 && a7 <= 86u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6;
+        let val: u64 = (prefix - 210) + a7;
+        85u64 - val
+    }
 }
 
 machine probe() -> u64 {
-    calling_plan_seven(10, 20, 30, 40, 50, 60, 86)
+    SelectedCallingPlanSeven::calling_plan_seven(10, 20, 30, 40, 50, 60, 86)
 }
 
 machine main() crashes Trap {
@@ -61,4 +66,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -429,6 +429,14 @@ impl SymbolCopy<'_, '_> {
                 *arguments = self.type_span(*arguments);
             }
             TypeReference::Named { symbol, .. } => *symbol = self.symbol(*symbol),
+            TypeReference::AliasUse {
+                expansion,
+                application,
+                ..
+            } => {
+                **expansion = self.type_payload((**expansion).clone());
+                **application = self.type_payload((**application).clone());
+            }
             TypeReference::Unit => {}
         }
         reference

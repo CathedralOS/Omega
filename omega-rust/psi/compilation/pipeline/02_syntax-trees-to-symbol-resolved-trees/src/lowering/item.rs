@@ -64,7 +64,15 @@ fn lower_item_with_exposure(
     item: &Item,
 ) -> Result<(), Diagnostic> {
     match item {
-        Item::Data(data_definition) => {
+        syntax::item::Item::TypeAlias(alias) => {
+            let alias = crate::lowering::type_aliases::lower_type_alias_definition(
+                lowerer,
+                syntax_trees,
+                alias,
+            )?;
+            lowerer.symbol_resolved_trees.type_aliases.push(alias);
+        }
+        syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             crate::lowering::wire::derive_wire_schema(lowerer, &lowered);
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
@@ -326,13 +334,22 @@ fn item_expression_exposure(item: &Item) -> AuthoredDeclarationSelectionExposure
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
 
     match item {
-        Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Conformance(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Proposition(definition) if definition.is_public => Exposure::PublicInterface,
-        Item::Machine(machine) => crate::lowering::machine::machine_interface_exposure(machine),
-        Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
-        Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::TypeAlias(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Conformance(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Proposition(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        syntax::item::Item::Machine(machine) => {
+            crate::lowering::machine::machine_interface_exposure(machine)
+        }
+        syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
         _ => Exposure::PrivateImplementation,
     }
 }

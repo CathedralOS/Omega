@@ -10,6 +10,8 @@ use crate::typed_trees::remapped;
 mod copies;
 use crate::expression::ExpressionHandle;
 pub use copies::TypeExpressionCopy;
+#[cfg(test)]
+mod alias_tests;
 mod display;
 mod substitution;
 
@@ -57,6 +59,7 @@ pub struct TypeReferenceTable {
     operand_origins: Arena<TypeOperandOrigin>,
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
+    type_alias_applications: Arena<crate::type_aliases::TypeAliasApplication>,
 }
 
 // Written out so the derived row index stays out of the table's rendering.
@@ -73,6 +76,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("operand_lifetime_spans", &self.operand_lifetime_spans)
             .field("operand_lifetimes", &self.operand_lifetimes)
             .field("operand_origins", &self.operand_origins)
+            .field("type_alias_applications", &self.type_alias_applications)
             .finish()
     }
 }
@@ -128,6 +132,7 @@ impl TypeReferenceTable {
             operand_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
+            type_alias_applications: Arena::new(),
         }
     }
 
@@ -144,6 +149,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.operand_lifetime_spans.revision())
             .wrapping_add(self.operand_lifetimes.revision())
             .wrapping_add(self.operand_origins.revision())
+            .wrapping_add(self.type_alias_applications.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -166,6 +172,64 @@ impl TypeReferenceTable {
             self.note_named_row(symbol, handle);
         }
         handle
+    }
+
+    /// Alias applications are source-formation obligations on one occurrence,
+    /// independent of that occurrence's ordinary semantic type identity.
+    pub fn type_alias_applications(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = &crate::type_aliases::TypeAliasApplication> {
+        self.type_alias_applications
+            .iter()
+            .filter_map(move |(_, application)| {
+                (application.instance == reference).then_some(application)
+            })
+    }
+
+    pub fn retain_type_alias_application(
+        &mut self,
+        application: crate::type_aliases::TypeAliasApplication,
+    ) {
+        if !self
+            .type_alias_applications
+            .iter()
+            .any(|(_, row)| row == &application)
+        {
+            self.type_alias_applications.insert(application);
+        }
+    }
+
+    /// Give source obligations a distinct occurrence without changing the
+    /// underlying type graph or any of its supplying coordinates.
+    pub fn fresh_occurrence(&mut self, reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        let fresh = self.insert(self.type_reference(reference).clone());
+        let source = Handle::from_parts(reference.arena_index(), reference.generation());
+        let target = Handle::from_parts(fresh.arena_index(), fresh.generation());
+        *self.constant_origin_spans.get_mut(target) = *self.constant_origin_spans.get(source);
+        *self
+            .operand_lifetime_owners
+            .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
+            self.operand_lifetime_owner(reference);
+        *self
+            .operand_lifetime_spans
+            .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
+            *self.operand_lifetime_spans.get(Handle::from_parts(
+                reference.arena_index(),
+                reference.generation(),
+            ));
+        self.set_operand_origin(fresh, self.operand_origin(reference));
+        let applications = self
+            .type_alias_applications(reference)
+            .cloned()
+            .collect::<Vec<_>>();
+        for application in applications {
+            self.retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
+                instance: fresh,
+                ..application
+            });
+        }
+        fresh
     }
 
     pub fn operand_origin(&self, reference: TypeReferenceHandle) -> TypeOperandOrigin {

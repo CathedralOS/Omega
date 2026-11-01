@@ -296,6 +296,10 @@ pub fn desugar_access_views(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
     )?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::resolve_deferred(context.resolution_request(probe))?;

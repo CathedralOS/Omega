@@ -352,6 +352,36 @@ impl SyntaxCopy<'_> {
             return TypeReferenceHandle::invalid();
         }
 
+        if let Some(actual) = self
+            .type_substitutions
+            .iter()
+            .find_map(|(source, actual)| (*source == handle).then_some(*actual))
+        {
+            let origins = other
+                .type_references
+                .type_alias_applications(handle)
+                .cloned()
+                .collect::<Vec<_>>();
+            if origins.is_empty() {
+                self.supplied_type_copies.push(actual);
+                return actual;
+            }
+            let copied = self.type_references.fresh_type_occurrence(actual);
+            for origin in origins {
+                let application = self.copy_type_reference_handle(other, origin.application);
+                self.type_references.retain_type_alias_application(
+                    crate::types::TypeAliasApplicationOrigin {
+                        instance: copied,
+                        application,
+                        declaration: origin.declaration,
+                        definition_references: origin.definition_references.clone(),
+                    },
+                );
+            }
+            self.supplied_type_copies.push(copied);
+            return copied;
+        }
+
         let copied = match other.type_references.type_reference(handle) {
             TypeReferenceNode::Reference {
                 referee,
@@ -359,11 +389,11 @@ impl SyntaxCopy<'_> {
                 lifetime,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
-                self.type_references.insert_reference_with_lifetime(
-                    referee,
-                    *access,
-                    lifetime.clone(),
-                )
+                let lifetime = lifetime
+                    .as_ref()
+                    .map(|name| self.copied_lifetime(other, name));
+                self.type_references
+                    .insert_reference_with_lifetime(referee, *access, lifetime)
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -380,9 +410,19 @@ impl SyntaxCopy<'_> {
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
                 let length = match length {
-                    FixedArrayLength::Expression(use_type) => FixedArrayLength::Expression(
-                        self.copy_type_reference_handle(other, *use_type),
-                    ),
+                    crate::types::FixedArrayLength::Expression(use_type) => {
+                        crate::types::FixedArrayLength::Expression(
+                            self.copy_type_reference_handle(other, *use_type),
+                        )
+                    }
+                    crate::types::FixedArrayLength::ConstParameter(name) => self
+                        .array_length_substitutions
+                        .iter()
+                        .find_map(|(span, spelling, actual)| {
+                            (*span == name.source_span() && spelling == name.as_str(other))
+                                .then_some(crate::types::FixedArrayLength::Expression(*actual))
+                        })
+                        .unwrap_or_else(|| length.clone()),
                     length => length.clone(),
                 };
                 self.type_references
@@ -398,9 +438,13 @@ impl SyntaxCopy<'_> {
                 arguments,
             } => {
                 let arguments = self.copy_type_reference_handle_span(other, *arguments);
+                let lifetime_arguments = lifetime_arguments
+                    .iter()
+                    .map(|name| self.copied_lifetime(other, name))
+                    .collect();
                 self.type_references.insert(TypeReferenceNode::Generic {
                     base_name: base_name.clone(),
-                    lifetime_arguments: lifetime_arguments.clone(),
+                    lifetime_arguments,
                     arguments,
                 })
             }
@@ -423,6 +467,10 @@ impl SyntaxCopy<'_> {
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
+        if self.retain_alias_header_role && other.type_references.is_alias_header_reference(handle)
+        {
+            self.type_references.retain_alias_header_reference(copied);
+        }
         for pending in other.type_references.pending_const_arguments(handle) {
             self.type_references
                 .retain_pending_const_argument(copied, pending);
@@ -480,6 +528,17 @@ impl SyntaxCopy<'_> {
             let application = self.copy_type_reference_handle(other, origin);
             self.type_references
                 .retain_generic_application_origin(copied, application);
+        }
+        for origin in other.type_references.type_alias_applications(handle) {
+            let application = self.copy_type_reference_handle(other, origin.application);
+            self.type_references.retain_type_alias_application(
+                crate::types::TypeAliasApplicationOrigin {
+                    instance: copied,
+                    application,
+                    declaration: origin.declaration,
+                    definition_references: origin.definition_references.clone(),
+                },
+            );
         }
         copied
     }
@@ -604,6 +663,14 @@ impl SyntaxCopy<'_> {
     ) -> ExpressionHandle {
         if !handle.is_valid() {
             return ExpressionHandle::invalid();
+        }
+
+        if let Some((_, actual)) = self
+            .expression_substitutions
+            .iter()
+            .find(|(source, _)| *source == handle)
+        {
+            return *actual;
         }
 
         let source_position = handle.arena_index() as usize;

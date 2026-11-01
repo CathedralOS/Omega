@@ -99,6 +99,24 @@ windows_x86_64 machine WindowsGuiImports::dispatch_message(message: &WindowsMess
 satisfies WindowsGuiIo::dispatch_message
 via windows_gui_dispatch_message_binding();
 
+boundary requirement WindowsGuiIo::key_state(virtual_key: u32) -> i32
+reaches GlobalInputObservation;
+windows_x86_64 machine windows_gui_key_state_binding() -> ForeignBinding<10, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetAsyncKeyState" } }
+}
+windows_x86_64 machine WindowsGuiImports::key_state(virtual_key: u32) -> i32
+satisfies WindowsGuiIo::key_state
+via windows_gui_key_state_binding();
+
+windows_x86_64 machine WindowsGuiNativeProvider::key_state(virtual_key: u32) -> u64
+satisfies WindowsGuiHost::key_state
+reaches GlobalInputObservation {
+    // SHORT's high bit marks the key down; the low-bit pressed-latch is noise
+    // for a live-state query and is dropped by the mask.
+    let raw: i32 = WindowsGuiIo::key_state(virtual_key);
+    transition (raw & 32768) != 0 { true -> (1) _ -> (0) }
+}
+
 windows_x86_64 machine WindowsGuiNativeProvider::window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 satisfies WindowsGuiHost::window_create
 reaches
@@ -169,6 +187,7 @@ windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mu
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::key_state, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::adjust_rectangle, WindowsGuiImports>(defaults);
 }
 
@@ -236,14 +255,15 @@ reaches
 
 // Complete explicit provider map; concrete bodies retain their own namespace.
 NativeWindowsGui satisfies WindowsGuiHost {
-    machine window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 { WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width, height) }
-    machine foreground_window() -> u64 { WindowsGuiNativeProvider::foreground_window() }
-    machine is_window(window: u64) -> bool { WindowsGuiNativeProvider::is_window(window) }
-    machine window_destroy(window: u64) -> bool { WindowsGuiNativeProvider::window_destroy(window) }
-    machine pump_message(message: &mut WindowsMessage) -> bool { WindowsGuiNativeProvider::pump_message(message) }
-    machine get_dc(window: u64) -> u64 { WindowsGuiNativeProvider::get_dc(window) }
-    machine release_dc(window: u64, device: u64) -> i32 { WindowsGuiNativeProvider::release_dc(window, device) }
-    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 { WindowsGuiNativeProvider::client_rectangle(window, rectangle) }
-    machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32, destination_width: i32, destination_height: i32, source_x: i32, source_y: i32, source_width: i32, source_height: i32, pixels: &i32, info: &i32, usage: u32, raster_operation: u32) -> i32 { WindowsGuiNativeProvider::stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation) }
-    machine window_create_client(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 { WindowsGuiNativeProvider::window_create_client(class_name, title, style, x, y, width, height) }
+    WindowsGuiHost::window_create = WindowsGuiNativeProvider::window_create;
+    WindowsGuiHost::foreground_window = WindowsGuiNativeProvider::foreground_window;
+    WindowsGuiHost::is_window = WindowsGuiNativeProvider::is_window;
+    WindowsGuiHost::window_destroy = WindowsGuiNativeProvider::window_destroy;
+    WindowsGuiHost::pump_message = WindowsGuiNativeProvider::pump_message;
+    WindowsGuiHost::get_dc = WindowsGuiNativeProvider::get_dc;
+    WindowsGuiHost::release_dc = WindowsGuiNativeProvider::release_dc;
+    WindowsGuiHost::client_rectangle = WindowsGuiNativeProvider::client_rectangle;
+    WindowsGuiHost::stretch_dibits = WindowsGuiNativeProvider::stretch_dibits;
+    WindowsGuiHost::window_create_client = WindowsGuiNativeProvider::window_create_client;
+    WindowsGuiHost::key_state = WindowsGuiNativeProvider::key_state;
 }

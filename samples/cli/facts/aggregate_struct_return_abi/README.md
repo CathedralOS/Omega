@@ -76,3 +76,15 @@ This row establishes that end-to-end nine-place fact preservation and ABI callin
 
 The row is pinned by `tests/omega/pass/facts/aggregate_struct_return_abi_through_*_exit` and `tests/omega/fail/facts/aggregate_struct_return_abi_through_*_rejected` fixtures; every positive records native exit 0 in `tests/omega/corpus_native_macos_arm64.txt` and every twin records `rejected ... expected` in `tests/omega/corpus_outcomes.txt` at `@114906953e11+wt`, with the nine `_exit` fixtures also recording `exit:0 interpreter-exit:0 interpreter:agrees` in `tests/omega/corpus_both_macos_arm64.txt`. The places and twins were measured with the wave's shared opt-level-1 producer at `9ff26a870215`: the root and all nine places report `native exit 0` and `interp exit: 0`, and all nine twins refuse with the `may overflow \`u64\`` fragment; the corpus legs on the rebased checkout at `114906953e11` are clean over 36 fixtures (18 `checked`, 18 `rejected ... expected`) with all nine `_exit` fixtures executed at exit 0.
 Remaining open: Floating-point vector aggregate return classification (`HFA`/`HVX`), multi-return branch epilogue reflow with divergent aggregate return shapes, and dynamic slice view returns across indirect memory destinations.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

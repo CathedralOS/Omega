@@ -68,6 +68,14 @@ pub enum ItemSnapshot {
         where_facts: Vec<ProofFactSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
+    TypeAlias {
+        name: IdentifierSnapshot,
+        is_public: bool,
+        lifetime_parameters: Vec<IdentifierSnapshot>,
+        type_parameters: Vec<TypeParameterSnapshot>,
+        conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
+        expansion: TypeReferenceSnapshot,
+    },
     Domain {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -493,6 +501,21 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .iter()
                 .map(|member| snapshot_data_member(syntax_trees, member))
                 .collect(),
+        },
+        Item::TypeAlias(value) => ItemSnapshot::TypeAlias {
+            name: snapshot_identifier(syntax_trees, &value.name),
+            is_public: value.is_public,
+            lifetime_parameters: snapshot_identifier_slice(
+                syntax_trees,
+                &value.lifetime_parameters,
+            ),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
+            conformance_bounds: value
+                .conformance_bounds
+                .iter()
+                .map(|bound| snapshot_generic_conformance_bound(syntax_trees, bound))
+                .collect(),
+            expansion: snapshot_type_reference_handle(syntax_trees, value.expansion),
         },
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(syntax_trees, &value.name),

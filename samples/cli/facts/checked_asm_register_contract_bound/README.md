@@ -129,3 +129,15 @@ the assembly block surfaces at the destination label gate.
   realization with ``cannot prove asm `requires` fact at block entry in read_asm
   state `entry` (statement 6): asm#scratch#4#eax$version$1 <= 96``, confirming
   that label entry obligations are verified against modeled register values.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

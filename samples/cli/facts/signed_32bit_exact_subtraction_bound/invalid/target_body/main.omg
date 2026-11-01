@@ -10,36 +10,53 @@ machine verify_diff(diff: i32) -> i32
     sum - 60
 }
 
-linux_x86_64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let diff: i32 = lhs - rhs;
-    verify_diff(diff)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let diff: i32 = lhs - rhs;
-    verify_diff(diff)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let diff: i32 = lhs - rhs;
-    verify_diff(diff)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let diff: i32 = lhs - rhs;
-    verify_diff(diff)
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
+}
+
+X86ComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff: i32 = lhs - rhs;
+        verify_diff(diff)
+    }
+}
+
+ArmComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff: i32 = lhs - rhs;
+        verify_diff(diff)
+    }
 }
 
 machine evaluate() -> i32 {
-    compute_target_body(100, 30)
+    SelectedComputeTargetBody::compute_target_body(100, 30)
 }
 
 machine main() crashes Trap {
@@ -50,4 +67,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -87,3 +87,15 @@ The compiler strictly fails closed at compile time:
 - **Remaining Open**: None for this fact row. Every positive program (root plus nine places) ran with the shared generation producer (`gen-9d9ba4fb625`, revision `9d9ba4fb625`): `omega run --both` reports native exit 0 and interp exit: 0 for each, and the nine `<place>/invalid` reject twins each reject under `omega --check` with the diagnostic recorded above.
 - **Pinned fixtures**: Each place is pinned under `tests/omega`: `pass/facts/forty_variant_enum_payload_bound_through_<place>_exit` (byte-identical `main.omg` and `build.omg`, `expected_native_exit.txt` = 0) and `fail/facts/forty_variant_enum_payload_bound_through_<place>_rejected` (byte-identical `main.omg`, `expected.txt` carrying that place's own diagnostic fragment). Golden rows for all 18 fixtures were recorded with the generation runner in the outcome leg, `--native` and `--both`
   (`python3 tools/corpus_gate.py --runner <gen>/corpus_runner --filter facts/forty_variant_enum_payload_bound --record`).
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

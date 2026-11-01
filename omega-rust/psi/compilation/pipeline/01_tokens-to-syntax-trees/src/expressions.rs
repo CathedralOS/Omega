@@ -9,5 +9,6 @@ mod membership;
 pub(crate) mod parse_expression;
 pub(crate) mod parse_postfix;
 mod primary;
+pub(crate) mod static_argument_values;
 #[cfg(test)]
 mod static_targets_tests;

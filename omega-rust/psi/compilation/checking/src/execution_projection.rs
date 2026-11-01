@@ -312,6 +312,7 @@ fn project_declarations(
         }
         project_roots!(const_declarations, const_declarations);
         project_roots!(data_definitions, data_definitions);
+        project_roots!(type_aliases, type_aliases);
         project_roots!(domain_definitions, domain_definitions);
         project_roots!(measures, measures);
         project_roots!(operators, operators);
@@ -343,6 +344,13 @@ fn project_declarations(
                 symbol = original.symbols.get(symbol).parent;
             }
         }
+        // A retained alias use still owes its source declaration's telescope,
+        // including arguments erased by expansion. Restore only those alias
+        // headers from descriptive dependencies, never a described machine body.
+        synthesized.extend(references.descriptor_symbols.into_iter().filter(|symbol| {
+            symbol.is_valid()
+                && original.symbols.get(*symbol).kind == symbols::SymbolKind::TypeAlias
+        }));
         // A selected concrete data instance owns its generated attached method
         // declarations, including obligations in methods not called by Build.
         for &(owner, child) in declaration_children {

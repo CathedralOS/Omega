@@ -30,6 +30,7 @@ pub(super) fn assign_measure_expression_symbols(
             owned_data: &[],
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,

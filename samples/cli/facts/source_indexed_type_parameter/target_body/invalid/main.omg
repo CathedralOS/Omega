@@ -47,25 +47,63 @@ ensures result <= 80
     vector_bound<T, NextLength, NextTotal>(next);
     NextTotal
 }
-windows_x86_64 machine produced() -> u64 ensures result <= 80 {
-    let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
-    open_total<bool, 0, 0, 1, 7>(nil, true)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine produced() -> u64 ensures result <= 80 {
-    let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
-    open_total<bool, 0, 0, 1, 7>(nil, true)
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine produced() -> u64 ensures result <= 80 {
-    let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
-    open_total<bool, 0, 0, 1, 7>(nil, true)
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine produced() -> u64 ensures result <= 80 {
-    let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
-    open_total<bool, 0, 0, 1, 7>(nil, true)
+
+boundary trait SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80;
 }
+
+X86Produced satisfies SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
+        open_total<bool, 0, 0, 1, 7>(nil, true)
+    }
+}
+
+ArmProduced satisfies SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let nil [erased]: Vector<bool, 0, 0> = Vector::Nil;
+        open_total<bool, 0, 0, 1, 7>(nil, true)
+    }
+}
+
+
 machine main() crashes Trap {
-    let remaining: u64 = 80u64 - produced();
+    let remaining: u64 = 80u64 - SelectedProduced::produced();
     transition remaining == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -44,6 +44,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 owned_data: &[],
                 prior_statements: &[],
                 data_definitions: &program.roots.data_definitions,
+                type_aliases: &program.roots.type_aliases,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
                 data_payload_fields: &declarations.data_payload_fields,
@@ -59,6 +60,47 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 &mut declaration.declared_type,
             );
         });
+    // Headers remain readable while roots are resolved. Only the expansion
+    // changes here; publish its updates after the immutable roster traversal.
+    let mut alias_expansions = Vec::new();
+    for alias in program.roots.type_aliases.iter() {
+        let parameters = declarations
+            .data_type_parameters
+            .span_or_empty(alias.type_parameters)
+            .to_vec();
+        let scope = MachineScope {
+            symbol: alias.symbol,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: &parameters,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
+            data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        let mut expansion = alias.expansion.clone();
+        assign_type_value_expression_symbols(
+            symbols,
+            &scope,
+            &[],
+            SymbolHandle::invalid(),
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            &mut expansion,
+        );
+        alias_expansions.push(expansion);
+    }
+    let mut alias_expansions = alias_expansions.into_iter();
+    program.roots.type_aliases.for_each_mut(|alias| {
+        alias.expansion = alias_expansions.next().expect("unchanged alias roster");
+    });
     let mut field_updates = Vec::new();
     let mut payload_updates = Vec::new();
     for definition in program.roots.data_definitions.iter() {
@@ -76,6 +118,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             owned_data: &[],
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
@@ -186,6 +229,24 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                     machine
                         .data_type_parameters
                         .span_or_empty(data.type_parameters)
+                })
+                .or_else(|| {
+                    if symbols.get(generic.base_symbol).kind != SymbolKind::TypeAlias {
+                        return None;
+                    }
+                    let mut aliases = machine
+                        .type_aliases
+                        .iter()
+                        .filter(|alias| alias.symbol == generic.base_symbol);
+                    let alias = aliases.next()?;
+                    if aliases.next().is_some() {
+                        return None;
+                    }
+                    Some(
+                        machine
+                            .data_type_parameters
+                            .span_or_empty(alias.type_parameters),
+                    )
                 });
             if let Some(telescope) = telescope {
                 for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
@@ -263,6 +324,30 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expressions,
                 child_types,
                 expression.expression,
+            );
+        }
+        TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                application,
+            );
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                expansion,
             );
         }
         TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
@@ -396,3 +481,6 @@ fn resolve_index_subject(
     }
     None
 }
+
+#[cfg(test)]
+mod subject_binding_tests;

@@ -1,10 +1,8 @@
 //! Run one retained calling policy without a source compiler or source trees.
 
-use super::MaterializedBoundarySignature;
+use super::CallingPolicySignature;
 use super::build_time_decoding::decode_boundary_plan_result;
-use super::plan_computation::{
-    build_boundary_signature, validate_materialized_boundary_plan_result,
-};
+use super::policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
 use super::scalar_completion::complete_policy_scalar_inputs;
 use super::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
@@ -24,7 +22,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,
     pub entry: TargetMachineCallable,
     pub target: target::TargetProfile,
-    pub signature: &'input MaterializedBoundarySignature,
+    pub signature: &'input CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
 }
 
@@ -43,7 +41,7 @@ pub fn evaluate_terminal_calling_policy(
         signature,
         account,
     } = invocation;
-    if signature.native_target() != target.native_target() {
+    if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
     }
     let selected = terminal_installation::admit_target_machine_selections(
@@ -107,7 +105,7 @@ pub fn evaluate_terminal_calling_policy(
         .structural()
         .ok_or("calling policy result must be structural")?
         .structural_type;
-    let argument = build_boundary_signature(signature)?;
+    let argument = encode_calling_policy_signature(signature)?;
     let contents = [input_contents(
         &program,
         parameter.structural_type,
@@ -154,7 +152,7 @@ pub fn evaluate_terminal_calling_policy(
         .charge_result_custody(cells, bytes)
         .map_err(|error| format!("calling policy result custody: {error}"))?;
     let plan = decode_boundary_plan_result(&value)?;
-    let validated = validate_materialized_boundary_plan_result(plan, signature)?;
+    let validated = validate_calling_policy_result(plan, signature)?;
     instance
         .close()
         .map_err(|error| format!("calling policy close: {error:?}"))?;

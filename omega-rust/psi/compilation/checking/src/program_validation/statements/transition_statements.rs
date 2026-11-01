@@ -3,10 +3,7 @@
 
 use super::{StatementOutputs, StatementScope};
 use crate::declarations::transitions::validate_transition_target_node;
-use crate::{
-    proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
-    value_custody::expression_types, value_custody::struct_literals,
-};
+use crate::proof_contracts::arithmetic_domains;
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 use typed_trees::statement::TransitionGuardNode;
@@ -151,7 +148,8 @@ pub(super) fn validate(
         }
     }
 
-    // When the state's return type declares a `[a..=b]`, enforce the value is
+    // Every value arm answers the declared result through the completion-value
+    // checks. When the return type declares a `[a..=b]`, the value must also be
     // provably within it (so call-site narrowing that trusts the range is
     // sound); the exact-overflow + narrowing obligations apply too. Gated
     // inside `validate_return_value_range`, so plain returns are unaffected.
@@ -159,92 +157,27 @@ pub(super) fn validate(
         && state.return_type.is_valid()
     {
         let mut return_owner = None;
-        let mut slot_context = None;
         for target in transition.targets() {
             if let TransitionTargetNode::Value(return_expression) =
                 program.statement_table.transition_target(target)
             {
+                super::validate_completion_value(
+                    scope,
+                    state,
+                    *return_expression,
+                    &mut arithmetic_decisions.integer_range_obligations,
+                    diagnostics,
+                );
                 let return_owner = return_owner.get_or_insert_with(|| {
                     format!(
                         "machine `{}` state `{state_name}` return value",
                         machine.name
                     )
                 });
-                let slot_context = slot_context.get_or_insert_with(|| {
-                    format!("machine `{}` state `{state_name}`", machine.name)
-                });
-                crate::value_custody::reference_access::report_reference_access_conflict(
-                    program,
-                    machine,
-                    Some(state),
-                    &program.statement_table.statements(state.statement_nodes)
-                        [..scope.statement_index],
-                    *return_expression,
-                    state.return_type,
-                    return_owner,
-                    diagnostics,
-                );
-                struct_literals::validate_array_literal_elements(
-                    program,
-                    machine,
-                    state,
-                    *return_expression,
-                    state.return_type,
-                    diagnostics,
-                    &mut arithmetic_decisions.integer_range_obligations,
-                );
                 let return_environment = transition_values
                     .for_target(target)
                     .first()
                     .unwrap_or(&narrowed);
-                // Cross-class guard: `_ -> (true)` returning a bool from an
-                // i32-returning machine is a silent miscompile. The terminal
-                // `{ true }` return form is caught by the general shape gate;
-                // the transition-VALUE form was not. Class complement of the
-                // range/overflow/narrowing check below.
-                if let Some(return_primitive) = program.primitive_type_reference(state.return_type)
-                {
-                    expression_types::report_cross_class_store(
-                        program,
-                        Some(machine),
-                        Some(state),
-                        *return_expression,
-                        return_primitive,
-                        slot_context,
-                        "return value",
-                        diagnostics,
-                    );
-                }
-                expression_types::report_delivered_type_mismatch(
-                    program,
-                    machine.symbol,
-                    *return_expression,
-                    state.return_type,
-                    return_owner,
-                    diagnostics,
-                );
-                // Nominal guard (`-> Foo { transition { _ -> (self.bar) } }` returns
-                // a `Bar` as a `Foo`), then the array/scalar shape guard (an
-                // array returned as a scalar, or vice versa) and the scalar/data
-                // one.
-                expression_types::report_place_value_mismatches(
-                    program,
-                    machine,
-                    Some(state),
-                    *return_expression,
-                    state.return_type,
-                    slot_context,
-                    "return value",
-                    diagnostics,
-                );
-                domain_weakening::validate_return_domain_weakening(
-                    program,
-                    machine,
-                    state,
-                    *return_expression,
-                    slot_context,
-                    diagnostics,
-                );
                 arithmetic_domains::validate_return_value_range(
                     program,
                     machine,

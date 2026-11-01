@@ -3,58 +3,42 @@
 machine fresh() -> u32 {
     37
 }
-linux_arm64 machine main() crashes Trap {
-    let source: u32 = fresh();
-    let mut loaded: u32 = 0;
-    asm {
-        ldr loaded, [source]
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
+boundary trait SelectedMain {
+    machine run() reaches crashes Trap;
 }
 
-macos_arm64 machine main() crashes Trap {
-    let source: u32 = fresh();
-    let mut loaded: u32 = 0;
-    asm {
-        ldr loaded, [source]
+X86Main satisfies SelectedMain {
+    machine run() crashes Trap {
+        let source: u32 = fresh();
+        let mut loaded: u32 = 0;
+        asm {
+            mov loaded, [source]
+        }
+        transition loaded == 37 {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
     }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
 }
 
-windows_x86_64 machine main() crashes Trap {
-    let source: u32 = fresh();
-    let mut loaded: u32 = 0;
-    asm {
-        mov loaded, [source]
+ArmMain satisfies SelectedMain {
+    machine run() crashes Trap {
+        let source: u32 = fresh();
+        let mut loaded: u32 = 0;
+        asm {
+            ldr loaded, [source]
+        }
+        transition loaded == 37 {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
     }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    SelectedMain::run();
 }
 
-linux_x86_64 machine main() crashes Trap {
-    let source: u32 = fresh();
-    let mut loaded: u32 = 0;
-    asm {
-        mov loaded, [source]
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
-}

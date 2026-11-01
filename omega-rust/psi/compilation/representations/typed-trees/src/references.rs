@@ -169,6 +169,15 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         true
     }
+    /// Original alias operands are source-formation inputs, separate from the
+    /// ordinary dependencies of the already-expanded semantic carrier.
+    fn type_alias_application(
+        &mut self,
+        _: &TypedTrees,
+        _: &crate::type_aliases::TypeAliasApplication,
+    ) -> bool {
+        true
+    }
     /// Expressions owned by type work, distinct from executable body roots.
     fn type_expression(&mut self, _: ExpressionHandle) -> bool {
         true
@@ -210,6 +219,9 @@ struct ReferenceCollector {
     track_new_expressions: bool,
     new_expressions: HashSet<ExpressionHandle>,
     types: HashSet<TypeReferenceHandle>,
+    describing_alias_arguments: bool,
+    alias_argument_types: HashSet<TypeReferenceHandle>,
+    alias_argument_expressions: HashSet<ExpressionHandle>,
     facts: HashSet<arena::Handle<ProofFact>>,
     mathematical_types: HashSet<MathematicalTypeHandle>,
     authored_selection_occurrences: HashSet<crate::AuthoredDeclarationSelectionOccurrenceId>,
@@ -220,6 +232,34 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn type_alias_application(
+        &mut self,
+        program: &TypedTrees,
+        application: &crate::type_aliases::TypeAliasApplication,
+    ) -> bool {
+        if self.describing_alias_arguments {
+            return true;
+        }
+        let mut description = ReferenceCollector {
+            describing_alias_arguments: true,
+            ..ReferenceCollector::default()
+        };
+        description.declaration_description_dependency(application.supplied_operand_owner);
+        visit_type_reference(program, &mut description, application.application);
+        let description = finish_references(description);
+        self.descriptor_symbols.extend(description.symbols);
+        self.descriptor_symbols
+            .extend(description.descriptor_symbols);
+        self.authored_selection_occurrences
+            .extend(description.authored_selection_occurrences);
+        // Keep source payloads live without changing the ordinary visited sets:
+        // the expansion may independently use the very same nodes as values.
+        self.alias_argument_types
+            .extend(description.type_references);
+        self.alias_argument_expressions
+            .extend(description.expressions);
+        false
+    }
     fn statement_handle(&mut self, handle: StatementHandle) {
         self.statements.insert(handle);
     }
@@ -770,8 +810,13 @@ pub fn collect_signature_references(
 }
 
 fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
-    let mut type_references = roots.types.into_iter().collect::<Vec<_>>();
+    let mut type_references = roots
+        .types
+        .into_iter()
+        .chain(roots.alias_argument_types)
+        .collect::<Vec<_>>();
     type_references.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    type_references.dedup();
     let mut proof_facts = roots.facts.into_iter().collect::<Vec<_>>();
     proof_facts.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     ProgramReferences {
@@ -779,7 +824,11 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
         declarations: roots.declarations,
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
-        expressions: roots.expressions,
+        expressions: roots
+            .expressions
+            .into_iter()
+            .chain(roots.alias_argument_expressions)
+            .collect(),
         statements: roots.statements,
         type_references,
         proof_facts,
@@ -1437,6 +1486,21 @@ fn visit_declaration_dependencies(
 }
 
 pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferences) {
+    for alias in program.type_aliases() {
+        if !retained.declaration(alias.symbol) {
+            continue;
+        }
+        visit_symbol(retained, alias.symbol);
+        visit_type_parameters(program, retained, alias.type_parameters);
+        for bound in &alias.conformance_bounds {
+            visit_symbol(retained, bound.trait_symbol);
+            for argument in &bound.arguments {
+                visit_type_reference(program, retained, *argument);
+            }
+        }
+        visit_type_reference(program, retained, alias.expansion);
+    }
+
     for data in program.data_definitions() {
         if !retained.declaration(data.symbol) {
             continue;
@@ -1521,39 +1585,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, definition.symbol);
-        visit_symbol(retained, definition.symbol);
-        visit_type_parameters(program, retained, definition.type_parameters);
-
-        for requirement in program
-            .trait_requirements(definition)
-            .iter()
-            .chain(definition.refines.iter())
-        {
-            visit_symbol(retained, requirement.symbol);
-            for argument in program.type_reference_handles(requirement.arguments) {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        for refinement in &definition.refinement_clauses {
-            visit_signature(program, retained, &refinement.signature);
-        }
-        for bound in &definition.conformance_bounds {
-            for argument in &bound.arguments {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        // Application copies own distinct proof/type payloads. Omitting them
-        // leaves their indexed identities frozen at the declaration's tuple
-        // even after the copied operands have been substituted.
-        let include_derived = retained.derived_declaration_references();
-        for signature in program.trait_machine_signatures(definition).iter().chain(
-            program
-                .applied_trait_signatures(definition.symbol)
-                .filter(|_| include_derived),
-        ) {
-            visit_signature(program, retained, signature);
-        }
+        visit_trait(program, retained, definition);
     }
 
     for conformance in program.conformances() {
@@ -1836,6 +1868,48 @@ fn visit_proposition_formula(
     }
 }
 
+/// Traverse one trait's declaration-owned vocabulary without changing roots.
+/// Descriptive replay uses the same signatures while excluding derived rows.
+fn visit_trait(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    definition: &crate::trait_definition::TraitDefinition,
+) {
+    visit_declaration_dependencies(program, retained, definition.symbol);
+    visit_symbol(retained, definition.symbol);
+    visit_type_parameters(program, retained, definition.type_parameters);
+
+    for requirement in program
+        .trait_requirements(definition)
+        .iter()
+        .chain(definition.refines.iter())
+    {
+        visit_symbol(retained, requirement.symbol);
+        for argument in program.type_reference_handles(requirement.arguments) {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    for refinement in &definition.refinement_clauses {
+        visit_signature(program, retained, &refinement.signature);
+    }
+    for bound in &definition.conformance_bounds {
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    // Application copies own distinct proof/type payloads. Omitting them
+    // leaves their indexed identities frozen at the declaration's tuple
+    // even after the copied operands have been substituted.
+    let include_derived = retained.derived_declaration_references();
+    for signature in program.trait_machine_signatures(definition).iter().chain(
+        program
+            .applied_trait_signatures(definition.symbol)
+            .filter(|_| include_derived),
+    ) {
+        visit_signature(program, retained, signature);
+    }
+}
+
 /// Retain machines referenced by one state signature or operator signature:
 /// parameter types, return type, invokes targets, and contract facts.
 pub fn visit_signature(
@@ -1893,6 +1967,17 @@ pub fn visit_type_reference(
 ) {
     if !type_reference.is_valid() || !retained.type_reference(type_reference) {
         return;
+    }
+    for application in program
+        .type_reference_table
+        .type_alias_applications(type_reference)
+    {
+        retained.declaration_description_dependency(application.declaration);
+        if retained.type_alias_application(program, application) {
+            for argument in program.type_reference_handles(application.arguments) {
+                visit_type_reference(program, retained, *argument);
+            }
+        }
     }
     for origin in program
         .type_reference_table

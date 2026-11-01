@@ -47,7 +47,7 @@ fn expression(
     for binding in &source.bindings {
         charge(remaining)?;
         bindings.push(ScopedArithmeticBinding {
-            binder: binding.binder,
+            binder: binding.binder.clone(),
             value: value(&binding.value, substitutions, remaining, next_depth)?,
         });
     }
@@ -78,12 +78,13 @@ fn value(
     }
     Some(match source {
         ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::OwnedSnapshot(_)
+        | ScopedArithmeticValue::CapturedInteger(_)
         | ScopedArithmeticValue::Atom { .. }
         | ScopedArithmeticValue::Integer(_) => source.clone(),
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
-            minimum,
-            maximum,
+            interval,
         } => ScopedArithmeticValue::BoundedInteger {
             value: Box::new(value(
                 inner,
@@ -91,8 +92,7 @@ fn value(
                 remaining,
                 depth.checked_sub(1)?,
             )?),
-            minimum: minimum.clone(),
-            maximum: maximum.clone(),
+            interval: interval.clone(),
         },
         ScopedArithmeticValue::IntegerOperation {
             operator,

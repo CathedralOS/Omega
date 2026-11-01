@@ -897,9 +897,13 @@ fn boundary_value_layout_consumes_source_free_recipes() {
             "SymbolHandle",
             "typed_trees",
             "closed_data_definition",
+            "BoundaryOpaqueRepresentationUse",
+            "OpaqueRepresentationSelection",
+            "representation_selections",
         ],
     );
     assert!(materialization.contains("recipes: &BoundaryValueRecipes"));
+    assert!(materialization.contains("selection_ordinal: *selection_ordinal"));
     let recipes =
         include_str!("../../../../psi/foundation/language-semantics/src/boundary_values.rs");
     assert_absent(
@@ -966,6 +970,42 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
         "../../../../psi/compilation/representations/typed-trees/src/service_declarations/catalog.rs"
     );
     assert!(catalog.contains("PreparedBoundarySignatures::prepare(context)"));
+}
+
+#[test]
+fn terminal_calling_activation_uses_only_canonical_geometry() {
+    let execution = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_execution.rs"
+    );
+    let protocol = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
+    );
+    let projection = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
+    );
+    assert_absent(
+        &[execution, protocol, projection],
+        "calling activation retains source correspondence",
+        &[
+            "MaterializedBoundarySignature",
+            "TypedTrees",
+            "SymbolHandle",
+            "TypeReference",
+            "checked_trees",
+            "layout_data_symbol",
+        ],
+    );
+    assert!(protocol.contains("BoundarySignatureGeometry"));
+    assert!(protocol.contains("CallbackMaterializationContext"));
+    assert!(projection.contains("impl CallingPolicySignature"));
+    assert!(projection.contains("TerminalBoundaryRecipes::new"));
+    assert!(!projection.contains("policy_signature()?"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    assert!(publication.contains("let policy = signature.policy_signature()?;"));
+    assert!(publication.contains("signature: policy.geometry"));
+    assert!(publication.contains("callback_context: policy.callbacks"));
 }
 
 #[test]

@@ -23,6 +23,17 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, DomainDefinition, Item};
 
+/// Scratch declaration roles, not parameter payloads or admission evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GenericParameterRole {
+    Type,
+    Implementation,
+    Const,
+    Value,
+    Machine,
+    Proposition,
+}
+
 /// Private selection state; transient symbols never escape into normalized syntax.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ConstantSelection<'base> {
@@ -161,6 +172,12 @@ impl<'base> ConstantSelection<'base> {
                     definition.name.as_str(syntax).to_owned(),
                     definition.name.source_span(),
                     Some(definition),
+                )),
+                Item::TypeAlias(definition) => declarations.push((
+                    SymbolKind::TypeAlias,
+                    definition.name.as_str(syntax).to_owned(),
+                    definition.name.source_span(),
+                    None,
                 )),
                 Item::Domain(definition) => declarations.push((
                     SymbolKind::Domain,
@@ -789,6 +806,117 @@ impl<'base> ConstantSelection<'base> {
         )
     }
 
+    /// Select an alias in the ordinary type namespace. A same-scope nominal
+    /// or builtin remains that declaration, never a name-based alias fallback.
+    pub(crate) fn type_alias_source(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> Option<source::SourceSpan> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(syntax),
+            &[
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::TypeAlias,
+            ],
+            name.source_span(),
+        )?;
+        (self.symbols.get(selected).kind == SymbolKind::TypeAlias)
+            .then(|| self.symbols.symbol_source_span(selected))
+            .flatten()
+    }
+
+    /// The selected telescope's roles only. Reading a retained header does
+    /// not copy scratch syntax into the receiving forest or create work.
+    pub(crate) fn generic_parameter_roles(
+        &self,
+        syntax: &SyntaxTrees,
+        declaration_syntax: &[&SyntaxTrees],
+        name: &Identifier,
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<GenericParameterRole>> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(syntax),
+            kinds,
+            name.source_span(),
+        )?;
+        let reference = self.symbols.symbol_source_span(selected)?;
+        let selected_kind = self.symbols.get(selected).kind;
+        let selected_name = self.symbols.name(selected);
+        let parameters = |forest: &SyntaxTrees| {
+            let mut headers = forest.root_items().filter_map(|item| {
+                let (kind, declaration, parameters) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::Domain(domain) => {
+                        (SymbolKind::Domain, &domain.name, domain.type_parameters)
+                    }
+                    Item::TypeAlias(alias) => {
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                    }
+                    Item::Machine(machine) => {
+                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
+                    }
+                    Item::Trait(definition) => (
+                        SymbolKind::Trait,
+                        &definition.name,
+                        definition.type_parameters,
+                    ),
+                    Item::Conformance(definition) => (
+                        SymbolKind::Conformance,
+                        definition.alias.as_ref()?,
+                        definition.type_parameters,
+                    ),
+                    _ => return None,
+                };
+                (kind == selected_kind
+                    && declaration.source_span() == reference
+                    && declaration.as_str(forest) == selected_name)
+                    .then_some(parameters)
+            });
+            let Some(result) = headers.next() else {
+                return Ok(None);
+            };
+            if headers.next().is_some() {
+                return Err(());
+            }
+            Ok(Some(
+                forest
+                    .items
+                    .type_parameters(result)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::Type => GenericParameterRole::Type,
+                        syntax_trees::item::TypeParameterKind::Implementation => {
+                            GenericParameterRole::Implementation
+                        }
+                        syntax_trees::item::TypeParameterKind::Const { .. } => {
+                            GenericParameterRole::Const
+                        }
+                        syntax_trees::item::TypeParameterKind::Value { .. } => {
+                            GenericParameterRole::Value
+                        }
+                        syntax_trees::item::TypeParameterKind::Machine { .. } => {
+                            GenericParameterRole::Machine
+                        }
+                        syntax_trees::item::TypeParameterKind::Proposition { .. } => {
+                            GenericParameterRole::Proposition
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            ))
+        };
+        if let Some(parameters) = parameters(syntax).ok()? {
+            return Some(parameters);
+        }
+        for forest in declaration_syntax {
+            if let Some(parameters) = parameters(forest).ok()? {
+                return Some(parameters);
+            }
+        }
+        None
+    }
+
     /// Read the receiving telescope selected in this invocation's namespace.
     /// Parsed headers supply carrier syntax only; they never add declarations
     /// or authorize evaluation. Retained headers are outside the cohort's work
@@ -812,6 +940,9 @@ impl<'base> ConstantSelection<'base> {
             let mut declarations = forest.root_items().filter_map(|item| {
                 let (kind, declaration, parameters) = match item {
                     Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::TypeAlias(alias) => {
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                    }
                     Item::Machine(machine) => {
                         (SymbolKind::Machine, &machine.name, machine.type_parameters)
                     }

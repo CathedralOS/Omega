@@ -122,70 +122,19 @@ fn collect_expression_callees(
     visited: &mut Vec<crate::expression::ExpressionHandle>,
     called: &mut Vec<symbols::SymbolHandle>,
 ) {
-    use crate::expression::ExpressionNode;
-    if !expression.is_valid() || visited.contains(&expression) {
-        return;
-    }
-    visited.push(expression);
-    match typed.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
+    let edges = crate::SubtreeEdges {
+        atomic_results: true,
+        pattern_dependencies: true,
+        ..crate::SubtreeEdges::VALUES
+    };
+    typed.subtree_any(expression, edges, |expression, node| {
+        if visited.contains(&expression) {
+            return crate::SubtreeVisit::Prune;
+        }
+        visited.push(expression);
+        if let crate::expression::ExpressionNode::Call(call) = node {
             note_callee(called, call.target_symbol);
-            collect_expression_callees(typed, call.receiver, visited, called);
-            for argument in typed.expression_table.expression_handles(call.arguments) {
-                collect_expression_callees(typed, *argument, visited, called);
-            }
         }
-        ExpressionNode::Match(dispatch) => {
-            collect_expression_callees(typed, dispatch.subject, visited, called);
-            for arm in typed.expression_table.match_arms(dispatch.arms) {
-                for value in typed
-                    .expression_table
-                    .match_pattern_dependencies(arm.pattern)
-                {
-                    collect_expression_callees(typed, value, visited, called);
-                }
-                collect_expression_callees(typed, arm.value, visited, called);
-            }
-        }
-        ExpressionNode::SavedSubject(_) => {}
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in typed.expression_table.expression_handles(*values) {
-                collect_expression_callees(typed, *value, visited, called);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            collect_expression_callees(typed, atomic.value, visited, called);
-            collect_expression_callees(typed, atomic.result, visited, called);
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_callees(typed, binary.left, visited, called);
-            collect_expression_callees(typed, binary.right, visited, called);
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_callees(typed, cast.value, visited, called);
-        }
-        ExpressionNode::Indexed(indexed) => {
-            collect_expression_callees(typed, indexed.collection, visited, called);
-            collect_expression_callees(typed, indexed.index, visited, called);
-        }
-        ExpressionNode::Member(member) => {
-            collect_expression_callees(typed, member.receiver, visited, called);
-        }
-        ExpressionNode::Borrow(borrow) => {
-            collect_expression_callees(typed, borrow.target, visited, called);
-        }
-        ExpressionNode::Range(range) => {
-            collect_expression_callees(typed, range.start, visited, called);
-            collect_expression_callees(typed, range.end, visited, called);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in typed.expression_table.struct_fields(literal.fields) {
-                collect_expression_callees(typed, field.value, visited, called);
-            }
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_callees(typed, unary.operand, visited, called);
-        }
-        ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
-    }
+        crate::SubtreeVisit::Descend
+    });
 }

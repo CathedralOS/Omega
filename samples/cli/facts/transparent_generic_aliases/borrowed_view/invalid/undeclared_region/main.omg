@@ -1,0 +1,23 @@
+// Expected exit: 0
+use leaf::views;
+
+machine observe<'left, 'right, T>(
+    left: leaf::views::Borrowed<'absent, T>,
+    right: leaf::views::Borrowed<'right, T>
+) -> leaf::views::Borrowed<'left, T> {
+    let explicit: &'left T = left;
+    let alias_again: leaf::views::Borrowed<'left, T> = explicit;
+    alias_again
+}
+
+machine main() crashes Trap {
+    let left: leaf::views::Cell = leaf::views::Cell { value: 42u64 };
+    let right: leaf::views::Cell = leaf::views::Cell { value: 17u64 };
+    let observed: &leaf::views::Cell = observe<leaf::views::Cell>(&left, &right);
+    transition observed.value == 42u64 && left.value == 42u64 && right.value == 17u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

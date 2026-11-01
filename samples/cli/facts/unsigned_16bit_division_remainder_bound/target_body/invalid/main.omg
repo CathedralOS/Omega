@@ -2,36 +2,53 @@
 // Invalid: divisor upper bound widened to 17u16 so rem can be 16u16, underflowing subtraction from 15u16.
 // Expected exit: 0
 
-linux_x86_64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
+boundary trait SelectedRemTarget {
+    machine rem_target(dividend: u16, divisor: u16) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17;
+}
+
+X86RemTarget satisfies SelectedRemTarget {
+    machine rem_target(dividend: u16, divisor: u16) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let rem: u16 = dividend % divisor;
+        15u16 - rem
+    }
+}
+
+ArmRemTarget satisfies SelectedRemTarget {
+    machine rem_target(dividend: u16, divisor: u16) -> u16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 17
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let rem: u16 = dividend % divisor;
+        15u16 - rem
+    }
 }
 
 machine probe() -> u16 {
-    rem_target(43u16, 16u16)
+    SelectedRemTarget::rem_target(43u16, 16u16)
 }
 
 machine main() crashes Trap {
@@ -41,4 +58,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

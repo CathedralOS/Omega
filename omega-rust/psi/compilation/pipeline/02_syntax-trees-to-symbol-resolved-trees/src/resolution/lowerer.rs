@@ -215,6 +215,7 @@ pub(crate) struct Lowerer {
 pub(crate) struct RootWatermarks {
     pub(crate) const_declarations: usize,
     pub(crate) data_definitions: usize,
+    pub(crate) type_aliases: usize,
     pub(crate) domain_definitions: usize,
     pub(crate) machines: usize,
     pub(crate) operators: usize,
@@ -231,6 +232,7 @@ impl RootWatermarks {
         Self {
             const_declarations: program.const_declarations.len(),
             data_definitions: program.data_definitions.len(),
+            type_aliases: program.type_aliases.len(),
             domain_definitions: program.domain_definitions.len(),
             machines: program.machines.len(),
             operators: program.operators.len(),

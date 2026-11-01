@@ -2,16 +2,64 @@
 // Fact: a shared tagged scalar-field loan keeps its original backing and value 73 while computing value ^ 0.
 data Cell { value: u32; }
 domain u32::Controlled;
-windows_x86_64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
-linux_x86_64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
-macos_arm64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
-linux_arm64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConsume {
+    machine consume(value: &u32 in Controlled) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(value: &u32 in Controlled) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     value ^ 0 
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(value: &u32 in Controlled) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     value ^ 0 
+    }
+}
+
+
 machine main() crashes Trap {
     let mut storage: Cell = Cell { value: 73 };
     let selected: &u32 in Controlled = &storage.value;
     storage.value = 74;
-    let result: u32 = consume(selected);
+    let result: u32 = SelectedConsume::consume(selected);
     transition result == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

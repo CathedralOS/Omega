@@ -43,3 +43,15 @@
 
 - Claim ticket: `810deb5781c44224926b42cef59096ed` (`antigravity/w39-5`).
 - Verified on `windows_x86_64`: `sample_native_gate.py --filter cli/facts/unsigned_8bit_division_quotient_bound` (`10/10` pass, `9/9` rejected), `corpus_gate.py --native --filter facts/unsigned_8bit_division_quotient_bound` (`9/9` built and executed with exit `0`), and `corpus_gate.py --filter facts/unsigned_8bit_division_quotient_bound` (`9` checked, `9` rejected).
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

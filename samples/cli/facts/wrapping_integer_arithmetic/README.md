@@ -99,3 +99,15 @@ Full 8-layer specification and lowering evidence:
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements resolve into concrete offsets. Basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute natively with Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`) across host platforms.
 
 Remaining open under **ONE-INTEGER-BOUNDS-ENGINE**: non-power-of-two bitwise masks requiring multi-interval SMT reasoning, dynamic variable bitmask range propagation, and non-linear bitwise combinations; the native and combined golden rows are macOS arm64 legs, so Linux and Windows host agreement rests on the four-target `ProgramEntry` bindings and the shared Terminal Psi product rather than a replayed run on those hosts.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

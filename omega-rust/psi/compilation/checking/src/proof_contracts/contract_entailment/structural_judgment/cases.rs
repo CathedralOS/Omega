@@ -403,26 +403,11 @@ impl StructuralJudge<'_> {
                 Some((_, replacement)) => self.resolve_case_subject(replacement.clone(), depth + 1),
                 None => Some(term),
             },
-            StructuralTerm::Constructor { data, case, fields } => {
-                Some(StructuralTerm::Constructor {
-                    data,
-                    case,
-                    fields: fields
-                        .into_iter()
-                        .map(|(name, field)| {
-                            // A completed constructor owns its tag independently
-                            // of whether a payload has a case denotation. Retain
-                            // an unresolved payload verbatim: its observation,
-                            // scalar bounds and descriptor fences still govern
-                            // projection and cannot prove a payload classifier.
-                            let resolved = self
-                                .resolve_case_subject(field.clone(), depth + 1)
-                                .unwrap_or(field);
-                            (name, resolved)
-                        })
-                        .collect(),
-                })
-            }
+            // The tag is already produced, regardless of whether a payload
+            // has a tag denotation of its own. Resolving every field here
+            // discarded valid constructors containing scalar computations.
+            // Payload projection and equality own their selected reads.
+            StructuralTerm::Constructor { .. } => Some(term),
             StructuralTerm::RepeatedArray { length, element } => {
                 Some(StructuralTerm::RepeatedArray {
                     length,
