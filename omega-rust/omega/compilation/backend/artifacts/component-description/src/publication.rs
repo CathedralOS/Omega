@@ -1,7 +1,7 @@
 //! Serialize a component description and its producer-observed subject from one
 //! decoded Terminal module. This produces bytes, not verification or installation.
 
-use crate::component_description::describe_decoded_component_facts;
+use crate::component_description::{check_publication_bounds, describe_decoded_component_facts};
 use crate::{ComponentDescriptionFacts, DescribeError, encode_component_description};
 use terminal_psi::TerminalPsiIdentity;
 
@@ -16,5 +16,7 @@ pub fn publish_component_description(
     let description = describe_decoded_component_facts(facts, module)?;
     let subject =
         terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)?;
-    Ok((subject, encode_component_description(&description)))
+    let encoded = encode_component_description(&description);
+    check_publication_bounds(&description, &encoded)?;
+    Ok((subject, encoded))
 }
