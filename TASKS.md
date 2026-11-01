@@ -282,8 +282,8 @@ retired-syntax deletions to completion.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
     - Extend requirement-contract checking at selector calls beyond exact fact
-      correspondence to transparent proposition aliases, supported integer
-      arithmetic, and literal IEEE-bound weakening while preserving the
+      correspondence to supported integer arithmetic and literal IEEE-bound
+      weakening while preserving the
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).

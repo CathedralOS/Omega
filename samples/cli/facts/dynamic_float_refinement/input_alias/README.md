@@ -49,6 +49,13 @@ dispatch. The target place uses ordinary named implementations selected by four
 explicit target-keyed Build rows; x86 entries expect marker 11, ARM entries 13.
 The providers introduce no implicit receiver or data instance.
 
+The [split-relation control](controls/single_relations/main.omg) proves the same
+input through two separate one-relation aliases. The
+[Boolean-disjunction control](controls/boolean_disjunction/main.omg) checks
+existing checked Boolean equality and disjunction goals while retaining the
+same dynamic input obligation; it does not claim general disjunctive-premise
+entailment.
+
 Pins are byte-identical sources and Build inputs under
 `tests/omega/{pass,fail}/facts/dynamic_float_input_alias_through_<place>_*`.
 Every positive declares Expected exit 0 and authors all four hosted ProgramEntry
@@ -87,3 +94,54 @@ The parent remains open for its other contract mechanisms, operational-envelope
 refinement, runtime finite-family inputs, product parity, table realization and
 other-host native acceptance. This production closes only the demonstrated
 transparent IEEE input-predicate transport requirement after its acceptance.
+
+## Recorded acceptance
+
+On Linux x86-64, the optimized producer built from
+`d8105b3feb7899b2948107c1fbe5c6fe99555ef7` runs all nine positives with
+**native exit 0 and Terminal Psi exit 0**. All nine twins reject at
+`cannot prove requires contract for call dyn Fraction::get from probe`.
+`build/advance-input-alias/sample-evidence.json` records the exact commands,
+source hashes and both engine streams; `fixture-integrity.json` verifies the
+one-bound twin change and byte-identical corpus pins.
+
+The unchanged original frozen named-input and public-alias programs now run
+with both exits 0, as does the inline control. A fresh authored match-join copy
+changes only the second marker oracle from 13 to 12: native execution reports
+signal 4 and Terminal execution reports `Trap`. This observes the runtime
+falsifier independently of static rejection. Raw control streams are retained
+in `build/advance-input-alias/`.
+
+The immutable producer is `build/advance-input-alias/producers/r2/omega`,
+SHA-256 `661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6`;
+its corpus runner is SHA-256
+`42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e`.
+Both report optimization level 1. `mbx check -p validation` passes.
+`mbx clippy -p validation --no-deps -- -D warnings` reports 202 existing crate
+style errors; every located diagnostic is on unchanged source bytes, with the
+five locations in changed files mapped to their exact base lines in
+`build/advance-input-alias/clippy-attribution.json`. That command is not green.
+
+The public oracle is:
+
+```sh
+for place in local field parameter call_result match_join const_name other_state other_machine target_body; do
+  omega run --both samples/cli/facts/dynamic_float_refinement/input_alias/$place/main.omg
+done
+```
+
+The focused exact-base comparison has **0 losses**: 48 source-check fixtures
+(20 new checks/rejections and 28 original controls), and 21 runnable fixtures
+(11 new positives and 10 original consumers). Original controls cover public
+versus private guarantees, NaN/nonreflexivity, f32 rounding/format, negated
+integer/IEEE/custom relations, changed captures, imported aliases, wrapping and
+opaque selected operations. Scope and command outputs are retained in
+`build/advance-input-alias/{source,corpus}-verdict.json`. The requested Jev
+advisory was unavailable because no key is configured; it supplied no approval.
+
+Only Linux x86-64 native execution was observed. Other hosted entries are
+authored, not other-host native receipts. Governing rules are the
+[dynamic slot public call shape](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md),
+[requirement/provider contract implications](../../../../../wiki/spec/language/machines.md),
+[checked definition unfolding](../../../../../wiki/spec/proofs/mathematical_bindings.md),
+and [IEEE comparison laws](../../../../../wiki/spec/language/numeric_values.md).
