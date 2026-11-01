@@ -47,7 +47,7 @@ pub(super) fn proves(
     contexts: &[FactContextHandle],
     required: &Invocation<'_>,
     goal: ExpressionHandle,
-    hypotheses: Vec<ScopedArithmeticHypothesis>,
+    mut hypotheses: Vec<ScopedArithmeticHypothesis>,
     frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
     let Some(goal) = at_invocation(program, facts, caller, required, goal, &[], frames) else {
@@ -56,30 +56,125 @@ pub(super) fn proves(
     let Some(call) = invocation_fact(facts, caller, required) else {
         return false;
     };
+    append_store_hypotheses(
+        program,
+        facts,
+        caller,
+        required.statement,
+        &mut hypotheses,
+        frames,
+    );
     proves_bound(
         program,
         facts,
         caller,
         required.statement,
         contexts,
-        &goal,
+        &goal.proposition,
         hypotheses,
         frames,
         Some(call),
     )
 }
 
-pub(in crate::checks) fn proves_at_exit(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    caller: &FlowStateFact,
-    exit: &checked_trees::FlowExitFact,
-    contexts: &[FactContextHandle],
-    frames: &validation::CallFrameResolver<'_>,
-    goal: &ScopedArithmeticExpression,
-) -> bool {
+/// Normal-return propositions and their freshly written observations are one
+/// prepared proof scope. A consumer joins its outgoing values to these exact
+/// return frontiers before asking the arithmetic engine for an implication.
+pub(in crate::checks) struct ExitArithmetic<'program, 'facts> {
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    caller: &'facts FlowStateFact,
+    exit: &'facts checked_trees::FlowExitFact,
+    contexts: &'facts [FactContextHandle],
+    frames: &'facts validation::CallFrameResolver<'program>,
+    hypotheses: Vec<ScopedArithmeticHypothesis>,
+    returned: Vec<ReturnedObservation>,
+}
+
+struct ReturnedObservation {
+    statement: usize,
+    ordinal: usize,
+    place: validation::CanonicalPlace,
+    primitive: PrimitiveType,
+    length: bool,
+    value: ScopedArithmeticValue,
+}
+
+struct InvocationArithmetic {
+    proposition: ScopedArithmeticExpression,
+    returned: Vec<ReturnedObservation>,
+}
+
+impl ExitArithmetic<'_, '_> {
+    /// A post-call read may name the written home or a detached copy of its
+    /// returned contents. Flow proves that correspondence and rejects later
+    /// overlapping writes; a shared place spelling alone is never enough.
+    pub(in crate::checks) fn value(
+        &self,
+        place: validation::CanonicalPlace,
+        primitive: PrimitiveType,
+    ) -> Option<ScopedArithmeticValue> {
+        let machine = self.program.machine_by_symbol(self.caller.machine_symbol)?;
+        for returned in &self.returned {
+            if returned.primitive != primitive || returned.length {
+                continue;
+            }
+            let call = crate::flow::call_flows(&self.facts.flow.control, self.caller.calls)
+                .iter()
+                .find(|call| {
+                    call.statement_index == returned.statement
+                        && call.call_ordinal == returned.ordinal
+                })?;
+            if crate::flow::value_origin_matches_call_return(
+                self.program,
+                &self.facts.flow,
+                machine,
+                self.caller,
+                self.exit.statement_index,
+                place.clone(),
+                call,
+                &returned.place,
+                self.frames,
+            ) {
+                return Some(returned.value.clone());
+            }
+        }
+        value_origin(
+            self.program,
+            self.facts,
+            self.caller,
+            self.exit.statement_index,
+            self.frames,
+            place,
+        )
+        .map(|place| atom(place, primitive))
+    }
+
+    pub(in crate::checks) fn proves(self, goal: &ScopedArithmeticExpression) -> bool {
+        proves_bound(
+            self.program,
+            self.facts,
+            self.caller,
+            self.exit.statement_index,
+            self.contexts,
+            goal,
+            self.hypotheses,
+            self.frames,
+            None,
+        )
+    }
+}
+
+pub(in crate::checks) fn at_exit<'program, 'facts>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    caller: &'facts FlowStateFact,
+    exit: &'facts checked_trees::FlowExitFact,
+    contexts: &'facts [FactContextHandle],
+    frames: &'facts validation::CallFrameResolver<'program>,
+) -> Option<ExitArithmetic<'program, 'facts>> {
     if caller.machine_symbol != exit.machine_symbol || caller.state_symbol != exit.state_symbol {
-        return false;
+        return None;
     }
     let frontier = if completed_return_operand(program, facts, exit).is_some()
         || exit_return_call(program, facts, exit).is_some()
@@ -91,35 +186,48 @@ pub(in crate::checks) fn proves_at_exit(
     } else {
         super::GuaranteeUse::StatementEntry(exit.statement_index)
     };
-    let hypotheses = super::available(program, facts, caller, frontier, contexts, frames)
-        .into_iter()
-        .filter_map(|guarantee| {
-            at_invocation(
+    let mut hypotheses = Vec::new();
+    let mut returned = Vec::new();
+    for guarantee in super::available(program, facts, caller, frontier, contexts, frames) {
+        if let Some(writes) = guarantee.post_return_writes.as_deref()
+            && let Some(bound) = at_invocation(
                 program,
                 facts,
                 caller,
                 &guarantee.invocation,
                 guarantee.expression,
-                guarantee.post_return_writes.as_deref()?,
+                writes,
                 frames,
             )
-            .map(|proposition| ScopedArithmeticHypothesis {
-                proposition,
+        {
+            returned.extend(bound.returned);
+            hypotheses.push(ScopedArithmeticHypothesis {
+                proposition: bound.proposition,
                 holds: true,
-            })
-        })
-        .collect::<Vec<_>>();
-    proves_bound(
+            });
+        }
+    }
+    // A saved value retains its captured premises even after writes retire
+    // their association with the original storage. Publish the same return
+    // observations from those store contexts before binding the exit goal.
+    returned.extend(append_store_hypotheses(
         program,
         facts,
         caller,
         exit.statement_index,
-        contexts,
-        goal,
-        hypotheses,
+        &mut hypotheses,
         frames,
-        None,
-    )
+    ));
+    Some(ExitArithmetic {
+        program,
+        facts,
+        caller,
+        exit,
+        contexts,
+        frames,
+        hypotheses,
+        returned,
+    })
 }
 
 fn append_store_hypotheses(
@@ -129,7 +237,8 @@ fn append_store_hypotheses(
     statement: usize,
     hypotheses: &mut Vec<ScopedArithmeticHypothesis>,
     frames: &validation::CallFrameResolver<'_>,
-) {
+) -> Vec<ReturnedObservation> {
+    let mut returned = Vec::new();
     // A store retires facts about the old slot, not truths about values
     // already captured from it. Reconstruct each completed store's premises
     // at that exact pre-store frontier. Origin tracing versions every leaf;
@@ -181,7 +290,7 @@ fn append_store_hypotheses(
             frames,
         ) {
             if let Some(writes) = guarantee.post_return_writes.as_deref()
-                && let Some(proposition) = at_invocation(
+                && let Some(bound) = at_invocation(
                     program,
                     facts,
                     caller,
@@ -191,8 +300,9 @@ fn append_store_hypotheses(
                     frames,
                 )
             {
+                returned.extend(bound.returned);
                 hypotheses.push(ScopedArithmeticHypothesis {
-                    proposition,
+                    proposition: bound.proposition,
                     holds: true,
                 });
             }
@@ -218,6 +328,7 @@ fn append_store_hypotheses(
             },
         );
     }
+    returned
 }
 
 fn proves_bound(
@@ -234,7 +345,6 @@ fn proves_bound(
     let Some(machine) = program.machine_by_symbol(caller.machine_symbol) else {
         return false;
     };
-    append_store_hypotheses(program, facts, caller, statement, &mut hypotheses, frames);
     append_context_hypotheses(
         program,
         facts,
@@ -335,7 +445,7 @@ fn append_context_hypotheses(
 /// Inputs use their operand frontier; a normal guarantee additionally carries
 /// the writes accepted by availability. Those observations have a new value
 /// identity at return and must never trace through the invocation's old stores.
-pub(super) fn at_invocation(
+fn at_invocation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
@@ -343,10 +453,11 @@ pub(super) fn at_invocation(
     expression: ExpressionHandle,
     post_return_writes: &[validation::CanonicalPlace],
     frames: &validation::CallFrameResolver<'_>,
-) -> Option<ScopedArithmeticExpression> {
+) -> Option<InvocationArithmetic> {
     let static_actuals = super::static_operands::bindings(program, facts, invocation, expression);
     let static_actuals = static_actuals?;
-    let result = proposition_with_static_actuals(
+    let mut returned = Vec::new();
+    let proposition = proposition_with_static_actuals(
         program,
         facts,
         &invocation.callable,
@@ -404,7 +515,7 @@ pub(super) fn at_invocation(
                     // Availability established this post-call proposition, not
                     // equality to the entry value of the same storage. Keep an
                     // opaque version until a consumer has exact return custody.
-                    return Some(ScopedArithmeticValue::Atom {
+                    let value = ScopedArithmeticValue::Atom {
                         identity: format!(
                             "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{length}:{storage:?}",
                             invocation.caller_state, invocation.statement, invocation.ordinal,
@@ -413,7 +524,16 @@ pub(super) fn at_invocation(
                             primitive,
                             typed_trees::unsigned_integer_primitive_pattern!()
                         ),
+                    };
+                    returned.push(ReturnedObservation {
+                        statement: invocation.statement,
+                        ordinal: invocation.ordinal,
+                        place: storage,
+                        primitive,
+                        length,
+                        value: value.clone(),
                     });
+                    return Some(value);
                 }
             }
             let place = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
@@ -441,8 +561,11 @@ pub(super) fn at_invocation(
                 atom(place, primitive)
             })
         },
-    );
-    result
+    )?;
+    Some(InvocationArithmetic {
+        proposition,
+        returned,
+    })
 }
 
 /// Normal results are fresh values of one exact invocation, including named
@@ -795,9 +918,7 @@ fn bind_occurrences(
     for occurrence in occurrences {
         // Opaque calls may receive noninteger values. They are independently
         // formed inputs, not polynomial leaves of the integer result.
-        let Some(primitive) = callable
-            .scalar_reference(program, occurrence)
-            .and_then(|reference| program.primitive_type_reference(reference))
+        let Some(primitive) = contents_primitive(program, callable, occurrence)
             .filter(|primitive| primitive.accepts_integer_literal())
         else {
             continue;
@@ -939,10 +1060,10 @@ fn term(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable
-            .scalar_reference(program, expression)
-            .and_then(|reference| program.primitive_type_reference(reference))
-            .is_some_and(|primitive| primitive.accepts_integer_literal()),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            contents_primitive(program, callable, expression)
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -988,6 +1109,20 @@ fn term(
         }
         _ => false,
     }
+}
+
+/// Arithmetic propositions observe readable numeric contents, not reference
+/// addresses. Keep the declared type for operator/policy and access judgments;
+/// this projection supplies only the leaf's primitive carrier. Write-only
+/// references have no numeric observation, even beneath another shell.
+fn contents_primitive(
+    program: &dyn ::validation::CheckingInput,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    let declared = callable.scalar_reference(program, expression)?;
+    let readable = validation::field_domains::readable_type_reference(program, declared)?;
+    program.primitive_type_reference(readable)
 }
 
 /// A selected builtin unsigned remainder has one mathematical value in every
