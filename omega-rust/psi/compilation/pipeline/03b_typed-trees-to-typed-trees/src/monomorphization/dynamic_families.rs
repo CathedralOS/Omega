@@ -20,9 +20,11 @@
 use super::body_cloning::clone_specialized_machine;
 use super::candidate;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
+use typed_trees::machine::resolve_satisfied_declaration;
 use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
@@ -72,11 +74,7 @@ pub(crate) fn generate_dynamic_family_specializations(
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement,
-            }) = typed_trees::machine::resolve_satisfied_declaration(
-                program,
-                realization,
-                conformance,
-            )
+            }) = resolve_satisfied_declaration(program, realization, conformance)
             else {
                 continue;
             };
@@ -371,10 +369,8 @@ pub(super) fn const_identity_spelling(identity: &str) -> Option<String> {
         "",
     );
     match value.decode_encoding()? {
-        language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } => {
-            Some(value.to_string())
-        }
-        language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
+        DecodedCanonicalConstValue::Integer { value, .. } => Some(value.to_string()),
+        DecodedCanonicalConstValue::Boolean(value) => {
             // The identity visitor re-encodes the canonical atom; a bare
             // `true`/`false` display would spell `named(name(true))` instead.
             Some(language_semantics::const_value::CanonicalConstValue::boolean(value).atom())

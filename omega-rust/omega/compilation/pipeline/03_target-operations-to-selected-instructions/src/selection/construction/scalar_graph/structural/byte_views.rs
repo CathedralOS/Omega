@@ -12,6 +12,7 @@ use crate::selection::construction::scalar_graph::structural::transport_register
 use crate::selection::construction::scalar_graph::structural::{
     byte_concatenation, byte_field_store,
 };
+use crate::selection::established_view_input::readable_byte_type;
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
@@ -35,7 +36,7 @@ pub(super) fn write(
     let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(|| invalid())?;
     // Admission already required writable custody. Storage selection includes
     // an owner borrowed from a caller, not only an owner created in this frame.
-    if crate::selection::established_view_input::readable_byte_type(function, destination).is_none()
+    if readable_byte_type(function, destination).is_none()
         || row.result.is_some()
         || index_type
             != ScalarType::Integer(
@@ -97,9 +98,7 @@ pub(in crate::selection) fn byte_observation(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     match &row.kind {
         LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
-            if crate::selection::established_view_input::readable_byte_type(function, *source)
-                .is_none()
-            {
+            if readable_byte_type(function, *source).is_none() {
                 return Err(invalid());
             }
             byte_sequence_read(function, builder, row)

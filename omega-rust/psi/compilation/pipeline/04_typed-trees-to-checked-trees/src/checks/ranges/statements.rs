@@ -3,9 +3,12 @@ mod transitions;
 
 use self::transitions::check_transition_target;
 use super::arrays::fixed_array_type_length;
+use super::assignment_lengths::value_preserves_indexed_extent;
+use super::expression_transfer::expression_has_sink_effect;
 use super::facts::RangeFacts;
 use super::indexes::{IndexVerdicts, check_expression};
 use super::statement_transfer::{StatementTransferSink, transfer_statement_facts};
+use super::types::expression_type_reference;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -55,7 +58,7 @@ pub(super) fn check_statement<'program>(
             facts: &mut RangeFacts<'_>,
             assignment: &'program TableAssignment,
         ) {
-            self.extent_failed |= !super::assignment_lengths::value_preserves_indexed_extent(
+            self.extent_failed |= !value_preserves_indexed_extent(
                 self.program,
                 self.machine,
                 self.state,
@@ -75,19 +78,9 @@ pub(super) fn check_statement<'program>(
                     .statement_table
                     .expression_handles(*arguments)
                     .iter()
-                    .any(|argument| {
-                        super::expression_transfer::expression_has_sink_effect(
-                            self.program,
-                            *argument,
-                            true,
-                        )
-                    }),
+                    .any(|argument| expression_has_sink_effect(self.program, *argument, true)),
                 typed_trees::statement::TransitionTargetNode::Value(value) => {
-                    super::expression_transfer::expression_has_sink_effect(
-                        self.program,
-                        *value,
-                        true,
-                    )
+                    expression_has_sink_effect(self.program, *value, true)
                 }
                 typed_trees::statement::TransitionTargetNode::Terminal => false,
             }
@@ -312,9 +305,9 @@ pub(super) fn offset_index_bound(
 ) -> Option<(String, i64)> {
     let (source_name, offset) = field_plus_constant(program, value)?;
     if offset < 0 {
-        let domain = program.arithmetic_domain_for_type_reference(
-            super::types::expression_type_reference(program, machine, state, target)?,
-        );
+        let domain = program.arithmetic_domain_for_type_reference(expression_type_reference(
+            program, machine, state, target,
+        )?);
         if !matches!(domain, ArithmeticDomain::Exact | ArithmeticDomain::Trapping) {
             return None;
         }

@@ -2,6 +2,7 @@
 //! Inline owners and borrowed descriptors use the same payload-address owner
 //! as measured sequence operations. The index's own accepted obligation binds
 //! its current length; finding an address grants no permission to read it.
+use super::runtime_address::{cross_references, footprint, projection_origin, scale};
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole,
@@ -88,7 +89,7 @@ pub(super) fn payload_pointer(
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let offset = geometry.offset();
-    let (root, pointer_slots) = super::runtime_address::projection_origin(
+    let (root, pointer_slots) = projection_origin(
         function,
         builder,
         row,
@@ -97,21 +98,15 @@ pub(super) fn payload_pointer(
         &geometry.pointer_slots,
     )?;
     let root = root.ok_or_else(invalid)?;
-    let (root, first_leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        place,
-        root,
-        indices,
-        pointer_slots,
-    )?;
+    let (root, first_leaf_index) =
+        cross_references(builder, row, place, root, indices, pointer_slots)?;
     let indices = indices.get(first_leaf_index..).ok_or_else(|| invalid())?;
-    let root = super::runtime_address::scale(builder, row, place, offset, root, indices)?;
+    let root = scale(builder, row, place, offset, root, indices)?;
     let payload = transport_register(builder, place, offset)?;
     if !geometry.is_descriptor {
         builder.emit_address_offset(offset, root, payload, provenance(row))?;
     } else {
-        super::runtime_address::footprint(
+        footprint(
             builder,
             row,
             place,

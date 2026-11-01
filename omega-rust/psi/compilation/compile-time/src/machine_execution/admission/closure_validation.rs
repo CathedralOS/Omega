@@ -1,10 +1,11 @@
+use super::BuildTimeCallEdge;
 use crate::build_time_evaluation::{expression_table, type_reference_table};
-use language_semantics::{MachineSupplyMode, TerminationGuarantee};
+use language_semantics::{MachineSupplyMode, Multiplicity, TerminationGuarantee};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
-
-use super::BuildTimeCallEdge;
+use typed_trees::signature::{SignatureContract, StateSignature};
+use typed_trees_to_checked_trees::infer_machine_termination_summary;
 
 /// `discharge_authored_requires` records ordinary contract checking of either
 /// the concrete invocation at snapshot arguments or the internal call sites
@@ -130,7 +131,7 @@ fn each_closure_machine(
 fn is_parameter_domain_premise(
     program: &TypedTrees,
     state: &typed_trees::state::State,
-    contract: &typed_trees::signature::SignatureContract,
+    contract: &SignatureContract,
 ) -> bool {
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
 
@@ -224,10 +225,7 @@ fn machine_termination_violation(
         // is discharged instead of reported.
         let measured = machine.supply_mode == MachineSupplyMode::CheckedBody
             && matches!(
-                typed_trees_to_checked_trees::infer_machine_termination_summary(
-                    program,
-                    machine_symbol
-                ),
+                infer_machine_termination_summary(program, machine_symbol),
                 Some(TerminationGuarantee::Terminates { .. })
             );
         if !measured {
@@ -254,10 +252,7 @@ fn machine_termination_violation(
     let locally_terminates = target_snapshot
         || (machine.supply_mode == MachineSupplyMode::CheckedBody
             && matches!(
-                typed_trees_to_checked_trees::infer_machine_termination_summary(
-                    program,
-                    machine_symbol
-                ),
+                infer_machine_termination_summary(program, machine_symbol),
                 Some(TerminationGuarantee::Terminates { .. })
             ));
     if !locally_terminates {
@@ -343,9 +338,7 @@ fn machine_precondition_violation(
     })
 }
 
-pub(super) fn has_authored_requires(
-    contracts: &[typed_trees::signature::SignatureContract],
-) -> bool {
+pub(super) fn has_authored_requires(contracts: &[SignatureContract]) -> bool {
     contracts
         .iter()
         .any(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
@@ -358,7 +351,7 @@ fn machine_linear_carrier_violation(
 ) -> Option<String> {
     let describe = |context: &str, type_reference| {
         (program.type_multiplicity(type_reference)
-            == language_semantics::Multiplicity::Linear)
+            == Multiplicity::Linear)
             .then(|| {
                 format!(
                     "{context} has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
@@ -371,9 +364,7 @@ fn machine_linear_carrier_violation(
     if let Some(attached_data) = machine.attached_data.as_ref()
         && program
             .attached_data_definition(machine)
-            .is_some_and(|definition| {
-                definition.properties.multiplicity == language_semantics::Multiplicity::Linear
-            })
+            .is_some_and(|definition| definition.properties.multiplicity == Multiplicity::Linear)
     {
         return Some(format!(
             "machine instance `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
@@ -422,10 +413,7 @@ fn machine_linear_carrier_violation(
     None
 }
 
-fn callable_signature(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::signature::StateSignature> {
+fn callable_signature(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {
     if !symbol.is_valid()
         || matches!(
             program.symbols.get(symbol).kind,
@@ -469,9 +457,7 @@ fn callable_contract_violation(
     }
 
     for parameter in program.state_signature_parameters(signature) {
-        if program.type_multiplicity(parameter.type_reference)
-            == language_semantics::Multiplicity::Linear
-        {
+        if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
             return Some(format!(
                 "callable contract `{}` parameter `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
                 signature.name,
@@ -481,8 +467,7 @@ fn callable_contract_violation(
             ));
         }
     }
-    if program.type_multiplicity(signature.return_type) == language_semantics::Multiplicity::Linear
-    {
+    if program.type_multiplicity(signature.return_type) == Multiplicity::Linear {
         return Some(format!(
             "callable contract `{}` result has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
             signature.name,

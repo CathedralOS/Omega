@@ -9,6 +9,7 @@
 //! parent custody. The caller commits the staged frontier only after a real
 //! installed child has accepted the tuple.
 
+use crate::custody::validate_boundary_requirements;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{ClaimId, PlaceId};
@@ -65,9 +66,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;
-        crate::custody::validate_boundary_requirements(receiver, |index| {
-            prepared.values.get(index)
-        })?;
+        validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
         let mut values = prepared.into_opaque_values(self.local_structural_identities.cursor())?;
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();

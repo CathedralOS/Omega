@@ -13,6 +13,7 @@ use crate::scalar_array::ScalarArrayBindings;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
+use terminal_semantics::scalar_array_leaf_shape;
 
 pub(crate) struct StructuralCallArguments {
     pub(crate) local_identity_cursor: Option<u64>,
@@ -93,11 +94,8 @@ impl TerminalExecution<'_> {
         let mut opaque_parameters = Vec::new();
         let mut opaque_arguments = Vec::new();
         for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
-            if terminal_semantics::scalar_array_leaf_shape(
-                self.structural_types().values(),
-                parameter.structural_type,
-            )
-            .is_some()
+            if scalar_array_leaf_shape(self.structural_types().values(), parameter.structural_type)
+                .is_some()
                 && parameter.access == StructuralAccess::Owned
                 && parameter.projected_qualifications.is_empty()
             {

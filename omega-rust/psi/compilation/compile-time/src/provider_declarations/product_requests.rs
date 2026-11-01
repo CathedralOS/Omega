@@ -4,8 +4,9 @@
 
 use super::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, admission};
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
 use language_semantics::declaration_selection::{
-    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+    BuildOperation, ExecutedProductSelection, ProductDeclarationOperand, ProductDeclarationRequest,
 };
 use symbols::SymbolHandle;
 use typed_trees::product_operand::{ProductOperandKind, resolve_product_path};
@@ -13,9 +14,7 @@ use typed_trees::product_operand::{ProductOperandKind, resolve_product_path};
 fn identities(
     context: ProviderPlanningContext<'_>,
     request: &ProductDeclarationRequest,
-    static_environment: Option<
-        &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
-    >,
+    static_environment: Option<&ProductStaticEnvironment>,
 ) -> Result<(ProviderSelectionIdentity, ProviderSelectionIdentity), Diagnostic> {
     if context.scope != source::DependencyScope::Product
         || request.operation != BuildOperation::ProviderSelection
@@ -29,88 +28,83 @@ fn identities(
             "provider choice lost its two authored declaration operands",
         ));
     };
-    let project =
-        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-         role|
-         -> Result<ProviderSelectionIdentity, Diagnostic> {
-            let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
+    let project = |operand: &ProductDeclarationOperand,
+                   role|
+     -> Result<ProviderSelectionIdentity, Diagnostic> {
+        let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
             .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}", operand.path))
                 .with_source_span(operand.source_span))?;
-            let application = if operand.application.is_some() {
-                let mut matching = context
-                    .typed
-                    .live_product_operand_applications()
-                    .into_iter()
-                    .filter(|handle| {
-                        let prepared = context.typed.product_operand_applications.get(*handle);
-                        prepared.role == Some(role)
-                            && prepared.environment.as_deref() == static_environment
-                            && context
-                                .typed
-                                .same_product_operand_source(&prepared.operand, operand)
-                    });
-                let selected = matching.next().ok_or_else(|| {
-                    Diagnostic::error(
-                        "Product provider operand lost its original prepared application",
-                    )
+        let application = if operand.application.is_some() {
+            let mut matching = context
+                .typed
+                .live_product_operand_applications()
+                .into_iter()
+                .filter(|handle| {
+                    let prepared = context.typed.product_operand_applications.get(*handle);
+                    prepared.role == Some(role)
+                        && prepared.environment.as_deref() == static_environment
+                        && context
+                            .typed
+                            .same_product_operand_source(&prepared.operand, operand)
+                });
+            let selected = matching.next().ok_or_else(|| {
+                Diagnostic::error("Product provider operand lost its original prepared application")
                     .with_source_span(operand.source_span)
-                })?;
-                if matching.next().is_some() {
-                    return Err(Diagnostic::error(
-                        "Product provider operand has multiple prepared lexical applications",
-                    )
-                    .with_source_span(operand.source_span));
-                }
-                selected
-            } else {
-                let incomplete = context
+            })?;
+            if matching.next().is_some() {
+                return Err(Diagnostic::error(
+                    "Product provider operand has multiple prepared lexical applications",
+                )
+                .with_source_span(operand.source_span));
+            }
+            selected
+        } else {
+            let incomplete = context
+                .typed
+                .trait_definition_by_symbol(symbol)
+                .is_some_and(|definition| {
+                    !context.typed.trait_type_parameters(definition).is_empty()
+                })
+                || context
                     .typed
-                    .trait_definition_by_symbol(symbol)
+                    .conformance_by_symbol(symbol)
                     .is_some_and(|definition| {
-                        !context.typed.trait_type_parameters(definition).is_empty()
-                    })
-                    || context
-                        .typed
-                        .conformance_by_symbol(symbol)
-                        .is_some_and(|definition| {
-                            !context
-                                .typed
-                                .conformance_type_parameters(definition)
-                                .is_empty()
-                        });
-                if incomplete {
-                    return Err(Diagnostic::error(
-                        "provider choice must supply the declaration's complete static application",
-                    )
-                    .with_source_span(operand.source_span));
-                }
-                Default::default()
-            };
-            let application_identity = if application.is_valid() {
-                context
-                    .typed
-                    .product_operand_application_identity(application)
-                    .map_err(|reason| {
-                        Diagnostic::error(reason).with_source_span(operand.source_span)
-                    })?
-                    .map(|identity| {
-                        context.typed.type_identity_text(identity).ok_or_else(|| {
-                            Diagnostic::error("Product application lost its canonical identity")
-                        })
-                    })
-                    .transpose()?
-            } else {
-                None
-            };
-            Ok(ProviderSelectionIdentity {
-                application,
-                application_identity,
-                symbol,
-                package: context.typed.symbols.symbol_package_identity(symbol),
-                canonical_path: context.typed.symbols.display_path(symbol, "::"),
-                authored_path: operand.path.clone(),
-            })
+                        !context
+                            .typed
+                            .conformance_type_parameters(definition)
+                            .is_empty()
+                    });
+            if incomplete {
+                return Err(Diagnostic::error(
+                    "provider choice must supply the declaration's complete static application",
+                )
+                .with_source_span(operand.source_span));
+            }
+            Default::default()
         };
+        let application_identity = if application.is_valid() {
+            context
+                .typed
+                .product_operand_application_identity(application)
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(operand.source_span))?
+                .map(|identity| {
+                    context.typed.type_identity_text(identity).ok_or_else(|| {
+                        Diagnostic::error("Product application lost its canonical identity")
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        Ok(ProviderSelectionIdentity {
+            application,
+            application_identity,
+            symbol,
+            package: context.typed.symbols.symbol_package_identity(symbol),
+            canonical_path: context.typed.symbols.display_path(symbol, "::"),
+            authored_path: operand.path.clone(),
+        })
+    };
     Ok((
         project(subject, ProductOperandKind::BoundarySubject)?,
         project(provider, ProductOperandKind::Provider)?,
@@ -137,27 +131,25 @@ pub fn validate_product_provider_description(
             "provider description lost its exact two operands",
         ));
     };
-    let describe =
-        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-         role|
-         -> Result<ProviderSelectionIdentity, Diagnostic> {
-            let symbol =
-                resolve_product_path(context.typed, &operand.path, operand.source_span, role)
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "provider description does not name one exact visible declaration",
-                        )
-                        .with_source_span(operand.source_span)
-                    })?;
-            Ok(ProviderSelectionIdentity {
-                symbol,
-                application: Default::default(),
-                application_identity: None,
-                package: context.typed.symbols.symbol_package_identity(symbol),
-                canonical_path: context.typed.symbols.display_path(symbol, "::"),
-                authored_path: operand.path.clone(),
-            })
-        };
+    let describe = |operand: &ProductDeclarationOperand,
+                    role|
+     -> Result<ProviderSelectionIdentity, Diagnostic> {
+        let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "provider description does not name one exact visible declaration",
+                )
+                .with_source_span(operand.source_span)
+            })?;
+        Ok(ProviderSelectionIdentity {
+            symbol,
+            application: Default::default(),
+            application_identity: None,
+            package: context.typed.symbols.symbol_package_identity(symbol),
+            canonical_path: context.typed.symbols.display_path(symbol, "::"),
+            authored_path: operand.path.clone(),
+        })
+    };
     admission::form(
         context,
         describe(subject, ProductOperandKind::BoundarySubject)?,

@@ -1,5 +1,6 @@
 //! Fresh project inspection without accepting or publishing package changes.
 
+use super::prepare_project::LOCAL_PROJECT_CONTEXT;
 mod report;
 mod sources;
 
@@ -168,7 +169,7 @@ impl PreparedPackageInspection<'_> {
         AcquiredBuildSource::capture_local(
             self.transaction.project_root(),
             LocalSourceLimits::default(),
-            ExternalSourceContext::derive(super::prepare_project::LOCAL_PROJECT_CONTEXT),
+            ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         )
         .map_err(failure)
     }
@@ -188,7 +189,7 @@ impl PreparedPackageInspection<'_> {
             .as_ref()
             .and_then(|lock| lock.targets().first())
             .map(PackageLockTarget::source);
-        let context = ExternalSourceContext::derive(super::prepare_project::LOCAL_PROJECT_CONTEXT);
+        let context = ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT);
         if let Some(source) = source
             && !matches!(source.root().request(), CanonicalRootSourceRequest::ExternalLocal { source_context, .. } if source_context == &context)
         {
@@ -222,9 +223,7 @@ impl PreparedPackageInspection<'_> {
     fn root_request(&self) -> PackageRootSourceRequest {
         PackageRootSourceRequest::ExternalLocal {
             requested_root: self.transaction.project_root().to_path_buf(),
-            source_context: ExternalSourceContext::derive(
-                super::prepare_project::LOCAL_PROJECT_CONTEXT,
-            ),
+            source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         }
     }
 

@@ -11,6 +11,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
 use facts::PlaceSegment;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -39,9 +40,7 @@ pub(super) fn retained_receiver_projection<'name>(
             .data_members(definition)
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
-                    Some(field)
-                }
+                DataMember::Field(field) if field.name.as_str() == name => Some(field),
                 _ => None,
             });
         let field = candidates.next()?;
@@ -383,11 +382,7 @@ pub(super) fn projected_carrier_reference_origins(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    Some(field)
-                }
+                DataMember::Field(field) if field.name.as_str() == member_name => Some(field),
                 _ => None,
             })?;
         segments.push(PlaceSegment::Field {

@@ -5,6 +5,7 @@ use super::{
     ranges,
     views::Order,
 };
+use crate::checks::current_scalar_values::parameter_projection_paths;
 use typed_trees::expression::BinaryOperator;
 use validation::ScopedArithmeticValue;
 
@@ -35,9 +36,7 @@ pub(super) fn prepare(
     let mut field_paths = Vec::new();
     for machine in machines {
         for state in program.machine_states(machine) {
-            for path in crate::checks::current_scalar_values::parameter_projection_paths(
-                program, machine, state,
-            ) {
+            for path in parameter_projection_paths(program, machine, state) {
                 if !field_paths.contains(&path) {
                     field_paths.push(path);
                 }
@@ -47,8 +46,14 @@ pub(super) fn prepare(
     // Projection requirements are produced by the selected views, not
     // rediscovered only when a body happens to spell the same member access.
     for view in authored.iter().flatten() {
-        if !view.coordinate.path.is_empty() && !field_paths.contains(&view.coordinate.path) {
-            field_paths.push(view.coordinate.path.clone());
+        for coordinate in std::iter::once(&view.coordinate).chain(
+            view.upper
+                .as_ref()
+                .and_then(|upper| upper.coordinate.as_ref()),
+        ) {
+            if !coordinate.path.is_empty() && !field_paths.contains(&coordinate.path) {
+                field_paths.push(coordinate.path.clone());
+            }
         }
     }
     let mut candidates = Vec::new();
@@ -89,32 +94,48 @@ pub(super) fn prepare(
         if selected_order.is_some_and(|previous| previous != (order, carrier, view.declaration)) {
             return None;
         }
-        if order != Order::Descending && order.function().complement_ceiling(carrier).is_none() {
+        if order != Order::Descending
+            && !matches!(carrier, typed_trees::unsigned_integer_primitive_pattern!())
+        {
             return None;
         }
         selected_order = Some((order, carrier, view.declaration));
         if let Err(reason) = ranges::entry(program, machine, view.measure, frames) {
             return Some(Err(reason));
         }
-        let bound = if let Some(expression) = view.upper {
-            let value = values.current_value(expression)?;
+        let bound = if let Some(upper) = &view.upper {
+            let bound = if let Some(input) = &upper.coordinate {
+                let coordinate = available.last()?.iter().find(|coordinate| {
+                    coordinate.parameter == input.parameter
+                        && values.same_scalar_projection(&coordinate.path, &input.path)
+                        && coordinate.observation == validation::RankPremiseObservation::Value
+                });
+                let Some(coordinate) = coordinate else {
+                    return Some(Err(
+                        "a natural rank upper coordinate lacks independent entry receipts",
+                    ));
+                };
+                Bound::Coordinate(coordinate.clone())
+            } else {
+                Bound::Authored {
+                    expression: upper.expression,
+                    entry_value: values.current_value(upper.expression)?,
+                }
+            };
             if order == Order::BoundedDistance
                 && !values.proves_values_relation(
                     program,
                     machine,
                     BinaryOperator::LessOrEqual,
                     &selected.entry_value,
-                    &value,
+                    bound.entry(),
                 )
             {
                 return Some(Err(
                     "a bounded cursor rank lacks independent entry formation",
                 ));
             }
-            Some(Bound::Authored {
-                expression,
-                entry_value: value,
-            })
+            Some(bound)
         } else {
             None
         };

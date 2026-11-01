@@ -1,5 +1,6 @@
 //! Resolve retained receiver identities to exact callable targets.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::machine_symbol_from_type_reference_handle;
 use ::symbols::SymbolHandle;
@@ -8,7 +9,7 @@ use checked_trees::name::Identifier;
 use checked_trees::statement::TableCall;
 
 pub fn statement_call_can_dispatch_to_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &TableCall,
@@ -33,14 +34,14 @@ pub fn statement_call_can_dispatch_to_machine(
 }
 
 pub fn statement_call_receiver_members<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     call: &TableCall,
 ) -> Option<&'a [Identifier]> {
     (!call.receiver.is_empty()).then(|| program.statement_table.name_path_members(call.receiver))
 }
 
 pub fn statement_call_receiver_path(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &typed_trees::state::State,
     before: usize,
     call: &TableCall,
@@ -68,7 +69,7 @@ pub fn statement_call_receiver_path(
 }
 
 pub fn call_receiver_parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     receiver: ExpressionHandle,
 ) -> (SymbolHandle, Option<checked_trees::expression::NamePath>) {
     if !receiver.is_valid() {
@@ -114,7 +115,7 @@ pub fn call_receiver_parts(
 }
 
 pub fn resolve_name_path_member_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     path: &typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
@@ -157,7 +158,7 @@ pub fn resolve_name_path_member_symbol(
 }
 
 pub fn resolve_state_call_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -295,7 +296,7 @@ pub fn resolve_state_call_target(
 /// by `machine`, or invalid. Such a target is a callable signature during
 /// modular checking and becomes a concrete state only during specialization.
 pub fn machine_parameter_signature_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
@@ -312,7 +313,7 @@ pub fn machine_parameter_signature_symbol(
 
 /// The exact entered state of an already resolved machine head or state.
 fn state_symbol_in_any_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     super::call_target_state(program, target_symbol)
@@ -324,7 +325,7 @@ fn state_symbol_in_any_machine(
 /// Looking only through authored declaration rosters drops those instances
 /// during borrow discovery, leaving their executable calls without flow facts.
 pub fn trait_machine_signature_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if program.trait_machine_signature(target_symbol).is_some() {
@@ -339,7 +340,7 @@ pub fn trait_machine_signature_symbol(
 /// on a data-typed reference receiver (a `&mut Data` param, or a devirtualized
 /// `dyn Trait`) to the implementing machine's state.
 fn attached_machine_state_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     data_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     target_state: &Identifier,
@@ -368,10 +369,7 @@ fn attached_machine_state_symbol(
 
 /// Whether `data_symbol` is a data type that has at least one machine attached to
 /// it (so a `&mut Data` receiver can dispatch a method call to that machine).
-fn data_type_has_attached_machine(
-    program: &dyn crate::CheckingInput,
-    data_symbol: SymbolHandle,
-) -> bool {
+fn data_type_has_attached_machine(program: &dyn CheckingInput, data_symbol: SymbolHandle) -> bool {
     data_symbol.is_valid()
         && program
             .data_definition_by_symbol(data_symbol)
@@ -384,7 +382,7 @@ fn data_type_has_attached_machine(
 }
 
 pub fn receiver_can_dispatch_to_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -415,7 +413,7 @@ pub fn receiver_can_dispatch_to_machine(
 }
 
 fn receiver_field_type_machine_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
@@ -431,7 +429,7 @@ fn receiver_field_type_machine_symbol(
 }
 
 fn attached_data_field_type_reference(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -445,7 +443,7 @@ fn attached_data_field_type_reference(
 }
 
 fn resolve_state_symbol_in_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
 ) -> SymbolHandle {
@@ -469,7 +467,7 @@ fn resolve_state_symbol_in_machine(
 /// The access plan selects the same exact generated accessor for checking,
 /// flow, loans and execution. An already-resolved target may not be substituted.
 pub(crate) fn accessor_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     members: &[String],

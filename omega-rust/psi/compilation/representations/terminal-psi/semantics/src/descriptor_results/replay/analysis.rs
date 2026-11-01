@@ -1,5 +1,7 @@
 use super::replay::Origin;
 use super::*;
+use crate::descriptor_lifetimes::descriptor_location;
+use crate::descriptor_lifetimes::descriptor_location_type;
 
 mod call_origins;
 
@@ -298,13 +300,7 @@ impl<'a> DescriptorAnalysis<'a> {
         if *projection != Projection::new(&projection.path) {
             return None;
         }
-        crate::descriptor_lifetimes::descriptor_location(
-            self.replay.types,
-            *source,
-            ty,
-            &projection.path,
-            None,
-        )?;
+        descriptor_location(self.replay.types, *source, ty, &projection.path, None)?;
         Some(())
     }
     /// Conservative geometry for callers which cannot retain symbolic contents.
@@ -542,13 +538,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let call = machine.calls.get(&position)?;
         let callee = self.replay.machine(call.stored_effects_callee()?)?;
         let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
-        let relative = crate::descriptor_lifetimes::descriptor_location(
-            self.replay.types,
-            *source,
-            ty,
-            &projection.path,
-            None,
-        )?;
+        let relative = descriptor_location(self.replay.types, *source, ty, &projection.path, None)?;
         let actual = self.replay.actual_slot(call, parameter, &relative.path)?;
         let before = self
             .replay
@@ -935,7 +925,7 @@ impl<'a> DescriptorAnalysis<'a> {
                                 let mut spelling =
                                     descriptor_path(self.replay.types, root_type, &source.path)?;
                                 spelling.extend_from_slice(&projection.path);
-                                source = crate::descriptor_lifetimes::descriptor_location(
+                                source = descriptor_location(
                                     self.replay.types,
                                     source.root,
                                     root_type,
@@ -953,7 +943,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     if matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                         && let Some(rules) = residence_rules.as_deref_mut()
                     {
-                        let source_type = crate::descriptor_lifetimes::descriptor_location_type(
+                        let source_type = descriptor_location_type(
                             self.replay.types,
                             *machine.place_types.get(&pair.0.root)?,
                             &pair.0.path,

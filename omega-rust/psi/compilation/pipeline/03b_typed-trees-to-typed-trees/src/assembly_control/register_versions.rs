@@ -64,9 +64,7 @@ pub(super) fn statement(
     let mut expressions = Vec::new();
     collect_statement_expression_trees(program, &statement, &mut expressions);
     for expression in expressions {
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            expressions_of(program).expression(expression)
-        else {
+        let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
             continue;
         };
         if !registers
@@ -78,8 +76,7 @@ pub(super) fn statement(
         let mut members = HandleSpan::empty();
         let identifier = Identifier::generated(program.symbols.name(path.symbol));
         expressions_of_mut(program).push_name_path_member(&mut members, identifier);
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            expressions_of_mut(program).expression_mut(expression)
+        let ExpressionNode::Name(path) = expressions_of_mut(program).expression_mut(expression)
         else {
             unreachable!()
         };

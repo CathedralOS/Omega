@@ -7,6 +7,7 @@ use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
+use typed_trees::data::DataVariant;
 use typed_trees::expression::{
     ExpressionNode, MatchFieldAction, MatchPattern, TableMatchExpression,
 };
@@ -303,10 +304,7 @@ pub fn structural_match_cases_are_covered(
 /// authored `where false` -- can never be established, so it is not an
 /// obligation the match must cover. Facts needing evaluation are not
 /// contradictions and stay counted.
-fn variant_is_impossible(
-    program: &dyn crate::CheckingInput,
-    variant: &typed_trees::data::DataVariant,
-) -> bool {
+fn variant_is_impossible(program: &dyn crate::CheckingInput, variant: &DataVariant) -> bool {
     program
         .proof_facts
         .span_or_empty(variant.where_facts)

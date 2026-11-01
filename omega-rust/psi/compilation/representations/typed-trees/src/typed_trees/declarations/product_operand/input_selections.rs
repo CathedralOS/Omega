@@ -1,6 +1,7 @@
 //! Receiving-world custody of real static inputs. Source coordinates rejoin
 //! occurrence IDs during preparation; immutable checking reads the actual
 //! operand/type again rather than accepting a preselected symbol as evidence.
+use crate::expression::ExpressionHandle;
 use crate::{
     TypedTrees,
     expression::StaticMachineArgument,
@@ -94,10 +95,8 @@ impl ProductInputSelection {
                 struct Inputs {
                     types:
                         std::collections::HashSet<TypeReferenceHandle, symbols::BuildSymbolHasher>,
-                    expressions: std::collections::HashSet<
-                        crate::expression::ExpressionHandle,
-                        symbols::BuildSymbolHasher,
-                    >,
+                    expressions:
+                        std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
                 }
                 impl Extend<SymbolHandle> for Inputs {
                     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
@@ -106,10 +105,7 @@ impl ProductInputSelection {
                     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
                         self.types.insert(reference)
                     }
-                    fn expression(
-                        &mut self,
-                        expression: crate::expression::ExpressionHandle,
-                    ) -> bool {
+                    fn expression(&mut self, expression: ExpressionHandle) -> bool {
                         self.expressions.insert(expression)
                     }
                     fn proof_fact(&mut self, _: arena::Handle<crate::domain::ProofFact>) -> bool {

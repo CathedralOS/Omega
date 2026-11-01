@@ -6,6 +6,7 @@
 //! grant no observation or custody. All purposes use one geometry walk. Stores
 //! retain their own explicit, exclusive projection walk.
 
+use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedUnitStructuralPathSegment;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -288,9 +289,7 @@ fn resolve_path<'a>(
                 }
                 _ => return unsupported("byte observation requires an element selector"),
             }
-            let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
-                typed_trees::types::PrimitiveType::U8,
-            )?;
+            let scalar_type = terminal_scalar_type(typed_trees::types::PrimitiveType::U8)?;
             let element = StructuralFieldType::Scalar(scalar_type)
                 .leaf_declaration(declarations.iter())
                 .ok_or(LoweringError::Unsupported(

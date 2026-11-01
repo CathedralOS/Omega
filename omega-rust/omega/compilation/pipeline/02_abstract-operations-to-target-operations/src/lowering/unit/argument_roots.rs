@@ -9,6 +9,7 @@ use crate::LoweringError;
 use crate::lowering::structural_layout::structural_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
+use abstract_operations::control_flow::address_joins::is_address_join;
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -90,10 +91,7 @@ pub(in crate::lowering) fn resolve<'parameter>(
             })
             .ok_or_else(unknown)?;
         if address_joins.contains(&place)
-            && !abstract_operations::control_flow::address_joins::is_address_join(
-                declaration,
-                |identity| types.get(&identity).copied(),
-            )
+            && !is_address_join(declaration, |identity| types.get(&identity).copied())
         {
             return Err(unknown());
         }

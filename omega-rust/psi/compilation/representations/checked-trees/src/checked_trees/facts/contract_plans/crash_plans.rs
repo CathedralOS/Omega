@@ -1,9 +1,15 @@
 //! Crash route buckets and crash plans.
 
+use crate::CheckedBooleanExpression::Not;
+use crate::CheckedScalarExpression::Boolean;
+use crate::CheckedScalarExpression::IntegerExactCast;
+use crate::CheckedScalarExpression::StructuralSequenceLength;
+use crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite;
 use crate::checked_trees::facts::contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CrashCause, CrashInterface, CrashRouteBucketId,
     CrashRouteGuard, CrashSiteLocation,
 };
+use language_semantics::PermissionClaimIdentity::Unknown;
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
@@ -95,8 +101,7 @@ pub struct CrashPlan {
     structural_runtime_guarantees: Option<Vec<crate::CheckedBooleanExpression>>,
     checked_sites: Vec<CheckedCrashSite>,
     checked_calls: Vec<CheckedCrashCallSite>,
-    checked_operators:
-        Vec<crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite>,
+    checked_operators: Vec<CheckedCrashOperatorSite>,
     /// Body statements whose planned scalar value executes a Trapping
     /// primitive, including operations proved unable to trap. Physical
     /// inventory stays independent of the implementation possibility and
@@ -205,14 +210,12 @@ impl CrashPlan {
     pub fn uses_structural_proof_gated_arithmetic(&self) -> bool {
         fn scalar_uses_proof_gated_arithmetic(expression: &crate::CheckedScalarExpression) -> bool {
             match expression {
-                crate::CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
-                    path.iter().any(|step| match step {
-                        crate::CheckedScalarReadProjection::Static(_) => false,
-                        crate::CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                            scalar_uses_proof_gated_arithmetic(&selector.expression)
-                        }
-                    })
-                }
+                StructuralSequenceLength { path, .. } => path.iter().any(|step| match step {
+                    crate::CheckedScalarReadProjection::Static(_) => false,
+                    crate::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                        scalar_uses_proof_gated_arithmetic(&selector.expression)
+                    }
+                }),
                 crate::CheckedScalarExpression::StructuralParameterIndexedRead {
                     index,
                     element_path,
@@ -274,12 +277,8 @@ impl CrashPlan {
                 }
                 crate::CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
                 | crate::CheckedScalarExpression::IntegerWiden { operand, .. }
-                | crate::CheckedScalarExpression::IntegerExactCast { operand, .. } => {
-                    scalar_uses_proof_gated_arithmetic(operand)
-                }
-                crate::CheckedScalarExpression::Boolean(expression) => {
-                    boolean_uses_proof_gated_arithmetic(expression)
-                }
+                | IntegerExactCast { operand, .. } => scalar_uses_proof_gated_arithmetic(operand),
+                Boolean(expression) => boolean_uses_proof_gated_arithmetic(expression),
                 _ => false,
             }
         }
@@ -288,9 +287,7 @@ impl CrashPlan {
             expression: &crate::CheckedBooleanExpression,
         ) -> bool {
             match expression {
-                crate::CheckedBooleanExpression::Not(operand) => {
-                    boolean_uses_proof_gated_arithmetic(operand)
-                }
+                Not(operand) => boolean_uses_proof_gated_arithmetic(operand),
                 crate::CheckedBooleanExpression::Equal { left, right }
                 | crate::CheckedBooleanExpression::And { left, right }
                 | crate::CheckedBooleanExpression::Or { left, right } => {
@@ -333,9 +330,7 @@ impl CrashPlan {
             site.guard_covering_buckets.iter().any(|bucket| {
                 self.published_bucket(*bucket)
                     .is_none_or(|published| published.cause != site.cause)
-            }) || site
-                .frontier_lower_bound
-                .contains(&language_semantics::PermissionClaimIdentity::Unknown)
+            }) || site.frontier_lower_bound.contains(&Unknown)
         }) {
             return None;
         }
@@ -397,13 +392,11 @@ impl CrashPlan {
 
     pub fn with_checked_operators(
         mut self,
-        mut operators: Vec<
-            crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite,
-        >,
+        mut operators: Vec<CheckedCrashOperatorSite>,
     ) -> Option<Self> {
         // Exactly one identity form is valid on a site: a spelled use carries
         // its `operator_use`/`invocation` pair, a named call its `named_use`.
-        let identity = |site: &crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite| {
+        let identity = |site: &CheckedCrashOperatorSite| {
             if site.named_use.is_valid() {
                 (1, site.named_use.arena_index(), site.named_use.generation())
             } else {
@@ -430,9 +423,7 @@ impl CrashPlan {
         Some(self)
     }
 
-    pub fn checked_operators(
-        &self,
-    ) -> &[crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite] {
+    pub fn checked_operators(&self) -> &[CheckedCrashOperatorSite] {
         &self.checked_operators
     }
 

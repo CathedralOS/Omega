@@ -145,12 +145,11 @@ impl PreparedPackageBuild {
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build = &prepared.built.computed_build_config;
-        let (declarations, intents) =
-            build_time_evaluation::native_bindings::capture_package_intents(
-                inputs.root(),
-                &build.native_formations,
-                &build.native_binding_requests,
-            )?;
+        let (declarations, intents) = prepared.built.source.capture_package_native_bindings(
+            inputs.root(),
+            &build.native_formations,
+            &build.native_binding_requests,
+        )?;
         let build_handoff = build_handoff
             .with_native_binding_outputs(
                 declarations,

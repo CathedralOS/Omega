@@ -2,7 +2,9 @@
 
 use super::demands::compatibility_demand_verdict;
 use super::{WireCase, WireCompatibilityDemand, WireDemandVerdict, WireField, WireShape};
+use crate::CheckingInput;
 use arena::HandleSpan;
+use typed_trees::data::DataDefinition;
 use typed_trees::wire::{WireMember, WireSchema};
 
 /// Exact schema path and the value type used to select PreservingDecode.
@@ -13,7 +15,7 @@ pub(super) struct SchemaRow {
 }
 
 pub(super) fn check_wire_demands(
-    typed: &dyn crate::CheckingInput,
+    typed: &dyn CheckingInput,
     compatibility_demands: &[WireCompatibilityDemand],
 ) -> Vec<WireDemandVerdict> {
     if compatibility_demands.is_empty() {
@@ -64,7 +66,7 @@ pub(super) fn check_wire_demands(
 }
 
 pub(super) fn qualified_schema_path(
-    typed: &dyn crate::CheckingInput,
+    typed: &dyn CheckingInput,
     symbol: symbols::SymbolHandle,
     fallback_name: &str,
 ) -> String {
@@ -76,10 +78,7 @@ pub(super) fn qualified_schema_path(
     }
 }
 
-fn ordinary_data_shape(
-    typed: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-) -> Option<WireShape> {
+fn ordinary_data_shape(typed: &dyn CheckingInput, data: &DataDefinition) -> Option<WireShape> {
     use typed_trees::data::DataMember;
 
     let members = typed.data_members(data);
@@ -137,10 +136,7 @@ fn ordinary_data_shape(
     })
 }
 
-fn collect_fields(
-    typed: &dyn crate::CheckingInput,
-    members: HandleSpan<WireMember>,
-) -> Vec<WireField> {
+fn collect_fields(typed: &dyn CheckingInput, members: HandleSpan<WireMember>) -> Vec<WireField> {
     typed
         .wire_members(members)
         .iter()
@@ -155,7 +151,7 @@ fn collect_fields(
         .collect()
 }
 
-fn schema_shape(typed: &dyn crate::CheckingInput, schema: &WireSchema) -> WireShape {
+fn schema_shape(typed: &dyn CheckingInput, schema: &WireSchema) -> WireShape {
     WireShape {
         name: schema.name.to_string(),
         encoding: schema

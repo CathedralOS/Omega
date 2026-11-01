@@ -5,6 +5,12 @@ use super::cleanup_dispositions::{
     CustodyCut, RemainingCustody, StorageBindingChange, StorageEstablishment, TransferCustody,
 };
 use super::linear_obligations::LinearPlace;
+use crate::checks::ownership_occurrences::EvaluationBranch;
+use crate::checks::ownership_occurrences::StatementOccurrence;
+use crate::checks::ownership_occurrences::routes_compatible;
+use crate::checks::places::place_or_root_in;
+use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::state_statements;
 use checked_trees::{
     ContextualCleanupFacts, FlowClaimJoinExit, FlowOwnershipFacts, FlowPermissionEventFact,
 };
@@ -35,7 +41,7 @@ struct SourceBinding {
     statement: usize,
     evaluation: checked_trees::FlowPermissionEvaluation,
     cut: CustodyCut,
-    route: Vec<crate::checks::ownership_occurrences::EvaluationBranch>,
+    route: Vec<EvaluationBranch>,
     detached_paths: Vec<Vec<PlaceSegment>>,
     unknown_write: bool,
 }
@@ -67,9 +73,10 @@ impl SourceBinding {
 
     fn carries_path(&self, program: &dyn validation::CheckingInput, path: &[PlaceSegment]) -> bool {
         !self.unknown_write
-            && !self.detached_paths.iter().any(|detached| {
-                crate::flow::canonical_place_segments_may_overlap(program, detached, path)
-            })
+            && !self
+                .detached_paths
+                .iter()
+                .any(|detached| canonical_place_segments_may_overlap(program, detached, path))
     }
 }
 
@@ -89,7 +96,7 @@ impl SelectedCleanup {
         transfers: &[TransferCustody],
         observations: &[super::linear_validation::ObservedCustody],
         events: &[FlowPermissionEventFact],
-        occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
+        occurrences: &[StatementOccurrence],
     ) -> Result<(), diagnostics::Diagnostic> {
         let receipt = ownership.owned_selections.get(selection);
         for source in ownership.selection_sources.span_or_empty(receipt.sources) {
@@ -125,11 +132,8 @@ impl SelectedCleanup {
                 .map(|transfer| ownership.segments.span_or_empty(transfer.path).to_vec())
                 .collect::<Vec<_>>();
             for transfer in &selected_transfers {
-                let source_place = crate::checks::places::place_or_root_in(
-                    &ownership.segments,
-                    transfer.root,
-                    transfer.path,
-                );
+                let source_place =
+                    place_or_root_in(&ownership.segments, transfer.root, transfer.path);
                 let (places, remaining, cut) = super::owned_selection::evaluated_source_custody(
                     ownership,
                     transfer.expression,
@@ -234,7 +238,7 @@ impl SelectedCleanup {
         routes: &super::selected_evaluation::ExpressionRoutes,
         calls: &[checked_trees::FlowCallFact],
         events: &[FlowPermissionEventFact],
-        occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
+        occurrences: &[StatementOccurrence],
         establishments: &[StorageEstablishment],
         binding_changes: &[StorageBindingChange],
         ownership: &mut FlowOwnershipFacts,
@@ -538,12 +542,7 @@ impl SelectedCleanup {
                         | PermissionEventSource::Call { statement_index, .. }
                         if statement_index == binding.statement)
                     && change.evaluation == binding.evaluation;
-                if same_evaluation
-                    && !crate::checks::ownership_occurrences::routes_compatible(
-                        &binding.route,
-                        &change.route,
-                    )
-                {
+                if same_evaluation && !routes_compatible(&binding.route, &change.route) {
                     continue;
                 }
                 let Some(writes) = &change.writes else {
@@ -671,7 +670,7 @@ impl SelectedCleanup {
             .map(|parameter| PlaceRoot::Symbol(parameter.symbol))
             .collect::<Vec<_>>();
         roots.extend(
-            crate::flow::state_statements(program, state.statement_nodes)
+            state_statements(program, state.statement_nodes)
                 .iter()
                 .filter_map(|statement| {
                     statement

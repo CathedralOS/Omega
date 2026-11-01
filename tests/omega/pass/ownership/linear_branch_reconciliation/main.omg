@@ -1,7 +1,9 @@
 // PASS canary (decision 21): transition arms are alternatives, not sequential
 // copies. Both paths transfer the same obligation into a consuming state.
 data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data Main { choose_first: bool; }
 
@@ -13,12 +15,12 @@ machine Main::main(main: &mut Main) -> i32 {
     }
 
     machine consume_first(receipt: Receipt) -> i32 {
-        Receipt::ack(receipt);
+        ReceiptAck::ack(receipt);
         0
     }
 
     machine consume_second(receipt: Receipt) -> i32 {
-        Receipt::ack(receipt);
+        ReceiptAck::ack(receipt);
         0
     }
 }

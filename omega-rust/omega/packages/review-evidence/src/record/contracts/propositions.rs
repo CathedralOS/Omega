@@ -5,6 +5,9 @@ use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
+use language_semantics::CarryAddress;
+use language_semantics::CarryHostThread;
+use language_semantics::CarrySuspension;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderKind {
@@ -44,19 +47,10 @@ fn package_review_data_properties_key(
     };
     let carry = properties.carry.map(|carry| {
         (
-            u8::from(matches!(
-                carry.suspension,
-                language_semantics::CarrySuspension::Allowed
-            )),
+            u8::from(matches!(carry.suspension, CarrySuspension::Allowed)),
             u8::from(matches!(carry.cpu, language_semantics::CarryCpu::Any)),
-            u8::from(matches!(
-                carry.host_thread,
-                language_semantics::CarryHostThread::Any
-            )),
-            u8::from(matches!(
-                carry.address,
-                language_semantics::CarryAddress::Movable
-            )),
+            u8::from(matches!(carry.host_thread, CarryHostThread::Any)),
+            u8::from(matches!(carry.address, CarryAddress::Movable)),
         )
     });
     (multiplicity, carry)

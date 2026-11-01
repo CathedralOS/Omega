@@ -3,6 +3,7 @@
 //! result is judged with the operand captures available before adaptation;
 //! the adapted result's normal-return guarantees cannot exclude its own trap.
 
+use crate::facts::operator_crashes::named_call_operands;
 use crate::flow::expressions;
 use checked_trees::{
     CheckFacts, CheckedArithmeticPolicyAdapter, CheckedValueOrigin, CrashSiteLocation,
@@ -77,9 +78,7 @@ pub(super) fn raw_result_is_finite(
     } else {
         expressions(program)
             .call_node(operation.expression)
-            .and_then(|call| {
-                crate::facts::operator_crashes::named_call_operands(program, call, parameters)
-            })
+            .and_then(|call| named_call_operands(program, call, parameters))
     };
     let Some(operands) = operands else {
         return false;

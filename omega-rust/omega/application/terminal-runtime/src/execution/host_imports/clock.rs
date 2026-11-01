@@ -32,6 +32,7 @@ use terminal_interpreter::{
 use terminal_psi::BoundaryMachineDeclaration;
 
 use super::TerminalRuntimeError;
+use native_provider_runtime::read_host_clock_nanoseconds;
 
 mod admission;
 mod timespec;
@@ -137,11 +138,9 @@ impl TerminalClockEnvironment {
                 // Validate the same supported clock family before observing
                 // the OS. CPU, descriptor and alarm clocks need other custody.
                 namespace.validate_selector(selector)?;
-                native_provider_runtime::read_host_clock_nanoseconds(selector as u32).map_err(
-                    |error| {
-                        TerminalEffectRejection::new(format!("host clock observation: {error}"))
-                    },
-                )
+                read_host_clock_nanoseconds(selector as u32).map_err(|error| {
+                    TerminalEffectRejection::new(format!("host clock observation: {error}"))
+                })
             }
         }
     }

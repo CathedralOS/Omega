@@ -13,6 +13,7 @@ use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
 fn dispatch_route(
@@ -53,12 +54,7 @@ impl Expansion<'_> {
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
         let request =
-            crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
-                identities,
-                self.checked,
-                subject,
-                self.structural_types,
-            )?;
+            ValueRequest::prepare(identities, self.checked, subject, self.structural_types)?;
         let arms = value_facts(&self.checked)
             .scalar_computations
             .dispatch_arms

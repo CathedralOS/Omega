@@ -32,8 +32,9 @@ pub use rank_components::{
 pub(crate) mod runtime_ranking;
 pub use rank_relevance::{RankRelevance, rank_relevance};
 pub use runtime_ranking::{
-    RuntimeRankBodyWitness, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
-    ValidatedRuntimeNaturalState, activation_target_state_index, internal_state_index,
+    RuntimeRankBodyWitness, RuntimeRankInput, RuntimeRankOperand, ValidatedRuntimeIntegerRank,
+    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
+    activation_target_state_index, internal_state_index,
 };
 
 /// The one closed ranking relation currently admitted for a proof-only call

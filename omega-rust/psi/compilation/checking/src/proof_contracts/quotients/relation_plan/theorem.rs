@@ -8,6 +8,7 @@ use super::representative::RepresentativeRuntimeParameter;
 use super::static_application::validate_static_application;
 use super::{RelationPlanError, RepresentativeStaticApplication};
 use arena::HandleSpan;
+use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::machine::Machine;
@@ -36,9 +37,7 @@ pub(super) fn derive_selected_theorem_telescope(
     selected: &StaticMachineArgument,
 ) -> Result<SelectedTheoremTelescope, RelationPlanError> {
     let (machine, state) = selected_theorem_machine_state(program, selected.symbol)?;
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.body_is_present
-    {
+    if machine.supply_mode != MachineSupplyMode::CheckedBody || !machine.body_is_present {
         return Err(RelationPlanError::TheoremMustBeCheckedBody);
     }
     if !matches!(

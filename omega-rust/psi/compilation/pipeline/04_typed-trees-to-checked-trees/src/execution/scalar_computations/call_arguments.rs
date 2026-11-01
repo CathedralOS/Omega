@@ -1,6 +1,14 @@
 use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
+use crate::execution::terminal_unit::cleanup::projected_temporary_cleanup;
+use crate::execution::terminal_unit::strips_erased_parameter;
+use crate::execution::terminal_unit::structural_computation_argument;
+use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+use crate::flow::CapturedSubjectFacts;
+use crate::semantic::calls::shared_argument_referent;
+use crate::values::mutable_scalar_parameter_type;
 use crate::values::scalar::call_lowering::call_is_boundary;
 use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
+use crate::values::scalar_expression_type;
 
 #[derive(Clone, Copy)]
 pub(super) enum CallOperandCustody {
@@ -41,7 +49,7 @@ impl Builder<'_, '_> {
             value
         } else {
             let operand = self.integer_operand(expression, None)?;
-            if !crate::values::scalar_expression_type(&operand.value)
+            if !scalar_expression_type(&operand.value)
                 .is_some_and(|primitive| primitive.is_fixed_integer())
             {
                 return None;
@@ -131,7 +139,7 @@ impl Builder<'_, '_> {
         for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
             // An erased parameter position has no scalar ordinal: the callee
             // plan (`execution::unit::calls`) skips it the same way.
-            match crate::execution::terminal_unit::strips_erased_parameter(parameter) {
+            match strips_erased_parameter(parameter) {
                 Some(true) => continue,
                 Some(false) => {}
                 None => return,
@@ -169,8 +177,7 @@ impl Builder<'_, '_> {
             };
             if parameter.is_const
                 || (parameter.is_mutable
-                    && crate::values::mutable_scalar_parameter_type(self.program, parameter)
-                        .is_none())
+                    && mutable_scalar_parameter_type(self.program, parameter).is_none())
             {
                 return;
             }
@@ -238,8 +245,7 @@ impl Builder<'_, '_> {
                             .program
                             .primitive_type_reference(parameter.type_reference)
                             .is_some()
-                        && crate::values::mutable_scalar_parameter_type(self.program, parameter)
-                            .is_none())
+                        && mutable_scalar_parameter_type(self.program, parameter).is_none())
             })
         {
             return None;
@@ -263,7 +269,7 @@ impl Builder<'_, '_> {
             // argument as proof material only: no scalar operand and
             // no structural argument, matching the callee's stripped
             // signature plan (`execution::unit::calls::signatures`).
-            if crate::execution::terminal_unit::strips_erased_parameter(parameter)? {
+            if strips_erased_parameter(parameter)? {
                 continue;
             }
             if let Some(primitive_type) = self
@@ -303,10 +309,10 @@ impl Builder<'_, '_> {
                 } else {
                     (|| {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
-                        let mut argument_plan = crate::execution::terminal_unit::structural_computation_argument(
+                        let mut argument_plan = structural_computation_argument(
                             self.program,
                             &mut self.shapes,
-                            crate::flow::CapturedSubjectFacts {
+                            CapturedSubjectFacts {
                                 semantic: self.semantic,
                                 flow: self.flow,
                                 borrow: self.borrow,
@@ -333,7 +339,7 @@ impl Builder<'_, '_> {
                             self.operators,
                             self.pure,
                             self.plans,
-                            crate::flow::CapturedSubjectFacts {
+                            CapturedSubjectFacts {
                                 semantic: self.semantic,
                                 flow: self.flow,
                                 borrow: self.borrow,
@@ -438,10 +444,7 @@ impl Builder<'_, '_> {
             let (_, supplied) =
                 validation::reference_result_custody::stored_loan_parts(self.program, actual)?;
             let required =
-                crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                    self.program,
-                    parameter.type_reference,
-                )?;
+                structural_access_for_type_reference(self.program, parameter.type_reference)?;
             if supplied != checked_trees::CheckedStructuralAccess::MutableBorrow
                 && supplied != required
             {
@@ -462,12 +465,7 @@ impl Builder<'_, '_> {
                     ..
                 } => (
                     checked_trees::CheckedStructuralAccess::SharedBorrow,
-                    crate::semantic::calls::shared_argument_referent(
-                        self.program,
-                        argument,
-                        parameter.type_reference,
-                    )?
-                    .1,
+                    shared_argument_referent(self.program, argument, parameter.type_reference)?.1,
                 ),
                 TypeReferenceNode::Reference {
                     access, referee, ..
@@ -574,13 +572,11 @@ impl Builder<'_, '_> {
                 language_semantics::Multiplicity::Unrestricted => {}
             }
         } else if !argument_plan.path.is_empty() {
-            discards = Some(
-                crate::execution::terminal_unit::cleanup::projected_temporary_cleanup(
-                    self.program,
-                    owner_type,
-                    &argument_plan,
-                )?,
-            );
+            discards = Some(projected_temporary_cleanup(
+                self.program,
+                owner_type,
+                &argument_plan,
+            )?);
         }
         if let Some(discards) = discards {
             temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {

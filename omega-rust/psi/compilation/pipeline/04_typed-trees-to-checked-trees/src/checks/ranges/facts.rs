@@ -17,6 +17,7 @@
 
 /// Membership sets take the integer hasher; none is iterated for output order.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
+use crate::flow::StateMutationSummaryCache;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
@@ -37,7 +38,7 @@ pub(super) struct RangeFacts<'field> {
     /// Integer expression intervals from validation's arithmetic walk.
     pub(super) expression_intervals: &'field [validation::ExpressionInterval],
     pub(super) checked_calls: Option<&'field RangeCallContext<'field>>,
-    pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
+    pub(super) mutation_summaries: std::borrow::Cow<'field, StateMutationSummaryCache>,
     pub(super) statement_index: usize,
     expression_dependencies: Vec<dependencies::ExpressionDependencies>,
     scalar_binding_dependencies: Vec<dependencies::ScalarBindingDependency>,
@@ -112,9 +113,7 @@ impl<'field> RangeFacts<'field> {
             checked_operators: None,
             expression_intervals: &[],
             checked_calls: None,
-            mutation_summaries: std::borrow::Cow::Owned(
-                crate::flow::StateMutationSummaryCache::default(),
-            ),
+            mutation_summaries: std::borrow::Cow::Owned(StateMutationSummaryCache::default()),
             statement_index: 0,
             expression_dependencies: Vec::new(),
             scalar_binding_dependencies: Vec::new(),

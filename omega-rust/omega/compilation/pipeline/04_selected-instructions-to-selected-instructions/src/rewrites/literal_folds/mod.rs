@@ -20,22 +20,21 @@ mod execution;
 use crate::{
     AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
     LiveRangeError, LivenessError, MachineEffectStageError, RecoveryClassificationError,
-    SpillChoiceError, StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
+    SelectedLoweringRuleCatalogError, SpillChoiceError,
+    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
     ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
     ValidatedSpillChoices,
 };
 pub(crate) use execution::validate_selected_lowering_optimization_custody;
 
-impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
-    fn from(error: crate::SelectedLoweringRuleCatalogError) -> Self {
+impl From<SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
+    fn from(error: SelectedLoweringRuleCatalogError) -> Self {
         match error {
-            crate::SelectedLoweringRuleCatalogError::WrongPhase(_) => {
-                Self::SelectionProjectionMismatch
-            }
-            crate::SelectedLoweringRuleCatalogError::MissingSelection => {
+            SelectedLoweringRuleCatalogError::WrongPhase(_) => Self::SelectionProjectionMismatch,
+            SelectedLoweringRuleCatalogError::MissingSelection => {
                 Self::MissingSelectedLoweringOptimization
             }
-            crate::SelectedLoweringRuleCatalogError::UnsupportedSelection(optimization) => {
+            SelectedLoweringRuleCatalogError::UnsupportedSelection(optimization) => {
                 Self::UnsupportedSelectedLoweringOptimization(optimization)
             }
         }

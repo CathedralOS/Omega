@@ -1,34 +1,17 @@
 //! Pre-allocation carriers, receipts, schedules, and errors.
 use std::sync::Arc;
 
-use crate::AddressFoldError;
-use crate::AllocationLegalityError;
-use crate::ConstantBooleanError;
-use crate::ConstantBranchError;
-use crate::CopiedCallOperandError;
-use crate::CopyRemovalError;
-use crate::DeadCompareError;
-use crate::EquivalentCompareError;
-use crate::LiveRangeError;
-use crate::LivenessError;
-use crate::MachineEffectStageError;
-use crate::RedundantCompareError;
-use crate::RedundantExtensionError;
-use crate::StagedOptimizedAllocationLegality;
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
-use crate::ValidatedAddressFold;
-use crate::ValidatedAllocationLegality;
-use crate::ValidatedConstantBoolean;
-use crate::ValidatedConstantBranch;
-use crate::ValidatedCopiedCallOperand;
-use crate::ValidatedCopyRemoval;
-use crate::ValidatedDeadCompare;
-use crate::ValidatedEquivalentCompare;
-use crate::ValidatedLiveRanges;
-use crate::ValidatedLiveness;
-use crate::ValidatedRedundantCompare;
-use crate::ValidatedRedundantExtension;
-use crate::{StoredLoadForwardingError, ValidatedStoredLoadForwarding};
+use crate::{
+    AddressFoldError, AllocationLegalityError, ConstantBooleanError, ConstantBranchError,
+    CopiedCallOperandError, CopyRemovalError, DeadCompareError, EquivalentCompareError,
+    LiveRangeError, LivenessError, MachineEffectStageError, RedundantCompareError,
+    RedundantExtensionError, StagedOptimizedAllocationLegality,
+    StagedOptimizedAllocationLegalityCustodyReceipt, StoredLoadForwardingError,
+    ValidatedAddressFold, ValidatedAllocationLegality, ValidatedConstantBoolean,
+    ValidatedConstantBranch, ValidatedCopiedCallOperand, ValidatedCopyRemoval,
+    ValidatedDeadCompare, ValidatedEquivalentCompare, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedStoredLoadForwarding,
+};
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,

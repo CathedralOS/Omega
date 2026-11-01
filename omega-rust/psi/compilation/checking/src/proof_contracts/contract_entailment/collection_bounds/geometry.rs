@@ -5,6 +5,7 @@
 //! This rule never fetches an entry contract or a later operation's guarantee.
 
 use super::super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableIndexedExpression};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -31,7 +32,7 @@ pub(in crate::proof_contracts::contract_entailment) fn proves_observed_bounds(
     let Some(length) = integer_operand(program, length, length_type) else {
         return false;
     };
-    let zero = StructuralTerm::Integer(numerics::bignum::BigInt::zero());
+    let zero = StructuralTerm::Integer(BigInt::zero());
     let mut value = |source: ExpressionHandle, default: StructuralTerm| {
         if !source.is_valid() {
             return Some(default);
@@ -51,9 +52,7 @@ pub(in crate::proof_contracts::contract_entailment) fn proves_observed_bounds(
             end = StructuralTerm::MathematicalBinary {
                 operator: BinaryOperator::Add,
                 left: Box::new(end),
-                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(
-                    1,
-                ))),
+                right: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
             };
         }
         vec![

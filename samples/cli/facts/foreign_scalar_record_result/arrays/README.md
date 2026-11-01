@@ -52,10 +52,14 @@ negative controls.
 workflow, building and exercising a matching-host shared library while recording
 commands and exact hashes. Linux uses `libomega_arraydiv_fixture.so` with
 `ARRAYDIV_1.0`; macOS uses `libomega_arraydiv_fixture.dylib`; Windows uses
-`omega_arraydiv_fixture.dll`. Public canonical boundary leaves and public
-locator producers bind the exact `arraydiv_lldiv` and `arraydiv_verify` exports.
-The generic native-provider sponsor consumes their complete admitted calling
-applications. No symbol-specific adapter or implicit C pointer decay is added.
+`omega_arraydiv_fixture.dll`. Each package's Build activation binds the exact
+`arraydiv_lldiv` and `arraydiv_verify` exports to `IntegerDivision::divide` and
+`IntegerDivision::verify` for the four targets, so no place declares a
+per-symbol binding helper or a bodyless realizing `boundary machine`. The
+target-body place selects one `Observation` implementation with four Build rows
+because its four target-prefixed bodies were identical. The generic
+native-provider sponsor consumes their complete admitted calling applications.
+No symbol-specific adapter or implicit C pointer decay is added.
 
 ## Required evidence
 
@@ -115,7 +119,8 @@ Each host records ten public native/Terminal zero agreements, ten canonical
 reloads, nine pinned corpus agreements and nine intended copy-removal rejects.
 The root also passes two inputs through one compilation, retaining its exact
 canonical artifact and native identity before publication. Existing observations
-retain their original producers.
+retain their original producers and describe the original `via` sources; they
+are not runs of the Build-bound sources above.
 Raw profiles, frozen inputs, exact C resources, engine outputs, canonical
 artifacts and qualification are retained in `build/owned-array-evidence` and
 `build/owned-host-evidence`.

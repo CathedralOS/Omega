@@ -1,4 +1,4 @@
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -64,10 +64,9 @@ pub(super) fn edges_to_state<'program>(
 ) -> Vec<GuardedEdge<'program>> {
     let mut edges = Vec::new();
     let mut previous = Vec::new();
-    for (statement_ordinal, statement) in
-        crate::flow::state_statements(program, source.statement_nodes)
-            .iter()
-            .enumerate()
+    for (statement_ordinal, statement) in state_statements(program, source.statement_nodes)
+        .iter()
+        .enumerate()
     {
         let Some(transition) = statement.as_transition() else {
             previous.clear();
@@ -189,21 +188,6 @@ pub(super) fn parameter_matched_by_expression<'program>(
         .state_parameters(state)
         .iter()
         .find(|parameter| expression_matches_parameter(program, expression, parameter))
-}
-
-pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    state: &'program typed_trees::state::State,
-    expression: ExpressionHandle,
-) -> Option<(&'program typed_trees::signature::StateParameter, usize)> {
-    program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .find_map(|(index, parameter)| {
-            expression_matches_parameter(program, expression, parameter)
-                .then_some((parameter, index))
-        })
 }
 
 pub(super) fn non_self_parameter_index(

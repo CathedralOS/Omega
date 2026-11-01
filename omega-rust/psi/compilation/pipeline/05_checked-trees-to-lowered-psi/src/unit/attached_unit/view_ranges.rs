@@ -14,13 +14,19 @@
 use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
 use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
     emit_prepared_path, path_with_current_bounds,
 };
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
+use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::bindings::ScalarBindings;
+use crate::expression_preparation::bindings::structural_paths::prepare_projection_path;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+use crate::expression_preparation::prepare_expression::exact_u64_index;
+use crate::terminal_identities::obligation_id;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedSubsliceSite};
 use checked_trees::{
@@ -201,30 +207,25 @@ impl RangeStorage {
         // The subslice producer omits inherited root reference shells from
         // its checked path. Its logical root metadata is distinct from this
         // selected physical home; nested suffix crossings stay on the path.
-        let mut prepared =
-            crate::expression_preparation::bindings::structural_paths::prepare_projection_path(
-                identities,
-                checked,
-                &argument.path,
-                crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
-                    published: root,
-                    logical: argument
-                        .subslice_root_type_identity()
-                        .ok_or(LoweringError::Unsupported(
-                            "range source lost its logical root",
-                        ))?,
-                    spelled_reference_hops: 0,
-                },
-                argument
-                    .subslice_storage_type_identity()
-                    .ok_or(LoweringError::Unsupported(
-                        "range source lost its collection declaration",
-                    ))?,
-                crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    argument.access,
-                ),
-                declarations,
-            )?;
+        let mut prepared = prepare_projection_path(
+            identities,
+            checked,
+            &argument.path,
+            crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
+                published: root,
+                logical: argument.subslice_root_type_identity().ok_or(
+                    LoweringError::Unsupported("range source lost its logical root"),
+                )?,
+                spelled_reference_hops: 0,
+            },
+            argument
+                .subslice_storage_type_identity()
+                .ok_or(LoweringError::Unsupported(
+                    "range source lost its collection declaration",
+                ))?,
+            terminal_access(argument.access),
+            declarations,
+        )?;
         crate::expression_preparation::bindings::structural_paths::retain_selector_evaluations(
             &argument.path,
             argument.projection_evaluations,
@@ -251,10 +252,7 @@ impl RangeStorage {
                 Vec::new(),
                 Some(CollectionView {
                     source: source.place,
-                    access:
-                        crate::expression_preparation::bindings::structural_paths::terminal_access(
-                            self.access,
-                        ),
+                    access: terminal_access(self.access),
                     path,
                     element,
                     place: destination,
@@ -271,9 +269,7 @@ impl RangeStorage {
                 path,
                 structural_type: self.structural_type,
                 family: self.family,
-                access: crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    self.access,
-                ),
+                access: terminal_access(self.access),
             },
             establishment,
         ))
@@ -312,7 +308,7 @@ fn collection_path(
                     return Ok(LoweredElementPathSegment::RuntimeIndex {
                         selector: LoweredDirectExpression::IntegerLiteral {
                             value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
-                            scalar_type: crate::emission::scalar_types::terminal_scalar_type(
+                            scalar_type: terminal_scalar_type(
                                 checked_trees::types::PrimitiveType::U64,
                             )?,
                         },
@@ -355,9 +351,7 @@ fn collection_path(
                     }
                 };
                 Ok(LoweredElementPathSegment::RuntimeIndex {
-                    selector: crate::expression_preparation::prepare_expression::exact_u64_index(
-                        selector,
-                    )?,
+                    selector: exact_u64_index(selector)?,
                     extent: None,
                     bound_decided: false,
                 })
@@ -418,9 +412,7 @@ pub(crate) fn storage(
             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
             | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
         ) if range.family == ViewFamily::Bytes && view.shape.is_borrowed_byte_view() => {
-            let byte = crate::emission::scalar_types::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U8,
-            )?;
+            let byte = terminal_scalar_type(checked_trees::types::PrimitiveType::U8)?;
             Some(
                 declarations
                     .iter()
@@ -503,12 +495,8 @@ pub(crate) fn establish(
     let path = emit_prepared_path(&view.path, 0, values, next_value, operations);
     let endpoints = view.byte_region.as_ref().map(|(start, end)| {
         (
-            crate::emission::operation_emission::expressions::emit_direct_expression(
-                start, values, next_value, operations,
-            ),
-            crate::emission::operation_emission::expressions::emit_direct_expression(
-                end, values, next_value, operations,
-            ),
+            emit_direct_expression(start, values, next_value, operations),
+            emit_direct_expression(end, values, next_value, operations),
         )
     });
     let producer = operations.allocate();
@@ -524,14 +512,9 @@ pub(crate) fn establish(
         Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
             start,
             end,
-            obligation: crate::terminal_identities::obligation_id(
-                producer
-                    .get()
-                    .checked_add(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "representation view obligation identity overflows",
-                    ))?,
-            ),
+            obligation: obligation_id(producer.get().checked_add(1).ok_or(
+                LoweringError::Unsupported("representation view obligation identity overflows"),
+            )?),
         },
     };
     Ok(emit_view(
@@ -725,9 +708,7 @@ pub(crate) fn exclusive_end(
     let end = end.ok_or(LoweringError::Unsupported(
         "inclusive range has no final endpoint",
     ))?;
-    let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
-        checked_trees::types::PrimitiveType::U64,
-    )?;
+    let scalar_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
     Ok(Some(LoweredDirectExpression::IntegerBinary {
         kind: crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactAdd,
         scalar_type,

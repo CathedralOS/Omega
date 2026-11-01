@@ -5,19 +5,17 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
+use syntax::identifier::Identifier;
 
 pub(crate) fn lower_name(
     syntax_trees: &syntax_trees::SyntaxTrees,
-    name: &syntax::identifier::Identifier,
+    name: &Identifier,
 ) -> DiagnosticName {
     DiagnosticName::from_str(name.as_str(syntax_trees), name.source_span())
 }
 
 /// Lower a run of source identifiers into fresh diagnostic names.
-pub(crate) fn lower_names(
-    syntax_trees: &SyntaxTrees,
-    names: &[syntax::identifier::Identifier],
-) -> Vec<DiagnosticName> {
+pub(crate) fn lower_names(syntax_trees: &SyntaxTrees, names: &[Identifier]) -> Vec<DiagnosticName> {
     names
         .iter()
         .map(|name| lower_name(syntax_trees, name))
@@ -27,7 +25,7 @@ pub(crate) fn lower_names(
 pub(crate) fn lower_operator_path_name(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    name: HandleSpan<syntax::identifier::Identifier>,
+    name: HandleSpan<Identifier>,
 ) -> HandleSpan<DiagnosticName> {
     lower_name_members(
         syntax_trees,
@@ -43,7 +41,7 @@ pub(crate) fn lower_operator_path_name(
 /// Lower an identifier path into a fresh span of `arena`.
 pub(crate) fn lower_name_members(
     syntax_trees: &SyntaxTrees,
-    name: HandleSpan<syntax::identifier::Identifier>,
+    name: HandleSpan<Identifier>,
     arena: &mut arena::Arena<DiagnosticName>,
 ) -> HandleSpan<DiagnosticName> {
     let mut span = HandleSpan::empty();

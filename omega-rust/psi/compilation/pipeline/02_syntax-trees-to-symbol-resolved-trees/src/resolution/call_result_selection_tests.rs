@@ -4,6 +4,7 @@
 
 use super::{ResolutionRequest, resolve_call_result_selection, resolve_numeric_probe};
 use crate::tables::body_expressions;
+use source_files_to_tokens::Lexer;
 use symbol_resolved_trees::{
     SymbolResolvedTrees, expression::ExpressionNode, machine::MachineBodyStatus,
 };
@@ -43,9 +44,7 @@ fn call_identities(program: &SymbolResolvedTrees) -> Vec<String> {
 }
 
 fn compare(source_text: &str) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
-    let tokens = source_files_to_tokens::Lexer::new(source_text)
-        .tokenize()
-        .unwrap();
+    let tokens = Lexer::new(source_text).tokenize().unwrap();
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add("call-results/main.omg".into(), source_text.to_owned())

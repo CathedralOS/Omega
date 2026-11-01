@@ -16,8 +16,11 @@ use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::static_applications::StaticConformanceSelection;
 use typed_trees::static_applications::StaticMachineApplicationHandle;
+use typed_trees::typed_trees::ClosedConformanceApplicationCommitment;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::TypeReferenceHandle;
 use validation::conformance_applications::close_conformance_application;
@@ -48,7 +51,7 @@ enum ImplementationSelection {
 struct ExplicitRequirementRewrite {
     call: RequirementCallOccurrence,
     target: SymbolHandle,
-    name: typed_trees::name::Identifier,
+    name: Identifier,
     application_arguments: Box<[StaticMachineArgument]>,
     /// Present for a concrete implementation; a binder's requirement call is
     /// dispatched by specialization.
@@ -56,7 +59,7 @@ struct ExplicitRequirementRewrite {
     /// Keep the selected namespace, not a runtime receiver. A named map owns
     /// source selection/visibility even when its executable row specializes;
     /// a binder remains available for later evidence specialization.
-    implementation_receiver: Option<(typed_trees::name::Identifier, SymbolHandle)>,
+    implementation_receiver: Option<(Identifier, SymbolHandle)>,
 }
 
 /// Retarget every requirement call whose static arguments name one
@@ -196,7 +199,7 @@ pub(crate) fn route_explicit_requirement_calls(
             ImplementationSelection::StaticOperand => Box::default(),
             ImplementationSelection::Qualifier(implementation) => {
                 implementation_receiver = Some((
-                    typed_trees::name::Identifier::generated(program.symbols.name(implementation)),
+                    Identifier::generated(program.symbols.name(implementation)),
                     implementation,
                 ));
                 let invocation_arguments = arguments.into_boxed_slice();
@@ -327,9 +330,7 @@ fn qualified_selection_arguments(
     } else {
         StaticMachineArgument {
             symbol: implementation,
-            path: Box::from([typed_trees::name::Identifier::generated(
-                program.symbols.name(implementation),
-            )]),
+            path: Box::from([Identifier::generated(program.symbols.name(implementation))]),
             ..StaticMachineArgument::default()
         }
     };
@@ -382,8 +383,7 @@ fn qualified_selection_arguments(
         })
         .collect::<Result<Vec<_>, _>>()?;
     arguments.push(selected);
-    let requirement_name =
-        typed_trees::name::Identifier::generated(program.symbols.name(requirement));
+    let requirement_name = Identifier::generated(program.symbols.name(requirement));
     let application = expressions_of_mut(program).retain_static_machine_application(
         requirement,
         requirement_name,
@@ -564,16 +564,14 @@ impl ExplicitApplication<'_> {
         let row = row.clone();
         expressions_of_mut(program)
             .static_machine_application_mut(source_application)
-            .conformance_selection = Some(Box::new(
-            typed_trees::static_applications::StaticConformanceSelection {
-                operand_ordinal: ordinal,
-                application: Some(Box::new(application.clone())),
-            },
-        ));
+            .conformance_selection = Some(Box::new(StaticConformanceSelection {
+            operand_ordinal: ordinal,
+            application: Some(Box::new(application.clone())),
+        }));
         Ok(ExplicitRequirementRewrite {
             call: self.call,
             target,
-            name: typed_trees::name::Identifier::generated(
+            name: Identifier::generated(
                 row.realization_name
                     .as_str()
                     .rsplit("::")
@@ -646,7 +644,7 @@ impl ExplicitApplication<'_> {
                 self.requirement_name
             ));
         };
-        let target_name = typed_trees::name::Identifier::generated(closure[position].name.as_str());
+        let target_name = Identifier::generated(closure[position].name.as_str());
         self.check_trait_arguments(
             &bounded,
             ApplicationArguments {
@@ -666,11 +664,7 @@ impl ExplicitApplication<'_> {
         })
     }
 
-    fn application_display(
-        &self,
-        trait_name: &str,
-        arguments: &[typed_trees::types::TypeReferenceHandle],
-    ) -> String {
+    fn application_display(&self, trait_name: &str, arguments: &[TypeReferenceHandle]) -> String {
         format!(
             "{trait_name}<{}>",
             arguments
@@ -835,13 +829,7 @@ pub(crate) fn refresh_occurrence_selections(
     }
     let update = |program: &TypedTrees,
                   handle|
-     -> Result<
-        (
-            u64,
-            typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
-        ),
-        Vec<Diagnostic>,
-    > {
+     -> Result<(u64, ClosedConformanceApplicationCommitment), Vec<Diagnostic>> {
         let app = expressions_of(program)
             .static_machine_application(handle)
             .conformance_selection

@@ -1,4 +1,10 @@
 use symbols::SymbolHandle;
+use typed_trees::proposition::NormalizedEvidenceInterfaceIdentity;
+use typed_trees::proposition::NormalizedPropositionApplicationIdentity;
+use typed_trees::proposition::PropositionBinderArgumentKind::Const;
+use typed_trees::proposition::PropositionBinderArgumentKind::Machine;
+use typed_trees::proposition::PropositionBinderArgumentKind::Type;
+use typed_trees::proposition::PropositionEvidenceClassification::Witness;
 use typed_trees::type_identity::TypeIdentityId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -88,15 +94,10 @@ pub enum CheckedPropositionBinderArgumentKind {
 // Source production and exact source-requirement replay share one pure
 // normalized-to-checked conversion. These constructors make no proof decision.
 impl CheckedPropositionApplication {
-    pub fn from_normalized(
-        normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
-    ) -> Self {
+    pub fn from_normalized(normalized: NormalizedPropositionApplicationIdentity) -> Self {
         let evidence_interface = match &normalized.classification {
             typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
-            typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                interface,
-                ..
-            } => interface
+            Witness { interface, .. } => interface
                 .as_ref()
                 .map(CheckedEvidenceInterfaceIdentity::from_normalized),
         };
@@ -107,15 +108,9 @@ impl CheckedPropositionApplication {
                 .into_iter()
                 .map(|argument| CheckedPropositionBinderArgument {
                     kind: match argument.kind {
-                        typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-                            CheckedPropositionBinderArgumentKind::Type
-                        }
-                        typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                            CheckedPropositionBinderArgumentKind::Const
-                        }
-                        typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                            CheckedPropositionBinderArgumentKind::Machine
-                        }
+                        Type => CheckedPropositionBinderArgumentKind::Type,
+                        Const => CheckedPropositionBinderArgumentKind::Const,
+                        Machine => CheckedPropositionBinderArgumentKind::Machine,
                     },
                     diagnostic_label: argument.identity,
                     evidence_projection: None,
@@ -127,9 +122,7 @@ impl CheckedPropositionApplication {
     }
 }
 impl CheckedEvidenceInterfaceIdentity {
-    pub fn from_normalized(
-        interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
-    ) -> Self {
+    pub fn from_normalized(interface: &NormalizedEvidenceInterfaceIdentity) -> Self {
         CheckedEvidenceInterfaceIdentity {
             trait_symbol: interface.trait_symbol,
             arguments: interface.arguments.clone(),

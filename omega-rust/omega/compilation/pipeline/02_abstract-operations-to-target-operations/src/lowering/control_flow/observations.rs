@@ -3,6 +3,7 @@
 use super::aggregate_results::established_home;
 use super::{KnownUnitInteger, LiveDefinitions, RowSite};
 use crate::LoweringError;
+use crate::lowering::scalar::try_lower_integer_operation;
 use crate::lowering::scalar::{
     KnownInteger, KnownScalar, byte_views, element_views, equal_boolean, equal_integer,
     order_integer, scalar_parameter_location,
@@ -205,11 +206,7 @@ pub(super) fn lower(
             result,
             ..
         } => {
-            if !crate::lowering::scalar::try_lower_integer_operation(
-                operation,
-                &mut values,
-                &mut provenance.operations,
-            )? {
+            if !try_lower_integer_operation(operation, &mut values, &mut provenance.operations)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let known = values

@@ -1,10 +1,10 @@
 // Task-runtime surface (declaration probe): `suspend
 // Sleeper::park(7)` inside a `suspends;` machine,
-// `suspend block Task::finish(task)` block-suspend on the
+// `suspend block TaskLifecycle::finish<T>(task)` block-suspend on the
 // public requirement, and `Token in Carry::AcrossSuspend`
 // domain-qualified task payloads.
 //
-//   * `public boundary requirement Task::finish<T>` — the sole
+//   * `TaskLifecycle::finish<T>` in `public boundary trait TaskLifecycle` — the sole
 //     public task-disposition requirement.
 //   * `Task<T> [linear]` / `TaskOutcome<T>` public data.
 //
@@ -29,8 +29,8 @@ machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends {
 
 data Worker {}
 
-machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
-    suspend block Task::finish(task)
+machine settle<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block TaskLifecycle::finish<T>(task)
 }
 
 data Main { hits: i32 in Wrapping; }

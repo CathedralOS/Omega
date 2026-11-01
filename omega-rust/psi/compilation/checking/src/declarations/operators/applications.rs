@@ -1,6 +1,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstIdentity;
 use symbols::SymbolHandle;
+use symbols::SymbolKind;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorDefinition};
@@ -342,9 +343,7 @@ fn statement_value_receiver_type(
     if !call.receiver_symbol.is_valid()
         || !matches!(
             program.symbols.get(call.receiver_symbol).kind,
-            symbols::SymbolKind::Field
-                | symbols::SymbolKind::Local
-                | symbols::SymbolKind::Parameter
+            SymbolKind::Field | SymbolKind::Local | SymbolKind::Parameter
         )
     {
         return None;

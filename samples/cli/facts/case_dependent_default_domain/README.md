@@ -93,7 +93,7 @@ Their source copies and diagnostic fragments live in
 `tests/omega/fail/facts/case_predicate_<control>_rejected`; the four positives
 have native and interpreter exit oracles under the matching pass paths.
 
-## Observed qualification
+## Initial qualification
 
 On Linux x86-64, the final optimized reference producer (`opt_level=1`, SHA-256
 `138087bea8064f2d9a976ce88d128d9b80dd7a4e96d2a2d37330c257cdc2c903`)
@@ -149,3 +149,30 @@ Those four corpus rows were not repinned. The worktree retains
 `final-base-comparison.json` and the corresponding raw logs under
 `build/domain-default/`. `final-assumption-review.json` records the challenged
 identity, mutation, zero, coverage, guard-effect and constant-custody premises.
+
+
+## Conflict integration
+
+The resolved integration with main `52cce957d7d9a1b64517b160fb8ef7a3a7121009`
+uses optimized producer SHA-256
+`7b7ae7ff14df473a5d3c8986aec82513b2d48ff93441d3a2ca8f9fc51f23d4c7`.
+All 64 focused observations pass: 29 programs exit 0 in both native execution
+and Terminal Psi, and 35 negative controls reject with their authored fragments.
+This reruns the initial 39 direct observations and migrated-payload negative,
+then checks main's ten positive/ten negative generic-extraction fixtures and
+four indexed-observation handback controls.
+
+Main's generic transition rows now receive conditional type equations from the
+same complete-predicate prefix judgment. An owned saved subject must retain the
+exact independently admitted entry value and semantic application; a receiving
+type supplies no premise. Closed-case impossibility remains canonical, and the
+removed projected case clauses are not restored. The four reached guard effects
+and restoration controls still execute on both engines. A separate unused
+generic body returning the wrong terminal-call type also rejects.
+
+The worktree retains `integration-4/results.json`, raw logs,
+`integration-4-source-manifest.json`, `integration-4-source-digests.json`, and
+`integration-4-review.json` under `build/domain-default/`. The 55 changed Rust
+files pass formatting, and the owned diff passes whitespace checks. The broader
+92- and 44-fixture comparisons above retain their original producers and were
+not rerun after this integration.

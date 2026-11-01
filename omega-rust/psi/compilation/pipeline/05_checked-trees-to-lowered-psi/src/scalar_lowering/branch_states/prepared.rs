@@ -8,6 +8,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::lowering_error::LoweringError;
 use crate::scalar_lowering::computations;
+use crate::scalar_lowering::computations::parameters;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use checked_trees::CheckedBooleanExpression;
 use semantic_vocabulary::{
@@ -203,10 +204,7 @@ impl LoweredScalarBranchState {
             structural_effects,
             ..Self::continuing(
                 parameter_types,
-                LoweredScalarBranchTerminator::jump(
-                    target,
-                    crate::scalar_lowering::computations::parameters(argument_types),
-                ),
+                LoweredScalarBranchTerminator::jump(target, parameters(argument_types)),
             )
         }
     }

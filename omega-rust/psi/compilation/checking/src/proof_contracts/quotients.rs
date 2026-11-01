@@ -35,6 +35,7 @@ pub(crate) use equivalence_selection::exact_relation_application_matches;
 
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
+use language_semantics::TerminationGuarantee;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -67,10 +68,7 @@ const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 /// checked facts answer with what that stage proved.
 pub trait CheckedTerminationOracle {
     /// The checked termination summary recorded for `machine`, when one is.
-    fn checked_termination(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<language_semantics::TerminationGuarantee>;
+    fn checked_termination(&self, machine: SymbolHandle) -> Option<TerminationGuarantee>;
 
     /// Whether `machine` terminates unconditionally: a checked guarantee with
     /// no progress-profile premises. Premises are observable admission
@@ -78,7 +76,7 @@ pub trait CheckedTerminationOracle {
     fn unconditionally_terminates(&self, machine: SymbolHandle) -> bool {
         matches!(
             self.checked_termination(machine),
-            Some(language_semantics::TerminationGuarantee::Terminates { premises })
+            Some(TerminationGuarantee::Terminates { premises })
                 if premises.is_empty()
         )
     }
@@ -88,10 +86,7 @@ pub trait CheckedTerminationOracle {
 /// The unconditional judgment stays the one denotational-call helper so
 /// quotient eligibility and normal-return eligibility read one rule.
 impl CheckedTerminationOracle for TypedTrees {
-    fn checked_termination(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<language_semantics::TerminationGuarantee> {
+    fn checked_termination(&self, machine: SymbolHandle) -> Option<TerminationGuarantee> {
         self.machine(machine)
             .map(|candidate| candidate.termination_plan.checked_summary.clone())
     }
@@ -105,12 +100,9 @@ impl CheckedTerminationOracle for TypedTrees {
 /// the typed machine (the checked stage's termination facts).
 impl<Lookup> CheckedTerminationOracle for Lookup
 where
-    Lookup: Fn(SymbolHandle) -> Option<language_semantics::TerminationGuarantee>,
+    Lookup: Fn(SymbolHandle) -> Option<TerminationGuarantee>,
 {
-    fn checked_termination(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<language_semantics::TerminationGuarantee> {
+    fn checked_termination(&self, machine: SymbolHandle) -> Option<TerminationGuarantee> {
         self(machine)
     }
 }

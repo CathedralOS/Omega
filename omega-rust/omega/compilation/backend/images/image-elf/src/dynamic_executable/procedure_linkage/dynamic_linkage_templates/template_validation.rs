@@ -8,7 +8,7 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{Va
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, CandidateValidationError, derive_constraints, derive_fixups, fixup_field, target};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::{non_authoritative_template_compatibility_fingerprint};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupStorage, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
-use crate::dynamic_executable::checked::{read_field, read_u32, read_u64, require};
+use crate::dynamic_executable::checked::{checked_product, checked_sum, read_field, read_u32, read_u64, require};
 use super::super::super::checked;
 
 checked::seal_stage! {
@@ -56,18 +56,18 @@ fn validate_fixed_template_bytes(
 ) -> Result<(), Diagnostic> {
     let slot_count = linkage.slots.len();
     let expected_plt_size = match target {
-        TargetProfile::LinuxX64 => crate::dynamic_executable::checked::checked_sum(
+        TargetProfile::LinuxX64 => checked_sum(
             X86_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(
+            checked_product(
                 slot_count,
                 X86_PLT_ENTRY_SIZE,
                 "validated x86-64 PLT entries",
             )?,
             "validated x86-64 PLT size",
         )?,
-        TargetProfile::LinuxArm64 => crate::dynamic_executable::checked::checked_sum(
+        TargetProfile::LinuxArm64 => checked_sum(
             AARCH64_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(
+            checked_product(
                 slot_count,
                 AARCH64_PLT_ENTRY_SIZE,
                 "validated AArch64 PLT entries",
@@ -76,21 +76,17 @@ fn validate_fixed_template_bytes(
         )?,
         _ => return Err(Diagnostic::error("unsupported fixed-template target")),
     };
-    let expected_got_size = crate::dynamic_executable::checked::checked_product(
-        crate::dynamic_executable::checked::checked_sum(
-            GOT_PLT_HEADER_WORDS,
-            slot_count,
-            "validated GOT words",
-        )?,
+    let expected_got_size = checked_product(
+        checked_sum(GOT_PLT_HEADER_WORDS, slot_count, "validated GOT words")?,
         ELF64_GOT_WORD_SIZE,
         "validated GOT size",
     )?;
-    let expected_rela_size = crate::dynamic_executable::checked::checked_product(
+    let expected_rela_size = checked_product(
         linkage.jump_slot_relocations.len(),
         ELF64_RELA_SIZE,
         "validated procedure RELA size",
     )?;
-    let expected_rela_dyn_size = crate::dynamic_executable::checked::checked_product(
+    let expected_rela_dyn_size = checked_product(
         linkage.general_relocations.len(),
         ELF64_RELA_SIZE,
         "validated general RELA size",
@@ -124,20 +120,12 @@ fn replay_x86_plt(
         "x86-64 PLT0 template bytes drifted",
     )?;
     for (index, slot) in linkage.slots.iter().enumerate() {
-        let start = crate::dynamic_executable::checked::checked_sum(
+        let start = checked_sum(
             X86_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(
-                index,
-                X86_PLT_ENTRY_SIZE,
-                "decoded x86-64 PLT entry",
-            )?,
+            checked_product(index, X86_PLT_ENTRY_SIZE, "decoded x86-64 PLT entry")?,
             "decoded x86-64 PLT entry",
         )?;
-        let end = crate::dynamic_executable::checked::checked_sum(
-            start,
-            X86_PLT_ENTRY_SIZE,
-            "decoded x86-64 PLT entry end",
-        )?;
+        let end = checked_sum(start, X86_PLT_ENTRY_SIZE, "decoded x86-64 PLT entry end")?;
         let entry = bytes
             .get(start..end)
             .ok_or_else(|| Diagnostic::error("truncated x86-64 PLT entry"))?;
@@ -160,16 +148,12 @@ fn replay_aarch64_plt(
         "AArch64 PLT0 template bytes drifted",
     )?;
     for index in 0..linkage.slots.len() {
-        let start = crate::dynamic_executable::checked::checked_sum(
+        let start = checked_sum(
             AARCH64_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(
-                index,
-                AARCH64_PLT_ENTRY_SIZE,
-                "decoded AArch64 PLT entry",
-            )?,
+            checked_product(index, AARCH64_PLT_ENTRY_SIZE, "decoded AArch64 PLT entry")?,
             "decoded AArch64 PLT entry",
         )?;
-        let end = crate::dynamic_executable::checked::checked_sum(
+        let end = checked_sum(
             start,
             AARCH64_PLT_ENTRY_SIZE,
             "decoded AArch64 PLT entry end",
@@ -189,7 +173,7 @@ macro_rules! replay_rela_rows {
             bytes: &[u8],
         ) -> Result<(), Diagnostic> {
             for (index, relocation) in linkage.$rows.iter().enumerate() {
-                let start = crate::dynamic_executable::checked::checked_product(
+                let start = checked_product(
                     index,
                     ELF64_RELA_SIZE,
                     concat!("decoded ", $domain, " RELA row"),
@@ -200,20 +184,12 @@ macro_rules! replay_rela_rows {
                     read_u64(bytes, start, concat!($domain, " RELA r_offset"))? == 0
                         && read_u64(
                             bytes,
-                            crate::dynamic_executable::checked::checked_sum(
-                                start,
-                                8,
-                                concat!($domain, " RELA r_info offset"),
-                            )?,
+                            checked_sum(start, 8, concat!($domain, " RELA r_info offset"))?,
                             concat!($domain, " RELA r_info"),
                         )? == expected_info
                         && read_u64(
                             bytes,
-                            crate::dynamic_executable::checked::checked_sum(
-                                start,
-                                16,
-                                concat!($domain, " RELA addend offset"),
-                            )?,
+                            checked_sum(start, 16, concat!($domain, " RELA addend offset"))?,
                             concat!($domain, " RELA addend"),
                         )? == relocation.addend as u64,
                     concat!(
@@ -311,12 +287,12 @@ pub(crate) fn validate_fixup_coverage(
             if fixup.storage != other.storage {
                 continue;
             }
-            let end = crate::dynamic_executable::checked::checked_sum(
+            let end = checked_sum(
                 fixup.byte_offset,
                 usize::from(fixup.byte_width),
                 "procedure-linkage fixup end",
             )?;
-            let other_end = crate::dynamic_executable::checked::checked_sum(
+            let other_end = checked_sum(
                 other.byte_offset,
                 usize::from(other.byte_width),
                 "procedure-linkage fixup end",

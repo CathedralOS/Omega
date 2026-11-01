@@ -7,9 +7,9 @@
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineEncodedTrapBehavior, SelectedInstructionKind as Kind,
 };
 
 use super::super::{
@@ -19,15 +19,13 @@ use super::super::{
 
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(RegisterViewId, Option<RegisterViewId>), X86_64SelectedFormEncodingError> {
     let (family, store) = match kind {
-        SelectedInstructionKind::Store64 { .. } => (MachineAlternativeFamily::Store64, true),
-        SelectedInstructionKind::FrameAddress { .. } => {
-            (MachineAlternativeFamily::FrameAddress, false)
-        }
+        Kind::Store64 { .. } => (Family::Store64, true),
+        Kind::FrameAddress { .. } => (Family::FrameAddress, false),
         _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
     };
     if physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
@@ -45,7 +43,7 @@ fn request(
 
 pub fn encode(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: i64,
@@ -55,8 +53,7 @@ pub fn encode(
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
     let member = match kind {
-        SelectedInstructionKind::Store64 { byte_offset, .. }
-        | SelectedInstructionKind::FrameAddress { byte_offset, .. } => byte_offset,
+        Kind::Store64 { byte_offset, .. } | Kind::FrameAddress { byte_offset, .. } => byte_offset,
         _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
     };
     let mut bytes = if alignment_bytes == 1 {
@@ -93,7 +90,7 @@ pub fn encode(
 
 pub fn validate(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: i64,
@@ -104,8 +101,7 @@ pub fn validate(
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
     let member = match kind {
-        SelectedInstructionKind::Store64 { byte_offset, .. }
-        | SelectedInstructionKind::FrameAddress { byte_offset, .. } => byte_offset,
+        Kind::Store64 { byte_offset, .. } | Kind::FrameAddress { byte_offset, .. } => byte_offset,
         _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
     };
     let address_bytes = if let Some(value) = value {
@@ -194,19 +190,19 @@ mod tests {
         });
         for (kind, family, operands) in [
             (
-                SelectedInstructionKind::FrameAddress {
+                Kind::FrameAddress {
                     slot,
                     byte_offset: 24,
                 },
-                MachineAlternativeFamily::FrameAddress,
+                Family::FrameAddress,
                 vec![address],
             ),
             (
-                SelectedInstructionKind::Store64 {
+                Kind::Store64 {
                     slot,
                     byte_offset: 24,
                 },
-                MachineAlternativeFamily::Store64,
+                Family::Store64,
                 vec![value, address],
             ),
         ] {
@@ -262,12 +258,12 @@ mod tests {
         assert!(
             encode(
                 &physical,
-                SelectedInstructionKind::Store64 {
+                Kind::Store64 {
                     slot,
                     byte_offset: 0
                 },
                 MachineAlternativeKey {
-                    family: MachineAlternativeFamily::Store64,
+                    family: Family::Store64,
                     variant: 0
                 },
                 &[value, value],

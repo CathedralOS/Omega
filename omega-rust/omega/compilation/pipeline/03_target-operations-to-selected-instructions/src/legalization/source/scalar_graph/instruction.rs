@@ -4,10 +4,14 @@
 //! `scalar_instructions`.
 
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
+use crate::legalization::runtime_indices::{collection_view, projection, reference_source};
+use crate::structural_inputs::structural_reference_input::reference_source_geometry;
 use abstract_operations::AbstractOperation;
 use legalized_operations::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
 };
+use scalar_graph_input::aggregate_results::{home_layout, sum_layout};
+use scalar_graph_input::structural_fields::{byte_index_operands, view_slot_index_operands};
 mod call_instructions;
 mod scalar_instructions;
 mod storage_instructions;
@@ -50,7 +54,7 @@ where
             let root =
                 scalar_graph_input::primitive_locals::read_root_type(optimized, argument.place)
                     .ok_or(Error::custody())?;
-            indices.extend(crate::legalization::runtime_indices::projection(
+            indices.extend(projection(
                 optimized,
                 unit,
                 operation,
@@ -89,12 +93,8 @@ where
             })
             .ok_or(Error::custody())?;
         let geometry =
-            crate::structural_inputs::structural_reference_input::reference_source_geometry(
-                root,
-                &location.path,
-                unit.structural_types.as_slice(),
-            )
-            .ok_or(Error::custody())?;
+            reference_source_geometry(root, &location.path, unit.structural_types.as_slice())
+                .ok_or(Error::custody())?;
         let indices = crate::legalization::runtime_indices::operands(
             optimized,
             unit,
@@ -170,9 +170,7 @@ where
                     return Err(Error::custody());
                 };
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                    indices: scalar_graph_input::structural_fields::byte_index_operands(
-                        optimized, unit, operation, source, *field,
-                    )?,
+                    indices: byte_index_operands(optimized, unit, operation, source, *field)?,
                     source: source.clone(),
                     field: *field,
                 }
@@ -249,13 +247,8 @@ where
                 result: result.clone(),
                 source: source.clone(),
                 correspondence: correspondence.clone(),
-                indices: crate::legalization::runtime_indices::reference_source(
-                    optimized,
-                    unit,
-                    *psi_operation,
-                    source,
-                )?,
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+                indices: reference_source(optimized, unit, *psi_operation, source)?,
+                shape: home_layout(result, plan)?.shape(),
             },
             AbstractOperation::EstablishReference {
                 psi_operation,
@@ -267,13 +260,8 @@ where
                 result: result.clone(),
                 source: source.clone(),
                 storage: *storage,
-                indices: crate::legalization::runtime_indices::reference_source(
-                    optimized,
-                    unit,
-                    *psi_operation,
-                    source,
-                )?,
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+                indices: reference_source(optimized, unit, *psi_operation, source)?,
+                shape: home_layout(result, plan)?.shape(),
             },
             AbstractOperation::ReleaseReference { source, path, .. } => {
                 LegalizedScalarInstructionKind::ReleaseReference {
@@ -284,15 +272,13 @@ where
             AbstractOperation::EstablishZeroedStructural { result, .. } => {
                 LegalizedScalarInstructionKind::EstablishZeroedStructural {
                     result: result.clone(),
-                    shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?
-                        .shape(),
+                    shape: home_layout(result, plan)?.shape(),
                 }
             }
             AbstractOperation::EstablishStructuralLocal { result, .. } => {
                 LegalizedScalarInstructionKind::EstablishStructuralLocal {
                     result: result.clone(),
-                    shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?
-                        .shape(),
+                    shape: home_layout(result, plan)?.shape(),
                 }
             }
             AbstractOperation::EstablishStructuralArray {
@@ -300,7 +286,7 @@ where
             } => LegalizedScalarInstructionKind::EstablishStructuralArray {
                 result: result.clone(),
                 elements: elements.clone(),
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+                shape: home_layout(result, plan)?.shape(),
             },
             AbstractOperation::EstablishActivationClaim {
                 result,
@@ -317,7 +303,7 @@ where
                 backing_type: *backing_type,
                 established_case: *established_case,
                 rejected_case: *rejected_case,
-                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+                layout: sum_layout(result, plan)?,
             },
             AbstractOperation::ReleaseActivationClaim { source, claim, .. } => {
                 LegalizedScalarInstructionKind::ReleaseActivationClaim {
@@ -342,7 +328,7 @@ where
                 committed_at: *committed_at,
                 covered_case: *covered_case,
                 rejected_case: *rejected_case,
-                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+                layout: sum_layout(result, plan)?,
             },
             AbstractOperation::MergeActivationClaim {
                 result,
@@ -361,21 +347,20 @@ where
                 upper_claim: *upper_claim,
                 covered_case: *covered_case,
                 rejected_case: *rejected_case,
-                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+                layout: sum_layout(result, plan)?,
             },
             AbstractOperation::EstablishNativeCodeLayout {
                 result, machine, ..
             } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
                 result: result.clone(),
                 machine: *machine,
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+                shape: home_layout(result, plan)?.shape(),
             },
             AbstractOperation::EstablishRecord { result, fields, .. } => {
                 LegalizedScalarInstructionKind::EstablishRecord {
                     result: result.clone(),
                     fields: fields.clone(),
-                    shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?
-                        .shape(),
+                    shape: home_layout(result, plan)?.shape(),
                 }
             }
             AbstractOperation::EstablishScalarArray {
@@ -394,7 +379,7 @@ where
                 result: result.clone(),
                 result_case: *result_case,
                 fields: fields.clone(),
-                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+                layout: sum_layout(result, plan)?,
             },
             AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
                 LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
@@ -588,7 +573,7 @@ where
                     return Err(Error::custody());
                 };
                 LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
-                    indices: scalar_graph_input::structural_fields::view_slot_index_operands(
+                    indices: view_slot_index_operands(
                         optimized,
                         unit,
                         operation,
@@ -701,12 +686,7 @@ where
                     }
                 };
                 LegalizedScalarInstructionKind::EstablishElementView {
-                    indices: crate::legalization::runtime_indices::collection_view(
-                        optimized,
-                        unit,
-                        *psi_operation,
-                        source,
-                    )?,
+                    indices: collection_view(optimized, unit, *psi_operation, source)?,
                     result: result.clone(),
                     destination: *destination,
                     source: source.clone(),

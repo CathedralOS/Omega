@@ -1,6 +1,7 @@
 //! Unknown entry contents have exact value identity without an invented scalar
 //! value. These query-local records never enter arithmetic premises or grant
 //! access. The ordinary payload worklist alone copies, retires and meets them.
+use super::super::payload_predicates::observation_type;
 use super::super::{PayloadEntryScalarIdentity, PayloadScalarObservation};
 use crate::descriptor_lifetimes::DescriptorPathSegment;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -53,8 +54,7 @@ fn for_parameter(
             });
         };
         if let StructuralTypeShape::PrimitiveScalar(scalar_type) = declaration.shape
-            && super::super::payload_predicates::observation_type(types, structural_type, &path)
-                == Some(scalar_type)
+            && observation_type(types, structural_type, &path) == Some(scalar_type)
         {
             append(path.clone(), scalar_type);
         }
@@ -64,11 +64,9 @@ fn for_parameter(
                 selected.push(DescriptorPathSegment::Field(field.id));
                 if let Some(child) = field.field_type.as_structural() {
                     pending.push((child, selected, lineage.clone()));
-                } else if let Some(scalar_type) = super::super::payload_predicates::observation_type(
-                    types,
-                    structural_type,
-                    &selected,
-                ) {
+                } else if let Some(scalar_type) =
+                    observation_type(types, structural_type, &selected)
+                {
                     append(selected, scalar_type);
                 }
             }

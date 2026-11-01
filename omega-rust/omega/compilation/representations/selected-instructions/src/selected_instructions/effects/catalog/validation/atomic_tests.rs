@@ -7,11 +7,13 @@ use crate::{
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
     MachineTrapBehavior,
 };
+use register_model::RegisterUnitId;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
     RegisterViewId,
 };
+use target::Architecture::Aarch64;
 
 fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffectDeclaration) {
     let key = RegisterConstraintKey {
@@ -168,7 +170,7 @@ fn retry_control_is_required_only_for_x86_bitwise_atomic_updates() {
             validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
             !bitwise
         );
-        validate_declaration(target::Architecture::Aarch64, &constraint, &declared)
+        validate_declaration(Aarch64, &constraint, &declared)
             .expect("single LSE instruction falls through");
         declared.alternatives[0].encoded.control =
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
@@ -176,9 +178,7 @@ fn retry_control_is_required_only_for_x86_bitwise_atomic_updates() {
             validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
             bitwise
         );
-        assert!(
-            validate_declaration(target::Architecture::Aarch64, &constraint, &declared).is_err()
-        );
+        assert!(validate_declaration(Aarch64, &constraint, &declared).is_err());
     }
 }
 
@@ -218,7 +218,7 @@ fn atomic_fence_requires_ordering_without_register_or_storage_effects() {
     original.trap = MachineTrapBehavior::NeverV1;
     original.alternatives[0].key.family = MachineAlternativeFamily::AtomicFence;
     original.alternatives[0].encoded = MachineEncodedEffects::atomic_fence_v1();
-    for architecture in [target::Architecture::Aarch64, target::Architecture::X86_64] {
+    for architecture in [Aarch64, target::Architecture::X86_64] {
         validate_declaration(architecture, &constraint, &original).unwrap();
         for mutation in 0..10 {
             let mut changed = original.clone();
@@ -246,15 +246,9 @@ fn atomic_fence_requires_ordering_without_register_or_storage_effects() {
                     changed.alternatives[0].encoded.trap =
                         MachineEncodedTrapBehavior::MayArchitecturalFaultV1
                 }
-                7 => changed_constraint
-                    .implicit_uses
-                    .push(register_model::RegisterUnitId(0)),
-                8 => changed_constraint
-                    .implicit_defs
-                    .push(register_model::RegisterUnitId(0)),
-                9 => changed_constraint
-                    .clobbers
-                    .push(register_model::RegisterUnitId(0)),
+                7 => changed_constraint.implicit_uses.push(RegisterUnitId(0)),
+                8 => changed_constraint.implicit_defs.push(RegisterUnitId(0)),
+                9 => changed_constraint.clobbers.push(RegisterUnitId(0)),
                 _ => unreachable!(),
             }
             assert!(

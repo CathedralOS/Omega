@@ -22,6 +22,9 @@ use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
+use typed_trees::operator::{
+    declaration_by_symbol, primitive_float_binary_semantics, resolve_named_expression_call,
+};
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -69,8 +72,7 @@ pub(crate) fn expression_constraints(
                 return constraints;
             }
 
-            if let Some(operator) =
-                typed_trees::operator::resolve_named_expression_call(program, call)
+            if let Some(operator) = resolve_named_expression_call(program, call)
                 && let Some((source, target)) =
                     validation::float_format_conversion_contract(program, operator)
                 && let [operand] = program.expression_table.expression_handles(call.arguments)
@@ -85,9 +87,7 @@ pub(crate) fn expression_constraints(
                 ));
                 return constraints;
             }
-            if let Some(operator) =
-                typed_trees::operator::resolve_named_expression_call(program, call)
-            {
+            if let Some(operator) = resolve_named_expression_call(program, call) {
                 let mut constraints =
                     collect_constraints_in_state(program, machine, state, operator.return_type);
                 if let [operand] = program.expression_table.expression_handles(call.arguments)
@@ -492,9 +492,8 @@ fn derived_float_operator_constraints(
     ) {
         return None;
     }
-    let operator = typed_trees::operator::declaration_by_symbol(program, owner.symbol)?;
-    let (operation, _format) =
-        typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+    let operator = declaration_by_symbol(program, owner.symbol)?;
+    let (operation, _format) = primitive_float_binary_semantics(program, operator)?;
     let [left, right] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };

@@ -5,6 +5,7 @@ use super::{
     narrow_environment_by_condition,
 };
 use crate::frozen_program::expression_table;
+use typed_trees::expression::UnaryOperator;
 use typed_trees::statement::TableTransition;
 
 /// Analyze an exact target-arm argument without importing facts from another occurrence.
@@ -112,9 +113,7 @@ fn stable_builtin_value(
                 && stable(binary.left)
                 && stable(binary.right)
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             stable(unary.operand)
         }
         ExpressionNode::Atomic(atomic) => stable(atomic.value),

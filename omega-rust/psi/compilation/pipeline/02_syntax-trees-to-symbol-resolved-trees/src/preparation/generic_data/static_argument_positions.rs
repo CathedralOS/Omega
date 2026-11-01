@@ -11,6 +11,7 @@ use super::{
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
+use symbols::SymbolKind;
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
 use syntax_trees::statement::StatementNode;
 
@@ -122,10 +123,7 @@ fn collect_application(
         syntax,
         declaration_syntax,
         name,
-        &[
-            symbols::SymbolKind::Machine,
-            symbols::SymbolKind::Conformance,
-        ],
+        &[SymbolKind::Machine, SymbolKind::Conformance],
     ) && parameters.len() == arguments.len()
     {
         for (parameter, argument) in parameters.iter().zip(arguments) {

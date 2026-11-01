@@ -4,17 +4,16 @@
 use super::to_strings;
 use crate::TypedTrees;
 use crate::name::Identifier;
-use crate::typed_trees::inspection::snapshot::declaration_snapshots::{
-    establishment_route_snapshot, semantic_roles_snapshot, snapshot_binding_relevance,
-};
-use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::expression_snapshot;
-use crate::typed_trees::inspection::snapshot::{
-    DomainEstablishmentRouteSnapshot, DomainSemanticRolesSnapshot, ExpressionSnapshot,
-};
+use crate::typed_trees::inspection::snapshot;
 use crate::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use serde::Serialize;
+use snapshot::declaration_snapshots::{
+    establishment_route_snapshot, semantic_roles_snapshot, snapshot_binding_relevance,
+};
+use snapshot::statement_and_expression_snapshots::expression_snapshot;
+use snapshot::{DomainEstablishmentRouteSnapshot, DomainSemanticRolesSnapshot, ExpressionSnapshot};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WireSchemaSnapshot {

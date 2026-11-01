@@ -16,9 +16,17 @@
 //! computations without replay; live views still owe storage preservation.
 //! Expression-root dependencies alone do not establish referent identity.
 
+use super::super::call_values::actual_at;
+use super::super::call_values::captured_operand;
+use super::super::call_values::captured_values;
+use super::super::captured_predicates::retain_bindings;
+use super::super::captured_predicates::transport;
+use super::field_actuals::checked_place;
 use crate::facts::boolean_predicates::{self, BoundPredicate};
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::expressions;
 use crate::places::place_at;
+use crate::semantic::facts::projected_argument_place;
 
 use validation::CallSite;
 use validation::CanonicalPlace;
@@ -180,7 +188,7 @@ pub(crate) fn current_predicates(
                 })?;
                 let projection = binding.place.segments.clone();
                 let actual = *arguments.get(position)?;
-                let place = crate::semantic::facts::projected_argument_place(
+                let place = projected_argument_place(
                     program,
                     caller.state_symbol,
                     invocation.statement,
@@ -202,18 +210,12 @@ pub(crate) fn current_predicates(
                     program,
                     parameters[position].type_reference,
                 ) && let Some(call) = invocation_fact(facts, caller, invocation)
-                    && let Some(actual) = super::super::call_values::actual_at(
-                        program, caller, call, position, projection,
-                    )
-                    && let Some(capture) = super::super::call_values::captured_operand(
-                        program, facts, caller, call, &actual,
-                    )
-                    && let Some(values) = super::super::call_values::captured_values(
-                        program, facts, caller, call, &actual,
-                    )
+                    && let Some(actual) = actual_at(program, caller, call, position, projection)
+                    && let Some(capture) = captured_operand(program, facts, caller, call, &actual)
+                    && let Some(values) = captured_values(program, facts, caller, call, &actual)
                 {
                     for value in &values {
-                        super::super::captured_predicates::retain_bindings(
+                        retain_bindings(
                             program,
                             facts,
                             value,
@@ -227,15 +229,8 @@ pub(crate) fn current_predicates(
             }
             // Binding a guarantee cannot recursively enumerate guarantees. Its
             // owned inputs transport only facts already recorded at capture.
-            let transported = super::super::captured_predicates::transport(
-                program,
-                facts,
-                caller,
-                &mut predicate,
-                &captures,
-                &[],
-                None,
-            );
+            let transported =
+                transport(program, facts, caller, &mut predicate, &captures, &[], None);
             let mut predicates = transported.predicates;
             predicates.push(predicate);
             Some(predicates)
@@ -529,7 +524,7 @@ fn capture_preserved(
             if formal.segments.is_empty() && crate::flow::literal(program, *actual).is_some() {
                 return true;
             }
-            let Some(place) = crate::semantic::facts::projected_argument_place(
+            let Some(place) = projected_argument_place(
                 program,
                 supplied.caller_state,
                 supplied.statement,
@@ -559,11 +554,7 @@ fn capture_preserved(
         });
     }
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        guarantee,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, guarantee, &mut occurrences);
     occurrences.into_iter().all(|occurrence| {
         if validation::reserved_result_place(program, occurrence)
             .is_some_and(|result| result.machine_symbol == supplied.callable.owner_symbol())
@@ -892,11 +883,7 @@ fn stable_predicate_inputs(
         });
     }
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, expression, &mut occurrences);
     occurrences.into_iter().all(|occurrence| {
         if let Some(result) = validation::reserved_result_place(program, occurrence) {
             return result.machine_symbol == invocation.callable.owner_symbol();
@@ -1094,7 +1081,7 @@ pub(in crate::checks) fn direct_place(
             _ => return None,
         };
     }
-    super::field_actuals::checked_place(program, expression)
+    checked_place(program, expression)
 }
 
 fn builtin_predicate(

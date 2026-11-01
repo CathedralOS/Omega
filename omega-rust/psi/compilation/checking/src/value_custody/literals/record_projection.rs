@@ -11,6 +11,7 @@
 //! establishment separately owes the case's predicate and ownership checks.
 
 use crate::frozen_program::expression_table;
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolKind;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
@@ -189,7 +190,7 @@ pub(super) fn closed_scalar_projection(
                 let elements = expression_table(program).array_literal_node(selected)?;
                 let ordinal = expression_table(program).integer_node(indexed.index)?;
                 if ordinal.landing().is_some_and(|landing| {
-                    landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    landing.domain != ArithmeticDomain::Exact
                         || landing.landed_type == numerics::literals::LandedIntegerType::Addr
                 }) || !builtin_index(program, projection, selected_type)
                 {
@@ -211,9 +212,7 @@ pub(super) fn closed_scalar_projection(
     // Scalar projection consumers currently carry Exact arithmetic. A policy
     // qualification must not enter that route until producer and source replay
     // can retain its selected arithmetic domain together with the payload.
-    if program.arithmetic_domain_for_type_reference(selected_type)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
+    if program.arithmetic_domain_for_type_reference(selected_type) != ArithmeticDomain::Exact {
         return None;
     }
     Some((selected, selected_type))

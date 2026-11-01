@@ -4,8 +4,8 @@ use super::entry_lowering::*;
 use crate::flow::expressions;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression as BooleanExpression, CheckedOperatorFacts,
+    CheckedScalarExpression as ScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
@@ -54,16 +54,12 @@ pub(crate) enum PlaceReadSite {
 /// Recover the storage site of one checked read when it is a whole scalar
 /// place. Boolean place leaves unwrap to their site as well; any composed
 /// value (operations, literals, indexed reads) is not a place.
-pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
+pub(crate) fn place_read_site(read: &ScalarExpression) -> Option<PlaceReadSite> {
     match read {
-        CheckedScalarExpression::StorageRead { symbol, .. } => {
-            Some(PlaceReadSite::Storage(*symbol))
-        }
-        CheckedScalarExpression::Parameter { position, .. } => {
-            Some(PlaceReadSite::Parameter(*position))
-        }
-        CheckedScalarExpression::Local { position, .. } => Some(PlaceReadSite::Local(*position)),
-        CheckedScalarExpression::StructuralParameterField {
+        ScalarExpression::StorageRead { symbol, .. } => Some(PlaceReadSite::Storage(*symbol)),
+        ScalarExpression::Parameter { position, .. } => Some(PlaceReadSite::Parameter(*position)),
+        ScalarExpression::Local { position, .. } => Some(PlaceReadSite::Local(*position)),
+        ScalarExpression::StructuralParameterField {
             observation,
             parameter_position,
             path,
@@ -73,15 +69,11 @@ pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceRea
             parameter_position: *parameter_position,
             path: path.clone(),
         }),
-        CheckedScalarExpression::Boolean(inner) => match inner.as_ref() {
-            CheckedBooleanExpression::StorageRead { symbol } => {
-                Some(PlaceReadSite::Storage(*symbol))
-            }
-            CheckedBooleanExpression::Parameter { position } => {
-                Some(PlaceReadSite::Parameter(*position))
-            }
-            CheckedBooleanExpression::Local { position } => Some(PlaceReadSite::Local(*position)),
-            CheckedBooleanExpression::StructuralParameterField {
+        ScalarExpression::Boolean(inner) => match inner.as_ref() {
+            BooleanExpression::StorageRead { symbol } => Some(PlaceReadSite::Storage(*symbol)),
+            BooleanExpression::Parameter { position } => Some(PlaceReadSite::Parameter(*position)),
+            BooleanExpression::Local { position } => Some(PlaceReadSite::Local(*position)),
+            BooleanExpression::StructuralParameterField {
                 observation,
                 parameter_position,
                 path,
@@ -112,12 +104,12 @@ pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceRea
 /// carrying the proven footprint bound as its selector decision. Any other
 /// width change is not a whole-place view and stays unlowered.
 pub(crate) fn view_place_read(
-    read: CheckedScalarExpression,
+    read: ScalarExpression,
     primitive_type: PrimitiveType,
-) -> Option<CheckedScalarExpression> {
+) -> Option<ScalarExpression> {
     let byte_region = matches!(
         &read,
-        CheckedScalarExpression::StructuralParameterIndexedRead {
+        ScalarExpression::StructuralParameterIndexedRead {
             element_path,
             primitive_type: PrimitiveType::U8,
             ..
@@ -125,9 +117,9 @@ pub(crate) fn view_place_read(
     );
     let indexed_element = matches!(
         read,
-        CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+        ScalarExpression::StructuralParameterIndexedRead { .. }
     );
-    if let CheckedScalarExpression::RepresentationView {
+    if let ScalarExpression::RepresentationView {
         primitive_type: view_type,
         ..
     } = &read
@@ -141,7 +133,7 @@ pub(crate) fn view_place_read(
         }
     }
     if primitive_type == PrimitiveType::Bool
-        && let CheckedScalarExpression::Boolean(_) = read
+        && let ScalarExpression::Boolean(_) = read
     {
         // A Boolean source already has the requested carrier.
         return Some(read);
@@ -159,7 +151,7 @@ pub(crate) fn view_place_read(
     if !region && scalar_byte_width(source)? != scalar_byte_width(primitive_type)? {
         return None;
     }
-    Some(CheckedScalarExpression::RepresentationView {
+    Some(ScalarExpression::RepresentationView {
         primitive_type,
         operand: Box::new(read),
     })
@@ -178,16 +170,16 @@ pub(crate) fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
 
 /// Re-read one place site through the bool carrier -- the checked form of
 /// `&place as &bool` in a Boolean position.
-pub(crate) fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
+pub(crate) fn place_read_site_as_boolean(site: PlaceReadSite) -> BooleanExpression {
     match site {
-        PlaceReadSite::Storage(symbol) => CheckedBooleanExpression::StorageRead { symbol },
-        PlaceReadSite::Parameter(position) => CheckedBooleanExpression::Parameter { position },
-        PlaceReadSite::Local(position) => CheckedBooleanExpression::Local { position },
+        PlaceReadSite::Storage(symbol) => BooleanExpression::StorageRead { symbol },
+        PlaceReadSite::Parameter(position) => BooleanExpression::Parameter { position },
+        PlaceReadSite::Local(position) => BooleanExpression::Local { position },
         PlaceReadSite::StructuralField {
             observation,
             parameter_position,
             path,
-        } => CheckedBooleanExpression::StructuralParameterField {
+        } => BooleanExpression::StructuralParameterField {
             observation,
             parameter_position,
             path,
@@ -207,7 +199,7 @@ pub(crate) fn lower_recast_boolean_operand(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<CheckedBooleanExpression> {
+) -> Option<BooleanExpression> {
     let (source, target_type) = recast_view_operand(program, expression)?;
     if program.primitive_type_reference(target_type) != Some(PrimitiveType::Bool) {
         return None;

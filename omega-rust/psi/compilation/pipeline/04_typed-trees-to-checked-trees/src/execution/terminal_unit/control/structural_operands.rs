@@ -15,11 +15,16 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
     SymbolHandle,
 };
+use crate::checks::type_reference_is_reference;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, parameter_qualifications, state_flow,
 };
 use crate::places::place_at;
+use crate::semantic::calls::shared_argument_referent;
+use crate::values::nested_structural_call_return_type;
+use crate::values::reference_sources::formed_reference_type;
+use crate::values::reference_sources::transported_value_type;
 
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 
@@ -85,9 +90,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             let state = program.state_by_symbol(state)?;
             (
                 argument,
-                crate::values::reference_sources::formed_reference_type(
-                    program, machine, state, argument,
-                )?,
+                formed_reference_type(program, machine, state, argument)?,
             )
         }
         // The descriptor is the view value; peeling its shell would look for
@@ -127,7 +130,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         // Registration and receiving planning retain the same source-selected
         // descriptor. The parameter's annotation does not create that value.
         typed_trees::types::TypeReferenceNode::Reference { .. }
-            if let Some(actual) = crate::values::reference_sources::transported_value_type(
+            if let Some(actual) = transported_value_type(
                 program,
                 program.machine_by_symbol(machine)?,
                 program.state_by_symbol(state)?,
@@ -150,11 +153,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             access: language_semantics::ReferenceAccess::Shared,
             ..
         } => {
-            let referent = crate::semantic::calls::shared_argument_referent(
-                program,
-                argument,
-                parameter.type_reference,
-            )?;
+            let referent = shared_argument_referent(program, argument, parameter.type_reference)?;
             // A loan of existing storage must keep that storage's identity.
             // Only a completed value with no canonical stored home needs an
             // argument establishment; a copied Name would be a new referent.
@@ -733,7 +732,7 @@ fn collect<'a>(
             .is_some_and(|place| place.root.as_symbol().is_some())
             && !parameter.is_const
             && !parameter.relevance.is_erased()
-            && !crate::checks::type_reference_is_reference(program, parameter.type_reference)
+            && !type_reference_is_reference(program, parameter.type_reference)
             && program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
         {
             output.push(Operand::Storage {
@@ -811,7 +810,7 @@ pub(in crate::execution::terminal_unit) fn result(
         return None;
     }
     let call = program.expression_table.call_node(expression)?;
-    let return_type = crate::values::nested_structural_call_return_type(program, caller, call)?;
+    let return_type = nested_structural_call_return_type(program, caller, call)?;
     // Use the same exact head/entry join as nested result discovery. A
     // portable family interface owns its common signature, not a selected
     // member body; a second state-only scan can lose that signature entirely.

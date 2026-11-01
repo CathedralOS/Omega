@@ -5,6 +5,9 @@
 //! or changing the loan's access authority.
 use super::{Builder, LegalizedScalarFunction, ValueLocation, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::scalar_call_abi::{
+    empty_aggregate_placement, outgoing_float_transfer, owned_value_shape,
+};
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn argument(
@@ -32,9 +35,7 @@ pub(super) fn argument(
     };
     // Call custody has already rejoined the exact producer or parameter type.
     // No physical home is needed to transport a zero-byte owned value.
-    if crate::selection::scalar_call_abi::empty_aggregate_placement(&target.destination)
-        && target.shape == target.destination.shape
-    {
+    if empty_aggregate_placement(&target.destination) && target.shape == target.destination.shape {
         return Ok(Vec::new());
     }
     if target.shape.byte_size != target.destination.shape.byte_size
@@ -52,11 +53,8 @@ pub(super) fn argument(
         // geometry: a placement source reaches the subtree through its
         // own referent pointer, and a borrowed root's referent shape is
         // not an owned aggregate at all.
-        let root_shape = crate::selection::scalar_call_abi::owned_value_shape(
-            source,
-            target.root_structural_type,
-        )
-        .ok_or_else(|| SelectedInstructionError::custody())?;
+        let root_shape = owned_value_shape(source, target.root_structural_type)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         let storage_shape =
             crate::selection::activation_storage_input::local_shape(source, slot, root_shape)
                 .ok_or_else(SelectedInstructionError::custody)?;
@@ -505,7 +503,7 @@ fn argument_register(
         8 => semantic_vocabulary::IeeeFloatFormat::Binary64,
         _ => return Err(SelectedInstructionError::custody()),
     };
-    let (kind, key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
+    let (kind, key) = outgoing_float_transfer(
         semantic_vocabulary::ScalarType::IeeeFloat(format),
         &builder.constraints.keys,
     )

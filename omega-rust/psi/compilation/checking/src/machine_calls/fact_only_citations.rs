@@ -26,9 +26,11 @@
 
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::TypeReferenceNode;
 
@@ -148,10 +150,7 @@ pub fn fact_only_theorem<'program>(
 /// writing storage: a bare scalar, a non-linear proof-only carrier, or a
 /// shared borrow. Proof-only classification is computed from the carrier,
 /// never from a theorem's name.
-fn read_only_parameter(
-    program: &dyn crate::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
+fn read_only_parameter(program: &dyn crate::CheckingInput, parameter: &StateParameter) -> bool {
     if parameter.is_mutable {
         return false;
     }
@@ -379,12 +378,7 @@ pub fn is_fact_only_citation_call(
                     && program
                         .machine_type_parameters(theorem)
                         .iter()
-                        .all(|parameter| {
-                            matches!(
-                                parameter.kind,
-                                typed_trees::data::TypeParameterKind::Value { .. }
-                            )
-                        })
+                        .all(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
             }))
         && call.evidence_arguments.is_empty()
         && !call.operational_acknowledgement.acknowledges_suspend

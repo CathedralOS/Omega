@@ -8,6 +8,7 @@ use crate::emission::completed_place::Frontier;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, emit_captured_argument_path,
 };
+use crate::unit::attached_unit::operation_frame::completed_arguments::selected_memberships;
 use semantic_vocabulary::PlaceId;
 
 pub(super) struct CompletedProjection {
@@ -138,9 +139,7 @@ impl Emission<'_, '_, '_> {
                         access,
                     };
                     let (qualifications, projected) =
-                        crate::unit::attached_unit::operation_frame::completed_arguments::selected_memberships(
-                            &source, &[], self.evaluation, self.operations,
-                        )?;
+                        selected_memberships(&source, &[], self.evaluation, self.operations)?;
                     let (structural_type, qualifications, projected) =
                         crate::emission::completed_place::present_capture(
                             &capture,

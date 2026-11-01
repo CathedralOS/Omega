@@ -25,7 +25,6 @@
 
 #[path = "ordinary_machine/proof_scope.rs"]
 mod proof_scope;
-
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
@@ -43,6 +42,10 @@ use super::{
 use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::place_declarations::retain_block_parameters;
+use crate::emission::structural_byte_sequence_store::retain_literal_declarations;
+use crate::expression_preparation::qualifications::SourceScalarReturn;
+use crate::scalar_lowering::computations::produced_values::prepare;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
@@ -148,8 +151,7 @@ pub(super) struct StepInputs {
 
 /// The lowered machine and the occurrence rows the closure accumulates.
 pub(super) struct EmittedMachine {
-    pub(super) source_returns:
-        Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
+    pub(super) source_returns: Vec<SourceScalarReturn>,
     pub(super) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     /// Qualification coercions the machine's call-argument expansions minted,
     /// merged into the module's shared qualification catalog at publication.
@@ -340,12 +342,7 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
-    evaluation.produced_values = crate::scalar_lowering::computations::produced_values::prepare(
-        identities,
-        checked,
-        &[plan.machine],
-        structural_types,
-    )?;
+    evaluation.produced_values = prepare(identities, checked, &[plan.machine], structural_types)?;
     evaluation.observations = crate::scalar_lowering::computations::observations::prepare(
         checked,
         &[plan.machine],
@@ -686,12 +683,10 @@ pub(super) fn emit(
         }
         next_value = next_value_identity;
         let return_edge = edge_id(allocate_dense(&mut next_edge)?);
-        operations.source_returns.push(
-            crate::expression_preparation::qualifications::SourceScalarReturn {
-                edge: return_edge,
-                exits: cleanups.iter().map(|row| row.exit).collect(),
-            },
-        );
+        operations.source_returns.push(SourceScalarReturn {
+            edge: return_edge,
+            exits: cleanups.iter().map(|row| row.exit).collect(),
+        });
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
@@ -1024,12 +1019,10 @@ pub(super) fn emit(
                         .collect()
                 };
                 let terminator = if let Some((source, _)) = &scalar_return {
-                    operations.source_returns.push(
-                        crate::expression_preparation::qualifications::SourceScalarReturn {
-                            edge,
-                            exits: vec![normal_exit.exit],
-                        },
-                    );
+                    operations.source_returns.push(SourceScalarReturn {
+                        edge,
+                        exits: vec![normal_exit.exit],
+                    });
                     Terminator::Return {
                         edge,
                         value: *source,
@@ -1062,10 +1055,7 @@ pub(super) fn emit(
     // order, not emission order; abandonment must not skip this common seal.
     evaluation.blocks.sort_by_key(|block| block.id);
     next_operation = operations.next_identity;
-    crate::emission::structural_byte_sequence_store::retain_literal_declarations(
-        &operations,
-        &mut private_places,
-    )?;
+    retain_literal_declarations(&operations, &mut private_places)?;
     let computed_array_places = evaluation
         .blocks
         .iter()
@@ -1121,10 +1111,7 @@ pub(super) fn emit(
         )
         .chain(computed_array_places)
         .collect::<Vec<_>>();
-    crate::emission::operation_emission::place_declarations::retain_block_parameters(
-        evaluation.blocks.iter(),
-        &mut structural_places,
-    )?;
+    retain_block_parameters(evaluation.blocks.iter(), &mut structural_places)?;
     crate::emission::operation_emission::place_declarations::retain_operation_results(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut structural_places,

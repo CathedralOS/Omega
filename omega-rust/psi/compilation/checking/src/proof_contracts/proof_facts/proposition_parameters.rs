@@ -8,6 +8,7 @@ use typed_trees::proposition::{
     PropositionDefinition,
 };
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn argument_matches(
     program: &dyn crate::CheckingInput,
@@ -36,9 +37,7 @@ pub(super) fn argument_matches(
                     .type_reference_table
                     .type_reference_rows()
                     .find_map(|(handle, node)| {
-                        let typed_trees::types::TypeReferenceNode::ConstExpression(expression) =
-                            node
-                        else {
+                        let TypeReferenceNode::ConstExpression(expression) = node else {
                             return None;
                         };
                         matches!(program.expression_table.expression(*expression),
@@ -69,7 +68,7 @@ fn carrier_matches(
     owner: ProofFactOwner<'_>,
 ) -> bool {
     if let Some(borrow) = program.expression_table.borrow_expression(argument) {
-        let typed_trees::types::TypeReferenceNode::Reference {
+        let TypeReferenceNode::Reference {
             referee, access, ..
         } = program.type_reference_table.type_reference(parameter_type)
         else {

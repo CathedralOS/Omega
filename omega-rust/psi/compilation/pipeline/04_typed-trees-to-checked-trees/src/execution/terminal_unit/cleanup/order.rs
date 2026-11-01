@@ -1,6 +1,7 @@
 //! Merge independently selected partitions in the declared cleanup order.
 //! Only retained action paths are visited. Their exact typed coordinates join
 //! the same canonical ordering authority used to check hook prerequisites.
+use super::actions::checked_path_segments;
 use checked_trees::{CheckedNormalCleanupAction, CheckedUnitStructuralArgumentSourcePlan};
 
 pub(super) fn merge(
@@ -29,13 +30,7 @@ pub(super) fn merge(
         .iter()
         .map(|position| {
             let action = actions[*position].clone();
-            let path = super::actions::checked_path_segments(
-                program,
-                state,
-                statement,
-                reference,
-                action.path(),
-            )?;
+            let path = checked_path_segments(program, state, statement, reference, action.path())?;
             let key = crate::flow::cleanup_path_order(program, &path)?;
             Some((key, action))
         })

@@ -14,9 +14,12 @@ use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use expression::ExpressionNode;
+use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::{SyntaxTrees, types::TypeReferenceHandle};
+use types::TypeReference;
 
 mod projections;
 
@@ -24,16 +27,13 @@ mod projections;
 pub(crate) enum DeclaredTypeOrigin {
     Parameter(Handle<symbol_resolved_trees::signature::StateParameter>),
     Result(Handle<symbol_resolved_trees::state::State>),
-    Field(Handle<symbol_resolved_trees::data::DataMember>),
+    Field(Handle<DataMember>),
     Payload(Handle<symbol_resolved_trees::data::DataField>),
     Constant(usize),
 }
 
 impl DeclaredTypeOrigin {
-    fn declaration(
-        self,
-        trees: &SymbolResolvedTrees,
-    ) -> Option<(SymbolHandle, &types::TypeReference)> {
+    fn declaration(self, trees: &SymbolResolvedTrees) -> Option<(SymbolHandle, &TypeReference)> {
         let declarations = &trees.tables.declarations;
         match self {
             Self::Parameter(handle) => {
@@ -45,9 +45,7 @@ impl DeclaredTypeOrigin {
                 Some((state.symbol, state.return_type.as_ref()?))
             }
             Self::Field(handle) => {
-                let symbol_resolved_trees::data::DataMember::Field(field) =
-                    declarations.data_members.get(handle)
-                else {
+                let DataMember::Field(field) = declarations.data_members.get(handle) else {
                     return None;
                 };
                 Some((field.symbol, &field.type_reference))
@@ -64,7 +62,7 @@ impl DeclaredTypeOrigin {
     }
 }
 
-fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool {
+fn closed_type(trees: &SymbolResolvedTrees, root: &TypeReference) -> bool {
     let binder = |symbol: SymbolHandle| {
         symbol.is_valid()
             && matches!(
@@ -78,19 +76,18 @@ fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool
     let mut pending = vec![root];
     while let Some(reference) = pending.pop() {
         match reference {
-            types::TypeReference::Named { symbol, .. }
-            | types::TypeReference::DynamicTrait { symbol, .. } => {
+            TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
                 if binder(*symbol) {
                     return false;
                 }
             }
-            types::TypeReference::Reference(reference) => {
+            TypeReference::Reference(reference) => {
                 pending.push(trees.child_type_reference(reference.referee))
             }
-            types::TypeReference::Slice(slice) => {
+            TypeReference::Slice(slice) => {
                 pending.push(trees.child_type_reference(slice.element_type))
             }
-            types::TypeReference::FixedArray(array) => {
+            TypeReference::FixedArray(array) => {
                 match &array.length {
                     types::FixedArrayLength::Literal(_) => {}
                     types::FixedArrayLength::ConstParameter { symbol, .. }
@@ -100,7 +97,7 @@ fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool
                 }
                 pending.push(trees.child_type_reference(array.element_type));
             }
-            types::TypeReference::Constrained(constrained) => {
+            TypeReference::Constrained(constrained) => {
                 pending.push(trees.child_type_reference(constrained.base_type));
                 for constraint in trees
                     .tables
@@ -118,7 +115,7 @@ fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool
                     }
                 }
             }
-            types::TypeReference::Generic(generic) => {
+            TypeReference::Generic(generic) => {
                 if binder(generic.base_symbol) {
                     return false;
                 }
@@ -129,8 +126,8 @@ fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool
                         .map(|handle| trees.child_type_reference(handle)),
                 );
             }
-            types::TypeReference::ConstExpression(_) => return false,
-            types::TypeReference::Unit => {}
+            TypeReference::ConstExpression(_) => return false,
+            TypeReference::Unit => {}
         }
     }
     true
@@ -142,7 +139,7 @@ fn declared_type<'trees>(
     sources: &SourceLinks,
     symbol: SymbolHandle,
     result: bool,
-) -> Option<(TypeReferenceHandle, &'trees types::TypeReference)> {
+) -> Option<(TypeReferenceHandle, &'trees TypeReference)> {
     if !symbol.is_valid() {
         return None;
     }
@@ -194,13 +191,11 @@ fn expression_types<'trees>(
     expression: expression::ExpressionHandle,
     selection: &ConstantSelection<'_>,
     pending_diagnostics: &mut Vec<Diagnostic>,
-) -> Option<Vec<(TypeReferenceHandle, &'trees types::TypeReference)>> {
+) -> Option<Vec<(TypeReferenceHandle, &'trees TypeReference)>> {
     let observed = match trees.tables.bodies.expressions.expression(expression) {
-        expression::ExpressionNode::Name(name) => {
-            declared_type(syntax, trees, sources, name.symbol, false)
-                .map(|reference| vec![reference])
-        }
-        expression::ExpressionNode::Borrow(borrow) => {
+        ExpressionNode::Name(name) => declared_type(syntax, trees, sources, name.symbol, false)
+            .map(|reference| vec![reference]),
+        ExpressionNode::Borrow(borrow) => {
             let targets = expression_types(
                 syntax,
                 trees,
@@ -218,18 +213,17 @@ fn expression_types<'trees>(
                     syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
-                let reference =
-                    syntax
-                        .tables
-                        .type_references
-                        .insert_reference(referee, borrow.access);
+                let reference = syntax
+                    .tables
+                    .type_references
+                    .insert_reference(referee, borrow.access);
                 // The resolved declaration anchors nominal selection; the
                 // authored reference carries this expression's constructor.
                 borrowed.push((reference, declaration));
             }
             Some(borrowed)
         }
-        expression::ExpressionNode::Member(member) => projections::member_types(
+        ExpressionNode::Member(member) => projections::member_types(
             syntax,
             trees,
             sources,
@@ -237,7 +231,7 @@ fn expression_types<'trees>(
             selection,
             pending_diagnostics,
         ),
-        expression::ExpressionNode::Call(call) => {
+        ExpressionNode::Call(call) => {
             if let Some(reference) = declared_type(syntax, trees, sources, call.target_symbol, true)
             {
                 return Some(vec![reference]);
@@ -297,7 +291,7 @@ fn expression_types<'trees>(
                 }
             }
         }
-        expression::ExpressionNode::Match(dispatch) => {
+        ExpressionNode::Match(dispatch) => {
             let mut references = Vec::new();
             for arm in trees.tables.bodies.expressions.match_arms(dispatch.arms) {
                 let Some(observed) = expression_types(

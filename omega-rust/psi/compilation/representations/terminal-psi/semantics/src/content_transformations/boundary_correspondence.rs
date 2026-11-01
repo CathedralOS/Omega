@@ -5,6 +5,7 @@
 //! checked candidate mapping. Selected installation and invocation authority
 //! are separate; neither a matching count nor this record introduces a root.
 
+use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{
     ContentPlaceSegment, ContentPlaceVersion, ContentTerm, PlaceId, StructuralTypeId,
 };
@@ -149,7 +150,7 @@ pub(super) fn validate_authority(
                 .find(|place| place.id == subject.root)
                 .ok_or("boundary body public subject has no declaration")?;
             let roster = match root.kind {
-                semantic_vocabulary::StructuralPlaceKind::Parameter { position }
+                StructuralPlaceKind::Parameter { position }
                     if subject.version == ContentPlaceVersion::Entry =>
                 {
                     let boundary_index = boundary
@@ -192,9 +193,7 @@ pub(super) fn validate_authority(
                     }
                     &derived.inputs
                 }
-                semantic_vocabulary::StructuralPlaceKind::Result
-                    if subject.version == ContentPlaceVersion::Current =>
-                {
+                StructuralPlaceKind::Result if subject.version == ContentPlaceVersion::Current => {
                     &derived.outputs
                 }
                 _ => {

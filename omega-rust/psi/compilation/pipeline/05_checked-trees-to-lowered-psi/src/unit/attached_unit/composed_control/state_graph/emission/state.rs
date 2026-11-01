@@ -18,12 +18,21 @@ use super::super::super::LoweringError;
 use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking};
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
+use crate::emission::case_payload_dispatch::PlannedGuard;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
 use crate::emission::value_successor;
+use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
+use crate::scalar_lowering::computations::observations::prepare;
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::terminal_identities::lookup_type_id;
+use crate::unit::attached_unit::composed_control::emission::OperationSequence;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
+use crate::unit::attached_unit::signatures::find;
 
 impl StateGraphEmission<'_, '_> {
     /// Standalone and selected crash exits share the exact authored crash site.
@@ -62,10 +71,7 @@ impl StateGraphEmission<'_, '_> {
         }
         let owner = self.admitted.authored[position].0;
         if owner.symbol == self.plan.machine {
-            let signature = crate::unit::attached_unit::signatures::find(
-                &self.catalogs.signatures,
-                owner.symbol,
-            )?;
+            let signature = find(&self.catalogs.signatures, owner.symbol)?;
             return lower_structural_crash_predicates(
                 identities,
                 predicates,
@@ -165,9 +171,7 @@ impl StateGraphEmission<'_, '_> {
                 .catalogs
                 .prepared_scalar_qualifications
                 .cloned()
-                .unwrap_or_else(
-                crate::expression_preparation::qualifications::PreparedScalarQualifications::empty,
-            ),
+                .unwrap_or_else(PreparedScalarQualifications::empty),
             machine: Some(self.terminal_machine),
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
@@ -197,11 +201,7 @@ impl StateGraphEmission<'_, '_> {
                 &mut self.catalogs.next_place,
             )?,
             produced_values: self.produced_values.clone(),
-            observations: crate::scalar_lowering::computations::observations::prepare(
-                checked,
-                &self.owners,
-                &mut self.catalogs.next_place,
-            )?,
+            observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
             call_views: crate::scalar_lowering::computations::call_views::prepare(
                 identities,
                 checked,
@@ -225,12 +225,11 @@ impl StateGraphEmission<'_, '_> {
             )?,
             primitive_storage: Vec::new(),
             parameter_storage: Vec::new(),
-            scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
-                std::iter::empty(),
-            ),
+            scalar_bindings: ScalarBindings::new(std::iter::empty()),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             previous_parameter_homes: Vec::new(),
+            enclosing_structural_arrivals: Vec::new(),
             structural_parameters: state
                 .structural_parameters
                 .iter()
@@ -301,17 +300,14 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .map(|storage| storage.local)
             .collect();
-        let mut sequence =
-            crate::unit::attached_unit::composed_control::emission::OperationSequence::new(
-                &evaluation,
-            );
+        let mut sequence = OperationSequence::new(&evaluation);
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
         let mut next_edge = self.catalogs.next_edge;
         // The state's namespace starts from its scalar formals, its arriving
         // referents and its formal storage; its statements, immutable locals
         // included, lower through the one operation sequence.
-        evaluation.scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::entry(
+        evaluation.scalar_bindings = ScalarBindings::entry(
             values.iter().map(|value| value.scalar_type),
             &evaluation.primitive_storage,
             &evaluation.structural_parameters,
@@ -340,7 +336,7 @@ impl StateGraphEmission<'_, '_> {
         // Every cyclic header receives its already-completed observation.
         // The source telescope stays unchanged: the extra phi is not a local,
         // argument capture or implicit authority in the authored program.
-        let current_rank = if let Some(root) = ranking::observation(checked, plan, state)? {
+        let current_rank = if let Some(roots) = ranking::observations(checked, plan, state)? {
             let scalar_slots = values
                 .iter()
                 .enumerate()
@@ -366,41 +362,48 @@ impl StateGraphEmission<'_, '_> {
                 &scalar_slots,
                 &structural_actuals,
             )?;
-            let rank_type = crate::scalar_lowering::computations::computation_value_type(
-                identities,
-                checked,
-                &evaluation.shared_qualifications,
-                root.root,
-                &bindings,
-                &values
-                    .iter()
-                    .map(|value| value.value_type())
-                    .collect::<Vec<_>>(),
-            )?;
-            if rank_type.scalar_type.as_integer().is_none() {
-                return unsupported("Unit graph rank observation lost its integer carrier");
+            if roots.len() != self.rank_parameters[position].len() {
+                return unsupported("ranked header lost an ordered component parameter");
             }
-            let rank = ValueDeclaration {
-                id: self.rank_parameters[position].ok_or(LoweringError::Unsupported(
-                    "ranked state has no completed observation parameter",
-                ))?,
-                scalar_type: rank_type.scalar_type,
-                qualifications: rank_type.qualifications,
-            };
-            evaluation.parameters.push(rank);
+            let ranks = roots
+                .iter()
+                .zip(&self.rank_parameters[position])
+                .map(|(root, parameter)| {
+                    let rank_type = crate::scalar_lowering::computations::computation_value_type(
+                        identities,
+                        checked,
+                        &evaluation.shared_qualifications,
+                        root.root,
+                        &bindings,
+                        &values
+                            .iter()
+                            .map(|value| value.value_type())
+                            .collect::<Vec<_>>(),
+                    )?;
+                    if rank_type.scalar_type.as_integer().is_none() {
+                        return unsupported("Unit graph rank observation lost its integer carrier");
+                    }
+                    Ok(ValueDeclaration {
+                        id: *parameter,
+                        scalar_type: rank_type.scalar_type,
+                        qualifications: rank_type.qualifications,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            evaluation.parameters.extend(ranks.iter().copied());
             if position == 0 {
                 self.initialize_invocation_rank(
                     identities,
-                    root,
+                    &roots,
                     &evaluation,
-                    rank,
+                    &ranks,
                     &mut operations,
                     &mut next_value,
                     &mut next_block,
                     &mut next_edge,
                 )?;
             }
-            Some(rank.id)
+            Some(ranks.iter().map(|rank| rank.id).collect::<Vec<_>>())
         } else {
             None
         };
@@ -440,7 +443,7 @@ impl StateGraphEmission<'_, '_> {
                 operations,
                 super::seal::SealFrame {
                     state_parameters,
-                    current_rank,
+                    current_rank: current_rank.as_deref(),
                     is_guarded_return: false,
                     dispatches: false,
                     body_end,
@@ -1077,7 +1080,7 @@ impl StateGraphEmission<'_, '_> {
                     ShortCircuitFrame {
                         erased_scalar_formals: &self.state_erased[position],
                         erased_proof_formals: &self.state_erased_proof[position],
-                        current_rank,
+                        current_rank: current_rank.as_deref(),
                         inherited_lengths: &inherited_lengths,
                     },
                     &mut self.block_ranks,
@@ -1095,7 +1098,7 @@ impl StateGraphEmission<'_, '_> {
             position,
             state_parameters,
             bindings: &bindings,
-            current_rank,
+            current_rank: current_rank.as_deref(),
             inherited_lengths: &inherited_lengths,
             sequence: &sequence,
         };
@@ -1167,10 +1170,7 @@ impl StateGraphEmission<'_, '_> {
                     &operations,
                     &evaluation.current_claims,
                     &self.claims.source_claims,
-                    crate::terminal_identities::lookup_type_id(
-                        &self.catalogs.type_ids,
-                        &result.type_identity,
-                    )?,
+                    lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
                     &self.catalogs.structural_types,
                 )?;
                 if self.content_entry_claims.iter().any(|entry| {
@@ -1364,7 +1364,7 @@ impl StateGraphEmission<'_, '_> {
                         decision_edge(
                             guarded_decisions[index + 1],
                             self.state_erased_proof[position].len(),
-                            current_rank,
+                            current_rank.as_deref(),
                             &mut self.rank_edges,
                             &mut next_edge,
                         )?
@@ -1382,19 +1382,18 @@ impl StateGraphEmission<'_, '_> {
                             short_circuit!(&planned, &namespace, [when_true, when_false])
                         }
                     };
-                    if let Some(rank) = current_rank {
-                        self.block_ranks.insert(id, rank);
+                    if let Some(rank) = current_rank.as_ref() {
+                        self.block_ranks.insert(id, rank.clone());
                     }
                     edge_blocks.push(Block {
                         id,
                         parameters,
                         erased_scalar_formals: self.state_erased[position].clone(),
-                        erased_proof_formals:
-                            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                                identities,
-                                self.checked,
-                                &self.state_erased_proof[position],
-                            ),
+                        erased_proof_formals: erased_proof_formal_declarations(
+                            identities,
+                            self.checked,
+                            &self.state_erased_proof[position],
+                        ),
                         structural_parameters,
                         operations: operations_draft,
                         terminator,
@@ -1403,7 +1402,7 @@ impl StateGraphEmission<'_, '_> {
                 let first_false = decision_edge(
                     guarded_decisions[0],
                     self.state_erased_proof[position].len(),
-                    current_rank,
+                    current_rank.as_deref(),
                     &mut self.rank_edges,
                     &mut next_edge,
                 )?;
@@ -1491,12 +1490,10 @@ impl StateGraphEmission<'_, '_> {
             }
         };
         if let Terminator::Return { edge, .. } = terminator {
-            operations.source_returns.push(
-                crate::expression_preparation::qualifications::SourceScalarReturn {
-                    edge,
-                    exits: scalar_return_exits,
-                },
-            );
+            operations.source_returns.push(SourceScalarReturn {
+                edge,
+                exits: scalar_return_exits,
+            });
         }
         sequence.finish_state(checked, state)?;
         let dispatches = condition.is_some() || branch_guard.is_some() || prepared_cases.is_some();
@@ -1509,7 +1506,7 @@ impl StateGraphEmission<'_, '_> {
             operations,
             super::seal::SealFrame {
                 state_parameters: &state_parameters,
-                current_rank,
+                current_rank: current_rank.as_deref(),
                 is_guarded_return,
                 dispatches,
                 body_end,
@@ -1560,13 +1557,7 @@ pub(super) fn plan_short_circuit_guard(
     qualifications: &terminal_psi::ScalarQualificationCatalog,
     next_value: &mut u64,
     successor_reads_payloads: bool,
-) -> Result<
-    (
-        crate::emission::case_payload_dispatch::PlannedGuard,
-        Vec<ValueDeclaration>,
-    ),
-    LoweringError,
-> {
+) -> Result<(PlannedGuard, Vec<ValueDeclaration>), LoweringError> {
     let decision = crate::emission::boolean_control::lower_boolean_control_decision(
         expression,
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
@@ -1600,19 +1591,14 @@ pub(super) fn plan_short_circuit_guard(
 /// short-circuit decision planned with the namespace its true edge reads.
 pub(super) enum ChainGuard {
     Value(semantic_vocabulary::ValueId),
-    Decision(
-        (
-            crate::emission::case_payload_dispatch::PlannedGuard,
-            Vec<ValueDeclaration>,
-        ),
-    ),
+    Decision((PlannedGuard, Vec<ValueDeclaration>)),
 }
 
 /// The state-level facts a short-circuit decision's outcome blocks repeat.
 struct ShortCircuitFrame<'a> {
     erased_scalar_formals: &'a [ValueDeclaration],
     erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
-    current_rank: Option<semantic_vocabulary::ValueId>,
+    current_rank: Option<&'a [semantic_vocabulary::ValueId]>,
     /// The length observations the state held before any successor
     /// staging; the decision cannot reuse observations staged after it.
     inherited_lengths: &'a StorageObservations,
@@ -1628,18 +1614,18 @@ struct ShortCircuitFrame<'a> {
 fn emit_short_circuit_decision(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
-    planned: &crate::emission::case_payload_dispatch::PlannedGuard,
+    planned: &PlannedGuard,
     guard_values: &[ValueDeclaration],
     [when_true, when_false]: [SuccessorEdge; 2],
     frame: ShortCircuitFrame<'_>,
     block_ranks: &mut std::collections::BTreeMap<
         semantic_vocabulary::BlockId,
-        semantic_vocabulary::ValueId,
+        Vec<semantic_vocabulary::ValueId>,
     >,
     rank_edges: &mut std::collections::BTreeMap<
         semantic_vocabulary::EdgeId,
         (
-            semantic_vocabulary::ValueId,
+            Vec<semantic_vocabulary::ValueId>,
             terminal_psi::TerminalNaturalRankComparison,
         ),
     >,
@@ -1659,18 +1645,17 @@ fn emit_short_circuit_decision(
     let false_block = block_id(allocate_dense(next_block)?);
     for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
-            block_ranks.insert(id, rank);
+            block_ranks.insert(id, rank.to_vec());
         }
         edge_blocks.push(Block {
             id,
             parameters: Vec::new(),
             erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
-            erased_proof_formals:
-                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                    identities,
-                    checked,
-                    frame.erased_proof_formals,
-                ),
+            erased_proof_formals: erased_proof_formal_declarations(
+                identities,
+                checked,
+                frame.erased_proof_formals,
+            ),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
@@ -1727,7 +1712,7 @@ fn emit_short_circuit_decision(
         rank_edges.insert(
             edge,
             (
-                rank,
+                rank.to_vec(),
                 terminal_psi::TerminalNaturalRankComparison::Preserving,
             ),
         );
@@ -1749,11 +1734,11 @@ fn emit_short_circuit_decision(
 fn decision_edge(
     target: semantic_vocabulary::BlockId,
     erased_proof_count: usize,
-    current_rank: Option<semantic_vocabulary::ValueId>,
+    current_rank: Option<&[semantic_vocabulary::ValueId]>,
     rank_edges: &mut std::collections::BTreeMap<
         semantic_vocabulary::EdgeId,
         (
-            semantic_vocabulary::ValueId,
+            Vec<semantic_vocabulary::ValueId>,
             terminal_psi::TerminalNaturalRankComparison,
         ),
     >,
@@ -1764,7 +1749,7 @@ fn decision_edge(
         rank_edges.insert(
             edge,
             (
-                rank,
+                rank.to_vec(),
                 terminal_psi::TerminalNaturalRankComparison::Preserving,
             ),
         );

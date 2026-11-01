@@ -1,9 +1,11 @@
 //! Capture private and unused native choices as explicit acceptance/audit rows.
 use crate::capture::EvidenceOption;
+use crate::capture::providers::policy::bindings::project_native;
 use crate::capture::{PackageReviewInput, semantics::services};
 use crate::record::PackagePolicyNativeBinding;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use std::iter::once;
 pub(super) fn project(
     input: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
@@ -46,9 +48,7 @@ pub(super) fn project(
                 method,
                 &candidate.plan.schema.declaration.identities,
             )?;
-            for production in
-                std::iter::once(&native.origin.primary).chain(&native.origin.equivalents)
-            {
+            for production in once(&native.origin.primary).chain(&native.origin.equivalents) {
                 let occurrence = provider_planning::native_bindings::NativeBuildRowOrigin {
                     requirement: native.requirement,
                     origin: package_compilation::PackageNativeBindingOrigin {
@@ -56,11 +56,7 @@ pub(super) fn project(
                         equivalents: Vec::new(),
                     },
                 };
-                let binding = crate::capture::providers::policy::bindings::project_native(
-                    input,
-                    &occurrence,
-                    &row.binding,
-                )?;
+                let binding = project_native(input, &occurrence, &row.binding)?;
                 rows.push(PackagePolicyNativeBinding {
                     method: method.clone(),
                     binding,

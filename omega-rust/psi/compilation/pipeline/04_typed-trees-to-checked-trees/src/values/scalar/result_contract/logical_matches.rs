@@ -1,4 +1,7 @@
 //! Logical capture scoping under the callable's existing formal/result policy.
+use super::super::structural_fields::readable_entry_parameter_path;
+use super::super::structural_fields::structural_parameter_place;
+use super::super::structural_fields::structural_projection_path;
 use super::*;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 
@@ -39,7 +42,7 @@ impl ContractPredicates<'_, '_> {
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<TypeReferenceHandle> {
         let mut remaining = self.remaining.get();
-        let result = super::super::structural_fields::readable_entry_parameter_path(
+        let result = readable_entry_parameter_path(
             self.program,
             self.parameters,
             position,
@@ -99,19 +102,12 @@ impl ContractPredicates<'_, '_> {
             }
             return Some(ContractSubject {
                 position: u32::try_from(self.parameters.len()).ok()?,
-                path: super::super::structural_fields::structural_projection_path(
-                    program,
-                    &result.segments,
-                )?,
+                path: structural_projection_path(program, &result.segments)?,
                 reference: validation::field_domains::readable_type_reference(program, reference)?,
                 result: true,
             });
         }
-        let (position, path, _) = super::super::structural_fields::structural_parameter_place(
-            program,
-            self.parameters,
-            expression,
-        )?;
+        let (position, path, _) = structural_parameter_place(program, self.parameters, expression)?;
         let formal = self.parameters.get(position as usize)?;
         if formal.is_const || !super::contract_storage_root(program, formal, self.allow_result) {
             return None;
@@ -133,10 +129,7 @@ impl ContractPredicates<'_, '_> {
         )?;
         observed
             .path
-            .extend(super::super::structural_fields::structural_projection_path(
-                self.program,
-                &segments,
-            )?);
+            .extend(structural_projection_path(self.program, &segments)?);
         if observed.result {
             let mut reference = observed.reference;
             for segment in &segments {

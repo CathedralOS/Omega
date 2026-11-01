@@ -156,32 +156,73 @@ pub enum CheckedRankObservation {
     Length,
 }
 
+/// Inputs retained before executable scalar roots are materialized. Every
+/// coordinate keeps its own path/index receipts under this arrival owner.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRankOperand {
+    Coordinate {
+        coordinate: CheckedRankCoordinateHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+        observation: CheckedRankObservation,
+    },
+    Expression {
+        state: SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+    Literal(u64),
+}
+
+impl Default for CheckedRankOperand {
+    fn default() -> Self {
+        Self::Coordinate {
+            coordinate: CheckedRankCoordinateHandle::invalid(),
+            primitive_type: typed_trees::types::PrimitiveType::Bool,
+            observation: CheckedRankObservation::Value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRuntimeRankInput {
+    Value(CheckedRankObservation),
+    Distance {
+        lower_observation: CheckedRankObservation,
+        lower_primitive: typed_trees::types::PrimitiveType,
+        upper: Handle<CheckedRankOperand>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeNaturalState {
+    pub state: SymbolHandle,
+    pub values: HandleSpan<CheckedRuntimeIntegerRank>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedRuntimeIntegerRank {
     /// Application decisions remain attached to this exact state/input row.
     pub application: super::CheckedRankApplicationFacts,
     /// Selected declaration applied to this exact input coordinate; ZII is primitive.
     pub measure: SymbolHandle,
-    pub state: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
-    pub observation: CheckedRankObservation,
+    pub observation: CheckedRuntimeRankInput,
     pub function: crate::CheckedNaturalRankFunction,
 }
 
-impl Default for CheckedRuntimeNaturalState {
+impl Default for CheckedRuntimeIntegerRank {
     /// Arena's ZII dummy is not a component state or a selected coordinate.
     /// Its non-integer carrier cannot supply natural-rank evidence either.
     fn default() -> Self {
         Self {
             application: Default::default(),
             measure: SymbolHandle::invalid(),
-            state: SymbolHandle::invalid(),
             coordinate: CheckedRankCoordinateHandle::invalid(),
             parameter_position: 0,
             primitive_type: typed_trees::types::PrimitiveType::Bool,
-            observation: CheckedRankObservation::Value,
+            observation: CheckedRuntimeRankInput::Value(CheckedRankObservation::Value),
             function: crate::CheckedNaturalRankFunction::Identity,
         }
     }
@@ -252,6 +293,7 @@ pub struct CheckedRankArrivalPlan {
     pub states: Arena<CheckedStateRankCorrespondence>,
     pub bindings: Arena<CheckedRankCoordinateBinding>,
     pub coordinates: Arena<CheckedRankCoordinate>,
+    pub rank_operands: Arena<CheckedRankOperand>,
     pub entry_indexes: Arena<crate::CheckedEntryIndexBound>,
     pub path_segments: Arena<PlaceSegment>,
     pub transports: Arena<CheckedRankCoordinateTransport>,
@@ -259,9 +301,11 @@ pub struct CheckedRankArrivalPlan {
     pub captures: Arena<CheckedRankLocalCapture>,
     pub arrival_edges: Arena<CheckedRankArrivalEdge>,
     pub observations: Arena<crate::CheckedStateNaturalRank>,
+    pub observation_components: Arena<crate::CheckedIntegerRankObservation>,
     pub runtime_components: Arena<CheckedRuntimeRankComponent>,
     pub runtime_members: Arena<CheckedRuntimeRankMember>,
     pub runtime_states: Arena<CheckedRuntimeNaturalState>,
+    pub runtime_values: Arena<CheckedRuntimeIntegerRank>,
     pub runtime_edges: Arena<CheckedRuntimeRankEdge>,
     pub source_natural_components: Arena<CheckedSourceNaturalRankComponent>,
     pub source_natural_members: Arena<CheckedSourceNaturalRankMember>,

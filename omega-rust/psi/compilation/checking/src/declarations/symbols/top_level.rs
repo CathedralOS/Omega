@@ -1,4 +1,6 @@
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
 use std::sync::Mutex;
 use symbols::{SymbolHandle, SymbolKeyMap as HashMap, SymbolKind};
 use typed_trees::machine::Machine;
@@ -95,10 +97,7 @@ struct TypeSymbol<'program> {
 }
 
 impl<'program> TopLevelSymbols<'program> {
-    pub fn build(
-        program: &'program dyn crate::CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) -> Self {
+    pub fn build(program: &'program dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();
         let trait_count = program.traits().len();
@@ -181,14 +180,12 @@ impl<'program> TopLevelSymbols<'program> {
                             || (machine.spelling.is_none() && previous.spelling.is_none()))
                 });
             let is_boundary_token_overload_family = machine.spelling.is_some()
-                && machine.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && machine.supply_mode == MachineSupplyMode::TopLevelRequirement
                 && identity.is_valid()
                 && same_named.iter().all(|previous| {
                     let previous_identity = program.machine_callable_identity(previous);
                     previous.spelling == machine.spelling
-                        && previous.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && previous.supply_mode == MachineSupplyMode::TopLevelRequirement
                         && program.callable_identities_share_path(previous_identity, identity)
                         && !program.callable_identities_share_family(previous_identity, identity)
                 });
@@ -322,7 +319,7 @@ impl<'program> TopLevelSymbols<'program> {
 
     pub fn attached_machine_state(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         data_name: &str,
         state_name: &str,
     ) -> Option<(&'program Machine, &'program State)> {
@@ -355,7 +352,7 @@ impl<'program> TopLevelSymbols<'program> {
     }
 }
 
-fn builtin_type_symbols(program: &dyn crate::CheckingInput) -> Vec<TypeSymbol<'_>> {
+fn builtin_type_symbols(program: &dyn CheckingInput) -> Vec<TypeSymbol<'_>> {
     let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
         return Vec::new();
     };

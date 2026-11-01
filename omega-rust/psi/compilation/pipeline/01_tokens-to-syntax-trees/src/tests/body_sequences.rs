@@ -2,6 +2,7 @@ use crate::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
+use syntax_trees::statement::TransitionGuardNode;
 
 #[test]
 fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
@@ -20,10 +21,7 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
         else {
             panic!("final value must carry its completion edge");
         };
-        assert!(matches!(
-            completion.guard,
-            syntax_trees::statement::TransitionGuardNode::Always
-        ));
+        assert!(matches!(completion.guard, TransitionGuardNode::Always));
         assert!(!completion.continuation.is_valid());
         assert!(completion.ends_dispatch);
         assert!(matches!(

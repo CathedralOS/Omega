@@ -6,17 +6,21 @@ use crate::monomorphization::normalize_const_arguments;
 use crate::tables::expressions_of_mut;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use expr::CompletedValueCapture;
+use expr::EvidenceProjection;
 use language_semantics::declaration_selection::{
     ProductDeclarationOperand, ProductOperandRole, product_operands::*,
 };
 use symbols::SymbolHandle;
 use typed_trees::product_operand::resolve_product_path;
+use typed_trees::static_applications::StaticMachineLifetimeBinding;
 use typed_trees::{
     TypedTrees, expression as expr,
     name::Identifier,
     trait_definition::{AppliedTraitScope, RetainedTraitScope},
     types::{self, TypeReferenceHandle, TypeReferenceNode},
 };
+use types::FixedArrayLength;
 
 /// A declaration table's symbols beside the visibility their owner carries.
 macro_rules! public_symbols {
@@ -236,11 +240,9 @@ pub fn prepare_product_requirement_operand(
         let lifetimes = lifetime_parameters
             .iter()
             .zip(supplied.lifetime_arguments.iter())
-            .map(|(parameter, argument)| {
-                typed_trees::static_applications::StaticMachineLifetimeBinding {
-                    parameter: parameter.clone(),
-                    argument: argument.clone(),
-                }
+            .map(|(parameter, argument)| StaticMachineLifetimeBinding {
+                parameter: parameter.clone(),
+                argument: argument.clone(),
             })
             .collect::<Vec<_>>();
         let application = expressions_of_mut(lower.program).retain_static_machine_application(
@@ -297,10 +299,7 @@ struct Lower<'a> {
     input_selections: Vec<typed_trees::product_operand::ProductInputSelection>,
     types: Vec<(Handle<ProductOperandType>, TypeReferenceHandle)>,
     expressions: Vec<(Handle<ProductOperandExpression>, expr::ExpressionHandle)>,
-    subjects: Vec<(
-        Handle<ProductMatchSubject>,
-        Handle<expr::CompletedValueCapture>,
-    )>,
+    subjects: Vec<(Handle<ProductMatchSubject>, Handle<CompletedValueCapture>)>,
     active_types: Vec<Handle<ProductOperandType>>,
     active_expressions: Vec<Handle<ProductOperandExpression>>,
     active_operands: Vec<Handle<ProductStaticOperand>>,
@@ -572,12 +571,10 @@ impl Lower<'_> {
         } else {
             SymbolHandle::invalid()
         };
-        let evidence_projection = value
-            .projection
-            .map(|(term, member)| expr::EvidenceProjection {
-                term: self.identifier(term),
-                member: self.identifier(member),
-            });
+        let evidence_projection = value.projection.map(|(term, member)| EvidenceProjection {
+            term: self.identifier(term),
+            member: self.identifier(member),
+        });
         self.active_operands.pop();
         self.retain_operand_input(value.authored_selection)?;
         Ok(expr::StaticMachineArgument {
@@ -686,17 +683,15 @@ impl Lower<'_> {
             ProductOperandType::Array { element, length } => TypeReferenceNode::FixedArray {
                 element_type: self.ty(element)?,
                 length: match length {
-                    ProductArrayLength::Literal(value) => types::FixedArrayLength::Literal(value),
+                    ProductArrayLength::Literal(value) => FixedArrayLength::Literal(value),
                     ProductArrayLength::Expression(value) => {
-                        types::FixedArrayLength::Expression(self.ty(value)?)
+                        FixedArrayLength::Expression(self.ty(value)?)
                     }
-                    ProductArrayLength::Parameter(name) => {
-                        types::FixedArrayLength::ConstParameter {
-                            symbol: self.symbol(name)?,
-                            name: self.identifier(name),
-                        }
-                    }
-                    ProductArrayLength::Call(name) => types::FixedArrayLength::ConstCall {
+                    ProductArrayLength::Parameter(name) => FixedArrayLength::ConstParameter {
+                        symbol: self.symbol(name)?,
+                        name: self.identifier(name),
+                    },
+                    ProductArrayLength::Call(name) => FixedArrayLength::ConstCall {
                         machine: self.symbol(name)?,
                         name: self.identifier(name),
                         source_span: self.graph.names.get(name).source_span,

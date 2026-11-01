@@ -1,0 +1,25 @@
+// An exact integer conversion denotes its operand, and the operand keeps the
+// bounds of the carrier it was read from: a `u8` widened into `i32` still
+// lies in `0..=255`, so a data `requires` over that range is established by
+// the construction itself, not by a caller guard. Check-only; no entry bound.
+
+public data Reading
+    requires (self in Reading::Eof) || ((self in Reading::Byte) && (self.value >= 0 && self.value <= 255))
+{
+    case Eof;
+    case Byte(value: i32);
+}
+
+public data Plain requires self.value >= 0 && self.value <= 255 { value: i32; }
+
+machine widen_case(cell: u8) -> Reading {
+    Reading::Byte { value: cell as i32 }
+}
+
+machine widen_plain(cell: u8) -> Plain {
+    Plain { value: cell as i32 }
+}
+
+machine widen_twice(cell: u8) -> Plain {
+    Plain { value: (cell as u16) as i32 }
+}

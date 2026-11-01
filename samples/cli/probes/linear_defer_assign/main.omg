@@ -1,10 +1,10 @@
 // Deferred establishment of a [linear]: `let mut receipt: Receipt;`
 // owns only zeroed storage — the explicit assignment ESTABLISHES
 // the value and its obligation. Receipt declares no `drop` plan,
-// so the consuming contract `Receipt::ack` is the only authorized
+// so the consuming contract `ReceiptAck::ack` is the only authorized
 // terminal disposition: the call edge transfers custody.
 //
-//   * `boundary requirement T::m(t: T)` — bodyless consuming
+//   * `boundary trait` requirement `m(t: T)` — bodyless consuming
 //     contract.
 //   * `machine Main::main() -> i32` — non-carrier entry spelling
 //     on Main data.
@@ -14,14 +14,16 @@
 
 data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data Main { hits: i32 in Wrapping; }
 
 machine work() -> i32 {
     let mut receipt: Receipt;
     receipt = Receipt { code: 7 };
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     0
 }
 

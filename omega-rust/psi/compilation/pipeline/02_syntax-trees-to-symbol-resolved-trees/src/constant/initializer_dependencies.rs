@@ -8,11 +8,17 @@
 use crate::selection::call_identity::call_declaration_source;
 use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
+use language_core::data_layout_queries::is_data_layout_query_spelling;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
+use std::iter::once;
+use symbol_resolved_trees::domain::ProofFact;
+use symbol_resolved_trees::expression::StaticMachineArgument;
+use symbol_resolved_trees::signature::SignatureContract;
+use symbol_resolved_trees::types::TypeReference;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -135,7 +141,7 @@ pub(crate) fn collect(
 pub(crate) fn collect_declaration(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    destination: &symbol_resolved_trees::types::TypeReference,
+    destination: &TypeReference,
     purpose: DependencyPurpose,
     retained_base: Option<&SymbolResolvedTrees>,
     selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
@@ -236,7 +242,7 @@ fn named_implementation_dependency(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     target_name: &str,
-    static_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    static_arguments: &[StaticMachineArgument],
 ) -> Result<NamedImplementationDependency, String> {
     let target = program.symbols.get(target_symbol);
     let target_parent_kind = program.symbols.get(target.parent).kind;
@@ -684,8 +690,8 @@ struct Collector<'program, 'selection> {
     initializer_expressions: Vec<ExpressionHandle>,
     machines: Vec<SymbolHandle>,
     available_machines: Vec<SymbolHandle>,
-    types: Vec<&'program symbol_resolved_trees::types::TypeReference>,
-    visited_type_children: Vec<arena::Handle<symbol_resolved_trees::types::TypeReference>>,
+    types: Vec<&'program TypeReference>,
+    visited_type_children: Vec<arena::Handle<TypeReference>>,
     visited_type_declarations: Vec<SymbolHandle>,
     expanded_constants: Vec<SymbolHandle>,
     visited_expressions: Vec<ExpressionHandle>,
@@ -900,7 +906,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         target_symbol: SymbolHandle,
         target_name: &str,
         target_span: SourceSpan,
-        static_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+        static_arguments: &[StaticMachineArgument],
     ) -> Result<(), String> {
         if !target_symbol.is_valid() {
             let symbols = &self.program.symbols;
@@ -1100,12 +1106,11 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 // `size_of<T>()`/`align_of<T>()` carry no callee: the
                 // compiler answers them from the selected target's layout
                 // after constant dependency ordering has already run.
-                let layout_query =
-                    language_core::data_layout_queries::is_data_layout_query_spelling(
-                        call.target.as_str(),
-                        call.target_symbol.is_valid(),
-                        call.receiver.is_valid(),
-                    );
+                let layout_query = is_data_layout_query_spelling(
+                    call.target.as_str(),
+                    call.target_symbol.is_valid(),
+                    call.receiver.is_valid(),
+                );
                 self.dependencies.pending_target_observation |= layout_query;
                 if !native_query && !layout_query {
                     let receiver_symbol = table
@@ -1209,10 +1214,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
     /// Invocation formation demands the complete published clauses before a
     /// body can execute. A helper whose value body is independent can still
     /// need selected providers to form its requires/ensures operands.
-    fn contracts(
-        &mut self,
-        contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
-    ) -> Result<(), String> {
+    fn contracts(&mut self, contracts: arena::HandleSpan<SignatureContract>) -> Result<(), String> {
         let program = self.program;
         let clauses = program.signature_contracts(contracts);
         if clauses.len() != contracts.len() {
@@ -1226,20 +1228,17 @@ impl<'program, 'selection> Collector<'program, 'selection> {
 
     /// Type/default-domain and invocation predicates share the same exact
     /// dependency roster. Readiness selects their bodies; it proves no clause.
-    fn predicate_facts(
-        &mut self,
-        span: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
-    ) -> Result<(), String> {
+    fn predicate_facts(&mut self, span: arena::HandleSpan<ProofFact>) -> Result<(), String> {
         let facts = self.program.proof_facts(span);
         if facts.len() != span.len() {
             return Err("constant dependency has stale predicate facts".to_owned());
         }
         for fact in facts {
             match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                ProofFact::Expression(expression) => {
                     self.expressions.push(*expression);
                 }
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                ProofFact::Membership(membership) => {
                     self.expressions.push(membership.value);
                     self.types.extend(
                         self.program
@@ -1418,8 +1417,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                         if let TransitionGuard::When(guard) = &transition.guard {
                             self.expressions.push(*guard);
                         }
-                        for target in std::iter::once(&transition.target)
-                            .chain(transition.continuation.iter())
+                        for target in once(&transition.target).chain(transition.continuation.iter())
                         {
                             match target {
                                 TransitionTarget::Value(value) => self.expressions.push(*value),

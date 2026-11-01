@@ -102,21 +102,23 @@ mod tests;
 
 pub use dyld_linking::imports::validate_macho_import_binding_pairing;
 use dyld_linking::imports::{
-    install_import_thunks, patch_import_thunks, validate_import_thunk_footprints,
+    install_import_thunks, macho_bind_info_for_segment, patch_import_thunks,
+    validate_import_thunk_footprints,
 };
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
-    write_macho_code_signature_command, write_macho_dyld_info_command,
+    write_macho_code_signature_command, write_macho_dyld_info_command, write_macho_dylib_header,
     write_macho_executable_build_version_command, write_macho_executable_data_segment,
     write_macho_executable_header, write_macho_executable_text_segment,
-    write_macho_linkedit_segment, write_macho_load_dylib_command,
-    write_macho_load_dylinker_command, write_macho_main_command, write_macho_pagezero_segment,
-    write_macho_uuid_command,
+    write_macho_exports_trie_command, write_macho_id_dylib_command, write_macho_linkedit_segment,
+    write_macho_load_dylib_command, write_macho_load_dylinker_command, write_macho_main_command,
+    write_macho_pagezero_segment, write_macho_uuid_command,
 };
 pub use dyld_linking::loader_fixups::{
     MachoImportPointer, MachoRebasePointer, validate_macho_object_fixups,
 };
 pub use dyld_linking::loader_mapping::validate_macho_loader_mapping;
+use dyld_linking::rebases::macho_rebase_info_for_segment;
 use entry_symbol::macho_entry_text_offset;
 use isa::MachoIsa;
 
@@ -212,12 +214,8 @@ fn emit_macho_container_contents(
     // preflighted before import-thunk installation mutated the final image.
     let dylibs = imports.dylibs;
     let data_segment = file_layout::plan::macho_data_segment_index(&image, identity.is_some());
-    let bind_info = dyld_linking::imports::macho_bind_info_for_segment(
-        &import_thunks,
-        data_segment.unwrap_or(0),
-    )?;
-    let rebase_info =
-        dyld_linking::rebases::macho_rebase_info_for_segment(&image, data_segment.unwrap_or(0))?;
+    let bind_info = macho_bind_info_for_segment(&import_thunks, data_segment.unwrap_or(0))?;
+    let rebase_info = macho_rebase_info_for_segment(&image, data_segment.unwrap_or(0))?;
     let mut plan = file_layout::plan::plan_macho_container(
         &image,
         import_thunks.len(),
@@ -265,12 +263,7 @@ fn emit_macho_container_contents(
 
     let mut bytes = Vec::new();
     if identity.is_some() {
-        dyld_linking::load_commands::write_macho_dylib_header(
-            &mut bytes,
-            plan.command_count,
-            plan.sizeofcmds,
-            isa,
-        );
+        write_macho_dylib_header(&mut bytes, plan.command_count, plan.sizeofcmds, isa);
     } else {
         write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds, isa);
         write_macho_pagezero_segment(&mut bytes);
@@ -302,7 +295,7 @@ fn emit_macho_container_contents(
         write_macho_main_command(&mut bytes, entry_offset);
     }
     if let Some(identity) = identity {
-        dyld_linking::load_commands::write_macho_id_dylib_command(&mut bytes, identity);
+        write_macho_id_dylib_command(&mut bytes, identity);
     }
     // One LC_LOAD_DYLIB per linked dylib, in ordinal order (libSystem first).
     for dylib in &dylibs {
@@ -318,11 +311,7 @@ fn emit_macho_container_contents(
         );
     }
     if identity.is_some() {
-        dyld_linking::load_commands::write_macho_exports_trie_command(
-            &mut bytes,
-            plan.export_offset,
-            export_bytes.len(),
-        );
+        write_macho_exports_trie_command(&mut bytes, plan.export_offset, export_bytes.len());
     }
     write_macho_linkedit_segment(
         &mut bytes,

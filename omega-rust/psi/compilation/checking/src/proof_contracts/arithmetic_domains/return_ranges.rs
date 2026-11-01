@@ -7,6 +7,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::validate_anonymo
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
+use checked_trees::IntegerRangeRecipe;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
@@ -166,12 +167,8 @@ pub(crate) fn infer_return_interval(
     callee_machine: &Machine,
     callee_state: &State,
     target_primitive: Option<PrimitiveType>,
-    actuals: &[(
-        symbols::SymbolHandle,
-        Interval,
-        Option<checked_trees::IntegerRangeRecipe>,
-    )],
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+    actuals: &[(symbols::SymbolHandle, Interval, Option<IntegerRangeRecipe>)],
+) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
     super::guard_narrowing::inferred_normal_return_interval(
         program,
         callee_machine,

@@ -1,18 +1,19 @@
 use diagnostics::Diagnostic;
+use language_semantics::const_value;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
 
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
 pub(super) fn lower_type_reference_handle_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: &resolved::types::TypeReference,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     macro_rules! lower {
         ($reference:expr) => {
@@ -31,10 +32,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
                     access: reference.access,
-                    lifetime: reference
-                        .lifetime
-                        .as_ref()
-                        .map(crate::lowerer::name::lower_name),
+                    lifetime: reference.lifetime.as_ref().map(lower_name),
                 },
             ))
         }
@@ -88,13 +86,13 @@ pub(super) fn lower_type_reference_handle_with_context(
                 &generic.base_name,
                 generic.base_symbol,
                 exposure,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                AuthoredDeclarationSelectionKind::TypeReference,
             )?;
             Ok(typed_trees
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: generic.base_symbol,
-                    base_name: crate::lowerer::name::lower_name(&generic.base_name),
+                    base_name: lower_name(&generic.base_name),
                     lifetime_arguments: lower_names(&generic.lifetime_arguments),
                     arguments,
                 }))
@@ -160,9 +158,7 @@ pub(super) fn lower_fixed_array_type(
     typed_trees: &mut typed::TypedTrees,
     element_type: typed::types::TypeReferenceHandle,
     length: &resolved::types::FixedArrayLength,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     let mut origin = None;
     let length = match length {
@@ -192,7 +188,7 @@ pub(super) fn lower_fixed_array_type(
                     name,
                     *symbol,
                     exposure,
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
                 )?;
                 origin = Some(typed::types::TypeConstantOrigin {
                     declaration: *symbol,
@@ -200,15 +196,10 @@ pub(super) fn lower_fixed_array_type(
                 });
                 if let Some(evaluated) = &declaration.evaluated_value {
                     let value = evaluated.encoding().and_then(|encoding| {
-                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
-                            .decode_encoding()
+                        const_value::CanonicalConstValue::new("", encoding, "").decode_encoding()
                     });
-                    let Some(
-                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                            value,
-                            ..
-                        },
-                    ) = value
+                    let Some(const_value::DecodedCanonicalConstValue::Integer { value, .. }) =
+                        value
                     else {
                         return Err(Diagnostic::error(format!(
                             "fixed-array length `{name}` requires an evaluated integer constant"
@@ -227,13 +218,13 @@ pub(super) fn lower_fixed_array_type(
                     // genuine generic binders retain their separate symbol kind.
                     typed::types::FixedArrayLength::ConstParameter {
                         symbol: *symbol,
-                        name: crate::lowerer::name::lower_name(name),
+                        name: lower_name(name),
                     }
                 }
             } else {
                 typed::types::FixedArrayLength::ConstParameter {
                     symbol: *symbol,
-                    name: crate::lowerer::name::lower_name(name),
+                    name: lower_name(name),
                 }
             }
         }

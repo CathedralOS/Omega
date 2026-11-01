@@ -4,7 +4,10 @@
 use crate::errors::TerminalInterpretError;
 use crate::scalar_array::TerminalScalarArrayResult;
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, OperationId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, MachineId, OperationId,
+    StructuralFieldId,
+};
 use terminal_fuel::{FuelExhaustion, FuelMeterError};
 use terminal_psi::CrashCause;
 
@@ -52,10 +55,7 @@ impl TerminalScalarCaseResult {
         case: semantic_vocabulary::StructuralCaseId,
         count: usize,
         fields: impl IntoIterator<
-            Item = Result<
-                (semantic_vocabulary::StructuralFieldId, TerminalScalarValue),
-                TerminalInterpretError,
-            >,
+            Item = Result<(StructuralFieldId, TerminalScalarValue), TerminalInterpretError>,
         >,
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
@@ -67,7 +67,7 @@ impl TerminalScalarCaseResult {
         let mut payload = Vec::new();
         let requested_bytes = count
             .checked_mul(std::mem::size_of::<(
-                Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+                Vec<CanonicalStructuralPathSegment>,
                 TerminalScalarValue,
             )>())
             .ok_or_else(crate::errors::malformed)?;
@@ -80,12 +80,7 @@ impl TerminalScalarCaseResult {
         let mut fields = fields.into_iter();
         for _ in 0..count {
             let (field, scalar) = fields.next().ok_or_else(crate::errors::malformed)??;
-            payload.push((
-                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                    field,
-                )],
-                scalar,
-            ));
+            payload.push((vec![CanonicalStructuralPathSegment::Field(field)], scalar));
         }
         if fields.next().is_some() {
             return Err(crate::errors::malformed());

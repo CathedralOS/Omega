@@ -2,6 +2,7 @@ use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::type_identity::{IndexIdentityArgument, normalized_index_identity};
 use crate::types::TypeReferenceHandle;
+use crate::types::TypeReferenceNode::Named;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -166,9 +167,7 @@ pub fn has_generic_carrier(program: &TypedTrees, domain: &DomainDefinition) -> b
     if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
         return false;
     }
-    let crate::types::TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_node(domain.target_type)
-    else {
+    let Named { symbol, name } = program.type_reference_node(domain.target_type) else {
         return false;
     };
     *symbol == parameter.symbol || name == &parameter.name
@@ -229,9 +228,7 @@ fn closed_domain_argument_identity(
     expected: &str,
     substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
 ) -> Result<String, Diagnostic> {
-    let crate::types::TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(argument)
-    else {
+    let Named { symbol, name } = program.type_reference_table.type_reference(argument) else {
         if matches!(
             program.type_reference_table.type_reference(argument),
             crate::types::TypeReferenceNode::ConstExpression(_)

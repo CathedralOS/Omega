@@ -26,6 +26,7 @@
 //! runtime call through an erased binding or erased field projection rejects
 //! with the same diagnostic as a direct read.
 
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -37,10 +38,7 @@ pub(super) enum Context {
     Proof,
 }
 
-pub(crate) fn validate_relevance(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     let proof_only = crate::proof_only_classification(program);
     validate_erased_field_shapes(program, diagnostics);
 
@@ -185,7 +183,7 @@ use runtime_uses::validate_expression;
 /// The callee state's authored parameters, when `target` names a state.
 /// Positional call arguments align with the non-`self` parameters.
 pub(super) fn callee_parameters(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
     program
@@ -222,7 +220,7 @@ pub(super) fn argument_position_context(
 }
 
 pub(super) fn call_targets_proof_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     target: SymbolHandle,
 ) -> bool {

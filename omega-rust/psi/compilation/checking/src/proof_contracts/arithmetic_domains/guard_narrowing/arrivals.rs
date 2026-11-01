@@ -16,6 +16,8 @@ use crate::proof_contracts::arithmetic_domains::CopiedIntegerValue;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::{
     CheckedAnalysis, analyze, analyze_arrival,
 };
+use checked_trees::IntegerRangeRecipe;
+use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
@@ -161,7 +163,7 @@ pub fn occurrence_integer_expression_recipe(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<checked_trees::IntegerRangeRecipe> {
+) -> Option<IntegerRangeRecipe> {
     expression_observation(
         program,
         machine_symbol,
@@ -464,11 +466,7 @@ pub(super) fn incoming_environments(
     frames: Option<&CallFrameResolver>,
     invocation: Option<(
         &State,
-        &[(
-            SymbolHandle,
-            Interval,
-            Option<checked_trees::IntegerRangeRecipe>,
-        )],
+        &[(SymbolHandle, Interval, Option<IntegerRangeRecipe>)],
     )>,
     return_ranges: Option<&ReturnInference>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
@@ -641,20 +639,18 @@ enum ValueObservationSite {
     Expression(ExpressionHandle),
     Invocation {
         target: typed_trees::statement::TransitionTargetHandle,
-        arrivals: Vec<Vec<(Interval, Option<checked_trees::IntegerRangeRecipe>)>>,
+        arrivals: Vec<Vec<(Interval, Option<IntegerRangeRecipe>)>>,
     },
 }
 
 struct ExpressionObservation {
     include_bounds: bool,
-    recipe: Option<checked_trees::IntegerRangeRecipe>,
+    recipe: Option<IntegerRangeRecipe>,
     site: ValueObservationSite,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
-    completed_children: std::collections::BTreeMap<
-        (u32, u32),
-        super::super::expression_analysis::CheckedIntegerValue,
-    >,
+    completed_children:
+        BTreeMap<(u32, u32), super::super::expression_analysis::CheckedIntegerValue>,
 }
 
 impl ExpressionObservation {
@@ -716,10 +712,8 @@ struct ArrivalWalk<'program, 'frames> {
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
     observations: Vec<ExpressionObservation>,
-    completed_children: std::collections::BTreeMap<
-        (u32, u32),
-        super::super::expression_analysis::CheckedIntegerValue,
-    >,
+    completed_children:
+        BTreeMap<(u32, u32), super::super::expression_analysis::CheckedIntegerValue>,
     return_ranges: Option<&'frames ReturnInference>,
     collect_arrivals: bool,
 }

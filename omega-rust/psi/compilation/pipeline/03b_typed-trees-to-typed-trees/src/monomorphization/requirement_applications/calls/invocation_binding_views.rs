@@ -71,8 +71,11 @@ pub(super) fn complete_arguments(
             call.static_requirement_dispatch.as_ref(),
         ),
     };
-    let dispatch = dispatch?;
-    let (_, signature) = program.trait_machine_signature(dispatch.requirement)?;
+    let requirement = dispatch.map_or_else(
+        || call.registration_operation(program),
+        |dispatch| dispatch.requirement,
+    );
+    let (_, signature) = program.trait_machine_signature(requirement)?;
     let parameters = program.state_signature_type_parameters(signature);
     let arguments = call.arguments(program);
     if arguments.len() == parameters.len() {
@@ -87,6 +90,35 @@ pub(super) fn complete_arguments(
         return None;
     }
     let bindings = expressions_of(program).static_machine_application_bindings(invocation);
+    if dispatch.is_none() {
+        // Direct public calls have no private realizer telescope. Structural
+        // inference retains their own exact public bindings on this occurrence.
+        if source.binding_declaration != requirement || bindings.len() != parameters.len() {
+            return None;
+        }
+        return parameters
+            .iter()
+            .map(|parameter| {
+                let mut selected = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let binding = selected.next()?;
+                if selected.next().is_some() {
+                    return None;
+                }
+                match &binding.value {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference) => {
+                        program.static_operand_from_type_reference(*reference).ok()
+                    }
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => Some(argument.clone()),
+                    StaticMachineBindingValue::RuntimeValue { .. } => None,
+                }
+            })
+            .collect();
+    }
+    let dispatch = dispatch?;
     let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return None;

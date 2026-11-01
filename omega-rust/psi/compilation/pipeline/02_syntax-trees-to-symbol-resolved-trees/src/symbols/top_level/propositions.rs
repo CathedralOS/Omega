@@ -2,6 +2,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
+use symbol_resolved_trees::proposition::PropositionBinderKind;
 
 pub(super) fn assign_proposition_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let binders = &mut program.tables.declarations.proposition_binders;
@@ -15,9 +16,7 @@ pub(super) fn assign_proposition_symbols(program: &mut SymbolResolvedTrees, symb
             .flatten();
         for binder in binders.span_mut_or_empty(proposition.binders) {
             let kind = match binder.kind {
-                symbol_resolved_trees::proposition::PropositionBinderKind::Machine => {
-                    SymbolKind::PropositionMachineParameter
-                }
+                PropositionBinderKind::Machine => SymbolKind::PropositionMachineParameter,
                 _ => SymbolKind::TypeParameter,
             };
             binder.symbol = next_child_of_kind(&mut children, symbols, kind);

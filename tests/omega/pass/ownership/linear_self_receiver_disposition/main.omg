@@ -9,17 +9,19 @@ data Receipt [linear] {
     code: i32;
 }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 machine ack_ordinary(receipt: Receipt) {
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
 }
 
 data Main {}
 
 machine Main::main() -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     let spare: Receipt = Receipt { code: 9 };
     ack_ordinary(spare);
     0

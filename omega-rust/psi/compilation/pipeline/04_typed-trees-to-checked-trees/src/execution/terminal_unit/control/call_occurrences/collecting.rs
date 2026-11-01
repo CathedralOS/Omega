@@ -2,11 +2,15 @@
 //! its per-kind operand walks, plus the dispatch-subject and
 //! statement-computation ownership questions the walk answers.
 
-use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
+use super::super::{
+    CheckFacts, CheckedScalarExpressionRole as ExpressionRole, StatementNode, SymbolHandle,
+};
 use super::ComputationVisit;
 use crate::execution::terminal_unit::control::structural_operands;
 
-use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
+use checked_trees::{
+    CheckedScalarComputationHandle, CheckedScalarComputationKind as ComputationKind,
+};
 
 /// Assignment targets and scalar values own their computation calls before
 /// the separately scheduled whole-value call. Both the statement sequencer
@@ -35,7 +39,7 @@ pub(super) fn collect_assignment_calls(
             .enumerate()
             .map(|(ordinal, operand)| {
                 Some((
-                    CheckedScalarExpressionRole::AtomicOperand {
+                    ExpressionRole::AtomicOperand {
                         operand_ordinal: u32::try_from(ordinal).ok()?,
                     },
                     operand,
@@ -43,17 +47,14 @@ pub(super) fn collect_assignment_calls(
             })
             .collect::<Option<Vec<_>>>()?
     } else {
-        vec![(
-            CheckedScalarExpressionRole::AssignmentValue,
-            assignment.value,
-        )]
+        vec![(ExpressionRole::AssignmentValue, assignment.value)]
     };
     let operands = selectors
         .into_iter()
         .enumerate()
         .map(|(depth, expression)| {
             Some((
-                CheckedScalarExpressionRole::AssignmentIndex {
+                ExpressionRole::AssignmentIndex {
                     depth: u32::try_from(depth).ok()?,
                 },
                 expression,
@@ -67,11 +68,8 @@ pub(super) fn collect_assignment_calls(
             continue;
         };
         let primitive = match role {
-            CheckedScalarExpressionRole::AssignmentIndex { .. } => {
-                typed_trees::types::PrimitiveType::U64
-            }
-            CheckedScalarExpressionRole::AssignmentValue
-            | CheckedScalarExpressionRole::AtomicOperand { .. } => {
+            ExpressionRole::AssignmentIndex { .. } => typed_trees::types::PrimitiveType::U64,
+            ExpressionRole::AssignmentValue | ExpressionRole::AtomicOperand { .. } => {
                 let reference = validation::declared_place_type_raw(
                     program,
                     owner,
@@ -133,12 +131,12 @@ pub(super) fn collect_constructor_calls(
         .filter(|root| {
             matches!(
                 root.role,
-                CheckedScalarExpressionRole::StructuralValueField { .. }
-                    | CheckedScalarExpressionRole::RecordField { .. }
-                    | CheckedScalarExpressionRole::StructuralArrayElement { .. }
-                    | CheckedScalarExpressionRole::StructuralScalarValue { .. }
-                    | CheckedScalarExpressionRole::StructuralValueSubject { .. }
-                    | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                ExpressionRole::StructuralValueField { .. }
+                    | ExpressionRole::RecordField { .. }
+                    | ExpressionRole::StructuralArrayElement { .. }
+                    | ExpressionRole::StructuralScalarValue { .. }
+                    | ExpressionRole::StructuralValueSubject { .. }
+                    | ExpressionRole::StructuralValuePattern { .. }
             )
         })
     {
@@ -181,7 +179,7 @@ pub(super) fn collect_constructor_calls(
                     ..
                 } => (expression, primitive_type),
             };
-            let role = CheckedScalarExpressionRole::ArrayElement {
+            let role = ExpressionRole::ArrayElement {
                 source,
                 element_ordinal: u32::try_from(element_index).ok()?,
             };
@@ -248,11 +246,8 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     {
         let plans = &facts.values.scalar_computations;
         let statement_ordinal = u32::try_from(call.statement_index).ok()?;
-        let mut roots = plans.roots_for_statement_role(
-            state,
-            statement_ordinal,
-            CheckedScalarExpressionRole::Guard,
-        );
+        let mut roots =
+            plans.roots_for_statement_role(state, statement_ordinal, ExpressionRole::Guard);
         if let Some(root) = roots.next() {
             if roots.next().is_some()
                 || !plans.is_authored_root(
@@ -586,17 +581,17 @@ pub(super) fn collect_argument_calls(
     {
         let plans = &facts.values.scalar_computations;
         let (expression, primitive) = match root.role {
-            CheckedScalarExpressionRole::BoundaryCallArgument {
+            ExpressionRole::BoundaryCallArgument {
                 call_ordinal,
                 argument_ordinal,
             }
-            | CheckedScalarExpressionRole::UnitCallArgument {
+            | ExpressionRole::UnitCallArgument {
                 call_ordinal,
                 argument_ordinal,
             } if call_ordinal as usize == call.call_ordinal => {
                 *scalar_arguments.get(argument_ordinal as usize)?
             }
-            CheckedScalarExpressionRole::CallSelector {
+            ExpressionRole::CallSelector {
                 call_ordinal,
                 argument_ordinal,
                 expression,
@@ -849,15 +844,15 @@ pub(super) fn collect(
         };
     }
     match &plans.nodes.get(handle).kind {
-        CheckedScalarComputationKind::CaseMembership {
+        ComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
             ..
         }
-        | CheckedScalarComputationKind::StorageAddress { subject, .. }
-        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
+        | ComputationKind::StorageAddress { subject, .. }
+        | ComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
             collect_subject!(subject)?;
         }
-        CheckedScalarComputationKind::CaseMembership {
+        ComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
             ..
         } => {
@@ -865,14 +860,14 @@ pub(super) fn collect(
                 visit_computation!(field.value)?;
             }
         }
-        CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+        ComputationKind::SelectedComparison { left, right, .. } => {
             visit_computation!(*left)?;
             visit_computation!(*right)?;
         }
         checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
             visit_computation!(*operand)?;
         }
-        CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+        ComputationKind::Dispatch { subject, arms, .. } => {
             for operand in subject.scalar_operands(&plans.operands) {
                 visit_computation!(operand)?;
             }
@@ -883,9 +878,8 @@ pub(super) fn collect(
                 visit_computation!(arm.value)?;
             }
         }
-        CheckedScalarComputationKind::RetainedConstant { .. }
-        | CheckedScalarComputationKind::Value(_) => {}
-        CheckedScalarComputationKind::StructuralField {
+        ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => {}
+        ComputationKind::StructuralField {
             subject,
             receiver_value,
             ..
@@ -907,7 +901,7 @@ pub(super) fn collect(
                 )?;
             }
         }
-        CheckedScalarComputationKind::ByteSequencePredicate {
+        ComputationKind::ByteSequencePredicate {
             predicate,
             source_expression,
             subject,
@@ -943,7 +937,7 @@ pub(super) fn collect(
                 consumed.push(handle);
             }
         }
-        CheckedScalarComputationKind::Call {
+        ComputationKind::Call {
             source_call,
             call_ordinal,
             callee,
@@ -994,7 +988,7 @@ pub(super) fn collect(
                 }
             }
         }
-        CheckedScalarComputationKind::WithOperands {
+        ComputationKind::WithOperands {
             operands, operand, ..
         } => {
             for dependency in plans.evaluation_operands.span(*operands)? {
@@ -1020,13 +1014,13 @@ pub(super) fn collect(
             }
             visit_computation!(*operand)?;
         }
-        CheckedScalarComputationKind::Apply { operands, .. }
-        | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
+        ComputationKind::Apply { operands, .. }
+        | ComputationKind::StorageObservation { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
                 visit_computation!(*operand)?;
             }
         }
-        CheckedScalarComputationKind::Select {
+        ComputationKind::Select {
             condition,
             when_true,
             when_false,

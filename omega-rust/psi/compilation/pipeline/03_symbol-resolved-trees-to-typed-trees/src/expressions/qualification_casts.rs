@@ -1,4 +1,5 @@
 use crate::tables::expression_table;
+use crate::type_reference::domain_constraints::normalize_domain_constraints_for_type;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
@@ -6,6 +7,7 @@ use language_semantics::declaration_selection::{
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::domain::indexed_domain_instance_name;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -129,12 +131,8 @@ pub(crate) fn normalize_qualification_casts(
                 arguments.len(),
             )));
         }
-        let instance_name = typed_trees::domain::indexed_domain_instance_name(
-            program,
-            domain,
-            index_parameters,
-            &arguments,
-        )?;
+        let instance_name =
+            indexed_domain_instance_name(program, domain, index_parameters, &arguments)?;
         let semantic_id = if arguments.is_empty() {
             domain.semantic_id
         } else {
@@ -208,9 +206,7 @@ pub(crate) fn normalize_qualification_casts(
                     base_type: authored.target_type,
                     constraints,
                 });
-            crate::type_reference::domain_constraints::normalize_domain_constraints_for_type(
-                source, program, result,
-            )?;
+            normalize_domain_constraints_for_type(source, program, result)?;
             result
         } else {
             TypeReferenceHandle::invalid()

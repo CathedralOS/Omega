@@ -1987,6 +1987,21 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(value);
         }
+        // An embedding denotes an integer that was already evaluated in the
+        // embedded carrier. That carrier bounds the value; the carrier that
+        // observes the embedding is at most as wide and must not replace it.
+        if let StructuralTerm::IntegerEmbedding {
+            reference,
+            value: embedded,
+        } = value
+        {
+            let (embedded_primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                embedded,
+            )?;
+            return self.integer_value(embedded, embedded_primitive, observations, depth + 1);
+        }
         // A completed scalar observation can have a recorded mathematical
         // denotation (for example a window's end minus start). Keep that
         // equation visible to the existing polynomial owner. Executable

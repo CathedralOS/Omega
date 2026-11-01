@@ -305,21 +305,3 @@ pub struct LayoutPlan {
     pub data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
     pub private_callback_layouts: Vec<crate::PrivateCallbackLayout>,
 }
-
-impl LayoutPlan {
-    pub fn bit_field(&self, field: SymbolHandle) -> Option<&BitFieldLayout> {
-        self.bit_fields.iter().find(|layout| layout.field == field)
-    }
-
-    pub fn stored_integer(&self, field: SymbolHandle) -> Option<&StoredIntegerLayout> {
-        self.stored_integers
-            .iter()
-            .find(|layout| layout.field == field)
-    }
-
-    pub fn repeated_field(&self, field: SymbolHandle) -> Option<&RepeatedFieldLayout> {
-        self.repeated_fields
-            .iter()
-            .find(|layout| layout.field == field)
-    }
-}

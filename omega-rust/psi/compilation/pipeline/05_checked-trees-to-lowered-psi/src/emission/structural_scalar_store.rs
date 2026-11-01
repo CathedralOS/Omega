@@ -14,6 +14,8 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
+use crate::emission::runtime_elements::selector_step;
+use crate::emission::runtime_elements::static_segments;
 
 pub(crate) struct LoweredStructuralScalarStore {
     /// Carrier steps from the destination root; a runtime element's selector
@@ -237,10 +239,7 @@ pub(crate) fn lower_structural_field_place<'a>(
         parameter,
         structural_types,
     )?;
-    Ok((
-        crate::emission::runtime_elements::static_segments(steps)?,
-        field,
-    ))
+    Ok((static_segments(steps)?, field))
 }
 
 /// Reconstruct the exact carrier and relevant field below an exclusive
@@ -323,10 +322,7 @@ pub(crate) fn lower_structural_field_path<'a>(
         field_identity,
         structural_types,
     )?;
-    Ok((
-        crate::emission::runtime_elements::static_segments(steps)?,
-        field,
-    ))
+    Ok((static_segments(steps)?, field))
 }
 
 /// Normalize a storage root to its field-bearing declaration and retain any
@@ -537,9 +533,7 @@ pub(super) fn element_selection(
         CheckedUnitStructuralPathSegment::FixedIndex(index) => {
             ProjectionStep::Static(StructuralPathSegment::FixedIndex(*index))
         }
-        CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
-            crate::emission::runtime_elements::selector_step(selector)
-        }
+        CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => selector_step(selector),
         _ => return unsupported("structural element selector is unsupported"),
     };
     Ok((step, element))

@@ -122,12 +122,12 @@ pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 mod type_consequences;
 pub(crate) use operand_fits::{
-    CompletedIntegerFormation, anonymous_comparison_operand_fits_at_occurrence,
+    CompletedIntegerFormation, OperandFitOutcome, anonymous_comparison_operand_fits_at_occurrence,
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
     exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
     integer_operands_exclude_at_occurrence,
 };
-pub(crate) use type_consequences::predicate_type_contexts;
+pub(crate) use type_consequences::{predicate_case_type_contexts, predicate_type_contexts};
 mod structural_terms;
 pub(crate) mod transparent_applications;
 
@@ -154,8 +154,8 @@ pub(crate) use proof_integer::{
 };
 
 pub(crate) use ranking_range::{
-    CapturedScalarRank, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
+    CapturedRankComponent, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
 
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;

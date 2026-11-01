@@ -12,6 +12,8 @@ use crate::proof_contracts::contract_entailment::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -64,11 +66,7 @@ impl StructuralJudge<'_> {
         parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)],
     ) -> StructuralJudgment {
         self.instantiated_case_guarantee(scope, parameters, fact, map, machine_map)
             .map_or(StructuralJudgment::Unknown, |guarantee| {
@@ -285,9 +283,7 @@ impl StructuralJudge<'_> {
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == case =>
-                    {
+                    DataMember::Variant(variant) if variant.name.as_str() == case => {
                         Some(variant.symbol)
                     }
                     _ => None,

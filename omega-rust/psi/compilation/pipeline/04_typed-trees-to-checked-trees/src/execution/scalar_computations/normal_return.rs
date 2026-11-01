@@ -7,8 +7,9 @@
 //! control facts. Strict operators still require closed scalar evaluation;
 //! interpreting a call-bearing comparison here would prune calls flow retained.
 use super::{
-    CheckedBooleanExpression, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarExpression,
+    CheckedBooleanExpression as BooleanExpression, CheckedScalarComputationHandle,
+    CheckedScalarComputationKind as ComputationKind, CheckedScalarComputationPlans,
+    CheckedScalarExpression as ScalarExpression,
 };
 use facts::ScalarValue;
 
@@ -17,27 +18,24 @@ pub(super) fn boolean_result(
     computation: CheckedScalarComputationHandle,
 ) -> Option<bool> {
     match &plans.nodes.get(computation).kind {
-        CheckedScalarComputationKind::WithOperands { .. }
-        | CheckedScalarComputationKind::StorageObservation { .. }
-        | CheckedScalarComputationKind::SelectedComparison { .. }
-        | CheckedScalarComputationKind::StorageAddress { .. }
-        | CheckedScalarComputationKind::StructuralField { .. }
-        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-        | CheckedScalarComputationKind::ByteSequencePredicate { .. }
-        | CheckedScalarComputationKind::CaseMembership { .. }
-        | CheckedScalarComputationKind::BooleanToInteger { .. }
-        | CheckedScalarComputationKind::AuthoredCast { .. } => None,
-        CheckedScalarComputationKind::Qualification { operand, .. } => {
-            boolean_result(plans, *operand)
-        }
-        CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(value)) => {
+        ComputationKind::WithOperands { .. }
+        | ComputationKind::StorageObservation { .. }
+        | ComputationKind::SelectedComparison { .. }
+        | ComputationKind::StorageAddress { .. }
+        | ComputationKind::StructuralField { .. }
+        | ComputationKind::ByteSequenceLiteralComparison { .. }
+        | ComputationKind::ByteSequencePredicate { .. }
+        | ComputationKind::CaseMembership { .. }
+        | ComputationKind::BooleanToInteger { .. }
+        | ComputationKind::AuthoredCast { .. } => None,
+        ComputationKind::Qualification { operand, .. } => boolean_result(plans, *operand),
+        ComputationKind::Value(ScalarExpression::Boolean(value)) => {
             boolean_expression_result(value)
         }
-        CheckedScalarComputationKind::RetainedConstant { .. }
-        | CheckedScalarComputationKind::Value(_) => None,
-        CheckedScalarComputationKind::Call { .. } => None,
-        CheckedScalarComputationKind::Dispatch { .. } => None,
-        CheckedScalarComputationKind::Select {
+        ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => None,
+        ComputationKind::Call { .. } => None,
+        ComputationKind::Dispatch { .. } => None,
+        ComputationKind::Select {
             condition,
             when_true,
             when_false,
@@ -51,15 +49,15 @@ pub(super) fn boolean_result(
                 (when_true == when_false).then_some(when_true)
             }
         },
-        CheckedScalarComputationKind::Apply {
+        ComputationKind::Apply {
             expression,
             operands,
             ..
         } => {
-            let CheckedScalarExpression::Boolean(value) = expression else {
+            let ScalarExpression::Boolean(value) = expression else {
                 return None;
             };
-            let CheckedBooleanExpression::Not(operand) = value.as_ref() else {
+            let BooleanExpression::Not(operand) = value.as_ref() else {
                 return None;
             };
             let [operand_computation] = plans.operands.span(*operands)? else {
@@ -67,7 +65,7 @@ pub(super) fn boolean_result(
             };
             if !matches!(
                 operand.as_ref(),
-                CheckedBooleanExpression::Parameter { position: 0 }
+                BooleanExpression::Parameter { position: 0 }
             ) {
                 return None;
             }
@@ -76,12 +74,11 @@ pub(super) fn boolean_result(
     }
 }
 
-fn boolean_expression_result(expression: &CheckedBooleanExpression) -> Option<bool> {
+fn boolean_expression_result(expression: &BooleanExpression) -> Option<bool> {
     match expression {
-        CheckedBooleanExpression::Not(operand) => Some(!boolean_expression_result(operand)?),
-        CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
-            let evaluate_when = matches!(expression, CheckedBooleanExpression::And { .. });
+        BooleanExpression::Not(operand) => Some(!boolean_expression_result(operand)?),
+        BooleanExpression::And { left, right } | BooleanExpression::Or { left, right } => {
+            let evaluate_when = matches!(expression, BooleanExpression::And { .. });
             let left = boolean_expression_result(left);
             if left == Some(!evaluate_when) {
                 return left;
@@ -94,7 +91,7 @@ fn boolean_expression_result(expression: &CheckedBooleanExpression) -> Option<bo
             }
         }
         _ => match crate::values::evaluate_checked_scalar(
-            &CheckedScalarExpression::Boolean(Box::new(expression.clone())),
+            &ScalarExpression::Boolean(Box::new(expression.clone())),
             &mut |_| None,
         )? {
             ScalarValue::Boolean(value) => Some(value),

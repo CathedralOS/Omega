@@ -10,6 +10,7 @@ mod accessor_primitives;
 mod forwarded_evidence;
 
 use crate::frozen_program::expression_table;
+use crate::value_custody::type_references::AppliedValueCarrier;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -707,12 +708,8 @@ fn validate_const_binding(
             | TypeParameterKind::Value {
                 type_reference: actual,
             } = forwarded.kind
-            && crate::value_custody::type_references::AppliedValueCarrier::applied(
-                expected,
-                machine.parameters,
-                applied_arguments,
-            )
-            .matches(program, actual)
+            && AppliedValueCarrier::applied(expected, machine.parameters, applied_arguments)
+                .matches(program, actual)
         {
             return;
         }

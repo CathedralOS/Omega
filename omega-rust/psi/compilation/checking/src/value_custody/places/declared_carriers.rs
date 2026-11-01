@@ -5,6 +5,7 @@
 use super::peel_declared_constraints;
 use crate::value_custody::type_references::substituted_identity;
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
@@ -177,12 +178,10 @@ fn compare(
                     substituted_identity(program, reference, bindings)
                 }
                 Substitutions::Application(bindings) => program
-                    .type_identity_with_simultaneous_substitutions(
-                        typed_trees::type_identity::TypeIdentityRequest {
-                            substitutions: bindings,
-                            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-                        },
-                    ),
+                    .type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                        substitutions: bindings,
+                        ..TypeIdentityRequest::ordinary(reference)
+                    }),
             };
             let left = identity(left, left_substitutions);
             let right = identity(right, right_substitutions);

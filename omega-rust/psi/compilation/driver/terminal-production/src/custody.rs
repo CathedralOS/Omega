@@ -5,6 +5,15 @@
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
+/// Source-free inputs for one product's later composition admission. A receipt
+/// refusal stays behind the ordered root checks, preserving first-root policy
+/// diagnostics without executing product policy inside Psi production.
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
+pub struct ProducedTerminalApplication {
+    pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>,
+    pub roots: Vec<Result<crate::TerminalAdmissionRoot, Vec<diagnostics::Diagnostic>>>,
+}
+
 /// Terminal code beside the checked-source evidence the caller
 /// asked production to retain, in request order. Each application carries its
 /// own refusal or optional checked `ProgramEntry` receipt. Production success
@@ -23,8 +32,7 @@ pub struct ProducedTerminalProgram {
     pub(super) build_bindings: crate::TerminalBuildBindings,
     pub(super) build_requests: crate::TerminalBuildRequests,
     pub(super) build_filesystem: crate::TerminalBuildFilesystem,
-    pub(super) applications:
-        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
+    pub(super) applications: Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
 }
 
 // Source-completion receipts retain portable production. Recover its canonical
@@ -82,12 +90,25 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             let filesystem: std::sync::Arc<[crate::TerminalBuildFilesystemCall]> =
                 Record::read(input)?;
             let applications: Vec<
-                Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>,
+                Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>,
             > = Record::read(input)?;
             for application in &applications {
-                if let Ok(Some(receipt)) = application {
-                    lowered_psi_to_terminal_psi::rejoin_program_entry_receipt(receipt, &artifact)
+                if let Ok(application) = application {
+                    if let Ok(Some(receipt)) = &application.receipt {
+                        lowered_psi_to_terminal_psi::rejoin_program_entry_receipt(
+                            receipt, &artifact,
+                        )
                         .map_err(|error| input.error(error.to_string()))?;
+                    }
+                    for root in application
+                        .roots
+                        .iter()
+                        .filter_map(|root| root.as_ref().ok())
+                    {
+                        if artifact.semantic_module().machine(root.machine).is_none() {
+                            return Err(input.error("composition root lost its canonical machine"));
+                        }
+                    }
                 }
             }
             let view = artifact.view().into();
@@ -171,7 +192,7 @@ impl ProducedTerminalProgram {
     ) -> Result<
         (
             terminal_codec::CanonicalTerminalArtifact,
-            Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
+            Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
         ),
         terminal_codec::CanonicalTerminalArtifactError,
     > {
@@ -188,8 +209,7 @@ pub struct PortableTerminalProgram {
     build_bindings: crate::TerminalBuildBindings,
     build_requests: crate::TerminalBuildRequests,
     build_filesystem: crate::TerminalBuildFilesystem,
-    applications:
-        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
+    applications: Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
 }
 
 impl PortableTerminalProgram {
@@ -207,7 +227,7 @@ impl PortableTerminalProgram {
     }
     pub fn applications(
         &self,
-    ) -> &[Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>] {
+    ) -> &[Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>] {
         &self.applications
     }
 }
@@ -221,11 +241,9 @@ pub struct TerminalApplicationCustody<'a> {
     /// Exact checked source member whose signature the companion retains.
     /// This does not select or rewrite the portable semantic root.
     pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
-    /// Exact selected callback declarations. These mint no ProgramEntry receipt.
-    pub callback_roots: Option<&'a crate::PreparedTerminalRoots>,
-    /// Physical entry remains a distinct source selection during migration.
-    pub physical_adapter: symbols::SymbolHandle,
-    pub admission: Option<&'a dyn crate::TerminalCompositionAdmission>,
+    /// Optional source projection requested for a later product check. This is
+    /// an ordered scope description, not a callback or an admission verdict.
+    pub composition: Option<crate::TerminalCompositionRoots<'a>>,
 }
 
 /// Independent consumers of one checked execution closure. Admission failure

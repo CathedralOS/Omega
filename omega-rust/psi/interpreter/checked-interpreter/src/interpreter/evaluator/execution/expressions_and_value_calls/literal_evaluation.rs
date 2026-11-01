@@ -1,6 +1,7 @@
 use crate::interpreter::evaluator::{
     BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Value, trap,
 };
+use validation::selected_construction_definition;
 
 impl<'program> Evaluator<'program> {
     pub(super) fn expression_receiver_is_namespace(&self, receiver: ExpressionHandle) -> bool {
@@ -28,9 +29,7 @@ impl<'program> Evaluator<'program> {
         }
         // The constructor occurrence retains its applied field telescope.
         // A nominal template's open members cannot supply this value's storage.
-        let Some(data) =
-            validation::selected_construction_definition(self.program, expression, literal)
-        else {
+        let Some(data) = selected_construction_definition(self.program, expression, literal) else {
             return trap("record construction has no exact receiving data shape");
         };
         let type_symbol = data.symbol;
@@ -77,9 +76,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let type_name = literal.type_name.as_str();
-        let Some(data) =
-            validation::selected_construction_definition(self.program, expression, literal)
-        else {
+        let Some(data) = selected_construction_definition(self.program, expression, literal) else {
             return trap(format!(
                 "case `{type_name}::{case_name}` has no exact receiving data shape"
             ));

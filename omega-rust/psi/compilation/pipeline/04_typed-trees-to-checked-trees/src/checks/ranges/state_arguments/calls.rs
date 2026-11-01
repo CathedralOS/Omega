@@ -4,7 +4,8 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 use super::{
-    MergedFact, ParameterFacts, ParameterIndexProof, ParameterIndexProofSide, StateArgumentFacts,
+    MergedFact, ParameterFacts, ParameterIndexProof, ParameterIndexProofSide as ProofSide,
+    StateArgumentFacts,
 };
 use crate::checks::ranges::expressions::{
     ensured_call_result_bounds, expression_indexable_length, expression_integer_value,
@@ -250,8 +251,8 @@ pub(super) fn collect_state_argument_facts_for_call(
                 program, machine, state, facts, collection, index,
             ) {
                 index_proofs.push(ParameterIndexProof {
-                    collection: ParameterIndexProofSide::Parameter(collection_parameter),
-                    index: ParameterIndexProofSide::Parameter(index_parameter),
+                    collection: ProofSide::Parameter(collection_parameter),
+                    index: ProofSide::Parameter(index_parameter),
                 });
             }
         }
@@ -264,8 +265,8 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .proven_index_labels(collection_label)
                 .filter(|index| data_binding.is_some_and(|root| is_rooted_at(root, index)))
                 .map(|index| ParameterIndexProof {
-                    collection: ParameterIndexProofSide::Parameter(collection_parameter),
-                    index: ParameterIndexProofSide::Storage(index.clone()),
+                    collection: ProofSide::Parameter(collection_parameter),
+                    index: ProofSide::Storage(index.clone()),
                 }),
         );
     }
@@ -280,8 +281,8 @@ pub(super) fn collect_state_argument_facts_for_call(
                     data_binding.is_some_and(|root| is_rooted_at(root, collection))
                 })
                 .map(|collection| ParameterIndexProof {
-                    collection: ParameterIndexProofSide::Storage(collection.clone()),
-                    index: ParameterIndexProofSide::Parameter(index_parameter),
+                    collection: ProofSide::Storage(collection.clone()),
+                    index: ProofSide::Parameter(index_parameter),
                 }),
         );
     }
@@ -297,12 +298,12 @@ pub(super) fn collect_state_argument_facts_for_call(
         // The pairs are still visited in the same order.
         let proven_pairs = facts.proven_index_pairs();
         if !proven_pairs.is_empty() {
-            let storage_sides: Vec<(String, ParameterIndexProofSide)> = storage_rows
+            let storage_sides: Vec<(String, ProofSide)> = storage_rows
                 .iter()
                 .map(|(source_label, _, destination_place)| {
                     (
                         source_label.clone(),
-                        ParameterIndexProofSide::Storage(facts::canonical_place_label_from_parts(
+                        ProofSide::Storage(facts::canonical_place_label_from_parts(
                             program,
                             destination_place.root,
                             &destination_place.segments,
@@ -310,14 +311,9 @@ pub(super) fn collect_state_argument_facts_for_call(
                     )
                 })
                 .collect();
-            let parameter_sides: Vec<(&str, ParameterIndexProofSide)> = parameter_arguments
+            let parameter_sides: Vec<(&str, ProofSide)> = parameter_arguments
                 .iter()
-                .map(|(position, _, label)| {
-                    (
-                        label.as_str(),
-                        ParameterIndexProofSide::Parameter(*position),
-                    )
-                })
+                .map(|(position, _, label)| (label.as_str(), ProofSide::Parameter(*position)))
                 .collect();
             let proven_collections = proven_pairs
                 .iter()

@@ -1,4 +1,4 @@
-//! Atomic events: one `CheckedAtomicAccessPlan` per source atomic operation.
+//! Atomic events: one `AccessPlan` per source atomic operation.
 //!
 //! The parser's carrier (`validation::atomic_assignment_carrier`) spells a
 //! fetch, swap, or compare-exchange as two statements — a result placeholder
@@ -24,15 +24,21 @@
 //! neither the generated update model nor a separate statement call executes.
 //! Both forms bind the decoder's exact authored expression and cell value type.
 
+use super::calls::projected_observed_path;
+use super::receiver_aliases::aliases;
+use super::structural_scalar_store::scalar_custody_is_exact;
+use super::types::ShapeCollector;
+use super::types::machine_binders;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralPathSegment, PrimitiveType,
+    CheckedUnitStructuralPathSegment as PathSegment, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::places::place_at;
 use checked_trees::{
-    CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
-    CheckedCallScalarArgument, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedAtomicAccessPlan as AccessPlan, CheckedAtomicEvent,
+    CheckedAtomicReadModifyWrite as ModifyWrite, CheckedCallScalarArgument as ScalarArgument,
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use validation::AtomicAccessOperation;
@@ -64,8 +70,8 @@ pub(super) fn writing_event(
     assignment: &typed_trees::statement::TableAssignment,
     reserved: Option<CheckedUnitScalarResultBindingPlan>,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
-) -> Option<CheckedAtomicAccessPlan> {
+    shapes: &mut ShapeCollector<'_>,
+) -> Option<AccessPlan> {
     let carrier = validation::atomic_assignment_carrier(program, assignment)?;
     trace.phase("atomic access: writing place");
     let place = place(
@@ -98,7 +104,7 @@ pub(super) fn writing_event(
         })
         .collect::<Option<Vec<_>>>()?;
     let fetch = |operation, ordering| {
-        let [operand] = <[CheckedCallScalarArgument; 1]>::try_from(operands.clone()).ok()?;
+        let [operand] = <[ScalarArgument; 1]>::try_from(operands.clone()).ok()?;
         Some(CheckedAtomicEvent::ReadModifyWrite {
             operation,
             ordering,
@@ -107,31 +113,20 @@ pub(super) fn writing_event(
     };
     let event = match carrier.operation {
         AtomicAccessOperation::Store(ordering) => {
-            let [value] = <[CheckedCallScalarArgument; 1]>::try_from(operands.clone()).ok()?;
+            let [value] = <[ScalarArgument; 1]>::try_from(operands.clone()).ok()?;
             CheckedAtomicEvent::Store { ordering, value }
         }
         AtomicAccessOperation::Swap(ordering) => {
-            let [value] = <[CheckedCallScalarArgument; 1]>::try_from(operands.clone()).ok()?;
+            let [value] = <[ScalarArgument; 1]>::try_from(operands.clone()).ok()?;
             CheckedAtomicEvent::Swap { ordering, value }
         }
-        AtomicAccessOperation::FetchAdd(ordering) => {
-            fetch(CheckedAtomicReadModifyWrite::FetchAdd, ordering)?
-        }
-        AtomicAccessOperation::FetchSub(ordering) => {
-            fetch(CheckedAtomicReadModifyWrite::FetchSub, ordering)?
-        }
-        AtomicAccessOperation::FetchAnd(ordering) => {
-            fetch(CheckedAtomicReadModifyWrite::FetchAnd, ordering)?
-        }
-        AtomicAccessOperation::FetchOr(ordering) => {
-            fetch(CheckedAtomicReadModifyWrite::FetchOr, ordering)?
-        }
-        AtomicAccessOperation::FetchXor(ordering) => {
-            fetch(CheckedAtomicReadModifyWrite::FetchXor, ordering)?
-        }
+        AtomicAccessOperation::FetchAdd(ordering) => fetch(ModifyWrite::FetchAdd, ordering)?,
+        AtomicAccessOperation::FetchSub(ordering) => fetch(ModifyWrite::FetchSub, ordering)?,
+        AtomicAccessOperation::FetchAnd(ordering) => fetch(ModifyWrite::FetchAnd, ordering)?,
+        AtomicAccessOperation::FetchOr(ordering) => fetch(ModifyWrite::FetchOr, ordering)?,
+        AtomicAccessOperation::FetchXor(ordering) => fetch(ModifyWrite::FetchXor, ordering)?,
         AtomicAccessOperation::CompareExchange { success, failure } => {
-            let [expected, replacement] =
-                <[CheckedCallScalarArgument; 2]>::try_from(operands.clone()).ok()?;
+            let [expected, replacement] = <[ScalarArgument; 2]>::try_from(operands.clone()).ok()?;
             CheckedAtomicEvent::CompareExchange {
                 success,
                 failure,
@@ -154,7 +149,7 @@ pub(super) fn writing_event(
         (false, None) => None,
         _ => return None,
     };
-    Some(CheckedAtomicAccessPlan {
+    Some(AccessPlan {
         statement_index,
         resident_range_decision: facts.proof.integer_assignment_at(
             machine.symbol,
@@ -187,8 +182,8 @@ pub(super) fn once_event(
     local: &typed_trees::statement::TableLocalData,
     result: checked_trees::CheckedUnitStructuralResultBindingPlan,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
-) -> Option<CheckedAtomicAccessPlan> {
+    shapes: &mut ShapeCollector<'_>,
+) -> Option<AccessPlan> {
     let carrier = validation::atomic_once_carrier(program, local.initial_value)?;
     let AtomicAccessOperation::CompareExchangeOnce { success, failure } = carrier.operation else {
         return None;
@@ -228,7 +223,7 @@ pub(super) fn once_event(
         replacement,
         place.primitive_type,
     )?;
-    Some(CheckedAtomicAccessPlan {
+    Some(AccessPlan {
         statement_index,
         resident_range_decision: facts.proof.integer_assignment_at(
             machine.symbol,
@@ -265,7 +260,7 @@ fn operand_row(
     operand_ordinal: u32,
     operand: typed_trees::expression::ExpressionHandle,
     primitive_type: PrimitiveType,
-) -> Option<CheckedCallScalarArgument> {
+) -> Option<ScalarArgument> {
     let role = CheckedScalarExpressionRole::AtomicOperand { operand_ordinal };
     let computations = &facts.values.scalar_computations;
     let mut roots = computations.roots_for_statement_role(state.symbol, statement_index, role);
@@ -280,7 +275,7 @@ fn operand_row(
         {
             return None;
         }
-        return Some(CheckedCallScalarArgument::Computation(root.root));
+        return Some(ScalarArgument::Computation(root.root));
     }
     let (binding, value) =
         facts
@@ -289,15 +284,8 @@ fn operand_row(
             .bound_expression_at(state.symbol, statement_index, role)?;
     (binding.expression == operand
         && crate::values::scalar_expression_type(value) == Some(primitive_type)
-        && super::structural_scalar_store::scalar_custody_is_exact(
-            program,
-            facts,
-            state,
-            binding,
-            value,
-            primitive_type,
-        ))
-    .then(|| CheckedCallScalarArgument::Pure(value.clone()))
+        && scalar_custody_is_exact(program, facts, state, binding, value, primitive_type))
+    .then(|| ScalarArgument::Pure(value.clone()))
 }
 
 /// The atomic field `expression` names at `statement_index`.
@@ -320,7 +308,7 @@ fn place(
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<AtomicPlace> {
     trace.phase("atomic access: place: atomic storage");
     if !validation::place_is_atomic_storage(program, machine, Some(state), expression) {
@@ -333,7 +321,7 @@ fn place(
     let canonical = place_at(program, state.symbol, ordinal, expression)?;
     let symbol = canonical.root.as_symbol()?;
     // An erased borrow carrier names its captured referent's storage.
-    let (symbol, segments) = match super::receiver_aliases::aliases(program, facts, machine, state)
+    let (symbol, segments) = match aliases(program, facts, machine, state)
         .unwrap_or_default()
         .iter()
         .find(|alias| alias.owner == symbol)
@@ -398,7 +386,7 @@ fn place(
     // Only the concrete storage crossed by this performed operation is a
     // demand. Stored pointer declarations remain identity-only, including
     // recursive generic families that have no runtime dereference here.
-    let binders = super::types::machine_binders(program, machine);
+    let binders = machine_binders(program, machine);
     let mut root_identity = None;
     for position in 0..=carrier.segments.len() {
         let reference = validation::canonical_place_type_reference(
@@ -426,7 +414,7 @@ fn place(
     // cell. Reuse the ordinary observation path to retain its containing
     // record, including stored descriptors, rather than substituting their
     // initializer's backing or requiring a parameter-shaped spelling.
-    let (reference, path) = super::calls::projected_observed_path(
+    let (reference, path) = projected_observed_path(
         program,
         machine.symbol,
         state.symbol,
@@ -437,9 +425,9 @@ fn place(
     if path.iter().any(|segment| {
         matches!(
             segment,
-            CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
-                | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+            PathSegment::RuntimeIndex(_)
+                | PathSegment::ComputedIndex(_)
+                | PathSegment::FixedByteRange { .. }
         )
     }) {
         return None;

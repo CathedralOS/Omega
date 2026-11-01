@@ -18,10 +18,16 @@ use terminal_psi::{
 use crate::borrowed_storage::Projection;
 use crate::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
 mod boundary_calls;
+use crate::descriptor_lifetimes;
+use crate::descriptor_lifetimes::DescriptorPathSegment;
 pub use boundary_calls::{
     BoundaryCompletionResult, boundary_call_preserves_descriptor_storage,
     boundary_completion_preserves_descriptor_storage,
 };
+use semantic_vocabulary::Proposition;
+use semantic_vocabulary::PropositionContext;
+use semantic_vocabulary::ScalarTerm;
+use semantic_vocabulary::ValueId;
 mod compatibility;
 mod contents;
 mod payload_entry;
@@ -148,9 +154,7 @@ pub fn native_code_layout_regions(
     }
     Some(DescriptorLocation {
         root: result.place,
-        path: vec![crate::descriptor_lifetimes::DescriptorPathSegment::Field(
-            fields[1].id,
-        )],
+        path: vec![DescriptorPathSegment::Field(fields[1].id)],
     })
 }
 
@@ -459,40 +463,24 @@ pub struct DescriptorMachine {
     /// retire value memberships independently of descriptor pointer contents.
     pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
     /// Caller-owed entry propositions in their original formal namespace.
-    pub payload_entry_predicates: Option<(
-        semantic_vocabulary::PropositionContext,
-        Vec<semantic_vocabulary::Proposition>,
-    )>,
+    pub payload_entry_predicates: Option<(PropositionContext, Vec<Proposition>)>,
     /// Closed scalar contents captured from actual constructor/store operands.
     /// Unknown operands supply no observation and still invalidate old contents.
     /// New dynamic instances retire premises about earlier instances of these
     /// SSA identities, including block formals on loop arrivals.
-    pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<semantic_vocabulary::ValueId>>,
+    pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<ValueId>>,
     /// Independently checked scalar guarantees become available only after
     /// this exact normal-return operation; no structural storage facts enter.
-    pub payload_scalar_postconditions:
-        BTreeMap<DescriptorPosition, Vec<semantic_vocabulary::Proposition>>,
-    pub payload_scalar_parameters:
-        BTreeMap<semantic_vocabulary::BlockId, Vec<semantic_vocabulary::ValueId>>,
+    pub payload_scalar_postconditions: BTreeMap<DescriptorPosition, Vec<Proposition>>,
+    pub payload_scalar_parameters: BTreeMap<semantic_vocabulary::BlockId, Vec<ValueId>>,
     /// Exact typed scalar reads capture immutable values from current storage.
-    pub scalar_payload_reads:
-        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
+    pub scalar_payload_reads: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
     /// Selected Boolean facts, in the flow step's exact successor order.
-    pub payload_edge_predicates:
-        BTreeMap<DescriptorPosition, Vec<Option<semantic_vocabulary::Proposition>>>,
+    pub payload_edge_predicates: BTreeMap<DescriptorPosition, Vec<Option<Proposition>>>,
     /// Scalar arrivals in successor order. Simultaneous binding observes the
     /// old SSA instances before target formals acquire their new instances.
-    pub payload_scalar_bindings: BTreeMap<
-        DescriptorPosition,
-        Vec<
-            Vec<(
-                semantic_vocabulary::ValueId,
-                semantic_vocabulary::ScalarTerm,
-            )>,
-        >,
-    >,
-    pub scalar_payload_writes:
-        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
+    pub payload_scalar_bindings: BTreeMap<DescriptorPosition, Vec<Vec<(ValueId, ScalarTerm)>>>,
+    pub scalar_payload_writes: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
     pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
     /// Unresolved writes cannot leave entry contents available for a later
     /// query. These operations require contents effects before replay is usable.
@@ -526,13 +514,9 @@ pub fn zeroed_case_predicates(
         let crate::ZeroedStructuralLeaf::SumSelection { path, case, .. } = leaf else {
             continue;
         };
-        let Some(subject) = crate::descriptor_lifetimes::descriptor_location(
-            types,
-            root,
-            structural_type,
-            &path,
-            None,
-        ) else {
+        let Some(subject) =
+            descriptor_lifetimes::descriptor_location(types, root, structural_type, &path, None)
+        else {
             return Vec::new();
         };
         predicates.push(DescriptorCasePredicate { subject, case });
@@ -615,7 +599,7 @@ impl DescriptorInvocation {
 /// One typed returned descriptor slot and its complete possible backing origins.
 #[derive(Clone)]
 pub struct DescriptorResultSlot {
-    pub path: Vec<crate::descriptor_lifetimes::DescriptorPathSegment>,
+    pub path: Vec<DescriptorPathSegment>,
     pub origins: Vec<DescriptorStoredOrigin>,
 }
 
@@ -811,7 +795,7 @@ pub fn terminal_borrowed_storage_graph(module: &TerminalModule) -> Vec<Descripto
 pub fn terminal_residence_rules(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
-) -> Option<crate::descriptor_lifetimes::DescriptorResidenceRules> {
+) -> Option<descriptor_lifetimes::DescriptorResidenceRules> {
     terminal_flow::residence_rules(module, machine)
 }
 

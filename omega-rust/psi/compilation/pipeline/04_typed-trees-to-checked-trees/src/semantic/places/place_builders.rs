@@ -1,9 +1,9 @@
 use crate::places::place_at;
-use validation::{expression_type_symbol, symbol_type_symbol};
+use validation::{data_member_symbol_by_name, expression_type_symbol, symbol_type_symbol};
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, NamePath};
-use facts::FactPlan;
+use facts::{FactPlan, Place, PlaceHandle, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 
 pub(crate) fn canonical_place_to_fact_place_in_state(
@@ -12,16 +12,16 @@ pub(crate) fn canonical_place_to_fact_place_in_state(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<facts::PlaceHandle> {
+) -> Option<PlaceHandle> {
     let canonical = place_at(program, state_symbol, statement_index, expression)?;
     Some(append_place(facts, canonical.root, &canonical.segments))
 }
 
 pub(crate) fn append_place_segment(
     facts: &mut FactPlan,
-    base_place: facts::PlaceHandle,
-    segment: facts::PlaceSegment,
-) -> facts::PlaceHandle {
+    base_place: PlaceHandle,
+    segment: PlaceSegment,
+) -> PlaceHandle {
     let place = *facts.places.get(base_place);
     let mut segments: Vec<_> = facts.place_segments.span_or_empty(place.segments).to_vec();
     segments.push(segment);
@@ -31,7 +31,7 @@ pub(crate) fn append_place_segment(
 pub(crate) fn resolve_place_member_symbol(
     program: &dyn ::validation::CheckingInput,
     facts: &FactPlan,
-    place: facts::PlaceHandle,
+    place: PlaceHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
     let place = facts.places.get(place);
@@ -40,13 +40,13 @@ pub(crate) fn resolve_place_member_symbol(
     if let Some(machine) = program.machine_by_symbol(base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
     {
-        if let Some(symbol) = validation::data_member_symbol_by_name(program, data, member_name) {
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }
     }
 
     if let Some(data) = program.data_definition_by_symbol(base_symbol) {
-        if let Some(symbol) = validation::data_member_symbol_by_name(program, data, member_name) {
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }
     }
@@ -57,24 +57,24 @@ pub(crate) fn resolve_place_member_symbol(
 fn fact_place_type_symbol(
     program: &dyn ::validation::CheckingInput,
     facts: &FactPlan,
-    place: &facts::Place,
+    place: &Place,
 ) -> Option<SymbolHandle> {
     let mut current = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => symbol_type_symbol(program, symbol)?,
-        facts::PlaceRoot::Expression(expression) => expression_type_symbol(program, expression)?,
+        PlaceRoot::Symbol(symbol) => symbol_type_symbol(program, symbol)?,
+        PlaceRoot::Expression(expression) => expression_type_symbol(program, expression)?,
         _ => return None,
     };
 
     for segment in facts.place_segments.span_or_empty(place.segments) {
         match segment {
-            facts::PlaceSegment::Case { .. } => {}
-            facts::PlaceSegment::Field { symbol } => {
+            PlaceSegment::Case { .. } => {}
+            PlaceSegment::Field { symbol } => {
                 current = symbol_type_symbol(program, *symbol)?;
             }
-            facts::PlaceSegment::FixedIndex { .. }
-            | facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::OpaqueRange
-            | facts::PlaceSegment::Index { .. } => {
+            PlaceSegment::FixedIndex { .. }
+            | PlaceSegment::FixedRange { .. }
+            | PlaceSegment::OpaqueRange
+            | PlaceSegment::Index { .. } => {
                 return None;
             }
         }
@@ -85,10 +85,10 @@ fn fact_place_type_symbol(
 
 pub(crate) fn append_place(
     facts: &mut FactPlan,
-    root: facts::PlaceRoot,
-    segments: &[facts::PlaceSegment],
-) -> facts::PlaceHandle {
-    let place = facts.append_place(facts::Place {
+    root: PlaceRoot,
+    segments: &[PlaceSegment],
+) -> PlaceHandle {
+    let place = facts.append_place(Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -98,14 +98,11 @@ pub(crate) fn append_place(
     place
 }
 
-pub(crate) fn append_place_from_name_path(
-    facts: &mut FactPlan,
-    path: &NamePath,
-) -> facts::PlaceHandle {
+pub(crate) fn append_place_from_name_path(facts: &mut FactPlan, path: &NamePath) -> PlaceHandle {
     let place = facts.append_symbol_place(path.head_symbol());
     for symbol in path.member_symbols().iter().skip(1) {
         if symbol.is_valid() {
-            facts.push_place_segment(place, facts::PlaceSegment::Field { symbol: *symbol });
+            facts.push_place_segment(place, PlaceSegment::Field { symbol: *symbol });
         }
     }
     place

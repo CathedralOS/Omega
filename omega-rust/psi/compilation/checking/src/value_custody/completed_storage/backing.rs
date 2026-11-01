@@ -4,6 +4,7 @@
 //! stays separate from deferred inventory: only the caller can authenticate a
 //! loan at its original completion cut. No lifetime root supplies an address.
 use arena::{Handle, HandleSpan};
+use checked_trees::FlowOperandRetention;
 use checked_trees::{CapturedPlace, FlowControlFacts, FlowOperandFact};
 use facts::PlaceSegment;
 
@@ -56,7 +57,7 @@ struct Resolver<'a, 'resolver> {
     control: &'a FlowControlFacts,
     unchanged_loan: &'resolver mut UnchangedLoan<'a>,
     active: Vec<Query>,
-    active_profiles: Vec<Handle<checked_trees::FlowOperandRetention>>,
+    active_profiles: Vec<Handle<FlowOperandRetention>>,
     projectable: bool,
 }
 
@@ -222,17 +223,14 @@ impl Resolver<'_, '_> {
         Some(output)
     }
 
-    fn profile(&self, capture: &FlowOperandFact) -> Option<checked_trees::FlowOperandRetention> {
+    fn profile(&self, capture: &FlowOperandFact) -> Option<FlowOperandRetention> {
         self.control
             .operand_retentions
             .is_valid(capture.retention)
             .then(|| *self.control.operand_retentions.get(capture.retention))
     }
 
-    fn profile_backing(
-        &mut self,
-        profile: Handle<checked_trees::FlowOperandRetention>,
-    ) -> Option<ProfileBacking> {
+    fn profile_backing(&mut self, profile: Handle<FlowOperandRetention>) -> Option<ProfileBacking> {
         if !profile.is_valid() {
             return Some(ProfileBacking::Unchanged);
         }
@@ -248,10 +246,7 @@ impl Resolver<'_, '_> {
         result
     }
 
-    fn resolve_profile(
-        &mut self,
-        profile: Handle<checked_trees::FlowOperandRetention>,
-    ) -> Option<ProfileBacking> {
+    fn resolve_profile(&mut self, profile: Handle<FlowOperandRetention>) -> Option<ProfileBacking> {
         let row = *self.control.operand_retentions.get(profile);
         if !row.alternatives.is_empty() {
             // Alternatives are profiles, not fake evaluated child operands.

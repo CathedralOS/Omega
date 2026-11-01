@@ -416,9 +416,7 @@ pub(crate) fn variant_fact_verdict(
                 _ => Undecided,
             }
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             match variant_fact_verdict(syntax, unary.operand, type_name, variant_name) {
                 Holds => Refuted,
                 Refuted => Holds,

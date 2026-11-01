@@ -20,6 +20,7 @@
 //! when the consumer needs argument custody rather than a direct callee. A
 //! consumer that needs only those facts never lists the five operations.
 
+use crate::emission::operation_emission::buffer::SourceQuotientCall;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceInvocation};
 use crate::lowering_error::LoweringError;
 use lowered_psi::LoweredSourceFrontierBindings;
@@ -109,12 +110,10 @@ pub(crate) fn emit_direct_call(
 ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
     let operation = operations.allocate();
     match record {
-        CallRecord::Quotient(value) => operations.quotient_calls.push(
-            crate::emission::operation_emission::buffer::SourceQuotientCall {
-                value,
-                call: operation,
-            },
-        ),
+        CallRecord::Quotient(value) => operations.quotient_calls.push(SourceQuotientCall {
+            value,
+            call: operation,
+        }),
         CallRecord::Frontier(frontier_before_call) => operations.record_source_call(
             coordinate,
             source_site,

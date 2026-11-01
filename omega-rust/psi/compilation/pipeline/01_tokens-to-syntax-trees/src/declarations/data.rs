@@ -1,5 +1,10 @@
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
+use crate::contracts::facts::parse_logical_proof_facts_until;
+use crate::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::tables::{items, items_of};
@@ -8,6 +13,7 @@ use crate::type_syntax::parse_type::{
 };
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::HandleSpan;
+use language_core::Multiplicity;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
@@ -39,16 +45,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
-    let ((), next) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        next,
-    )?;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
     input = next;
     let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
@@ -57,9 +55,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // normal type reference (including a bare generic family); `%` is the
     // quotient former here rather than the expression-level modulo operator.
     if input.at_punctuation(PunctuationKind::Equal) {
-        if properties.multiplicity == language_core::Multiplicity::Linear
-            || properties.carry.is_some()
-        {
+        if properties.multiplicity == Multiplicity::Linear || properties.carry.is_some() {
             return Err(input.error_here(
                 "a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody",
             ));
@@ -78,10 +74,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
-                crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                    syntax_trees,
-                    input,
-                )?;
+                parse_conformance_trait_application(syntax_trees, input)?;
             if !trait_lifetime_arguments.is_empty() {
                 return Err(next.error_here(
                     "quotient equivalence selection does not yet retain lifetime arguments; the application must remain lifetime-free",
@@ -129,26 +122,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty(),
-            )?;
+            parse_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_required_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| {
-                    input.at_contextual("requires")
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.tokens.is_empty()
-                },
-            )?;
+            parse_required_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_contextual("requires")
+                    || input.at_punctuation(PunctuationKind::LeftBrace)
+                    || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
@@ -202,16 +189,8 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
-    let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
+    let ((), input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     if input.at_contextual("where") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for a default-domain `where` clause",

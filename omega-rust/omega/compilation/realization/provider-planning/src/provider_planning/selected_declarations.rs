@@ -5,7 +5,8 @@
 //! custody is deferred until binding's original reach-admission phase.
 
 use checked_trees::provider_declarations::{
-    ProviderApplicationView, ProviderDeclarationRequest, ProviderDeclarationRow,
+    ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
+    ProviderDeclarationRow,
 };
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
@@ -51,7 +52,17 @@ fn prepare_plan_declarations<'plans>(
     {
         rows.push(ProviderDeclarationRow {
             requirement: *requirement,
-            realization: realization.authored().unwrap_or_default(),
+            origin: match realization {
+                crate::ProviderRowRealization::Authored(symbol) => {
+                    ProviderDeclarationOrigin::Authored(*symbol)
+                }
+                crate::ProviderRowRealization::BuildNative(native) => {
+                    ProviderDeclarationOrigin::BuildNative {
+                        requirement: native.requirement,
+                    }
+                }
+                crate::ProviderRowRealization::Toolchain => ProviderDeclarationOrigin::Toolchain,
+            },
             requirement_identity: plan.identities.text(row.requirement_identity),
             application: match row.binding {
                 ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. } => {

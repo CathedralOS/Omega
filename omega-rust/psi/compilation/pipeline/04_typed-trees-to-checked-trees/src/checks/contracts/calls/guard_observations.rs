@@ -3,6 +3,9 @@
 //! to its source only while both the destination and every source/selector observation
 //! survive through this exact invocation. This does not replay an initializer
 //! or a callee, and a write followed by restoration still breaks the relation.
+use super::captured_boolean::computed_values_have_source_identity;
+use crate::checks::operators::closed_operators_are_builtin;
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -80,11 +83,7 @@ fn stable_copies(
         if program
             .primitive_type_reference(stored.type_reference)
             .is_none()
-            || !super::captured_boolean::computed_values_have_source_identity(
-                program,
-                facts,
-                stored.expression,
-            )
+            || !computed_values_have_source_identity(program, facts, stored.expression)
         {
             continue;
         }
@@ -116,25 +115,13 @@ fn stable_copies(
             continue;
         }
         let mut reads = Vec::new();
-        crate::facts::contract_occurrences::append_expression_occurrences(
-            program,
-            stored.expression,
-            &mut reads,
-        );
+        append_expression_occurrences(program, stored.expression, &mut reads);
         let mut selectors_preserve_identity = true;
         for segment in &destination.segments {
             if let facts::PlaceSegment::Index { expression } = segment {
                 selectors_preserve_identity &=
-                    super::captured_boolean::computed_values_have_source_identity(
-                        program,
-                        facts,
-                        *expression,
-                    );
-                crate::facts::contract_occurrences::append_expression_occurrences(
-                    program,
-                    *expression,
-                    &mut reads,
-                );
+                    computed_values_have_source_identity(program, facts, *expression);
+                append_expression_occurrences(program, *expression, &mut reads);
             }
         }
         if selectors_preserve_identity
@@ -178,11 +165,7 @@ impl Comparison<'_> {
     fn conjunct(&self, guard: ExpressionHandle, required: ExpressionHandle) -> bool {
         // Decomposing a selected Boolean operation uses its builtin meaning,
         // including the implication from `child == true` to the child itself.
-        if !crate::checks::operators::closed_operators_are_builtin(
-            self.program,
-            &self.facts.operators,
-            guard,
-        ) {
+        if !closed_operators_are_builtin(self.program, &self.facts.operators, guard) {
             return false;
         }
         if self.equivalent(guard, required, Namespace::Callee, 0) {
@@ -307,31 +290,15 @@ impl Comparison<'_> {
             (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
             (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
                 left.operator == right.operator
-                    && crate::checks::operators::closed_operators_are_builtin(
-                        self.program,
-                        &self.facts.operators,
-                        guard,
-                    )
-                    && crate::checks::operators::closed_operators_are_builtin(
-                        self.program,
-                        &self.facts.operators,
-                        required,
-                    )
+                    && closed_operators_are_builtin(self.program, &self.facts.operators, guard)
+                    && closed_operators_are_builtin(self.program, &self.facts.operators, required)
                     && recurse(left.left, right.left)
                     && recurse(left.right, right.right)
             }
             (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
                 left.operator == right.operator
-                    && crate::checks::operators::closed_operators_are_builtin(
-                        self.program,
-                        &self.facts.operators,
-                        guard,
-                    )
-                    && crate::checks::operators::closed_operators_are_builtin(
-                        self.program,
-                        &self.facts.operators,
-                        required,
-                    )
+                    && closed_operators_are_builtin(self.program, &self.facts.operators, guard)
+                    && closed_operators_are_builtin(self.program, &self.facts.operators, required)
                     && recurse(left.operand, right.operand)
             }
             // A new structural form needs its own identity judgment. Never

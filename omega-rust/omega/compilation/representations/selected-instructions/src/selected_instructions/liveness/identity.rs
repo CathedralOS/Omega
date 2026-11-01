@@ -1,3 +1,4 @@
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
 /// `liveness_identity` from the digests of `plan.functions`, in order.
@@ -25,16 +26,13 @@ pub fn liveness_identity_from_digests(
 
 /// One function's share of `liveness_identity`.
 pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    let mut digest = DomainDigestEncoder::new(b"");
     digest.raw(b"omega.terminal-register-liveness-function.v2\0");
     encode_function(&mut digest, function);
     digest.finish()
 }
 
-fn encode_function(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    function: &FunctionLiveness,
-) {
+fn encode_function(digest: &mut DomainDigestEncoder, function: &FunctionLiveness) {
     digest.raw(&function.machine.get().to_le_bytes());
     digest.len(function.entry_definitions.len());
     for definition in &function.entry_definitions {
@@ -93,7 +91,7 @@ fn encode_function(
     }
 }
 
-fn encode_option_u16(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: Option<u16>) {
+fn encode_option_u16(digest: &mut DomainDigestEncoder, value: Option<u16>) {
     match value {
         None => digest.byte(0),
         Some(value) => {
@@ -103,30 +101,21 @@ fn encode_option_u16(digest: &mut crate::digest_encoder::DomainDigestEncoder, va
     }
 }
 
-fn encode_vregs(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    values: &[crate::VirtualRegisterId],
-) {
+fn encode_vregs(digest: &mut DomainDigestEncoder, values: &[crate::VirtualRegisterId]) {
     digest.len(values.len());
     for value in values {
         digest.raw(&value.0.to_le_bytes());
     }
 }
 
-fn encode_units(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    values: &[register_model::RegisterUnitId],
-) {
+fn encode_units(digest: &mut DomainDigestEncoder, values: &[register_model::RegisterUnitId]) {
     digest.len(values.len());
     for value in values {
         digest.raw(&value.0.to_le_bytes());
     }
 }
 
-fn encode_operand(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    operand: &crate::OperandPosition,
-) {
+fn encode_operand(digest: &mut DomainDigestEncoder, operand: &crate::OperandPosition) {
     digest.raw(&operand.position.0.to_le_bytes());
     digest.raw(&operand.instruction.0.to_le_bytes());
     digest.raw(&operand.operand.to_le_bytes());

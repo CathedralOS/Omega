@@ -2,6 +2,7 @@
 //! Reuse authenticates operands, not just a source handle or a display name.
 
 use super::super::{AppliedCallableOwner, AppliedMachineCallable};
+use crate::type_identity::applied_type_identity;
 use crate::{
     TypedTrees, signature,
     static_applications::{
@@ -211,13 +212,8 @@ impl TypedTrees {
         // Checking views retain embedded regions even though executable
         // specialization intentionally shares equal erased carriers.
         left == right
-            || crate::type_identity::applied_type_identity(self, left, owner, &[])
-                .zip(crate::type_identity::applied_type_identity(
-                    self,
-                    right,
-                    owner,
-                    &[],
-                ))
+            || applied_type_identity(self, left, owner, &[])
+                .zip(applied_type_identity(self, right, owner, &[]))
                 .is_some_and(|(left, right)| left == right)
     }
 

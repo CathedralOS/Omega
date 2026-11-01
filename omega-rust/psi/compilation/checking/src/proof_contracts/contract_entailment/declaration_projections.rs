@@ -6,6 +6,7 @@
 //! remain with their existing owners; no source expression or payload is made up.
 
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
@@ -101,9 +102,7 @@ pub fn declaration_projection_cases_hold(
                         program,
                         current,
                         subject,
-                        StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                            u64::try_from(*index).ok()?,
-                        )),
+                        StructuralTerm::Integer(BigInt::from_u64(u64::try_from(*index).ok()?)),
                     )?;
                 }
                 facts::PlaceSegment::Index { expression } => {

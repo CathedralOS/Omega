@@ -15,7 +15,7 @@
 //!   j` re-proving its own bound against the field's declared capacity —
 //!   the same contract the view's read side composes from.
 use super::super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, PrimitiveType,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment as PathSegment, PrimitiveType,
 };
 use super::destination::Destination;
 use super::value;
@@ -55,16 +55,14 @@ pub(super) fn plan(
                 return None;
             }
             let mut path = carrier.path;
-            path.push(CheckedUnitStructuralPathSegment::Field(
-                terminal_field_identity(program, *symbol)?,
-            ));
+            path.push(PathSegment::Field(terminal_field_identity(
+                program, *symbol,
+            )?));
             (path, element)
         }
         facts::PlaceSegment::FixedIndex { index } => {
             let mut path = byte_field(program, destination, carriers)?;
-            path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                u64::try_from(*index).ok()?,
-            ));
+            path.push(PathSegment::FixedIndex(u64::try_from(*index).ok()?));
             (path, PrimitiveType::U8)
         }
         facts::PlaceSegment::Index { expression } => {
@@ -115,7 +113,7 @@ fn byte_field(
     program: &dyn ::validation::CheckingInput,
     destination: &Destination<'_>,
     carriers: &[facts::PlaceSegment],
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<Vec<PathSegment>> {
     let (facts::PlaceSegment::Field { symbol }, prefix) = carriers.split_last()? else {
         return None;
     };
@@ -139,9 +137,9 @@ fn byte_field(
     if !bounded {
         return None;
     }
-    path.push(CheckedUnitStructuralPathSegment::Field(
-        terminal_field_identity(program, *symbol)?,
-    ));
+    path.push(PathSegment::Field(terminal_field_identity(
+        program, *symbol,
+    )?));
     Some(path)
 }
 

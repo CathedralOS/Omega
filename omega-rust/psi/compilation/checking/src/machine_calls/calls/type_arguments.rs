@@ -38,6 +38,34 @@ pub fn call_type_arguments(
     )
 }
 
+/// A selected boundary-trait requirement instantiates its own `Type` binders
+/// from the call's explicit operands and arguments, as a generic machine does.
+/// A closed requirement application has no binders left but its call still
+/// retains the authored operands for source admission, so an empty telescope
+/// binds nothing (the `call_type_arguments` rule for concrete entries).
+pub(crate) fn requirement_call_type_arguments(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: Option<&State>,
+    signature: &typed_trees::signature::StateSignature,
+    selected: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+    let parameters = program.state_signature_type_parameters(signature);
+    if parameters.is_empty() {
+        return Some(Vec::new());
+    }
+    callable_type_arguments(
+        program,
+        caller,
+        state,
+        parameters,
+        program.state_signature_parameters(signature),
+        selected,
+        arguments,
+    )
+}
+
 /// Ordinary entries and static callable signatures instantiate the same
 /// ordered type/const telescope. Their ownership differs, not their inference.
 #[allow(clippy::too_many_arguments)]

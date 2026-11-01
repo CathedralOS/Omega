@@ -21,6 +21,7 @@ use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    reading_borrow_pair_pattern,
 };
 
 /// The standalone shape of the storage a loan of this leaf field addresses.
@@ -47,10 +48,8 @@ pub fn is_bounded_owner_loan<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
 ) -> bool {
-    matches!(
-        parameter.access,
-        terminal_psi::reading_borrow_pair_pattern!()
-    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    matches!(parameter.access, reading_borrow_pair_pattern!())
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())

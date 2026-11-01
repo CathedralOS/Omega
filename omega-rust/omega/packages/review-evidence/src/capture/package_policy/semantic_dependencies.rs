@@ -11,18 +11,18 @@ use crate::record::{
     PackagePolicySemanticDependencyConsumer, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind,
 };
+use checked_trees::CheckedSemanticDependencyExposure;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees_to_checked_trees::derive_checked_semantic_dependencies;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     callables: &PackagePolicyCallables,
 ) -> Result<Vec<PackagePolicySemanticDependency>, Vec<Diagnostic>> {
-    let derived = typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
-        compilation.checking_input,
-        &compilation.facts,
-    );
+    let derived =
+        derive_checked_semantic_dependencies(compilation.checking_input, &compilation.facts);
     if derived != compilation.facts.flow.semantic_dependencies {
         return Err(super::rejected(
             "semantic dependencies differ from exact checked rederivation",
@@ -65,9 +65,7 @@ pub(super) fn project(
             }
             PackagePolicySemanticDependencyConsumer::Callable(identity)
         } else {
-            if fact.exposure
-                != checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
-            {
+            if fact.exposure != CheckedSemanticDependencyExposure::PrivateImplementation {
                 return Err(super::rejected(
                     "private semantic consumer has public interface exposure",
                 ));
@@ -87,10 +85,10 @@ pub(super) fn project(
             consumer,
             dependency,
             exposure: match fact.exposure {
-                checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+                CheckedSemanticDependencyExposure::PrivateImplementation => {
                     PackageReviewSemanticDependencyExposure::PrivateImplementation
                 }
-                checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+                CheckedSemanticDependencyExposure::PublicInterface => {
                     PackageReviewSemanticDependencyExposure::PublicInterface
                 }
             },

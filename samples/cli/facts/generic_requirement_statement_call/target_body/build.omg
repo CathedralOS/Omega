@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "generic_requirement_statement_call_target_body");
+    Build::select_provider<Mark, LinuxX8664Counting>(builder, linux_x86_64);
+    Build::select_provider<Mark, LinuxArm64Counting>(builder, linux_arm64);
+    Build::select_provider<Mark, MacosArm64Counting>(builder, macos_arm64);
+    Build::select_provider<Mark, WindowsX8664Counting>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

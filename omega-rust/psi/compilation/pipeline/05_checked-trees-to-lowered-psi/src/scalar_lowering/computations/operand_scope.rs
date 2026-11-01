@@ -10,6 +10,7 @@ use crate::checked_facts::value_facts;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
 use checked_trees::CheckedScalarEvaluationOperand as Operand;
 
 impl Expansion<'_> {
@@ -86,13 +87,8 @@ impl Expansion<'_> {
                     active,
                 ),
                 Operand::Structural(value) => {
-                    crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
-                        identities,
-                        self.checked,
-                        *value,
-                        self.structural_types,
-                    )
-                    .map(|request| request.finish(&prefixes[ordinal], continuation, self))
+                    ValueRequest::prepare(identities, self.checked, *value, self.structural_types)
+                        .map(|request| request.finish(&prefixes[ordinal], continuation, self))
                 }
             };
             self.established_values.truncate(retained);

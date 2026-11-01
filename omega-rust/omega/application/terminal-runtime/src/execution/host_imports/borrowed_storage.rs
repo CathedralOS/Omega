@@ -12,7 +12,7 @@ use super::scalar_codec::{decode, encode};
 
 use geometry::{NativeCell, NativeCellKind};
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType};
 
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffectRejection,
@@ -31,7 +31,7 @@ pub(super) struct CapturedStorage<'layout> {
     covered: Vec<(usize, usize)>,
     cells: Vec<NativeCell<'layout>>,
     layout: Option<&'layout NativeBorrowedStorageLayout>,
-    captured_paths: Vec<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+    captured_paths: Vec<Vec<Path>>,
     primitive_byte_root: bool,
 }
 
@@ -41,8 +41,8 @@ pub(super) struct CapturedStorage<'layout> {
 /// and overlap guards; the selected host pointer is never decoded as a scalar
 /// or exposed as a guest address. Trailing disjoint storage remains untouched.
 pub(super) struct PointerOutputPlan {
-    selected: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    overlaps: Vec<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+    selected: Vec<Path>,
+    overlaps: Vec<Vec<Path>>,
 }
 
 impl PointerOutputPlan {
@@ -328,11 +328,7 @@ impl<'layout> CapturedStorage<'layout> {
     /// Translate a returned host-staging offset back to exactly one captured
     /// byte cell. This is semantic geometry, not a guest pointer conversion;
     /// padding, wide scalar interiors and inactive overlays have no endpoint.
-    pub fn byte_path_at(
-        &self,
-        offset: usize,
-    ) -> Result<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>, TerminalEffectRejection>
-    {
+    pub fn byte_path_at(&self, offset: usize) -> Result<Vec<Path>, TerminalEffectRejection> {
         if self.primitive_byte_root && offset == 0 {
             return Ok(Vec::new());
         }

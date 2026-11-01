@@ -16,6 +16,244 @@ use typed_trees::ProvenTypeContext;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Static worlds, including transition targets, consume conditional equations
+/// derived from the same admitted-value judgment as executed expression cuts.
+pub(crate) fn predicate_case_type_contexts(
+    program: &dyn crate::CheckingInput,
+) -> Vec<typed_trees::CaseMembershipTypeFacts> {
+    let mut candidates = Vec::new();
+    for (expression, _) in program.expression_table.expression_entries() {
+        if let Some((left, right, _)) = program.static_type_predicate_operands(expression) {
+            for reference in [left, right] {
+                if typed_trees::domain::index_argument_is_closed(program, reference)
+                    && !candidates.iter().any(|previous| {
+                        program.normalized_type_identity(*previous)
+                            == program.normalized_type_identity(reference)
+                    })
+                {
+                    candidates.push(reference);
+                }
+            }
+        }
+    }
+    let mut contexts = Vec::new();
+    for machine in program.machines() {
+        let parameters = program.machine_type_parameters(machine);
+        let formals = program
+            .type_reference_table
+            .type_reference_rows()
+            .filter_map(|(reference, node)| {
+                let TypeReferenceNode::Named { symbol, .. } = node else {
+                    return None;
+                };
+                parameters
+                    .iter()
+                    .any(|parameter| {
+                        parameter.symbol == *symbol
+                            && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    })
+                    .then_some(reference)
+            })
+            .collect::<Vec<_>>();
+        if formals.is_empty() {
+            continue;
+        }
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let mut expressions = Vec::new();
+                crate::collect_statement_expression_trees(program, statement, &mut expressions);
+                expressions.sort_unstable_by_key(|expression| {
+                    (expression.arena_index(), expression.generation())
+                });
+                expressions.dedup();
+                for expression in expressions {
+                    let Some((definition, _)) = super::structural_terms::case_guard_classifier(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    ) else {
+                        continue;
+                    };
+                    let Some(binary) = program.expression_table.binary_node(expression) else {
+                        continue;
+                    };
+                    let relevant = !definition.where_facts.is_empty()
+                        || crate::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            binary.left,
+                        )
+                        .is_some_and(|reference| {
+                            type_carries_predicate_context(program, reference, &mut Vec::new())
+                        });
+                    if !relevant {
+                        continue;
+                    }
+                    let mut visitor = ConditionalCaseEquations {
+                        site: StructuralPrefixSite {
+                            state: state.symbol,
+                            statement_index,
+                            in_transition_target:
+                                super::structural_prefix::expression_is_transition_target(
+                                    program,
+                                    state,
+                                    statement_index,
+                                    expression,
+                                ),
+                        },
+                        expression,
+                        candidates: formals
+                            .iter()
+                            .flat_map(|formal| {
+                                candidates
+                                    .iter()
+                                    .map(move |candidate| (*formal, *candidate))
+                            })
+                            .collect(),
+                        equations: None,
+                        possible: false,
+                        observed: false,
+                        complete: true,
+                    };
+                    let complete =
+                        observe_runtime_state_prefix(program, machine, state, &mut visitor)
+                            .is_some()
+                            && visitor.observed
+                            && visitor.complete;
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT predicate-case machine={} state={} expression={:?} complete={} possible={} equations={:?}",
+                            machine.name,
+                            state.name,
+                            expression,
+                            complete,
+                            visitor.possible,
+                            visitor.equations
+                        );
+                    }
+                    contexts.push(typed_trees::CaseMembershipTypeFacts {
+                        membership: expression,
+                        impossible: complete && !visitor.possible,
+                        equations: if complete {
+                            visitor.equations.unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        },
+                    });
+                }
+            }
+        }
+    }
+    // A reused node must satisfy every occurrence, including refused queries.
+    contexts.sort_unstable_by_key(|context| {
+        (
+            context.membership.arena_index(),
+            context.membership.generation(),
+        )
+    });
+    let mut joined: Vec<typed_trees::CaseMembershipTypeFacts> = Vec::new();
+    for context in contexts {
+        if let Some(previous) = joined
+            .last_mut()
+            .filter(|previous| previous.membership == context.membership)
+        {
+            previous.impossible &= context.impossible;
+            previous
+                .equations
+                .retain(|equation| context.equations.contains(equation));
+        } else {
+            joined.push(context);
+        }
+    }
+    joined
+}
+
+struct ConditionalCaseEquations {
+    site: StructuralPrefixSite,
+    expression: ExpressionHandle,
+    candidates: Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
+    equations: Option<Vec<(TypeReferenceHandle, TypeReferenceHandle)>>,
+    possible: bool,
+    observed: bool,
+    complete: bool,
+}
+
+impl StructuralPrefixVisitor for ConditionalCaseEquations {
+    fn site(&self) -> StructuralPrefixSite {
+        self.site
+    }
+    fn unresolved(&mut self, _: &typed_trees::machine::Machine) {
+        self.complete = false;
+    }
+    fn observe<'program>(
+        &mut self,
+        (program, machine, state, judge, environment): PrefixObservation<'_, 'program>,
+    ) {
+        let Some((definition, variant)) = super::structural_terms::case_guard_classifier(
+            program,
+            machine,
+            Some(state),
+            self.expression,
+        ) else {
+            self.complete = false;
+            return;
+        };
+        let Some(binary) = program.expression_table.binary_node(self.expression) else {
+            self.complete = false;
+            return;
+        };
+        let Some(reference) =
+            crate::expression_result_type_reference(program, machine, state, binary.left)
+        else {
+            self.complete = false;
+            return;
+        };
+        let Some(entries) = judge.normal_value_entries(
+            self.site.statement_index,
+            binary.left,
+            environment,
+            (machine, state, state.return_type),
+        ) else {
+            self.complete = false;
+            return;
+        };
+        self.observed = true;
+        for entry in entries {
+            let [Some(value)] = entry.arguments.as_slice() else {
+                self.complete = false;
+                return;
+            };
+            let Some((impossible, equations)) = entry.judge.conditional_case_type_equations(
+                binary.left,
+                value,
+                reference,
+                definition.symbol,
+                variant.symbol,
+                &self.candidates,
+            ) else {
+                self.complete = false;
+                return;
+            };
+            if impossible {
+                continue;
+            }
+            self.possible = true;
+            if let Some(previous) = &mut self.equations {
+                previous.retain(|equation| equations.contains(equation));
+            } else {
+                self.equations = Some(equations);
+            }
+        }
+    }
+}
+
 pub(crate) fn predicate_type_contexts(
     program: &dyn crate::CheckingInput,
 ) -> Vec<ProvenTypeContext> {

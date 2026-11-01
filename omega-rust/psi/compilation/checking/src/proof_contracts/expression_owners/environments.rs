@@ -8,8 +8,10 @@ use crate::frozen_program::expression_table;
 use checked_trees::ContractProofFactOwner;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The environment one statement position establishes: the machine's own
@@ -18,7 +20,7 @@ pub(super) fn executable_site_environment(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    statements: &[typed_trees::statement::StatementNode],
+    statements: &[StatementNode],
     statement_index: usize,
 ) -> TypeEnvironment {
     let mut environment = machine_environment(program, machine, Some(state));
@@ -27,9 +29,7 @@ pub(super) fn executable_site_environment(
             .iter()
             .take(statement_index)
             .filter_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
-                    if local.type_reference.is_valid() =>
-                {
+                StatementNode::LocalData(local) if local.type_reference.is_valid() => {
                     Some(Binding {
                         name: local.name.as_str().to_owned(),
                         symbol: local.symbol,
@@ -468,10 +468,8 @@ pub(super) fn data_type_environments(
             .iter()
             .filter_map(|parameter| {
                 let type_reference = match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                        type_reference
-                    }
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => type_reference,
                     _ => return None,
                 };
                 Some(Binding {

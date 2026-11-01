@@ -1,24 +1,22 @@
 //! Source-free ISA readers reject pointer, width, polarity and address substitutions.
 use super::replay_battery;
 use selected_instructions::{
-    AccessorScalarForm, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-    MachineEncodedMemoryEffect, MachineSemanticKind, SelectedInstructionKind,
+    AccessorScalarForm, MachineAlternativeFamily as Family, MachineAlternativeKey, MachineBarrier,
+    MachineEncodedMemoryEffect, MachineSemanticKind, SelectedInstructionKind as Kind,
 };
 
 /// The exact request one placed-scalar form encodes. The substitution pins
 /// rebuild both halves from a changed form through this owner rather than
 /// re-spelling the request.
-fn accessor_scalar_request(
-    form: AccessorScalarForm,
-) -> (SelectedInstructionKind, MachineAlternativeKey) {
+fn accessor_scalar_request(form: AccessorScalarForm) -> (Kind, MachineAlternativeKey) {
     (
-        SelectedInstructionKind::AccessorScalarAccess {
+        Kind::AccessorScalarAccess {
             form,
             contract: [3; 32],
             byte_offset: 8,
         },
         MachineAlternativeKey {
-            family: MachineAlternativeFamily::AccessorScalarAccess(form),
+            family: Family::AccessorScalarAccess(form),
             variant: 0,
         },
     )
@@ -104,7 +102,7 @@ fn accessor_scalar_forms_decode_one_exact_width_transfer() {
             8,
             verify,
         );
-        let verify_request = |kind: SelectedInstructionKind, alternative: MachineAlternativeKey| {
+        let verify_request = |kind: Kind, alternative: MachineAlternativeKey| {
             verify(kind, alternative, &[base, data], 8, encoded.bytes())
         };
         assert!(verify(kind, alternative, &[data, base], 8, encoded.bytes()).is_err());

@@ -3,14 +3,30 @@
 //! rows describe only the exact value transport at completion, not an AST
 //! recognizer or another ownership evaluator.
 
+use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
+use crate::flow::canonical_place_from_semantic_place;
 use arena::Handle;
-use checked_trees::{CheckFacts, FlowOperandCompletion, FlowOperandFact};
+use checked_trees::{
+    BorrowAccessKind, BorrowLoanLineage, CheckFacts, FlowCallFact, FlowOperandCompletion,
+    FlowOperandFact, FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact,
+};
 use diagnostics::Diagnostic;
 use facts::{PlaceRoot, PlaceSegment};
-use language_semantics::Multiplicity;
+use language_semantics::{Multiplicity, ReferenceAccess};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableMatchArm};
 use typed_trees::types::TypeReferenceHandle;
+use validation::CallFrameResolver;
+use validation::CanonicalPlace;
+use validation::CheckingInput;
+use validation::canonical_place_type_reference;
+use validation::ownership_place_from_expression_in_state;
+use validation::reference_formation_source;
+use validation::reference_result_custody::binding_multiplicity;
+use validation::reference_result_custody::initializer_source;
+use validation::reference_result_custody::source_value_is_copied;
+use validation::reference_shell;
 
 macro_rules! selection {
     ($message:literal) => {
@@ -18,19 +34,19 @@ macro_rules! selection {
     };
 }
 
-pub(in crate::checks::multiplicity) struct CapturedOwner {
+pub(in super::super) struct CapturedOwner {
     pub expression: ExpressionHandle,
     pub source_arm: Handle<TableMatchArm>,
-    pub source: validation::CanonicalPlace,
+    pub source: CanonicalPlace,
     pub destination: Vec<PlaceSegment>,
     pub type_reference: TypeReferenceHandle,
 }
 
-pub(in crate::checks::multiplicity) struct SelectionProduction {
+pub(in super::super) struct SelectionProduction {
     value: Handle<FlowOperandFact>,
     pub expression: ExpressionHandle,
-    pub evaluation: checked_trees::FlowPermissionEvaluation,
-    pub destination: validation::CanonicalPlace,
+    pub evaluation: FlowPermissionEvaluation,
+    pub destination: CanonicalPlace,
     pub type_reference: TypeReferenceHandle,
     pub owners: Vec<CapturedOwner>,
     pub transported: Vec<ExpressionHandle>,
@@ -39,10 +55,7 @@ pub(in crate::checks::multiplicity) struct SelectionProduction {
 impl SelectionProduction {
     /// A completed source must exist before capture can transfer its custody,
     /// even when the same expression also names the outgoing receiving value.
-    pub(in crate::checks::multiplicity) fn captures_anonymous_source(
-        &self,
-        expression: ExpressionHandle,
-    ) -> bool {
+    pub(in super::super) fn captures_anonymous_source(&self, expression: ExpressionHandle) -> bool {
         self.owners.iter().any(|owner| {
             owner.expression == expression
                 && owner.source.root == PlaceRoot::Expression(expression)
@@ -50,14 +63,14 @@ impl SelectionProduction {
         })
     }
 
-    pub(in crate::checks::multiplicity) fn for_statement(
-        program: &dyn validation::CheckingInput,
+    pub(in super::super) fn for_statement(
+        program: &dyn CheckingInput,
         facts: &CheckFacts,
         machine: SymbolHandle,
         state: SymbolHandle,
         statement: usize,
-        evaluation: checked_trees::FlowPermissionEvaluation,
-        places: &[crate::checks::multiplicity::linear_obligations::LinearPlace],
+        evaluation: FlowPermissionEvaluation,
+        places: &[LinearPlace],
     ) -> Result<Option<Self>, Diagnostic> {
         let Some(flow) = facts.flow.control.state(machine, state) else {
             return Ok(None);
@@ -65,14 +78,12 @@ impl SelectionProduction {
         let stored = facts.flow.state_statement(flow, statement);
         let (capture, destination) = if let Some(stored) = stored.filter(|row| {
             facts.flow.control.operands.is_valid(row.stored_value)
-                && evaluation == checked_trees::FlowPermissionEvaluation::Statement
+                && evaluation == FlowPermissionEvaluation::Statement
         }) {
             let operand = facts.flow.control.operands.get(stored.stored_value);
             if !has_selection(facts, operand)
-                || validation::reference_result_custody::binding_multiplicity(
-                    program,
-                    operand.type_reference,
-                ) == Multiplicity::Unrestricted
+                || binding_multiplicity(program, operand.type_reference)
+                    == Multiplicity::Unrestricted
             {
                 return Ok(None);
             }
@@ -82,11 +93,7 @@ impl SelectionProduction {
                 .is_valid(stored.stored_destination)
                 .then(|| facts.semantic.places.get(stored.stored_destination))
                 .and_then(|place| {
-                    crate::flow::canonical_place_from_semantic_place(
-                        program,
-                        &facts.semantic,
-                        place,
-                    )
+                    canonical_place_from_semantic_place(program, &facts.semantic, place)
                 })
                 .ok_or_else(|| Diagnostic::error("selected store has no exact receiving place"))?;
             (stored.stored_value, destination)
@@ -101,10 +108,10 @@ impl SelectionProduction {
                     row.statement_index == statement
                         && row.returned_value.is_valid()
                         && match evaluation {
-                            checked_trees::FlowPermissionEvaluation::Statement => {
+                            FlowPermissionEvaluation::Statement => {
                                 !row.transition_target.is_valid()
                             }
-                            checked_trees::FlowPermissionEvaluation::TransitionTarget(target) => {
+                            FlowPermissionEvaluation::TransitionTarget(target) => {
                                 row.transition_target == target
                             }
                             _ => false,
@@ -115,7 +122,7 @@ impl SelectionProduction {
             };
             (
                 outgoing.returned_value,
-                validation::CanonicalPlace {
+                CanonicalPlace {
                     root: PlaceRoot::Unknown,
                     segments: Vec::new(),
                 },
@@ -123,10 +130,7 @@ impl SelectionProduction {
         };
         let operand = facts.flow.control.operands.get(capture);
         if !has_selection(facts, operand)
-            || validation::reference_result_custody::binding_multiplicity(
-                program,
-                operand.type_reference,
-            ) == Multiplicity::Unrestricted
+            || binding_multiplicity(program, operand.type_reference) == Multiplicity::Unrestricted
         {
             return Ok(None);
         }
@@ -144,9 +148,7 @@ impl SelectionProduction {
             &mut owners,
             &mut transported,
         )?;
-        if owners.is_empty()
-            && validation::reference_shell(program, operand.type_reference).is_some()
-        {
+        if owners.is_empty() && reference_shell(program, operand.type_reference).is_some() {
             // Every arm formed an ordinary loan from incoming referent access,
             // not an installed descriptor's owned storage. Loan checking owns
             // that join; no selected-source custody receipt is manufactured.
@@ -166,9 +168,9 @@ impl SelectionProduction {
         }))
     }
 
-    pub(in crate::checks::multiplicity) fn record(
+    pub(in super::super) fn record(
         &self,
-        program: &dyn validation::CheckingInput,
+        program: &dyn CheckingInput,
         facts: &mut CheckFacts,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -176,9 +178,9 @@ impl SelectionProduction {
         evaluated_transfers: &[super::super::cleanup_dispositions::TransferCustody],
         evaluated_observations: &[super::super::linear_validation::ObservedCustody],
         routes: &super::super::selected_evaluation::ExpressionRoutes,
-        calls: &[checked_trees::FlowCallFact],
-        events: &[checked_trees::FlowPermissionEventFact],
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        calls: &[FlowCallFact],
+        events: &[FlowPermissionEventFact],
+        call_frames: Option<&CallFrameResolver<'_>>,
     ) -> Result<(), Diagnostic> {
         use checked_trees::{
             FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
@@ -190,10 +192,7 @@ impl SelectionProduction {
         };
         let mut sources = Vec::new();
         for owner in &self.owners {
-            if validation::reference_result_custody::source_value_is_copied(
-                program,
-                owner.type_reference,
-            ) {
+            if source_value_is_copied(program, owner.type_reference) {
                 // A reusable read keeps its own storage/death owner. It is not
                 // a residual cleanup source for the selected receiving value.
                 continue;
@@ -261,10 +260,7 @@ impl SelectionProduction {
         let sources = facts.flow.ownership.selection_sources.insert_many(sources);
         let mut transfers = Vec::new();
         for owner in &self.owners {
-            let source = if validation::reference_result_custody::source_value_is_copied(
-                program,
-                owner.type_reference,
-            ) {
+            let source = if source_value_is_copied(program, owner.type_reference) {
                 Handle::invalid()
             } else {
                 owner
@@ -300,13 +296,10 @@ impl SelectionProduction {
                 None
             };
             let mut claims = Vec::new();
-            for template in crate::checks::multiplicity::linear_validation::linear_claim_frontier(
-                program,
-                owner.type_reference,
-            ) {
+            for template in linear_claim_frontier(program, owner.type_reference) {
                 let mut path = owner.source.segments.clone();
                 path.extend_from_slice(&template.path);
-                let same_completion = |event: &&checked_trees::FlowPermissionEventFact| {
+                let same_completion = |event: &&FlowPermissionEventFact| {
                     event.expression == owner.expression
                         && event.root == owner.source.root
                         && event.machine_symbol == machine
@@ -395,10 +388,7 @@ impl SelectionProduction {
                     })
                     .unwrap_or(PermissionProvenance::Unknown);
                 (provenance, PermissionClaimIdentity::Unknown)
-            } else if validation::reference_result_custody::source_value_is_copied(
-                program,
-                owner.type_reference,
-            ) {
+            } else if source_value_is_copied(program, owner.type_reference) {
                 // Source use is reusable even when a local containing its
                 // descriptor has affine disposal custody. Any recorded source
                 // frontier must still be available at this exact read cut.
@@ -553,8 +543,8 @@ impl SelectionProduction {
         &self,
         root: PlaceRoot,
         routes: &super::super::selected_evaluation::ExpressionRoutes,
-        calls: &[checked_trees::FlowCallFact],
-        events: &[checked_trees::FlowPermissionEventFact],
+        calls: &[FlowCallFact],
+        events: &[FlowPermissionEventFact],
     ) -> Result<bool, Diagnostic> {
         let mut present = true;
         let mut evaluation = super::super::selected_evaluation::SelectedEvaluation::new();
@@ -587,15 +577,11 @@ impl SelectionProduction {
         Ok(present)
     }
 
-    pub(in crate::checks::multiplicity) fn receives(
-        &self,
-        root: PlaceRoot,
-        path: &[PlaceSegment],
-    ) -> bool {
+    pub(in super::super) fn receives(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         root == self.root() && path.starts_with(&self.destination.segments)
     }
 
-    pub(in crate::checks::multiplicity) fn root(&self) -> PlaceRoot {
+    pub(in super::super) fn root(&self) -> PlaceRoot {
         if self.destination.root.is_valid() {
             self.destination.root
         } else {
@@ -611,17 +597,17 @@ impl SelectionProduction {
 /// next evaluation position: a retained source association starts only after this
 /// exact transfer/read, not at statement entry.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::checks::multiplicity) fn evaluated_source_custody<'evaluation>(
-    ownership: &checked_trees::FlowOwnershipFacts,
+pub(in super::super) fn evaluated_source_custody<'evaluation>(
+    ownership: &FlowOwnershipFacts,
     expression: ExpressionHandle,
-    source: &validation::CanonicalPlace,
-    evaluation: checked_trees::FlowPermissionEvaluation,
+    source: &CanonicalPlace,
+    evaluation: FlowPermissionEvaluation,
     transfers: &'evaluation [super::super::cleanup_dispositions::TransferCustody],
     observations: &'evaluation [super::super::linear_validation::ObservedCustody],
-    events: &[checked_trees::FlowPermissionEventFact],
+    events: &[FlowPermissionEventFact],
 ) -> Result<
     (
-        &'evaluation [crate::checks::multiplicity::linear_obligations::LinearPlace],
+        &'evaluation [LinearPlace],
         &'evaluation super::super::cleanup_dispositions::RemainingCustody,
         super::super::cleanup_dispositions::CustodyCut,
     ),
@@ -679,20 +665,18 @@ fn has_selection(facts: &CheckFacts, operand: &FlowOperandFact) -> bool {
 }
 
 fn collect(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    evaluation: checked_trees::FlowPermissionEvaluation,
-    places: &[crate::checks::multiplicity::linear_obligations::LinearPlace],
+    evaluation: FlowPermissionEvaluation,
+    places: &[LinearPlace],
     operand: &FlowOperandFact,
     arm: Handle<TableMatchArm>,
     destination: &[PlaceSegment],
     owners: &mut Vec<CapturedOwner>,
     transported: &mut Vec<ExpressionHandle>,
 ) -> Result<(), Diagnostic> {
-    if validation::reference_result_custody::binding_multiplicity(program, operand.type_reference)
-        == Multiplicity::Unrestricted
-    {
+    if binding_multiplicity(program, operand.type_reference) == Multiplicity::Unrestricted {
         return Ok(());
     }
     match operand.completion {
@@ -731,10 +715,7 @@ fn collect(
         FlowOperandCompletion::Constructed(children) => {
             // Nominal obligations belong to the completed constructor itself.
             // Transparent storage instead transports its contained owners.
-            let frontier = crate::checks::multiplicity::linear_validation::linear_claim_frontier(
-                program,
-                operand.type_reference,
-            );
+            let frontier = linear_claim_frontier(program, operand.type_reference);
             if !frontier.iter().any(|claim| claim.path.is_empty()) {
                 let before = owners.len();
                 for child in facts.flow.control.operand_children.span_or_empty(children) {
@@ -767,7 +748,7 @@ fn collect(
         }
         FlowOperandCompletion::Copied { .. } | FlowOperandCompletion::Observation => {}
     }
-    let source = validation::ownership_place_from_expression_in_state(
+    let source = ownership_place_from_expression_in_state(
         program,
         operand.state_symbol,
         operand.statement_index,
@@ -777,7 +758,7 @@ fn collect(
     // Address formation strips to its referent place. Only a slot whose actual
     // carrier is this reference value can be installed descriptor storage;
     // owning T is not owning the &mut T freshly lent from that T.
-    let installed_descriptor = validation::canonical_place_type_reference(
+    let installed_descriptor = canonical_place_type_reference(
         program,
         operand.state_symbol,
         operand.statement_index,
@@ -790,13 +771,13 @@ fn collect(
         super::source_frontier_matches(place, source.root, &source.segments)
             && place.ever_established
     });
-    if validation::reference_shell(program, operand.type_reference).is_some()
+    if reference_shell(program, operand.type_reference).is_some()
         && (forms_checked_loan(program, facts, machine, evaluation, operand)
             || (!installed_descriptor
                 && program
                     .state_by_symbol(operand.state_symbol)
                     .is_some_and(|state| {
-                        validation::reference_result_custody::initializer_source(
+                        initializer_source(
                             program,
                             state,
                             operand.expression,
@@ -832,22 +813,19 @@ fn collect(
 /// referent. Keep the semantic formation operation joined to its checked loan
 /// occurrence rather than inferring a move from that carrier or referent.
 fn forms_checked_loan(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    evaluation: checked_trees::FlowPermissionEvaluation,
+    evaluation: FlowPermissionEvaluation,
     operand: &FlowOperandFact,
 ) -> bool {
-    let Some(formation) = validation::reference_formation_source(program, operand.expression)
-    else {
+    let Some(formation) = reference_formation_source(program, operand.expression) else {
         return false;
     };
     let access = match formation.access {
-        language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
-        language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,
-        language_semantics::ReferenceAccess::WriteOnly => {
-            checked_trees::BorrowAccessKind::WriteOnly
-        }
+        ReferenceAccess::Shared => BorrowAccessKind::Read,
+        ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+        ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
     };
     let Some((_, state)) = facts.borrow.states.iter().find(|(_, state)| {
         state.machine_symbol == machine && state.state_symbol == operand.state_symbol
@@ -874,9 +852,9 @@ fn forms_checked_loan(
         .iter()
         .filter(|loan| {
             let loan_evaluation = if loan.transition_target.is_valid() {
-                checked_trees::FlowPermissionEvaluation::TransitionTarget(loan.transition_target)
+                FlowPermissionEvaluation::TransitionTarget(loan.transition_target)
             } else {
-                checked_trees::FlowPermissionEvaluation::Statement
+                FlowPermissionEvaluation::Statement
             };
             loan.statement_index == operand.statement_index
                 && loan.formation_expression == operand.expression
@@ -887,8 +865,8 @@ fn forms_checked_loan(
     let mut found = false;
     for lineage in local.chain(returned) {
         match lineage {
-            checked_trees::BorrowLoanLineage::DirectRoot => {}
-            checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+            BorrowLoanLineage::DirectRoot => {}
+            BorrowLoanLineage::Reborrow { parent_loan } => {
                 if !facts.borrow.state_owns_loan(state, *parent_loan) {
                     return false;
                 }
@@ -896,9 +874,10 @@ fn forms_checked_loan(
             // The formation operation still lends; an unavailable unique
             // lineage is not permission to manufacture a parent or move the
             // descriptor. Ordinary borrow admission keeps its existing fence.
-            checked_trees::BorrowLoanLineage::UnretainedDerived => {}
-            checked_trees::BorrowLoanLineage::SuppliedOutput
-            | checked_trees::BorrowLoanLineage::LifetimeDependency => return false,
+            BorrowLoanLineage::UnretainedDerived => {}
+            BorrowLoanLineage::SuppliedOutput | BorrowLoanLineage::LifetimeDependency => {
+                return false;
+            }
         }
         found = true;
     }

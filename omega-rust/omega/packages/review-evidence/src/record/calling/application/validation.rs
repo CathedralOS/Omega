@@ -5,6 +5,7 @@ mod shapes;
 mod target;
 
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
+use crate::record::public_policy::validation::scope;
 
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
@@ -16,10 +17,7 @@ impl PackagePolicyCallingPlan {
         let lifetime_count = application_scope
             .checked_add(self.requirement_lifetime_parameter_count)
             .ok_or("calling lifetime telescope overflows")?;
-        let scope = crate::record::public_policy::validation::scope(
-            &self.static_parameters,
-            lifetime_count as usize,
-        );
+        let scope = scope(&self.static_parameters, lifetime_count as usize);
         crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
         self.boundary_trait.validate_resolved()?;
         self.requirement.validate_resolved()?;

@@ -21,7 +21,13 @@
 //! custody, and before destinations are installed. Otherwise a captured call
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
+use crate::custody::{
+    bind_active_block_arguments, bind_active_structural_arguments, bind_affine_frontier,
+    bind_arguments, projected_ownership_claims, resolve_single_structural_argument,
+    validate_nominal_cleanup_action, verified_structural_place, whole_path_discard,
+};
 use crate::runtime_rows::RuntimeRows;
+use crate::scalar_storage::ScalarCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
@@ -33,15 +39,10 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::bind_active_block_arguments;
-use crate::custody::bind_active_structural_arguments;
-use crate::custody::bind_affine_frontier;
-use crate::custody::bind_arguments;
-use crate::custody::resolve_single_structural_argument;
-use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use terminal_semantics::{borrowed_storage_parameter, view_descriptor_parameter};
 
 pub(crate) struct BlockBindings {
     scalars: RuntimeRows<ValueId, TerminalScalarValue>,
@@ -242,11 +243,9 @@ impl BlockBindings {
             discarded.insert(place);
             match action {
                 TerminalAffineCleanupAction::DiscardRoot(_) => {
-                    let structural_type = crate::custody::verified_structural_place(
-                        &execution.structural_values,
-                        place,
-                    )
-                    .map(|value| value.structural_type)?;
+                    let structural_type =
+                        verified_structural_place(&execution.structural_values, place)
+                            .map(|value| value.structural_type)?;
                     if crate::custody::place_is_claimed(&claims, place)
                         || frontier
                             .iter()
@@ -259,7 +258,7 @@ impl BlockBindings {
                     values.remove(&place);
                 }
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    crate::custody::validate_nominal_cleanup_action(
+                    validate_nominal_cleanup_action(
                         &execution.structural_types(),
                         execution.structural_cases.as_map(),
                         &execution.program.machines(),
@@ -490,8 +489,7 @@ impl TerminalExecution<'_> {
                 packed_arguments.push((parameter, argument, value));
                 continue;
             }
-            let value =
-                crate::custody::verified_structural_place(&self.structural_values, argument.place)?;
+            let value = verified_structural_place(&self.structural_values, argument.place)?;
             // A projected owned argument binds the selected subtree, keeping
             // the root's opaque identity and the exact moved path. The caller
             // discharges the residual complement on the same edge.
@@ -592,10 +590,8 @@ impl TerminalExecution<'_> {
                         {
                             return Err(malformed());
                         }
-                        let selected_claims = crate::custody::projected_ownership_claims(
-                            &self.live_claims,
-                            argument,
-                        )?;
+                        let selected_claims =
+                            projected_ownership_claims(&self.live_claims, argument)?;
                         let claims_match = match parameter.multiplicity {
                             StructuralMultiplicity::Linear => matches!(selected_claims.as_slice(),
                                 [(_, claim)] if claim.path.is_empty()
@@ -619,19 +615,14 @@ impl TerminalExecution<'_> {
                     }
                 }
                 terminal_psi::reading_borrow_pair_pattern!()
-                    if terminal_semantics::view_descriptor_parameter(
-                        parameter,
-                        self.structural_types().values(),
-                    ) =>
+                    if view_descriptor_parameter(parameter, self.structural_types().values()) =>
                 {
                     // A descriptor lends its window, not its affine storage.
                     // The common argument binder below preserves exact backing
                     // and attenuates access. Its source debt remains here until
                     // the independently verified cleanup frontier discharges it.
-                    if !terminal_semantics::view_descriptor_parameter(
-                        parameter,
-                        self.structural_types().values(),
-                    ) || !self.block_parameter_is_declared(target, parameter)
+                    if !view_descriptor_parameter(parameter, self.structural_types().values())
+                        || !self.block_parameter_is_declared(target, parameter)
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == parameter.place
                                 || (entry.place == argument.place && !entry.path.is_empty())
@@ -656,10 +647,7 @@ impl TerminalExecution<'_> {
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
-                    if terminal_semantics::borrowed_storage_parameter(
-                        parameter,
-                        self.structural_types().values(),
-                    ) =>
+                    if borrowed_storage_parameter(parameter, self.structural_types().values()) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self.live_affine_discard_at(parameter.place).is_some()
@@ -906,9 +894,7 @@ impl TerminalExecution<'_> {
                 // exact geometry; do not replay a byte-only predicate theory.
                 self.validate_scalar_array_contents_qualifications(
                     parameter.structural_type,
-                    elements
-                        .iter()
-                        .map(crate::scalar_storage::ScalarCell::scalar_type),
+                    elements.iter().map(ScalarCell::scalar_type),
                     &parameter.qualifications,
                 )?;
                 captured.absorb_qualifications(&parameter.qualifications);

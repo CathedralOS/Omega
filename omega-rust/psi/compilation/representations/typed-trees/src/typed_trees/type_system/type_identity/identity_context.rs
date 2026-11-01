@@ -1,6 +1,7 @@
 //! The identity context: package qualification and the normalization of
 //! type references, index expressions and const or nominal names.
 
+use super::LifetimeParameterIdentity;
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::type_identity::substitution;
@@ -18,6 +19,9 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 mod match_dispatch;
+
+#[cfg(test)]
+mod argument_roles_tests;
 
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
@@ -195,11 +199,7 @@ impl TypeIdentityContext<'_> {
         }
     }
 
-    fn resolved_lifetime(
-        &self,
-        program: &TypedTrees,
-        region: super::LifetimeParameterIdentity,
-    ) -> String {
+    fn resolved_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
         let Some((region, _)) = super::apply_resolved_lifetime_parameter_identity(
             program,
             region,
@@ -218,11 +218,7 @@ impl TypeIdentityContext<'_> {
         self.encode_lifetime(program, region)
     }
 
-    fn encode_lifetime(
-        &self,
-        program: &TypedTrees,
-        region: super::LifetimeParameterIdentity,
-    ) -> String {
+    fn encode_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
         if self.qualification == TypeIdentityQualification::PackageQualified {
             if let Some(identity) =
                 super::lifetime_parameters::portable_lifetime_parameter_identity(program, region)
@@ -254,7 +250,7 @@ impl TypeIdentityContext<'_> {
         &self,
         program: &TypedTrees,
         name: &crate::name::Identifier,
-        region: Option<super::LifetimeParameterIdentity>,
+        region: Option<LifetimeParameterIdentity>,
     ) -> String {
         if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
             self.resolved_lifetime(program, region)
@@ -374,7 +370,7 @@ fn generic_type_identity(
     symbol: SymbolHandle,
     name: &str,
     lifetimes: &[crate::name::Identifier],
-    regions: &[super::LifetimeParameterIdentity],
+    regions: &[LifetimeParameterIdentity],
     arguments: impl Iterator<Item = String>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
@@ -416,7 +412,7 @@ fn generic_reference_identity<'program>(
     mut symbol: SymbolHandle,
     mut name: &'program crate::name::Identifier,
     lifetimes: &[crate::name::Identifier],
-    regions: &[super::LifetimeParameterIdentity],
+    regions: &[LifetimeParameterIdentity],
     mut arguments: arena::HandleSpan<TypeReferenceHandle>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
@@ -467,11 +463,7 @@ fn generic_reference_identity<'program>(
     // The declaration's telescope owns argument roles for code selections as
     // well as data applications. A const in a nested implementation must use
     // the same index grammar before and after caller-side substitution.
-    let parameters = if context.invalid_application.is_some() || context.storage_value_indices {
-        program.declaration_type_parameters(symbol)
-    } else {
-        &[]
-    };
+    let parameters = program.declaration_type_parameters(symbol);
     generic_type_identity(
         program,
         symbol,
@@ -513,10 +505,9 @@ fn generic_reference_identity<'program>(
                         Err(_) => substitution::rejected(context),
                     };
                 }
-                let is_index = context.invalid_application.is_some()
-                    && parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
                 if is_index {
                     substitution::index_argument(
                         program,

@@ -4,6 +4,7 @@
 //! occurrence before joining ancestry; original formations and retired
 //! generations remain distinct, just as on an owned parameter binding.
 
+use super::descriptor_backing::path_is_impossible;
 use super::occurrences::{remap_parents, resident_type};
 use super::{
     BlockId, CarrierContract, Custody, LegalizationError, OccurrenceIdentity, PlaceId,
@@ -38,13 +39,7 @@ pub(super) fn merge(
                     .iter()
                     .filter(|arrival| !arrival.leaves.contains_key(*location))
                     .all(|arrival| {
-                        super::descriptor_backing::path_is_impossible(
-                            function,
-                            arrival,
-                            types,
-                            location.0,
-                            &location.1,
-                        )
+                        path_is_impossible(function, arrival, types, location.0, &location.1)
                     })
         })
         .cloned()

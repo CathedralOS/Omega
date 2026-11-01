@@ -31,10 +31,13 @@ use super::structural_case_arms::{
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::PrefixObservation;
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
+use checked_trees::ProofFacts;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 
@@ -51,7 +54,7 @@ use inherited_predicates::{InheritedPredicate, inherited_predicate};
 /// in that mode; incomplete mutation evidence never licenses either judgment.
 #[allow(clippy::too_many_arguments)]
 pub fn structural_call_requirement_entailed(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
@@ -86,17 +89,14 @@ pub fn structural_call_requirement_entailed(
 /// owner. The exact public declaration supplies the telescope; the realized
 /// implementation cannot export a stronger private contract.
 pub fn selected_value_call_requirement_entailed(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     site: crate::machine_calls::calls::CallSite<'_>,
     expression: ExpressionHandle,
     case_facts_only: bool,
-    inherited: Option<(
-        &checked_trees::ProofFacts,
-        arena::Handle<checked_trees::ContractProofFact>,
-    )>,
+    inherited: Option<(&ProofFacts, arena::Handle<checked_trees::ContractProofFact>)>,
 ) -> bool {
     let call_expression = match site {
         crate::CallSite::Expression { expression, .. } => expression,
@@ -110,9 +110,7 @@ pub fn selected_value_call_requirement_entailed(
     };
     if inherited.is_none()
         && !super::specification_calls::owner_contracts(program, &owner)
-            .filter(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            })
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
             .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
             .any(|fact| {
                 let typed_trees::domain::ProofFact::Expression(required) = fact else {
@@ -202,7 +200,7 @@ pub fn selected_value_call_requirement_entailed(
 
 #[allow(clippy::too_many_arguments)]
 fn structural_requirement_at_prefix(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
@@ -259,7 +257,7 @@ fn structural_requirement_at_prefix(
             crate::proof_contracts::proof_facts::contract_expression_facts(
                 program,
                 program.state_contracts(caller_state).iter(),
-                typed_trees::signature::SignatureContractKind::Requires,
+                SignatureContractKind::Requires,
             ),
         );
     }
@@ -695,7 +693,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
 /// equality, not arbitrary selected operators or IEEE floating equality. Check
 /// assumptions as well as goals: misreading one could manufacture vacuity.
 fn runtime_equality_fact(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -746,7 +744,7 @@ fn runtime_equality_fact(
 }
 
 fn runtime_fact_for_parameters(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
@@ -823,7 +821,7 @@ fn runtime_fact_for_parameters(
 }
 
 pub(super) fn contains_case_premise(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     if super::structural_terms::is_case_observation(program, expression) {
@@ -836,10 +834,7 @@ pub(super) fn contains_case_premise(
 
 /// Classifier predicates and conjunctions only: tag-preserving writes do not
 /// license scalar equations, even apparently contradictory old assumptions.
-pub(super) fn case_fact_only(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
+pub(super) fn case_fact_only(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
     }
@@ -851,7 +846,7 @@ pub(super) fn case_fact_only(
 /// Establish a prior citation before a later branch can refine its arguments.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish_citation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -923,7 +918,7 @@ pub(super) fn establish_citation(
 /// refinements and citations cannot license it. A branch-dependent call needs
 /// its own path judgment and cannot provide an earlier unconditional IH.
 fn intake_state_induction(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,

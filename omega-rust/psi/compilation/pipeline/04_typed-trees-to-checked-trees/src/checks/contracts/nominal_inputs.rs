@@ -7,6 +7,16 @@
 //! Conditional payload validity does not select an active case; only the
 //! authored source access carries that separate selection obligation.
 
+use crate::collections::push_unique;
+use crate::flow::CapturedResultMemberships;
+use crate::flow::OperandContextSelection;
+use crate::flow::OperandContextSelections;
+use crate::flow::captured_observation_places;
+use crate::flow::captured_value_places;
+use crate::flow::literal_value_path_is_inactive;
+use crate::labels::call_target_label;
+use crate::labels::machine_name;
+use crate::labels::symbol_name;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -68,7 +78,7 @@ impl DeclaredFieldRequirements {
                 semantic_domain,
             );
             let requirements = rows.entry(owner).or_default();
-            crate::collections::push_unique(requirements, requirement);
+            push_unique(requirements, requirement);
         }
         Self { rows }
     }
@@ -111,13 +121,9 @@ pub(super) fn check(
     // Field obligations project different subjects from the same completed
     // operand. Select each exact namespace and epoch once; each field
     // still proves its own case validity and exact domain obligation below.
-    let mut operand_contexts = crate::flow::OperandContextSelections::new(
-        program,
-        &facts.flow,
-        &facts.semantic,
-        state.machine_symbol,
-    );
-    let mut result_memberships = crate::flow::CapturedResultMemberships::new(facts);
+    let mut operand_contexts =
+        OperandContextSelections::new(program, &facts.flow, &facts.semantic, state.machine_symbol);
+    let mut result_memberships = CapturedResultMemberships::new(facts);
     let receiver_offset = usize::from(
         matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
@@ -137,7 +143,7 @@ pub(super) fn check(
             requirements.requirements(parameter.symbol)
         {
             if argument.is_some_and(|argument| {
-                crate::flow::literal_value_path_is_inactive(
+                literal_value_path_is_inactive(
                     program,
                     argument,
                     parameter.type_reference,
@@ -195,22 +201,14 @@ pub(super) fn check(
                                 (
                                     captured.observation,
                                     captured.observation_type,
-                                    crate::flow::captured_observation_places(
-                                        program,
-                                        &facts.flow,
-                                        captured,
-                                    ),
+                                    captured_observation_places(program, &facts.flow, captured),
                                     call.entry_constraints,
                                     (state.state_symbol, call.statement_index),
                                 ),
                                 (
                                     captured.operand,
                                     captured.type_reference,
-                                    crate::flow::captured_value_places(
-                                        program,
-                                        &facts.flow,
-                                        captured,
-                                    ),
+                                    captured_value_places(program, &facts.flow, captured),
                                     captured.producer_invocation(call.entry_constraints),
                                     captured.producer_frontier(
                                         state.state_symbol,
@@ -275,11 +273,11 @@ pub(super) fn check(
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}",
-                    crate::labels::call_target_label(program, call.target_symbol),
-                    crate::labels::machine_name(program, state.machine_symbol),
-                    crate::labels::symbol_name(program, state.state_symbol),
+                    call_target_label(program, call.target_symbol),
+                    machine_name(program, state.machine_symbol),
+                    symbol_name(program, state.state_symbol),
                     facts::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
-                    crate::labels::symbol_name(program, *domain_symbol),
+                    symbol_name(program, *domain_symbol),
                 )));
             }
         }
@@ -335,7 +333,7 @@ fn pointwise_field_is_empty(
 fn prove_declared_field_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    selection: &crate::flow::OperandContextSelection<'_>,
+    selection: &OperandContextSelection<'_>,
     subject: &validation::CanonicalPlace,
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,

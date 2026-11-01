@@ -17,6 +17,9 @@ use super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::structural_layout::{
     direct_scalar_field_geometry, runtime_projection, static_field_geometry,
 };
+use crate::lowering::control_flow::scalar_sources::{resolved_source, runtime_indices};
+use abstract_operations::StructuralScalarStoreDestination;
+use target_operations::TargetStructuralArgumentSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_field_store(
@@ -81,13 +84,9 @@ pub(in crate::lowering) fn lower_field_store(
                         "scalar field parameter has no matching native placement",
                     ))?;
                 (
-                    abstract_operations::StructuralScalarStoreDestination::Parameter(
-                        destination.clone(),
-                    ),
+                    StructuralScalarStoreDestination::Parameter(destination.clone()),
                     path.clone(),
-                    target_operations::TargetStructuralArgumentSource::Placement(
-                        parameter.placement.clone(),
-                    ),
+                    TargetStructuralArgumentSource::Placement(parameter.placement.clone()),
                 )
             } else {
                 let block = function
@@ -98,9 +97,7 @@ pub(in crate::lowering) fn lower_field_store(
                         "scalar field parameter has no matching block declaration",
                     ))?;
                 (
-                    abstract_operations::StructuralScalarStoreDestination::Parameter(
-                        destination.clone(),
-                    ),
+                    StructuralScalarStoreDestination::Parameter(destination.clone()),
                     path.clone(),
                     target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block: block.block,
@@ -185,11 +182,7 @@ pub(in crate::lowering) fn lower_field_store(
     // A field consumes the same dominating scalar source as a call or edge:
     // Boolean and IEEE results can have homes or block parameters just as
     // integers do. Do not rediscover a narrower producer family by type.
-    let source = crate::lowering::control_flow::scalar_sources::resolved_source(
-        value.value,
-        function,
-        scalar_sources,
-    )?;
+    let source = resolved_source(value.value, function, scalar_sources)?;
     scalar_shape(value.value, value.scalar_type, false)?;
     let exact_source = match source {
         TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
@@ -241,11 +234,7 @@ pub(in crate::lowering) fn lower_field_store(
         shape_cache,
         active,
     )?;
-    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
-        runs,
-        function,
-        scalar_sources,
-    )?;
+    let indices = runtime_indices(runs, function, scalar_sources)?;
     let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
         direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?
     } else {

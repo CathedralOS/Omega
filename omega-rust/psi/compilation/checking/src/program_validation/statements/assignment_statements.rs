@@ -8,6 +8,7 @@ use crate::{
     value_custody::access_views, value_custody::atomic_operations, value_custody::expression_types,
     value_custody::places, value_custody::struct_literals,
 };
+use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::statement::StatementNode;
 
 pub(super) fn validate<'a, 'p>(
@@ -129,6 +130,35 @@ pub(super) fn validate<'a, 'p>(
     let delivered_values = atomic.as_ref().map_or(ordinary_value.as_slice(), |atomic| {
         atomic.operands.as_slice()
     });
+    // Replacement-style atomic events establish their authored replacement.
+    // A failed exchange preserves the already-valid resident. Fetch preservation
+    // is universal: the evaluated operand transforms the valid resident through
+    // raw interval laws. The carrier's synthetic arithmetic is never a separately
+    // evaluated store value.
+    let resident_replacement = atomic.as_ref().and_then(|event| {
+        use access_plans::AtomicAccessOperation as A;
+        match event.operation {
+            A::Store(_) | A::Swap(_) => event.operands.first().copied(),
+            A::CompareExchange { .. } => event.operands.get(1).copied(),
+            _ => None,
+        }
+    });
+    let atomic_fetch = atomic.as_ref().and_then(|event| {
+        use access_plans::AtomicAccessOperation as A;
+        use typed_trees::expression::BinaryOperator;
+        let (operator, operand) = match event.operation {
+            A::FetchAdd(_) => (BinaryOperator::Add, event.operands.first().copied()?),
+            A::FetchSub(_) => (BinaryOperator::Subtract, event.operands.first().copied()?),
+            A::FetchXor(_) => (BinaryOperator::BitwiseXor, event.operands.first().copied()?),
+            A::FetchOr(_) => (BinaryOperator::BitwiseOr, event.operands.first().copied()?),
+            A::FetchAnd(_) => (BinaryOperator::BitwiseAnd, event.operands.first().copied()?),
+            _ => return None,
+        };
+        Some((operator, operand))
+    });
+    let established_value = resident_replacement
+        .or(atomic_fetch.map(|(_, operand)| operand))
+        .unwrap_or(assignment.value);
     for &value in delivered_values {
         // Cross-class scalar guard: `self.i32 = true` (a bool into a numeric
         // field) is a soundness hole -- the backend silently stores `1` --
@@ -207,7 +237,15 @@ pub(super) fn validate<'a, 'p>(
                 diagnostics,
             );
         }
+        // The established operand is validated once by the ordinary store
+        // checks below: the same carrier, literal-range and narrowing reports
+        // a plain assignment of that value produces, and independent of whether
+        // its own arithmetic is valid. Reporting it here as well printed every
+        // implicit conversion and out-of-range literal twice, at one location.
+        // This pass therefore covers only the operands those checks do not
+        // reach, such as the `expected` operand of a compare-exchange.
         if atomic.is_some()
+            && value != established_value
             && let Some(target_primitive) = assignment_target_primitive
         {
             arithmetic_domains::check_value_narrowing(
@@ -216,14 +254,11 @@ pub(super) fn validate<'a, 'p>(
                 current_state,
                 value,
                 target_primitive,
-                assignment_target_type_raw.map_or(
-                    numerics::arithmetic::ArithmeticDomain::Exact,
-                    |reference| {
-                        program.arithmetic_domain_for_type_reference(places::assignment_value_type(
-                            program, reference,
-                        ))
-                    },
-                ),
+                assignment_target_type_raw.map_or(ArithmeticDomain::Exact, |reference| {
+                    program.arithmetic_domain_for_type_reference(places::assignment_value_type(
+                        program, reference,
+                    ))
+                }),
                 value_environment,
                 &owner,
                 diagnostics,
@@ -252,7 +287,7 @@ pub(super) fn validate<'a, 'p>(
                     indexed.index,
                     value_environment,
                     None,
-                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    ArithmeticDomain::Exact,
                     &owner,
                     diagnostics,
                     arithmetic_decisions,
@@ -260,40 +295,11 @@ pub(super) fn validate<'a, 'p>(
             }
         }
     }
-    // Replacement-style atomic events establish their authored replacement.
-    // A failed exchange preserves the already-valid resident. Fetch preservation
-    // is universal: the evaluated operand transforms the valid resident through
-    // raw interval laws. The carrier's synthetic arithmetic is never a separately
-    // evaluated store value.
-    let resident_replacement = atomic.as_ref().and_then(|event| {
-        use access_plans::AtomicAccessOperation as A;
-        match event.operation {
-            A::Store(_) | A::Swap(_) => event.operands.first().copied(),
-            A::CompareExchange { .. } => event.operands.get(1).copied(),
-            _ => None,
-        }
-    });
-    let atomic_fetch = atomic.as_ref().and_then(|event| {
-        use access_plans::AtomicAccessOperation as A;
-        use typed_trees::expression::BinaryOperator;
-        let (operator, operand) = match event.operation {
-            A::FetchAdd(_) => (BinaryOperator::Add, event.operands.first().copied()?),
-            A::FetchSub(_) => (BinaryOperator::Subtract, event.operands.first().copied()?),
-            A::FetchXor(_) => (BinaryOperator::BitwiseXor, event.operands.first().copied()?),
-            A::FetchOr(_) => (BinaryOperator::BitwiseOr, event.operands.first().copied()?),
-            A::FetchAnd(_) => (BinaryOperator::BitwiseAnd, event.operands.first().copied()?),
-            _ => return None,
-        };
-        Some((operator, operand))
-    });
-    let established_value = resident_replacement
-        .or(atomic_fetch.map(|(_, operand)| operand))
-        .unwrap_or(assignment.value);
     let before = diagnostics.len();
     let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
         .map(|handle| program.arithmetic_domain_for_type_reference(handle))
-        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
+        .unwrap_or(ArithmeticDomain::Exact);
     let (interval, source_primitive, source_domain) = assignment_target_type_raw
         .and_then(|destination| {
             arithmetic_domains::validate_anonymous_integer_range(
@@ -327,7 +333,7 @@ pub(super) fn validate<'a, 'p>(
                 program, handle,
             ))
         })
-        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
+        .unwrap_or(ArithmeticDomain::Exact);
     // Carrier compatibility is independent of arithmetic definedness: an
     // overflowing expression does not authorize an implicit conversion.
     let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(

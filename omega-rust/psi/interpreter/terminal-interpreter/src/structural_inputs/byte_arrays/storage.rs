@@ -557,18 +557,16 @@ pub(crate) fn scalar_byte(value: &TerminalScalarValue) -> Result<u8, TerminalInt
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::effects::TerminalEffectRejection;
     use std::cell::Cell;
 
     #[derive(Debug)]
     struct OriginalByte(Cell<TerminalScalarValue>);
     impl TerminalScalarBacking for OriginalByte {
-        fn read(&self) -> Result<TerminalScalarValue, crate::effects::TerminalEffectRejection> {
+        fn read(&self) -> Result<TerminalScalarValue, TerminalEffectRejection> {
             Ok(self.0.get())
         }
-        fn write(
-            &self,
-            value: TerminalScalarValue,
-        ) -> Result<(), crate::effects::TerminalEffectRejection> {
+        fn write(&self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection> {
             self.0.set(value);
             Ok(())
         }

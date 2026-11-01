@@ -1,7 +1,8 @@
 mod domain_selections;
+use crate::type_reference::lower_type_reference_into_table;
 pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
-use crate::expressions::expression::lower_expression_handle_from_table;
+use crate::expressions::expression::{lower_expression_handle_from_table, lower_fact_expression};
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
@@ -130,9 +131,7 @@ fn lower_membership_domain_arguments(
         .to_vec();
     let mut arguments = Vec::with_capacity(source_arguments.len());
     for argument in &source_arguments {
-        arguments.push(crate::type_reference::lower_type_reference_into_table(
-            lowerer, argument,
-        )?);
+        arguments.push(lower_type_reference_into_table(lowerer, argument)?);
     }
     if let Some(domain) = lowerer
         .typed_trees
@@ -273,8 +272,7 @@ pub(crate) fn lower_expression_fact(
         return crate::expressions::proposition::lower_proposition_application(lowerer, call)
             .map(typed::domain::ProofFact::Proposition);
     }
-    crate::expressions::expression::lower_fact_expression(lowerer, expression)
-        .map(typed::domain::ProofFact::Expression)
+    lower_fact_expression(lowerer, expression).map(typed::domain::ProofFact::Expression)
 }
 pub(crate) fn lower_statement_fact(
     lowerer: &mut Lowerer,

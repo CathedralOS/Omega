@@ -35,6 +35,7 @@ use proof_admission::{
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember, TypeParameter, TypeParameterKind};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::checked_argument_matches_type_reference;
 
 /// Decide the fixed prefix before any source declaration is assigned a
 /// position. Programs with no source indexed application keep their original
@@ -894,11 +895,7 @@ impl Elaborator<'_> {
                 self.numeric_literal(integer, value)
             }
             TypeReferenceNode::ConstExpression(expression) => {
-                if !validation::checked_argument_matches_type_reference(
-                    self.program,
-                    expression,
-                    carrier,
-                ) {
+                if !checked_argument_matches_type_reference(self.program, expression, carrier) {
                     return Err(self.refuse(
                         "source index expression does not inhabit its declared carrier".into(),
                     ));

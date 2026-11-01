@@ -1,5 +1,6 @@
 //! ABI-free whole callable rosters, retaining exact applied receiver meaning.
 use super::super::ProviderPlanningContext;
+use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, trait_definition::AppliedTraitScope};
 
@@ -38,10 +39,7 @@ impl Schema {
     }
     pub fn exact(program: &TypedTrees, symbol: SymbolHandle) -> Option<Self> {
         let identity = match program.machine_by_symbol(symbol) {
-            Some(machine)
-                if machine.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement =>
-            {
+            Some(machine) if machine.supply_mode == MachineSupplyMode::TopLevelRequirement => {
                 if machine.spelling.is_some() {
                     program.machine_callable_identity_text(machine)?
                 } else {

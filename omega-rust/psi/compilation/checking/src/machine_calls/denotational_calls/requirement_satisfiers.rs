@@ -7,6 +7,7 @@
 //! mutable programs retain their one-shot scan, so no stale association can
 //! escape a context or follow a mutation projection.
 
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -76,9 +77,7 @@ pub fn requirement_satisfiers(
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
         return memos
             .requirement_satisfiers
-            .get_or_init(|| {
-                std::sync::Arc::new(RequirementSatisfierIndex::prepare(program.typed_program()))
-            })
+            .get_or_init(|| Arc::new(RequirementSatisfierIndex::prepare(program.typed_program())))
             .satisfiers(program.typed_program(), requirement);
     }
     direct_satisfiers(program.typed_program(), requirement)

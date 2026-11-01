@@ -2,7 +2,10 @@
 //! Every operation remains ordinary typed source for later formation checking.
 use super::*;
 use crate::tables::expressions_of_mut;
+use expr::MatchPattern;
 use expr::{ExpressionHandle, ExpressionNode as Node};
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+use language_semantics::declaration_selection::ResolvedAuthoredCallBinding;
 impl Lower<'_> {
     /// Rejoin only coordinates captured from this source node's original
     /// attachments. Every materialized node, including substituted literals,
@@ -40,10 +43,7 @@ impl Lower<'_> {
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!("designated expression cannot rejoin its {kind:?} selection ({:?}): {reason}", selection.exposure)).with_source_span(span)]
                 })?;
-            if kind
-                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
-                && call_target_span == Some(span)
-            {
+            if kind == AuthoredDeclarationSelectionKind::Call && call_target_span == Some(span) {
                 if call_selection.is_some_and(|previous| previous != occurrence) {
                     return Err(
                         self.error("designated call has conflicting source-owned Call occurrences")
@@ -345,12 +345,10 @@ impl Lower<'_> {
                 source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
                     authored_call_selection: None,
-                    authored_call_binding: Some(
-                        language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
-                            selected: target_symbol,
-                            original: target_symbol,
-                        },
-                    ),
+                    authored_call_binding: Some(ResolvedAuthoredCallBinding {
+                        selected: target_symbol,
+                        original: target_symbol,
+                    }),
                     exact_coercion_target: Handle::invalid(),
                     requirement_application,
                     receiver: self.expression_optional(receiver)?,
@@ -459,13 +457,10 @@ impl Lower<'_> {
         self.expressions.push((handle, target));
         Ok(target)
     }
-    fn pattern(
-        &mut self,
-        pattern: ProductMatchPattern,
-    ) -> Result<expr::MatchPattern, Vec<Diagnostic>> {
+    fn pattern(&mut self, pattern: ProductMatchPattern) -> Result<MatchPattern, Vec<Diagnostic>> {
         Ok(match pattern {
-            ProductMatchPattern::Wildcard => expr::MatchPattern::Wildcard,
-            ProductMatchPattern::Value(value) => expr::MatchPattern::Value(self.expression(value)?),
+            ProductMatchPattern::Wildcard => MatchPattern::Wildcard,
+            ProductMatchPattern::Value(value) => MatchPattern::Value(self.expression(value)?),
             ProductMatchPattern::Destructure {
                 head,
                 fields,
@@ -506,7 +501,7 @@ impl Lower<'_> {
                         binding: self.identifier(selector.binding),
                     })
                     .collect::<Vec<_>>();
-                expr::MatchPattern::Destructure(expr::TableDestructurePattern {
+                MatchPattern::Destructure(expr::TableDestructurePattern {
                     head: self.expression(head)?,
                     fields: expressions_of_mut(self.program).insert_match_fields(fields),
                     has_rest,

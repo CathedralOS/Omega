@@ -2,6 +2,7 @@
 //! reference-selection identity. Storage contents have a separate shared owner.
 
 use crate::effects::TerminalEffectRejection;
+use crate::effects::original_storage::TerminalOriginalStorageLoan;
 use crate::structural_storage::contents::TerminalBoundaryStorageValue;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, StructuralTypeId};
 use std::sync::Arc;
@@ -9,8 +10,7 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 #[derive(Debug)]
 pub struct TerminalBoundaryStructuralBuffer {
-    pub(super) original_storage:
-        Option<crate::effects::original_storage::TerminalOriginalStorageLoan>,
+    pub(super) original_storage: Option<TerminalOriginalStorageLoan>,
     pub(super) identity: Arc<()>,
     pub(super) argument_index: usize,
     pub(super) access: StructuralAccess,
@@ -43,9 +43,7 @@ pub(super) enum ReferenceOutputWrite {
 }
 
 impl TerminalBoundaryStructuralBuffer {
-    pub fn original_storage(
-        &self,
-    ) -> Option<&crate::effects::original_storage::TerminalOriginalStorageLoan> {
+    pub fn original_storage(&self) -> Option<&TerminalOriginalStorageLoan> {
         self.original_storage.as_ref()
     }
     pub fn argument_index(&self) -> usize {

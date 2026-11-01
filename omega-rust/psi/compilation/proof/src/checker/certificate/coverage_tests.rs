@@ -8,7 +8,7 @@ use super::{
     GuardBound, collect_contract_bounds, contract_refined_certificate, interval_premise_certificate,
 };
 use crate::checker::AssignmentRangeContext;
-
+use crate::integer_range;
 use crate::obligations::{BoundedStateReturnObligation, ProofConstraint, ProofPlan};
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
@@ -184,15 +184,9 @@ fn return_obligation(
 fn arrival_interval_certificate_verifies_under_the_kernel() {
     let fixture = return_program();
     let plan = ProofPlan::new(&fixture.program);
-    let certificate = interval_premise_certificate(
-        &plan,
-        fixture.carrier,
-        0,
-        200,
-        &crate::integer_range(0, 220),
-        71,
-    )
-    .expect("certificate");
+    let certificate =
+        interval_premise_certificate(&plan, fixture.carrier, 0, 200, &integer_range(0, 220), 71)
+            .expect("certificate");
     let fact = certificate.verify().expect("kernel accepts");
     assert!(matches!(
         fact.route,
@@ -207,15 +201,8 @@ fn arrival_interval_gap_stays_uncovered() {
     // The arrival bound misses the target; the leg emits nothing rather
     // than falling through to declared legs the arrival answer supersedes.
     assert!(
-        interval_premise_certificate(
-            &plan,
-            fixture.carrier,
-            0,
-            255,
-            &crate::integer_range(0, 10),
-            72,
-        )
-        .is_none()
+        interval_premise_certificate(&plan, fixture.carrier, 0, 255, &integer_range(0, 10), 72,)
+            .is_none()
     );
 }
 
@@ -294,7 +281,7 @@ fn contract_refined_return_gap_stays_uncovered() {
             machine,
             state,
             &context,
-            &crate::integer_range(0, 100),
+            &integer_range(0, 100),
             74,
         )
         .is_none(),

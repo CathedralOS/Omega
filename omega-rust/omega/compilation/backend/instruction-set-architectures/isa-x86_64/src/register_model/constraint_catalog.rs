@@ -37,7 +37,7 @@ use register_model::complement;
 use register_model::{
     PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+    RegisterInstructionConstraint, RegisterOperandAccess as Access, RegisterOperandConstraint,
     RegisterUnitId, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     sorted_units, validate_register_constraint_catalog,
 };
@@ -69,10 +69,10 @@ pub fn x86_64_register_constraint_catalog(
             ),
         )
     };
-    let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
+    let fixed = |operand: u16, access: Access, name: &str| {
         super::fixed_operand(operand, access, view(name))
     };
-    let allocatable = |operand: u16, access: RegisterOperandAccess, class: RegisterClassId| {
+    let allocatable = |operand: u16, access: Access, class: RegisterClassId| {
         super::allocatable_operand(operand, access, class)
     };
     let convention = |name: &str| {
@@ -165,14 +165,10 @@ pub fn x86_64_register_constraint_catalog(
             RegisterConstraintId(0),
             key,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, view("rax").class),
+                allocatable(0, Access::Use, view("rax").class),
                 allocatable(
                     1,
-                    if read {
-                        RegisterOperandAccess::Def
-                    } else {
-                        RegisterOperandAccess::Use
-                    },
+                    if read { Access::Def } else { Access::Use },
                     view("rax").class,
                 ),
             ],
@@ -194,7 +190,7 @@ pub fn x86_64_register_constraint_catalog(
     let mut flags_snapshot = instruction_row(
         RegisterConstraintId(0),
         crate::X86_64_FLAGS_SNAPSHOT,
-        vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+        vec![allocatable(0, Access::Def, GPR64)],
     );
     flags_snapshot.implicit_uses = sorted_units(
         ["rflags", "rsp"]
@@ -209,7 +205,7 @@ pub fn x86_64_register_constraint_catalog(
     let mut flags_restore = instruction_row(
         RegisterConstraintId(0),
         crate::X86_64_FLAGS_RESTORE,
-        vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+        vec![allocatable(0, Access::Use, GPR64)],
     );
     flags_restore.implicit_uses = sorted_units(view("rsp").units.iter().copied());
     flags_restore.implicit_defs = sorted_units(view("rflags").units.iter().copied());
@@ -224,11 +220,7 @@ pub fn x86_64_register_constraint_catalog(
             key,
             vec![allocatable(
                 0,
-                if read {
-                    RegisterOperandAccess::Def
-                } else {
-                    RegisterOperandAccess::Use
-                },
+                if read { Access::Def } else { Access::Use },
                 GPR64,
             )],
         );
@@ -285,11 +277,11 @@ pub fn x86_64_register_constraint_catalog(
                 .map(|(operand, name)| {
                     fixed(
                         u16::try_from(operand).expect("operand index fits u16"),
-                        RegisterOperandAccess::Use,
+                        Access::Use,
                         name,
                     )
                 })
-                .chain([fixed(6, RegisterOperandAccess::Def, "rax")])
+                .chain([fixed(6, Access::Def, "rax")])
                 .collect(),
             implicit_uses: rsp_units.clone(),
             implicit_defs: control_defs.clone(),
@@ -304,11 +296,11 @@ pub fn x86_64_register_constraint_catalog(
                 .map(|(operand, name)| {
                     fixed(
                         u16::try_from(operand).expect("operand index fits u16"),
-                        RegisterOperandAccess::Use,
+                        Access::Use,
                         name,
                     )
                 })
-                .chain([fixed(4, RegisterOperandAccess::Def, "rax")])
+                .chain([fixed(4, Access::Def, "rax")])
                 .collect(),
             implicit_uses: rsp_units.clone(),
             implicit_defs: control_defs.clone(),
@@ -318,9 +310,9 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(18),
             key: X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
             operands: vec![
-                fixed(0, RegisterOperandAccess::Use, "rdi"),
-                fixed(1, RegisterOperandAccess::Use, "rsi"),
-                fixed(2, RegisterOperandAccess::Def, "rax"),
+                fixed(0, Access::Use, "rdi"),
+                fixed(1, Access::Use, "rsi"),
+                fixed(2, Access::Def, "rax"),
             ],
             implicit_uses: sorted_units(rsp_units.iter().copied().chain(rip_units.iter().copied())),
             implicit_defs: control_defs.clone(),
@@ -329,12 +321,12 @@ pub fn x86_64_register_constraint_catalog(
         return_row(
             RegisterConstraintId(2),
             X86_64_SYSTEM_V_RETURN,
-            vec![fixed(0, RegisterOperandAccess::Use, "rax")],
+            vec![fixed(0, Access::Use, "rax")],
         ),
         return_row(
             RegisterConstraintId(3),
             X86_64_MICROSOFT_RETURN,
-            vec![fixed(0, RegisterOperandAccess::Use, "rax")],
+            vec![fixed(0, Access::Use, "rax")],
         ),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(4),
@@ -346,9 +338,9 @@ pub fn x86_64_register_constraint_catalog(
                     fixed(
                         u16::try_from(operand).expect("operand index fits u16"),
                         if operand == 0 {
-                            RegisterOperandAccess::UseDef
+                            Access::UseDef
                         } else {
-                            RegisterOperandAccess::Use
+                            Access::Use
                         },
                         name,
                     )
@@ -369,12 +361,12 @@ pub fn x86_64_register_constraint_catalog(
         instruction_row(
             RegisterConstraintId(6),
             X86_64_MATERIALIZE_I64,
-            vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            vec![allocatable(0, Access::Def, GPR64)],
         ),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(6),
             key: X86_64_MATERIALIZE_BOOLEAN,
-            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            operands: vec![allocatable(0, Access::Def, GPR64)],
             implicit_uses: view("rflags").units.clone(),
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
@@ -383,14 +375,14 @@ pub fn x86_64_register_constraint_catalog(
             RegisterConstraintId(7),
             X86_64_COPY_I64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Def, GPR64),
             ],
         ),
         rflags_defining_row(
             RegisterConstraintId(8),
             X86_64_COMPARE_I64_ZERO,
-            vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            vec![allocatable(0, Access::Use, GPR64)],
         ),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(9),
@@ -410,57 +402,57 @@ pub fn x86_64_register_constraint_catalog(
             RegisterConstraintId(10),
             X86_64_ADD_I64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
+                allocatable(2, Access::Def, GPR64),
             ],
         ),
         instruction_row(
             RegisterConstraintId(11),
             X86_64_ADD_I64_IMMEDIATE,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Def, GPR64),
             ],
         ),
         rflags_clobbering_row(
             RegisterConstraintId(12),
             X86_64_SUBTRACT_I64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
+                allocatable(2, Access::Def, GPR64),
             ],
         ),
         instruction_row(
             RegisterConstraintId(13),
             X86_64_SUBTRACT_I64_IMMEDIATE,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Def, GPR64),
             ],
         ),
         rflags_clobbering_row(
             RegisterConstraintId(20),
             X86_64_MULTIPLY_I64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
+                allocatable(2, Access::Def, GPR64),
             ],
         ),
         rflags_defining_row(
             RegisterConstraintId(17),
             X86_64_COMPARE_I64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
             ],
         ),
         rflags_defining_row(
             RegisterConstraintId(19),
             X86_64_COMPARE_I64_IMMEDIATE,
-            vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            vec![allocatable(0, Access::Use, GPR64)],
         ),
         return_row(
             RegisterConstraintId(14),
@@ -475,13 +467,13 @@ pub fn x86_64_register_constraint_catalog(
         jump_row(RegisterConstraintId(0), X86_64_JUMP, Vec::new()),
     ];
 
-    let saturation_output = super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64));
+    let saturation_output = super::early_clobber(allocatable(2, Access::Def, GPR64));
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_SATURATING_SUBTRACT_UNSIGNED,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(0, Access::Use, GPR64),
+            allocatable(1, Access::Use, GPR64),
             saturation_output,
         ],
     ));
@@ -496,10 +488,10 @@ pub fn x86_64_register_constraint_catalog(
                 RegisterConstraintId(0),
                 $key,
                 vec![
-                    fixed(0, RegisterOperandAccess::Use, "rax"),
-                    fixed(1, RegisterOperandAccess::Use, "rcx"),
-                    fixed(2, RegisterOperandAccess::Def, "rax"),
-                    fixed(3, RegisterOperandAccess::Def, "rdx"),
+                    fixed(0, Access::Use, "rax"),
+                    fixed(1, Access::Use, "rcx"),
+                    fixed(2, Access::Def, "rax"),
+                    fixed(3, Access::Def, "rdx"),
                 ],
             ));
         };
@@ -520,9 +512,9 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_SHIFT_I64,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            fixed(1, Access::Use, "rcx"),
+            super::early_clobber(allocatable(2, Access::Def, GPR64)),
         ],
     ));
     // Division accumulates in an explicit RAX and takes the divisor through an
@@ -534,10 +526,10 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands: vec![
-                fixed(0, RegisterOperandAccess::Use, "rax"),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                fixed(2, RegisterOperandAccess::Def, "rax"),
-                fixed(3, RegisterOperandAccess::Use, "rdx"),
+                fixed(0, Access::Use, "rax"),
+                allocatable(1, Access::Use, GPR64),
+                fixed(2, Access::Def, "rax"),
+                fixed(3, Access::Use, "rdx"),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
@@ -551,9 +543,9 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_SATURATING_ADD_U64,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            allocatable(1, Access::Use, GPR64),
+            super::early_clobber(allocatable(2, Access::Def, GPR64)),
         ],
     ));
     // The clamped saturating add and multiply (every carrier but u64) and
@@ -572,10 +564,10 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands: vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
-                super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
+                super::early_clobber(allocatable(2, Access::Def, GPR64)),
+                super::early_clobber(allocatable(3, Access::Def, GPR64)),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
@@ -597,10 +589,10 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_TRAPPING_SHIFT,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
-            super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            fixed(1, Access::Use, "rcx"),
+            super::early_clobber(allocatable(2, Access::Def, GPR64)),
+            super::early_clobber(allocatable(3, Access::Def, GPR64)),
         ],
     ));
     // A trapping conversion checks its input through the scratch before the
@@ -609,9 +601,9 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_TRAPPING_CONVERT,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
-            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            super::early_clobber(allocatable(1, Access::Def, GPR64)),
+            super::early_clobber(allocatable(2, Access::Def, GPR64)),
         ],
     ));
     let scalar_call = constraints
@@ -630,8 +622,8 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .take(arity)
             .enumerate()
-            .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
-            .chain([fixed(arity as u16, RegisterOperandAccess::Def, "rax")])
+            .map(|(index, name)| fixed(index as u16, Access::Use, name))
+            .chain([fixed(arity as u16, Access::Def, "rax")])
             .collect();
         constraints.push(call);
     }
@@ -644,17 +636,18 @@ pub fn x86_64_register_constraint_catalog(
         let fragments = ordinal / 7 + 1;
         let mut call = scalar_call.clone();
         call.key = key;
-        call.operands = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-            .into_iter()
-            .take(arity)
-            .enumerate()
-            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
-            .chain(["rax", "rdx"].into_iter().take(fragments).enumerate().map(
-                |(position, name)| {
-                    fixed((arity + position) as u16, RegisterOperandAccess::Def, name)
-                },
-            ))
-            .collect();
+        call.operands =
+            ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+                .into_iter()
+                .take(arity)
+                .enumerate()
+                .map(|(position, name)| fixed(position as u16, Access::Use, name))
+                .chain(
+                    ["rax", "rdx"].into_iter().take(fragments).enumerate().map(
+                        |(position, name)| fixed((arity + position) as u16, Access::Def, name),
+                    ),
+                )
+                .collect();
         // Result fragments are explicit definitions. The remaining volatile
         // units still clobber live caller values, including rdx for one fragment.
         for name in ["rax", "rdx"].into_iter().take(fragments) {
@@ -678,7 +671,7 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .take(ordinal + 1)
             .enumerate()
-            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
+            .map(|(position, name)| fixed(position as u16, Access::Use, name))
             .collect();
         constraints.push(row);
     }
@@ -705,8 +698,8 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .take(arity)
             .enumerate()
-            .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
-            .chain([fixed(arity as u16, RegisterOperandAccess::Def, "rax")])
+            .map(|(index, name)| fixed(index as u16, Access::Use, name))
+            .chain([fixed(arity as u16, Access::Def, "rax")])
             .collect();
         constraints.push(call.clone());
         call.key = aggregate_key;
@@ -726,52 +719,52 @@ pub fn x86_64_register_constraint_catalog(
         (
             X86_64_STORE,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
             ],
             Vec::new(),
         ),
         (
             X86_64_ADDRESS_OFFSET,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Def, GPR64),
             ],
             Vec::new(),
         ),
         (
             X86_64_LOAD8_INDEXED,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Use, GPR64),
+                allocatable(2, Access::Def, GPR64),
             ],
             Vec::new(),
         ),
         (
             X86_64_LOAD64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
+                allocatable(0, Access::Use, GPR64),
+                allocatable(1, Access::Def, GPR64),
             ],
             Vec::new(),
         ),
         (
             X86_64_STORE64,
             vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
+                allocatable(0, Access::Use, GPR64),
+                super::early_clobber(allocatable(1, Access::Def, GPR64)),
             ],
             view("rsp").units.clone(),
         ),
         (
             X86_64_FRAME_ADDRESS,
-            vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            vec![allocatable(0, Access::Def, GPR64)],
             view("rsp").units.clone(),
         ),
         (
             X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
-            vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            vec![allocatable(0, Access::Def, GPR64)],
             Vec::new(),
         ),
     ] {
@@ -793,7 +786,7 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
         key: X86_64_HOSTED_WRITE_BYTE_I32,
-        operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+        operands: vec![allocatable(0, Access::Use, GPR64)],
         implicit_uses: merged_units(view("rsp").units.clone(), &["rip"]),
         implicit_defs: Vec::new(),
         clobbers: merged_units(
@@ -816,7 +809,7 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
-            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            operands: vec![allocatable(0, Access::Use, GPR64)],
             implicit_uses: view("rip").units.clone(),
             implicit_defs: Vec::new(),
             clobbers: merged_units(Vec::new(), &["rax", "rdi", "rcx", "r11", "rflags"]),
@@ -859,8 +852,8 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands: vec![
-                allocatable(0, RegisterOperandAccess::Use, source_class),
-                allocatable(1, RegisterOperandAccess::Def, destination_class),
+                allocatable(0, Access::Use, source_class),
+                allocatable(1, Access::Def, destination_class),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
@@ -879,9 +872,9 @@ pub fn x86_64_register_constraint_catalog(
         (crate::X86_64_IEEE_FLOAT_TERNARY, 3),
     ] {
         let mut operands = (0..inputs)
-            .map(|index| allocatable(index, RegisterOperandAccess::Use, GPR64))
+            .map(|index| allocatable(index, Access::Use, GPR64))
             .collect::<Vec<_>>();
-        operands.push(allocatable(inputs, RegisterOperandAccess::Def, GPR64));
+        operands.push(allocatable(inputs, Access::Def, GPR64));
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
@@ -915,8 +908,8 @@ pub fn x86_64_register_constraint_catalog(
         id: RegisterConstraintId(0),
         key: crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
         operands: vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Def, GPR64),
+            allocatable(0, Access::Use, GPR64),
+            allocatable(1, Access::Def, GPR64),
         ],
         implicit_uses: sorted_units(view("mxcsr").units.iter().copied()),
         implicit_defs: Vec::new(),
@@ -941,9 +934,9 @@ pub fn x86_64_register_constraint_catalog(
             &["xmm3", "xmm4", "rflags"]
         };
         let mut operands = (0..inputs)
-            .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))
+            .map(|position| allocatable(position, Access::Use, GPR64))
             .collect::<Vec<_>>();
-        operands.push(allocatable(inputs, RegisterOperandAccess::Def, GPR64));
+        operands.push(allocatable(inputs, Access::Def, GPR64));
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
@@ -1019,16 +1012,16 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_ATOMIC_LOAD,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            super::early_clobber(allocatable(1, Access::Def, GPR64)),
         ],
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         X86_64_ATOMIC_STORE,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(0, Access::Use, GPR64),
+            allocatable(1, Access::Use, GPR64),
         ],
     ));
     // The update family reads the address and the incoming value and
@@ -1039,9 +1032,9 @@ pub fn x86_64_register_constraint_catalog(
         RegisterConstraintId(0),
         X86_64_ATOMIC_UPDATE,
         vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            allocatable(1, Access::Use, GPR64),
+            super::early_clobber(allocatable(2, Access::Def, GPR64)),
         ],
     ));
     // CMPXCHG's hidden accumulator must not overwrite either input while a
@@ -1055,9 +1048,9 @@ pub fn x86_64_register_constraint_catalog(
         id: RegisterConstraintId(0),
         key: X86_64_ATOMIC_BITWISE_UPDATE,
         operands: vec![
-            fixed(0, RegisterOperandAccess::Use, "rdx"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "r8"),
+            fixed(0, Access::Use, "rdx"),
+            fixed(1, Access::Use, "rcx"),
+            fixed(2, Access::Def, "r8"),
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
@@ -1076,10 +1069,10 @@ pub fn x86_64_register_constraint_catalog(
         id: RegisterConstraintId(0),
         key: X86_64_ATOMIC_COMPARE_EXCHANGE,
         operands: vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            fixed(1, RegisterOperandAccess::Use, "rax"),
-            allocatable(2, RegisterOperandAccess::Use, GPR64),
-            super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
+            allocatable(0, Access::Use, GPR64),
+            fixed(1, Access::Use, "rax"),
+            allocatable(2, Access::Use, GPR64),
+            super::early_clobber(allocatable(3, Access::Def, GPR64)),
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),

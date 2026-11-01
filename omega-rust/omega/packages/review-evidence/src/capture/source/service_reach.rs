@@ -5,6 +5,7 @@ use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
 use diagnostics::Diagnostic;
 use flow_effects::ServiceReachInferencePlan;
+use language_semantics::ServiceReachInterface;
 use symbols::SymbolHandle;
 
 /// Rejoin authored targets and checked ceilings without constructing location rows.
@@ -71,12 +72,10 @@ fn checked_machine_service_reach<'a>(
     // handles use a different table, so compare the category here and contents
     // below rather than copying an inference handle into checked custody.
     let expected_interface = match expected.interface {
-        language_semantics::ServiceReachInterface::PublishedCeiling(_) => {
-            language_semantics::ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
+        ServiceReachInterface::PublishedCeiling(_) => {
+            ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
         }
-        language_semantics::ServiceReachInterface::InternalInferred => {
-            language_semantics::ServiceReachInterface::InternalInferred
-        }
+        ServiceReachInterface::InternalInferred => ServiceReachInterface::InternalInferred,
     };
     // Authored custody remains exact above. Publication retains an authored
     // ceiling, or derives the complete checked-call row when it is omitted;

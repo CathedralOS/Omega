@@ -1,9 +1,10 @@
 //! Capture only the selected static operand's reachable source graph.
-use crate::tables::resolved_expressions;
-use crate::tables::type_constraints;
+use crate::tables::{resolved_expressions, type_constraints};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
 use language_semantics::declaration_selection::product_operands::*;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::{
     SymbolResolvedTrees, expression as source_expression, types as source_types,
 };
@@ -12,9 +13,7 @@ use symbols::SymbolHandle;
 pub(super) fn capture(
     source: &SymbolResolvedTrees,
     typed: &mut typed_trees::TypedTrees,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<SelectionExposure>,
     occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
     argument: &source_expression::StaticMachineArgument,
 ) -> Result<ProductStaticOperandGraph, Diagnostic> {
@@ -33,8 +32,7 @@ pub(super) fn capture(
 struct Capture<'a> {
     source: &'a SymbolResolvedTrees,
     typed: &'a mut typed_trees::TypedTrees,
-    exposure:
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    exposure: Option<SelectionExposure>,
     graph: ProductStaticOperandGraph,
     expressions: Vec<(
         source_expression::ExpressionHandle,
@@ -87,7 +85,7 @@ impl Capture<'_> {
     }
     fn type_name(
         &mut self,
-        name: &symbol_resolved_trees::name::DiagnosticName,
+        name: &DiagnosticName,
         symbol: SymbolHandle,
         kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
     ) -> Result<Handle<ProductOperandName>, Diagnostic> {
@@ -176,11 +174,7 @@ impl Capture<'_> {
             .then(|| self.source.symbols.symbol_provenance_source_span(symbol))
             .flatten()
     }
-    fn named(
-        &self,
-        name: &symbol_resolved_trees::name::DiagnosticName,
-        symbol: SymbolHandle,
-    ) -> ProductOperandName {
+    fn named(&self, name: &DiagnosticName, symbol: SymbolHandle) -> ProductOperandName {
         ProductOperandName {
             authored_selection: Handle::invalid(),
             text: name.as_str().to_owned(),
@@ -196,17 +190,13 @@ impl Capture<'_> {
                 .flatten(),
         }
     }
-    fn name(
-        &mut self,
-        name: &symbol_resolved_trees::name::DiagnosticName,
-        symbol: SymbolHandle,
-    ) -> Handle<ProductOperandName> {
+    fn name(&mut self, name: &DiagnosticName, symbol: SymbolHandle) -> Handle<ProductOperandName> {
         let value = self.named(name, symbol);
         self.graph.names.insert(value)
     }
     fn names(
         &mut self,
-        names: &[symbol_resolved_trees::name::DiagnosticName],
+        names: &[DiagnosticName],
         last_symbol: SymbolHandle,
     ) -> HandleSpan<ProductOperandName> {
         let names = names

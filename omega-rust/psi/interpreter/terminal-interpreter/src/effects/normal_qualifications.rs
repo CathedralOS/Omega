@@ -6,7 +6,7 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
-use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use semantic_vocabulary::{StructuralCaseId, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralPathQualification, StructuralPathSegment};
 
 #[derive(Debug, Clone)]
@@ -137,10 +137,7 @@ impl TerminalExecution<'_> {
         &self,
         owner: &TerminalStructuralValue,
         captured: &[CapturedNormalQualification],
-        changed: &[(
-            StructuralRuntimePlace,
-            semantic_vocabulary::StructuralCaseId,
-        )],
+        changed: &[(StructuralRuntimePlace, StructuralCaseId)],
     ) -> Result<(), TerminalInterpretError> {
         for row in captured
             .iter()
