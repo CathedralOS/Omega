@@ -13,6 +13,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, TypeAliasDefinition, TypeParameterKind};
 use syntax_trees::types::{TypeAliasApplicationOrigin, TypeReferenceHandle, TypeReferenceNode};
 
+mod expression_bindings;
 mod static_operands;
 
 struct Expansion<'a, 'base> {
@@ -219,6 +220,7 @@ impl Expansion<'_, '_> {
         let mut lifetime_uses = Vec::new();
         let mut array_length_uses = Vec::new();
         let mut unresolved_expression_operands = Vec::new();
+        let mut expression_uses = Vec::new();
         bind_type_occurrences(
             forest,
             alias.authored_expansion,
@@ -228,11 +230,14 @@ impl Expansion<'_, '_> {
             &mut types,
             &mut lifetime_uses,
             &mut array_length_uses,
+            &mut expression_uses,
             &mut unresolved_expression_operands,
         );
         if let Some(operand) = unresolved_expression_operands.first() {
             return Err(Diagnostic::error("transparent alias expansion cannot yet retain the declaration and supplying scopes of this expression operand").with_source_span(forest.expressions.source_span(*operand)));
         }
+        let expressions = expression_bindings::supplied_expressions(syntax, &expression_uses)
+            .map_err(|diagnostic| diagnostic.with_source_span(name.source_span()))?;
         let authored = syntax.type_references.type_reference(reference).clone();
         let raw = syntax.type_references.insert(authored);
         syntax
@@ -242,7 +247,7 @@ impl Expansion<'_, '_> {
             forest,
             alias.authored_expansion,
             &types,
-            &[],
+            &expressions,
             &lifetime_uses,
             &array_length_uses,
         );
@@ -323,6 +328,10 @@ fn bind_type_occurrences(
     types: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
     lifetime_uses: &mut Vec<(SourceSpan, String, Identifier)>,
     array_length_uses: &mut Vec<(SourceSpan, String, TypeReferenceHandle)>,
+    expression_uses: &mut Vec<(
+        syntax_trees::expression::ExpressionHandle,
+        TypeReferenceHandle,
+    )>,
     unresolved_expression_operands: &mut Vec<syntax_trees::expression::ExpressionHandle>,
 ) {
     for application in templates.type_references.type_alias_applications(reference) {
@@ -335,6 +344,7 @@ fn bind_type_occurrences(
             types,
             lifetime_uses,
             array_length_uses,
+            expression_uses,
             unresolved_expression_operands,
         );
     }
@@ -387,33 +397,14 @@ fn bind_type_occurrences(
                 .to_vec()
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            use syntax_trees::expression::ExpressionNode;
-            let mut expressions = std::collections::HashSet::new();
-            super::generic_data::collect_expression_handles(
+            expression_bindings::bind_const_expression(
                 templates,
                 *expression,
-                &mut expressions,
-            );
-            let mut children = Vec::new();
-            for expression in expressions {
-                super::generic_data::visit_expression_type_inputs(
-                    templates,
-                    expression,
-                    &mut |reference| children.push(reference),
-                );
-                // Until an expression has declaration-owned bindings, copying
-                // its names into the use's lexical scope could capture caller
-                // locals or rebind a supplied runtime subject. Retain this as
-                // unfinished source work, never as an alternative successful
-                // expansion or a static-value promotion.
-                if matches!(
-                    templates.expressions.expression(expression),
-                    ExpressionNode::Name(_) | ExpressionNode::Call(_)
-                ) {
-                    unresolved_expression_operands.push(expression);
-                }
-            }
-            children
+                alias,
+                arguments,
+                expression_uses,
+                unresolved_expression_operands,
+            )
         }
         TypeReferenceNode::Constrained {
             base_type,
@@ -479,6 +470,7 @@ fn bind_type_occurrences(
             types,
             lifetime_uses,
             array_length_uses,
+            expression_uses,
             unresolved_expression_operands,
         );
     }

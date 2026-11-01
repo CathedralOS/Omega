@@ -1,0 +1,1 @@
+exact arithmetic in closed const argument may overflow `u64`
