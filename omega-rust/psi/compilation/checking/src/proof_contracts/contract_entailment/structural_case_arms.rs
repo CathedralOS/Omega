@@ -8,12 +8,6 @@
 //! and excluding it supplies no crash permission or denotational admission.
 
 pub(super) mod call_entries;
-mod completed_arms;
-
-pub(super) use completed_arms::fold_structural_case_arms;
-use completed_arms::{
-    CompletedArmOutput, CompletedArmTraversal, recognize_structural_case_arms_with_output,
-};
 
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
@@ -323,20 +317,42 @@ pub(super) fn recognize_structural_case_arms_batched<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
-    match recognize_structural_case_arms_with_output(
+    let states = program.machine_states(machine);
+    let root = states.first()?;
+    let parameter_names: Vec<String> = program
+        .state_parameters(root)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+    let environment: Vec<(String, StructuralTerm)> = parameter_names
+        .iter()
+        .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
+        .collect();
+    let mut path = Vec::new();
+    let mut arrivals = StructuralArrivalLog::new();
+    let mut fresh = 0usize;
+    let arms = recognize_structural_state_leaves(
         program,
         machine,
         judge,
         classification,
         diagnostics,
+        states,
+        root,
+        &parameter_names,
+        environment,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        false,
+        &mut path,
+        &mut arrivals,
+        usize::MAX,
+        &mut fresh,
         visitors,
-        &mut CompletedArmOutput::Collect,
-    )? {
-        CompletedArmTraversal::Exhausted(arms) => {
-            (!arms.is_empty() || !visitors.is_empty()).then_some(arms)
-        }
-        CompletedArmTraversal::ConsumerStopped => None,
-    }
+        CitationFacts::default(),
+    )?;
+    (!arms.is_empty() || !visitors.is_empty()).then_some(arms)
 }
 
 /// A runtime call obligation is local to one state invocation. All arrivals
@@ -1153,56 +1169,6 @@ pub(super) fn recognize_structural_state_leaves<'a>(
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     established_guarantees: CitationFacts,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
-    match recognize_structural_state_leaves_with_output(
-        program,
-        machine,
-        judge,
-        classification,
-        diagnostics,
-        states,
-        state,
-        parameter_names,
-        environment,
-        case_hypotheses,
-        case_equations,
-        pending_citations,
-        collect_citations,
-        path,
-        arrivals,
-        arrival_parent,
-        fresh,
-        visitors,
-        established_guarantees,
-        &mut CompletedArmOutput::Collect,
-    )? {
-        CompletedArmTraversal::Exhausted(arms) => Some(arms),
-        CompletedArmTraversal::ConsumerStopped => None,
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn recognize_structural_state_leaves_with_output<'a>(
-    program: &'a dyn crate::CheckingInput,
-    machine: &Machine,
-    judge: &StructuralJudge<'a>,
-    classification: &typed_trees::proof_only::ProofOnlyClassification,
-    diagnostics: &mut Vec<Diagnostic>,
-    states: &[typed_trees::state::State],
-    state: &typed_trees::state::State,
-    parameter_names: &[String],
-    environment: Vec<(String, StructuralTerm)>,
-    case_hypotheses: Vec<(String, StructuralTerm)>,
-    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
-    pending_citations: Vec<PendingStructuralCitation>,
-    collect_citations: bool,
-    path: &mut Vec<SymbolHandle>,
-    arrivals: &mut StructuralArrivalLog,
-    arrival_parent: usize,
-    fresh: &mut usize,
-    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
-    established_guarantees: CitationFacts,
-    output: &mut CompletedArmOutput<'_, 'a>,
-) -> Option<CompletedArmTraversal<'a>> {
     recognize_structural_state_leaves_from(
         program,
         machine,
@@ -1224,7 +1190,6 @@ fn recognize_structural_state_leaves_with_output<'a>(
         visitors,
         established_guarantees,
         0,
-        output,
     )
 }
 
@@ -1250,8 +1215,7 @@ fn recognize_structural_state_leaves_from<'a>(
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     mut established_guarantees: CitationFacts,
     start_index: usize,
-    output: &mut CompletedArmOutput<'_, 'a>,
-) -> Option<CompletedArmTraversal<'a>> {
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
@@ -1261,7 +1225,7 @@ fn recognize_structural_state_leaves_from<'a>(
     let (invocation, _) =
         crate::machine_calls::calls::machine_state_by_symbol(program, state.symbol)?;
     if !visitors.is_empty() && visitors.iter().all(|visitor| visitor.is_complete()) {
-        return Some(CompletedArmTraversal::Exhausted(Vec::new()));
+        return Some(Vec::new());
     }
     // Arrival deduplication is a cycle-bound mechanism. A cyclic machine's
     // pump regenerates the same provable arrival at exponentially many
@@ -1294,7 +1258,7 @@ fn recognize_structural_state_leaves_from<'a>(
             // left. The residual approximation is accepted: two equal-key
             // arrivals under different parents can carry different accumulated
             // judges, and the first visit's subtree stands for both.
-            return Some(CompletedArmTraversal::Exhausted(Vec::new()));
+            return Some(Vec::new());
         }
         arrivals.entry(key).or_insert(arrival_parent);
     }
@@ -1345,21 +1309,20 @@ fn recognize_structural_state_leaves_from<'a>(
         // incomplete and its site lies ahead in this state, sits on a
         // transition the loop has yet to hand over, or lives in a body this
         // path may still enter.
-        let member_live_in_statements =
-            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-             at_position: usize,
-             path: &[SymbolHandle]| {
-                !visitor.is_complete()
-                    && if visitor.site().state == state.symbol {
-                        match statements.get(visitor.site().statement_index) {
-                            Some(StatementNode::Transition(_)) => true,
-                            _ => position(visitor.site().statement_index)
-                                .is_some_and(|pending| pending > at_position),
-                        }
-                    } else {
-                        !path.contains(&visitor.site().state)
+        let member_live_in_statements = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                         at_position: usize,
+                                         path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    match statements.get(visitor.site().statement_index) {
+                        Some(StatementNode::Transition(_)) => true,
+                        _ => position(visitor.site().statement_index)
+                            .is_some_and(|pending| pending > at_position),
                     }
-            };
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
+        };
         let mut transitions = Vec::new();
         let mut saw_transition = false;
         for (execution_position, statement_index) in
@@ -1410,11 +1373,11 @@ fn recognize_structural_state_leaves_from<'a>(
             // Nothing after this call can establish its entry premises.
             // Other incoming paths are still visited by the parent.
             if !visitors.is_empty()
-                && !visitors
-                    .iter()
-                    .any(|visitor| member_live_in_statements(visitor, execution_position, path))
+                && !visitors.iter().any(|visitor| {
+                    member_live_in_statements(visitor, execution_position, path)
+                })
             {
-                return Some(CompletedArmTraversal::Exhausted(Vec::new()));
+                return Some(Vec::new());
             }
             if !matches!(statement, StatementNode::Transition(_)) && !visitors.is_empty() {
                 // This observes callee entry before the statement completes or
@@ -1459,7 +1422,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     .unwrap_or(statements.len());
                 let mut leaves = Vec::new();
                 for completed in outcomes {
-                    match recognize_structural_state_leaves_from(
+                    leaves.extend(recognize_structural_state_leaves_from(
                         program,
                         machine,
                         &completed,
@@ -1480,15 +1443,9 @@ fn recognize_structural_state_leaves_from<'a>(
                         &mut *visitors,
                         established_guarantees.clone(),
                         next_statement,
-                        output,
-                    )? {
-                        CompletedArmTraversal::Exhausted(completed) => leaves.extend(completed),
-                        CompletedArmTraversal::ConsumerStopped => {
-                            return Some(CompletedArmTraversal::ConsumerStopped);
-                        }
-                    }
+                    )?);
                 }
-                return Some(CompletedArmTraversal::Exhausted(leaves));
+                return Some(leaves);
             }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
@@ -1706,7 +1663,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             );
                             environment.push((local.name.as_str().to_owned(), value));
                         }
-                        match recognize_structural_state_leaves_from(
+                        leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,
                             &outcome_judge,
@@ -1727,15 +1684,9 @@ fn recognize_structural_state_leaves_from<'a>(
                             &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
-                            output,
-                        )? {
-                            CompletedArmTraversal::Exhausted(completed) => leaves.extend(completed),
-                            CompletedArmTraversal::ConsumerStopped => {
-                                return Some(CompletedArmTraversal::ConsumerStopped);
-                            }
-                        }
+                        )?);
                     }
-                    return Some(CompletedArmTraversal::Exhausted(leaves));
+                    return Some(leaves);
                 }
                 StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
@@ -1749,7 +1700,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     })?;
                     let mut leaves = Vec::new();
                     for outcome in outcomes {
-                        match recognize_structural_state_leaves_from(
+                        leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,
                             &outcome.judge,
@@ -1770,15 +1721,9 @@ fn recognize_structural_state_leaves_from<'a>(
                             &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
-                            output,
-                        )? {
-                            CompletedArmTraversal::Exhausted(completed) => leaves.extend(completed),
-                            CompletedArmTraversal::ConsumerStopped => {
-                                return Some(CompletedArmTraversal::ConsumerStopped);
-                            }
-                        }
+                        )?);
                     }
-                    return Some(CompletedArmTraversal::Exhausted(leaves));
+                    return Some(leaves);
                 }
                 StatementNode::Expression(expression) if !saw_transition => {
                     // A terminal expression and an authored terminal arm have
@@ -1821,7 +1766,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     let mut leaves = Vec::new();
                     for completed in outcomes {
-                        match recognize_structural_state_leaves_from(
+                        leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,
                             &completed,
@@ -1842,15 +1787,9 @@ fn recognize_structural_state_leaves_from<'a>(
                             &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
-                            output,
-                        )? {
-                            CompletedArmTraversal::Exhausted(completed) => leaves.extend(completed),
-                            CompletedArmTraversal::ConsumerStopped => {
-                                return Some(CompletedArmTraversal::ConsumerStopped);
-                            }
-                        }
+                        )?);
                     }
-                    return Some(CompletedArmTraversal::Exhausted(leaves));
+                    return Some(leaves);
                 }
                 StatementNode::Call(call) if !saw_transition => {
                     if judge.requires_value_preservation() {
@@ -1946,32 +1885,32 @@ fn recognize_structural_state_leaves_from<'a>(
                 }
             }
             if !visitors.is_empty() {
-                return Some(CompletedArmTraversal::Exhausted(Vec::new()));
+                return Some(Vec::new());
             }
             let completions = judge.terminal_completion_paths(
                 &TransitionTargetNode::Terminal,
                 &environment,
                 (invocation, state, state.return_type),
             )?;
-            let mut leaves = Vec::new();
-            for outcome in completions {
-                let arm = finalize_structural_case_arm(
-                    program,
-                    machine,
-                    &outcome.judge,
-                    classification,
-                    diagnostics,
-                    parameter_names,
-                    case_hypotheses.clone(),
-                    case_equations.clone(),
-                    pending_citations.clone(),
-                    outcome.value,
-                );
-                if output.deliver(arm, &mut leaves)?.is_break() {
-                    return Some(CompletedArmTraversal::ConsumerStopped);
-                }
-            }
-            return Some(CompletedArmTraversal::Exhausted(leaves));
+            return Some(
+                completions
+                    .into_iter()
+                    .map(|outcome| {
+                        finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        )
+                    })
+                    .collect(),
+            );
         }
         // Arms test their guards in order. A later arm observes each earlier
         // Boolean guard as false, while the chosen arm alone receives its
@@ -1980,31 +1919,31 @@ fn recognize_structural_state_leaves_from<'a>(
         let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
-        let transition_order: Vec<usize> = transitions.iter().map(|(index, _)| *index).collect();
+        let transition_order: Vec<usize> =
+            transitions.iter().map(|(index, _)| *index).collect();
         // The same liveness question as in the statement loop, resolved
         // against the collected transitions: a member sited on a later
         // transition still waits for its arm, while a member sited on this
         // transition's target side is served just below.
-        let member_live_in_transitions =
-            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-             at_position: usize,
-             include_current_target: bool,
-             path: &[SymbolHandle]| {
-                !visitor.is_complete()
-                    && if visitor.site().state == state.symbol {
-                        transition_order
-                            .iter()
-                            .position(|index| *index == visitor.site().statement_index)
-                            .is_some_and(|pending| {
-                                pending > at_position
-                                    || (include_current_target
-                                        && pending == at_position
-                                        && visitor.site().in_transition_target)
-                            })
-                    } else {
-                        !path.contains(&visitor.site().state)
-                    }
-            };
+        let member_live_in_transitions = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                          at_position: usize,
+                                          include_current_target: bool,
+                                          path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    transition_order
+                        .iter()
+                        .position(|index| *index == visitor.site().statement_index)
+                        .is_some_and(|pending| {
+                            pending > at_position
+                                || (include_current_target
+                                    && pending == at_position
+                                    && visitor.site().in_transition_target)
+                        })
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
+        };
         for (transition_position, (statement_index, transition)) in
             transitions.into_iter().enumerate()
         {
@@ -2195,7 +2134,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     member_live_in_transitions(visitor, transition_position, true, path)
                 })
             {
-                return Some(CompletedArmTraversal::Exhausted(Vec::new()));
+                return Some(Vec::new());
             }
             remaining_paths = next_remaining;
             for (captured, branch_environment, branch_hypotheses, branch_equations) in
@@ -2336,7 +2275,11 @@ fn recognize_structural_state_leaves_from<'a>(
                                 (member.site().state != state.symbol
                                     && !path.contains(&member.site().state)
                                     && !member.is_complete()
-                                    && prefix_site_is_reachable(program, target_state, &**member))
+                                    && prefix_site_is_reachable(
+                                        program,
+                                        target_state,
+                                        &**member,
+                                    ))
                                 .then_some(&mut **member)
                             })
                             .collect();
@@ -2348,47 +2291,36 @@ fn recognize_structural_state_leaves_from<'a>(
                                 target_state.symbol,
                             );
                         }
-                        let completed = output.forwarded(
-                            |mut arm| {
-                                if let Some(writes) = &writes {
-                                    arm.normal_judge = arm
-                                        .normal_judge
-                                        .clone()
-                                        .complete_invocation(&caller, state, &subjects, writes)?;
-                                }
-                                Some(arm)
-                            },
-                            |forwarded_output| {
-                                recognize_structural_state_leaves_with_output(
-                                    program,
-                                    machine,
-                                    &captured,
-                                    classification,
-                                    diagnostics,
-                                    states,
-                                    target_state,
-                                    parameter_names,
-                                    target_environment,
-                                    branch_hypotheses.clone(),
-                                    branch_equations.clone(),
-                                    pending_citations.clone(),
-                                    true,
-                                    path,
-                                    arrivals,
-                                    frame_id,
-                                    fresh,
-                                    eligible.as_mut_slice(),
-                                    established_guarantees.clone(),
-                                    forwarded_output,
-                                )
-                            },
+                        let mut completed = recognize_structural_state_leaves(
+                            program,
+                            machine,
+                            &captured,
+                            classification,
+                            diagnostics,
+                            states,
+                            target_state,
+                            parameter_names,
+                            target_environment,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            true,
+                            path,
+                            arrivals,
+                            frame_id,
+                            fresh,
+                            eligible.as_mut_slice(),
+                            established_guarantees.clone(),
                         )?;
-                        match completed {
-                            CompletedArmTraversal::Exhausted(completed) => leaves.extend(completed),
-                            CompletedArmTraversal::ConsumerStopped => {
-                                return Some(CompletedArmTraversal::ConsumerStopped);
+                        if let Some(writes) = &writes {
+                            for arm in &mut completed {
+                                arm.normal_judge = arm
+                                    .normal_judge
+                                    .clone()
+                                    .complete_invocation(&caller, state, &subjects, writes)?;
                             }
                         }
+                        leaves.extend(completed);
                     }
                 } else {
                     if !visitors.is_empty() && matches!(target, TransitionTargetNode::Value(_)) {
@@ -2409,7 +2341,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         continue;
                     }
                     for outcome in completions {
-                        let arm = finalize_structural_case_arm(
+                        leaves.push(finalize_structural_case_arm(
                             program,
                             machine,
                             &outcome.judge,
@@ -2420,10 +2352,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             branch_equations.clone(),
                             pending_citations.clone(),
                             outcome.value,
-                        );
-                        if output.deliver(arm, &mut leaves)?.is_break() {
-                            return Some(CompletedArmTraversal::ConsumerStopped);
-                        }
+                        ));
                     }
                 }
             }
@@ -2435,10 +2364,10 @@ fn recognize_structural_state_leaves_from<'a>(
                 // All normal guard outcomes at the requested occurrence were
                 // visited above. Later arms cannot establish or invalidate it;
                 // in particular, do not unroll their recurrent successors.
-                return Some(CompletedArmTraversal::Exhausted(leaves));
+                return Some(leaves);
             }
         }
-        Some(CompletedArmTraversal::Exhausted(leaves))
+        Some(leaves)
     })();
 
     if result.is_none() && super::struct_trace() && !visitors.is_empty() {

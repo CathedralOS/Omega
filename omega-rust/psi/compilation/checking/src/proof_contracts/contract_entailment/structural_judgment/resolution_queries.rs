@@ -14,6 +14,7 @@ use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
+use symbols::SymbolHandle;
 
 pub(super) struct ApplicationResolution<'program> {
     application: StructuralTerm,
@@ -464,6 +465,35 @@ impl<'program> StructuralJudge<'program> {
             previous: self.active_application.clone(),
         }));
         Some(resolving)
+    }
+
+    /// Attribute a selected declaration-body read to every live field query.
+    /// Merely retaining an admitted Application description is not such a read.
+    /// This records dependency/cycle provenance, never invocation admission or
+    /// a new reason to refuse scalar unfolding.
+    pub(super) fn record_returned_field_dependency(&self, selected: SymbolHandle) {
+        fn record(context: &StructuralJudge<'_>, selected: SymbolHandle) {
+            if let Some(trace) = &context.returned_field_trace
+                && let Ok(mut trace) = trace.lock()
+            {
+                if !trace.visited_callees.contains(&selected) {
+                    trace.visited_callees.push(selected);
+                }
+                if let Some(index) = context
+                    .returned_field_owners
+                    .iter()
+                    .position(|&owner| owner == selected)
+                {
+                    trace.min_cycle_owner_index = trace.min_cycle_owner_index.min(index);
+                }
+            }
+        }
+        record(self, selected);
+        let mut ancestor = self.active_application.as_deref();
+        while let Some(frame) = ancestor {
+            record(&frame.context, selected);
+            ancestor = frame.previous.as_deref();
+        }
     }
 
     /// Opaque leaf retention must not omit mutable dependency collection.
@@ -1025,6 +1055,46 @@ mod tests {
             4,
             "a changed recursion owner chain must recompute"
         );
+    }
+
+    #[test]
+    fn body_reads_reach_current_and_ancestor_field_observers() {
+        let program = typed_trees::TypedTrees::default();
+        let mut outer = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let owner = SymbolHandle::from_arena_index(17);
+        let new_trace = || {
+            Arc::new(Mutex::new(
+                super::super::returned_fields::ReturnedFieldTrace {
+                    min_cycle_owner_index: usize::MAX,
+                    visited_callees: Vec::new(),
+                },
+            ))
+        };
+        let outer_trace = new_trace();
+        outer.returned_field_trace = Some(Arc::clone(&outer_trace));
+        outer.returned_field_owners = Arc::new(vec![owner]);
+        let mut inner = outer
+            .resolving_application(&StructuralTerm::Variable("application".to_owned()), 0)
+            .unwrap();
+        let inner_trace = new_trace();
+        inner.returned_field_trace = Some(Arc::clone(&inner_trace));
+        inner.record_returned_field_dependency(owner);
+        inner.returned_field_trace = None;
+        let dependency = SymbolHandle::from_arena_index(19);
+        inner.record_returned_field_dependency(dependency);
+        inner.record_returned_field_dependency(dependency);
+        let current = inner_trace.lock().unwrap();
+        assert_eq!(current.visited_callees, vec![owner]);
+        assert_eq!(current.min_cycle_owner_index, 0);
+        let ancestor = outer_trace.lock().unwrap();
+        assert_eq!(ancestor.visited_callees, vec![owner, dependency]);
+        assert_eq!(ancestor.min_cycle_owner_index, 0);
     }
 
     #[test]

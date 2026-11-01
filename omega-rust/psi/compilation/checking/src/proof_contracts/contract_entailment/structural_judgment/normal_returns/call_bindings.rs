@@ -253,11 +253,11 @@ impl<'program> StructuralJudge<'program> {
 impl StructuralJudge<'_> {
     pub(super) fn intake_normal_call_equations(&mut self, equations: Vec<CapturedResultEquation>) {
         for equation in equations {
-            // This producer already authenticated the completed call and its
-            // eager inputs. Preserve that identity instead of evaluating its
-            // description again; active dependency collectors still own the walk.
-            let completed_identity =
-                equation.completed_call_identity && !self.has_resolution_dependency_collector();
+            // The producer retained this identity after the actual normal
+            // return and conditional repeatability admission. Registering it
+            // reads no body. Actual later expansion owns dependency recording,
+            // including when this fact is installed under a field observer.
+            let completed_identity = equation.completed_call_identity;
             let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (
@@ -338,5 +338,61 @@ impl StructuralJudge<'_> {
             }
         }
         cases
+    }
+}
+
+#[cfg(test)]
+mod completed_registration_tests {
+    use super::*;
+
+    #[test]
+    fn completed_registration_does_not_resolve_a_recording_observers_description() {
+        // This tests fact registration after admission, not invocation admission.
+        let mut program = typed_trees::TypedTrees::default();
+        let result_type = program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.returned_field_trace = Some(Arc::new(std::sync::Mutex::new(
+            super::super::super::returned_fields::ReturnedFieldTrace::default(),
+        )));
+        let captured = StructuralTerm::CapturedValue {
+            expression: ExpressionHandle::from_arena_index(1),
+            statement: arena::Handle::invalid(),
+            callable: SymbolHandle::from_arena_index(2),
+            occurrence: 1,
+            result_type,
+            integer_range: None,
+        };
+        let description = StructuralTerm::Application {
+            result_type,
+            target: SymbolHandle::from_arena_index(2),
+            selections: Vec::new(),
+            machine: "completed".to_owned(),
+            arguments: Vec::new(),
+        };
+        judge.intake_equation_fact(
+            description.clone(),
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7)),
+            0,
+        );
+        judge.intake_normal_call_equations(vec![CapturedResultEquation::completed_call(
+            captured.clone(),
+            description.clone(),
+        )]);
+        let (_, retained) = judge
+            .rewrites
+            .find(&captured)
+            .expect("registered captured occurrence");
+        assert!(
+            retained.same_resolution_payload(&description),
+            "registration must preserve the completed description without reading its meaning"
+        );
     }
 }
