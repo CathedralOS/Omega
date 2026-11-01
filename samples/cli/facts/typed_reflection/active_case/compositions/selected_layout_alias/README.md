@@ -31,7 +31,10 @@ through Terminal production, ABI transport, native selection and image execution
 
 The canonical positive and reject mirrors are
 `tests/omega/{pass,fail}/facts/typed_reflection_active_case_selected_layout_alias_{exit,rejected}`.
-Runtime acceptance of the changed producer is pending. This is one composition
+Actual corrected producer `9d8ac725f3d8` passes both canonical checking rows in
+[pilot 41327251072](https://github.com/CathedralOS/Omega/actions/runs/41327251072).
+The positive exits 0 natively, but Terminal declines reference formation;
+that failed run is preserved. Runtime acceptance of the changed producer is pending. This is one composition
 inside the existing nine-place row, not completion of the full parent alias,
 representation, retained Product or other-host requirements.
 
