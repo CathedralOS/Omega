@@ -5679,15 +5679,6 @@ pass/facts/fixed_array_eight_elem_index_bound_through_other_machine_exit checked
 pass/facts/fixed_array_eight_elem_index_bound_through_other_state_exit checked 2989ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_eight_elem_index_bound_through_parameter_exit checked 3378ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_eight_elem_index_bound_through_target_body_exit checked 3493ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_call_result_exit checked 4675ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_const_name_exit checked 4353ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_field_exit checked 25389ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_local_exit checked 4837ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_match_join_exit checked 4108ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_other_machine_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_other_state_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_parameter_exit checked 4440ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_target_body_exit checked 4671ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_call_result_exit checked 3535ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_const_name_exit checked 4749ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_field_exit checked 3664ms check-target:macos_arm64 @ccdb99ca2214
@@ -5708,42 +5699,6 @@ pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_other_mach
 pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_other_state_exit checked 7570ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_parameter_exit checked 4870ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_body_exit checked 6622ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_call_result_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_const_name_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_field_exit checked 4040ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_local_exit checked 3218ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_match_join_exit checked 3164ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_machine_exit checked 4109ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_state_exit checked 3293ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_parameter_exit checked 3207ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_exit checked 4440ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_call_result_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_const_name_exit checked 3612ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_field_exit checked 3663ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_local_exit checked 3441ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_match_join_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_other_machine_exit checked 3099ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_other_state_exit checked 2780ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_parameter_exit checked 2889ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixteen_elem_index_bound_through_target_body_exit checked 3319ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_call_result_exit checked 4158ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_const_name_exit checked 4022ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_field_exit checked 3700ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_local_exit checked 4002ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_match_join_exit checked 3535ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_other_machine_exit checked 5195ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_other_state_exit checked 4147ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_parameter_exit checked 4285ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_exit checked 4013ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_call_result_exit checked 4103ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_const_name_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_field_exit checked 3319ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_local_exit checked 5047ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_match_join_exit checked 3597ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_other_machine_exit checked 3507ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_other_state_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_parameter_exit checked 3519ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_exit checked 3817ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_call_result_exit checked 3367ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_const_name_exit checked 3830ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_field_exit checked 4414ms check-target:macos_arm64 @ccdb99ca2214
@@ -23609,27 +23564,6 @@ fail/facts/fixed_array_eight_elem_index_bound_through_target_body_rejected rejec
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_call_result_rejected rejected 2479ms expected @ccdb99ca2214
-	cannot prove index `picked_idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_const_name_rejected rejected 3035ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_field_rejected rejected 3509ms expected @ccdb99ca2214
-	cannot prove index `container.idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_local_rejected rejected 3050ms expected @ccdb99ca2214
-	cannot prove index `local_idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_match_join_rejected rejected 3073ms expected @ccdb99ca2214
-	cannot prove index `joined_idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_other_machine_rejected rejected 3333ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 512 in fetch_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_other_state_rejected rejected 3327ms expected @ccdb99ca2214
-	cannot prove index `passed_idx` is within length 512 in element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_parameter_rejected rejected 3691ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 512 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_target_body_rejected rejected 3200ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
 fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 3375ms unexpected @ccdb99ca2214
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 3798ms unexpected @ccdb99ca2214
@@ -23670,90 +23604,6 @@ fail/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_bod
 	cannot prove index `idx` is within length 1024 in read_element::entry
 	cannot prove index `idx` is within length 1024 in read_element::entry
 	cannot prove index `idx` is within length 1024 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_call_result_rejected rejected 2336ms expected @ccdb99ca2214
-	cannot prove index `picked_idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_const_name_rejected rejected 2507ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_field_rejected rejected 2391ms expected @ccdb99ca2214
-	cannot prove index `container.idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_local_rejected rejected 3795ms expected @ccdb99ca2214
-	cannot prove index `local_idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_match_join_rejected rejected 3553ms expected @ccdb99ca2214
-	cannot prove index `joined_idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_machine_rejected rejected 3465ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 128 in fetch_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_state_rejected rejected 2630ms expected @ccdb99ca2214
-	cannot prove index `passed_idx` is within length 128 in element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_parameter_rejected rejected 3510ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_rejected rejected 3496ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_call_result_rejected rejected 2956ms expected @ccdb99ca2214
-	cannot prove index `picked_index` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_const_name_rejected rejected 3318ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_field_rejected rejected 2966ms expected @ccdb99ca2214
-	cannot prove index `container.index` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_local_rejected rejected 3589ms expected @ccdb99ca2214
-	cannot prove index `local_idx` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_match_join_rejected rejected 2524ms expected @ccdb99ca2214
-	cannot prove index `joined_index` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_other_machine_rejected rejected 2984ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 16 in fetch_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_other_state_rejected rejected 2770ms expected @ccdb99ca2214
-	cannot prove index `passed_index` is within length 16 in element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_parameter_rejected rejected 2885ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_target_body_rejected rejected 2631ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_call_result_rejected rejected 2513ms expected @ccdb99ca2214
-	cannot prove index `picked_idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_const_name_rejected rejected 2861ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_field_rejected rejected 3261ms expected @ccdb99ca2214
-	cannot prove index `container.idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_local_rejected rejected 2739ms expected @ccdb99ca2214
-	cannot prove index `local_idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_match_join_rejected rejected 3304ms expected @ccdb99ca2214
-	cannot prove index `joined_idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_other_machine_rejected rejected 2287ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 64 in fetch_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_other_state_rejected rejected 3120ms expected @ccdb99ca2214
-	cannot prove index `passed_idx` is within length 64 in element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_parameter_rejected rejected 3012ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_rejected rejected 2574ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_call_result_rejected rejected 2989ms expected @ccdb99ca2214
-	cannot prove index `picked_idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_const_name_rejected rejected 2733ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_field_rejected rejected 2820ms expected @ccdb99ca2214
-	cannot prove index `container.idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_local_rejected rejected 3000ms expected @ccdb99ca2214
-	cannot prove index `local_idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_match_join_rejected rejected 2532ms expected @ccdb99ca2214
-	cannot prove index `joined_idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_other_machine_rejected rejected 1942ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 32 in fetch_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_other_state_rejected rejected 3189ms expected @ccdb99ca2214
-	cannot prove index `passed_idx` is within length 32 in element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_parameter_rejected rejected 2584ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 32 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_rejected rejected 2715ms expected @ccdb99ca2214
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
 fail/facts/fixed_array_twofiftysix_elem_index_bound_through_call_result_rejected rejected 2548ms expected @ccdb99ca2214
 	cannot prove index `picked_idx` is within length 256 in read_element::entry
 fail/facts/fixed_array_twofiftysix_elem_index_bound_through_const_name_rejected rejected 2905ms expected @ccdb99ca2214

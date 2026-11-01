@@ -440,11 +440,6 @@ fail/facts/fixed_array_eight_elem_index_bound_through_target_body_rejected rejec
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
-fail/facts/fixed_array_fivetwelve_elem_index_bound_through_target_body_rejected rejected 2233ms expected @3c1b7104e4f6+wt
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
-	cannot prove index `idx` is within length 512 in read_element::entry
 fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 1858ms expected @3c1b7104e4f6+wt
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_body_rejected rejected 2831ms expected @3c1b7104e4f6+wt
@@ -452,26 +447,6 @@ fail/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_bod
 	cannot prove index `idx` is within length 1024 in read_element::entry
 	cannot prove index `idx` is within length 1024 in read_element::entry
 	cannot prove index `idx` is within length 1024 in read_element::entry
-fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_rejected rejected 1559ms expected @3c1b7104e4f6+wt
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-	cannot prove index `idx` is within length 128 in read_element::entry
-fail/facts/fixed_array_sixteen_elem_index_bound_through_target_body_rejected rejected 1369ms expected @3c1b7104e4f6+wt
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-	cannot prove index `idx` is within length 16 in read_element::entry
-fail/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_rejected rejected 1442ms expected @3c1b7104e4f6+wt
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-	cannot prove index `idx` is within length 64 in read_element::entry
-fail/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_rejected rejected 1409ms expected @3c1b7104e4f6+wt
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
-	cannot prove index `idx` is within length 32 in read_element::entry
 fail/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_rejected rejected 1308ms expected @3c1b7104e4f6+wt
 	cannot prove index `idx` is within length 256 in read_element::entry
 	cannot prove index `idx` is within length 256 in read_element::entry
@@ -2266,13 +2241,8 @@ pass/facts/field_where_index_through_target_body_exit checked 4335ms check-targe
 pass/facts/fifteen_variant_enum_payload_bound_through_target_body_exit checked 3298ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/five_variant_enum_payload_bound_through_target_body_exit checked 3801ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_eight_elem_index_bound_through_target_body_exit checked 3808ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/fixed_array_fivetwelve_elem_index_bound_through_target_body_exit checked 12577ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_layout_geometry_through_target_body_exit checked 4971ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_target_body_exit checked 65240ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_exit checked 3453ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/fixed_array_sixteen_elem_index_bound_through_target_body_exit checked 3264ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_exit checked 3537ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_exit checked 3746ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_exit checked 5295ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/fixed_array_value_through_target_body_exit checked 4007ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/float_comparison_route_through_target_body_exit checked 9047ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
