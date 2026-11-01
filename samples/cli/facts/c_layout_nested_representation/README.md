@@ -71,7 +71,7 @@ its default-child twin and its noncopy-child control in
 Preparation took 683.172s and the three projects took 24.497s. Earlier passing
 observations remain bound to their actual b78 producer: the private property-walk
 repair changes nested representation descent, while direct child checks, scalar
-arrays, policy geometry, ABI replay and their inputs are unchanged. Nested machine, other machine and selected target remain open. The full parent also retains
+arrays, policy geometry, ABI replay and their inputs are unchanged. The full parent retains
 other-host execution, complete SDK ABI records, conversions and Product parity.
 
 ## Transport evidence
@@ -92,4 +92,28 @@ checking took 30.733s, corpus native/Terminal 27.348s, and sample projects
 the default `macos_arm64` check target under that source stamp; native execution
 remains Linux x86_64 evidence. Raw reports and exportable source evidence are
 retained with the pilot. This batch changes no compiler or library mechanism.
-The three remaining machine places and broader parent acceptance remain open.
+Broader parent acceptance remains open.
+
+Nested-machine, ordinary-machine and Build-selected implementation places pass
+in [pilot 41314362026](https://github.com/CathedralOS/Omega/actions/runs/41314362026).
+All three positives and independent corpus mirrors exit 0 in Linux x86_64 native
+and Terminal execution; all three sole-change default-child twins reject with
+the authored C-policy refusal. Nested invocation takes the complete record
+explicitly and owns its independent backing, with no runtime capture. Selected
+providers retain distinct 17/29 markers, so choosing the wrong provider traps
+even though both deliver the same record.
+
+Optimized source `433f783bd43e4450949f4ae7ab3d4a7b77b3e137`, CLI image
+`31721e29736b827dcb3db55b34e697de54d7789265211c4c87c3fd5bf285d5b6`, verified
+`opt_level=1`, took 733.634s to prepare and 1.302s to authenticate. Corpus
+checking took 15.233s, corpus native/Terminal execution 14.805s, and sample
+projects 25.387s. Six canonical checking records retain raw diagnostics,
+timings and their default `macos_arm64` check target under that source stamp;
+Linux x86_64 is the actual native host. The CLI bytes match the preceding batch.
+This batch changes no compiler or library mechanism; raw reports and exportable
+source evidence are retained.
+
+The complete nine-place row and its default-child twins now have focused
+observations. Historical observations above keep their original producer
+identities. Other-host execution, broader schema/case composition, complete SDK
+ABI records, conversions and Product acceptance remain parent work.
