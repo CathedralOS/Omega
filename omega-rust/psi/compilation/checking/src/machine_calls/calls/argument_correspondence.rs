@@ -23,6 +23,33 @@ mod requirement_realizations;
 use carriers::CarrierCorrespondence;
 pub(crate) use requirement_realizations::requirement_realization_arguments;
 
+/// Ordinary refusals retain their stable reason; a carrier mismatch also
+/// reports the two identities already computed by the unchanged judgment.
+#[derive(Debug)]
+pub struct SelectedCallArgumentError {
+    reason: &'static str,
+    detail: Option<String>,
+}
+
+impl From<&'static str> for SelectedCallArgumentError {
+    fn from(reason: &'static str) -> Self {
+        Self {
+            reason,
+            detail: None,
+        }
+    }
+}
+
+impl std::fmt::Display for SelectedCallArgumentError {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        output.write_str(self.reason)?;
+        if let Some(detail) = &self.detail {
+            write!(output, " [{detail}]")?;
+        }
+        Ok(())
+    }
+}
+
 pub struct SelectedCallArgument<'program> {
     pub executable_parameter: &'program StateParameter,
     pub logical_parameter: SymbolHandle,
@@ -38,12 +65,14 @@ pub(crate) fn executable_parameters<'program>(
     program: &'program dyn crate::CheckingInput,
     caller: SymbolHandle,
     site: &CallSite<'program>,
-) -> Result<Cow<'program, [StateParameter]>, &'static str> {
+) -> Result<Cow<'program, [StateParameter]>, SelectedCallArgumentError> {
     if site.static_requirement_dispatch().is_none() {
         return site
             .parameters(program, caller)
             .map(Cow::Borrowed)
-            .ok_or("call has no retained parameter telescope");
+            .ok_or_else(|| {
+                SelectedCallArgumentError::from("call has no retained parameter telescope")
+            });
     }
     let arguments = selected_call_arguments(program, caller, site)?;
     let public = site
@@ -72,7 +101,7 @@ pub fn selected_call_arguments<'program>(
     program: &'program dyn crate::CheckingInput,
     caller: SymbolHandle,
     site: &CallSite<'program>,
-) -> Result<Vec<SelectedCallArgument<'program>>, &'static str> {
+) -> Result<Vec<SelectedCallArgument<'program>>, SelectedCallArgumentError> {
     let dispatch = site
         .static_requirement_dispatch()
         .ok_or("argument correspondence requires a retained selected application")?;
@@ -85,7 +114,7 @@ pub fn selected_call_arguments<'program>(
     let parameters = program.state_parameters(state);
     let actuals = call_site_argument_expressions(program, site);
     if parameters.len() != actuals.len() {
-        return Err("selected call has different executable formal and actual counts");
+        return Err("selected call has different executable formal and actual counts".into());
     }
     let applications = program.selected_conformance_applications(
         caller,
@@ -96,13 +125,13 @@ pub fn selected_call_arguments<'program>(
         dispatch.application_commitment,
     );
     let [application] = applications.as_slice() else {
-        return Err("selected call has no unique supplying application");
+        return Err("selected call has no unique supplying application".into());
     };
     let lineage = program
         .realization_entry_lineage(state.symbol, application)
         .ok_or("selected call lost its capture or invocation lineage")?;
     if lineage.last().copied() != Some((dispatch.realization_machine, dispatch.realization_state)) {
-        return Err("selected call belongs to another authored realization");
+        return Err("selected call belongs to another authored realization".into());
     }
     let carriers = CarrierCorrespondence::new(
         program,
@@ -123,7 +152,7 @@ pub fn selected_call_arguments<'program>(
     if source_parameters.len() != declared_parameters.len()
         || logical.len() != declared_parameters.len()
     {
-        return Err("selected call lost its admitted authored parameter correspondence");
+        return Err("selected call lost its admitted authored parameter correspondence".into());
     }
     let authored_application = match site {
         CallSite::Expression { call, .. } => call.authored_machine_application,
@@ -136,7 +165,7 @@ pub fn selected_call_arguments<'program>(
             .lexical_owner
             != caller
         {
-            return Err("selected Value application belongs to another lexical owner");
+            return Err("selected Value application belongs to another lexical owner".into());
         }
         expression_table(program)
             .static_machine_application_bindings(authored_application)
@@ -152,7 +181,7 @@ pub fn selected_call_arguments<'program>(
         Vec::new()
     };
     if parameters.len() != logical.len() + runtime_bindings.len() {
-        return Err("selected call lost its complete runtime Value argument roster");
+        return Err("selected call lost its complete runtime Value argument roster".into());
     }
     let mut mapped = Vec::with_capacity(parameters.len());
     let mut realized_binders = Vec::with_capacity(runtime_bindings.len());
@@ -162,7 +191,7 @@ pub fn selected_call_arguments<'program>(
             < logical.len()
         {
             if source_parameters[position].symbol != origin {
-                return Err("selected call changed its authored ordinary parameter order");
+                return Err("selected call changed its authored ordinary parameter order".into());
             }
             let public = &logical[position];
             if program.applied_signature_parameter(
@@ -171,13 +200,15 @@ pub fn selected_call_arguments<'program>(
                 declared_parameters[position].symbol,
             ) != Some(public.symbol)
             {
-                return Err("selected call lost its applied public formal identity");
+                return Err("selected call lost its applied public formal identity".into());
             }
             (public.symbol, public.type_reference, Some(position))
         } else {
             let binding = runtime_bindings[position - logical.len()];
             if binding.parameter != origin || realized_binders.contains(&origin) {
-                return Err("selected call changed or duplicated its realized Value binder order");
+                return Err(
+                    "selected call changed or duplicated its realized Value binder order".into(),
+                );
             }
             realized_binders.push(origin);
             let StaticMachineBindingValue::RuntimeValue {
@@ -186,10 +217,10 @@ pub fn selected_call_arguments<'program>(
                 expression: bound_expression,
             } = binding.value
             else {
-                return Err("selected Value argument lost its runtime source binding");
+                return Err("selected Value argument lost its runtime source binding".into());
             };
             if !runtime_source_matches(program, subject, bound_expression, *expression) {
-                return Err("selected Value argument belongs to another source expression");
+                return Err("selected Value argument belongs to another source expression".into());
             }
             let source_machine = program
                 .machine_by_symbol(dispatch.realization_machine)
@@ -197,7 +228,7 @@ pub fn selected_call_arguments<'program>(
             let source_binders = program.machine_type_parameters(source_machine);
             let declared_binders = program.requirement_invocation_contract_parameters(declared);
             if source_binders.len() != declared_binders.len() {
-                return Err("selected Value argument lost its admitted member telescope");
+                return Err("selected Value argument lost its admitted member telescope".into());
             }
             // The runtime application names the invocation template's binder.
             // Capturing a map freshens that independent telescope too; compose
@@ -224,16 +255,29 @@ pub fn selected_call_arguments<'program>(
             } = public_binder.kind
             else {
                 return Err(
-                    "selected runtime argument does not correspond to a public Value binder",
+                    "selected runtime argument does not correspond to a public Value binder".into(),
                 );
             };
             if !crate::declared_carriers_match(program, type_reference, public_type) {
-                return Err("selected runtime Value binding differs from its public carrier");
+                return Err(
+                    "selected runtime Value binding differs from its public carrier".into(),
+                );
             }
             (logical_parameter, public_type, None)
         };
-        if !carriers.matches(program, parameter.type_reference, logical_type_reference) {
-            return Err("selected executable carrier differs from its exact public application");
+        let (executable_identity, public_identity) =
+            carriers.identities(program, parameter.type_reference, logical_type_reference);
+        if !executable_identity
+            .as_ref()
+            .zip(public_identity.as_ref())
+            .is_some_and(|(left, right)| left == right)
+        {
+            return Err(SelectedCallArgumentError {
+                reason: "selected executable carrier differs from its exact public application",
+                detail: Some(format!(
+                    "executable: {executable_identity:?}; public: {public_identity:?}"
+                )),
+            });
         }
         mapped.push(SelectedCallArgument {
             executable_parameter: parameter,
@@ -370,7 +414,8 @@ pub(crate) fn call_binding_correspondence(
         // This existing owner authenticates every executable actual, public
         // carrier, clone origin and retained runtime source before header
         // identities can be transported into that same public namespace.
-        let arguments = selected_call_arguments(program, caller, site)?;
+        let arguments =
+            selected_call_arguments(program, caller, site).map_err(|error| error.reason)?;
         let (_, public) = requirement_contract_signature(program, caller, site)
             .ok_or("the selected header lost its public application")?;
         let (_, declared) = program
