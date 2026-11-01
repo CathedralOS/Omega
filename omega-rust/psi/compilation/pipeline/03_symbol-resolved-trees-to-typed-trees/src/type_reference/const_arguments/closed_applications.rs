@@ -87,6 +87,17 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             let carrier = program
                 .apply_callable_type(type_reference, &substitutions, &[], declaration)
                 .map_err(Diagnostic::error)?;
+            // Each supplied recipe retains its own caller telescope. An
+            // ordinary Generic has no lexical owner; its tuple supplier is
+            // only the fallback for an argument without a more specific one.
+            let argument_owner = program
+                .type_reference_table
+                .operand_lifetime_owner(argument);
+            let owner = if argument_owner.is_valid() {
+                argument_owner
+            } else {
+                owner
+            };
             let value =
                 validation::check_closed_const_expression(program, owner, expression, carrier)
                     .map_err(|errors| {
@@ -130,12 +141,15 @@ mod tests {
     };
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{
-        data::TypeParameter, expression::ExpressionNode, type_aliases::TypeAliasDefinition,
+        constant::ConstDeclaration,
+        data::TypeParameter,
+        expression::{BinaryOperator, Expression, ExpressionNode, NamePath, TableBinaryExpression},
+        type_aliases::TypeAliasDefinition,
     };
 
     #[test]
     fn alias_const_arguments_use_the_unique_header_and_keep_the_supplier() {
-        for header_count in [0, 1, 2] {
+        for (header_count, argument_scope) in [(0, false), (1, false), (2, false), (1, true)] {
             let mut builder = SymbolTableBuilder::default();
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let children = builder.insert_children(
@@ -143,11 +157,13 @@ mod tests {
                 symbols::builtin_type_symbols().into_iter().chain([
                     (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
                     (SymbolKind::Machine, SymbolNameRef::Static("supplier")),
+                    (SymbolKind::Const, SymbolNameRef::Static("ZERO")),
                 ]),
             );
             let u64_symbol = children.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
             let alias = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
             let supplier = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+            let zero = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 2);
             let parameter = builder
                 .insert_children(
                     alias,
@@ -183,6 +199,34 @@ mod tests {
                     domain: ArithmeticDomain::Exact,
                 }),
             ));
+            let value =
+                if argument_scope {
+                    program.push_const_declaration(ConstDeclaration {
+                        symbol: zero,
+                        declared_type: carrier,
+                        evaluated_value: Some(
+                            language_core::constant_value::EvaluatedConstant::Encoded(
+                                language_semantics::const_value::CanonicalConstValue::integer(
+                                    "u64", 0,
+                                )
+                                .encoding,
+                            ),
+                        ),
+                        ..Default::default()
+                    });
+                    let left = program.expression_table.insert_tree(&Expression::Name(
+                        NamePath::resolved(vec![Identifier::generated("ZERO")], zero, zero),
+                    ));
+                    program
+                        .expression_table
+                        .insert(ExpressionNode::Binary(TableBinaryExpression {
+                            left,
+                            operator: BinaryOperator::Add,
+                            right: value,
+                        }))
+                } else {
+                    value
+                };
             let argument = program
                 .type_reference_table
                 .insert(TypeReferenceNode::ConstExpression(value));
@@ -199,7 +243,14 @@ mod tests {
                 });
             program
                 .type_reference_table
-                .retain_operand_lifetime_owner(application, supplier)
+                .retain_operand_lifetime_owner(
+                    if argument_scope {
+                        argument
+                    } else {
+                        application
+                    },
+                    supplier,
+                )
                 .unwrap();
             normalize(&mut program, 0).unwrap();
             if header_count == 1 {
@@ -215,7 +266,11 @@ mod tests {
             assert_eq!(
                 program
                     .type_reference_table
-                    .operand_lifetime_owner(application),
+                    .operand_lifetime_owner(if argument_scope {
+                        argument
+                    } else {
+                        application
+                    }),
                 supplier
             );
             if header_count == 1 {
