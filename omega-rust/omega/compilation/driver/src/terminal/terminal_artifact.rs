@@ -231,18 +231,8 @@ impl<'a> PreparedTerminalProduct<'a> {
         // equal fixed Psi projections let the cohort produce through the first
         // member's slot while each report keeps its own admissions.
         self.request.use_kind == other.request.use_kind
-            && self
-                .request
-                .view
-                .publication
-                .optimizations()
-                .project_psi()
-                == other
-                    .request
-                    .view
-                    .publication
-                    .optimizations()
-                    .project_psi()
+            && self.request.view.publication.optimizations().project_psi()
+                == other.request.view.publication.optimizations().project_psi()
             && Arc::ptr_eq(self.request.view.program, other.request.view.program)
             && self.request.view.sources == other.request.view.sources
             && self.request.selections.project_psi() == other.request.selections.project_psi()
@@ -506,7 +496,11 @@ fn prepare_target_provider_publication(
             .services_for(source.program)
             .map_err(|error| vec![error])?,
         defaults: source.provider_defaults,
-        settlement: source.provider_settlement,
+        authored: source.provider_settlement.authored_providers(),
+        calling_plans: &source
+            .provider_settlement
+            .boundary_calling_plan_realizations,
+        bindings: &source.provider_settlement.evaluated_via_bindings,
     };
     let targets = targets
         .into_iter()
@@ -528,6 +522,7 @@ fn prepare_target_provider_publication(
             overrides: &source.build.config.provider_selections,
             assumed_bindings: source.plan_facts.assumed_bindings(),
             independent_components: &source.provider_settlement.verified_independent_components,
+            selected: Some(&source.provider_settlement.selected_provider_publication),
             targets: &targets,
         }
         .prepare(),
