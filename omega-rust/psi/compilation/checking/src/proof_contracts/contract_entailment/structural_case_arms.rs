@@ -1258,7 +1258,11 @@ fn recognize_structural_state_leaves_from<'a>(
     // Ancestry above is the actual recursion boundary. Optional work reuse
     // remains cyclic-only, and requires the complete proof/observation cut:
     // identical forwarded values under different guards are different inputs.
-    let dedup_applies = state_lies_on_prefix_cycle(program, invocation, state);
+    // Cache entries belong to actual arrivals. Keeping a full judge at each
+    // statement continuation pins every prior COW storage/result epoch until
+    // the root walk ends. Continuations still traverse their unchanged body;
+    // omitting optional reuse does not cover or suppress any incoming path.
+    let dedup_applies = start_index == 0 && state_lies_on_prefix_cycle(program, invocation, state);
     let arrival = dedup_applies.then(|| StructuralArrival {
         state: state.symbol,
         start_index,
@@ -2421,12 +2425,10 @@ pub(super) fn prefix_site_is_reachable(
 }
 
 /// True when `state` lies on a cycle of the prefix reachability graph: some
-/// one-hop destination of it can reach it again. Arrival deduplication is a
-/// cycle-bound mechanism -- a cyclic machine's pump regenerates the same
-/// provable arrival, while an acyclic state's repeat entries are convergent
-/// alternatives whose different judges legitimately produce different leaves.
-/// Indeterminate destinations answer cyclic: dedup is the termination
-/// mechanism, never a source of leaves.
+/// one-hop destination of it can reach it again. This selects optional reuse
+/// of completed entries; ancestry remains the traversal's recursion boundary.
+/// Indeterminate destinations conservatively enable the same exact-input
+/// memoization without claiming that their call graph is known to be cyclic.
 fn state_lies_on_prefix_cycle(
     program: &dyn crate::CheckingInput,
     owner: &Machine,
