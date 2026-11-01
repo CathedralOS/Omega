@@ -29,11 +29,14 @@ use typed_trees::machine::Machine;
 
 /// What one scoped binding stands for: a resolved binder symbol, an exact
 /// value occurrence, or the synthetic `result` name for the returned value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopedArithmeticBinder {
     /// A declaration type binder, never an integer value symbol.
     Type(symbols::SymbolHandle),
     Symbol(symbols::SymbolHandle),
+    /// One typed projection of an already captured formal value. The binding
+    /// owns its exact root/path; a foreign contract expression is not an alias.
+    Coordinate(crate::RankSubjectCoordinate),
     /// One exact value occurrence whose denotation the binding owner supplies.
     Occurrence(ExpressionHandle),
     Result,
@@ -43,6 +46,12 @@ pub enum ScopedArithmeticBinder {
 pub enum ScopedArithmeticValue {
     /// Actual supplying type metadata for a Type binder; not a polynomial.
     TypeReference(typed_trees::types::TypeReferenceHandle),
+    /// An already captured whole owned value. It has no integer denotation
+    /// and grants no storage access or runtime copy disposition.
+    OwnedSnapshot(crate::CapturedOwnedSnapshot),
+    /// A completed arithmetic value with its complete operand DAG. Import
+    /// re-mints opaque operations; query-local atom names never escape alone.
+    CapturedInteger(crate::CapturedIntegerDenotation),
     /// A private mathematical unknown. The identity is shared across every
     /// proposition of one implication; an unsigned atom carries `>= 0`.
     Atom { identity: String, unsigned: bool },

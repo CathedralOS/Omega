@@ -1,16 +1,17 @@
-//! A record argument is its typed, authenticated read roster, never a numeric
-//! atom standing for the record. Scalar and record arguments share denotation
-//! transport; neither shape carries application formation by itself.
+//! A record argument retains its complete value separately from its typed
+//! scalar read roster. Neither its identity nor those reads authorize a copy,
+//! storage access or application formation.
 
 use super::Polynomial;
-use typed_trees::{expression::ExpressionHandle, types::TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proof_contracts::contract_entailment) enum IntegerApplicationInput {
     Scalar(Polynomial),
     Record {
         type_reference: TypeReferenceHandle,
-        reads: Vec<(ExpressionHandle, Polynomial)>,
+        snapshot: Option<crate::CapturedOwnedSnapshot>,
+        reads: Vec<(crate::RankSubjectCoordinate, Polynomial)>,
     },
 }
 
@@ -33,8 +34,42 @@ impl From<&IntegerApplicationInput> for IntegerApplicationInput {
 }
 
 impl IntegerApplicationInput {
+    pub(super) fn scoped_bindings(
+        &self,
+        formal: symbols::SymbolHandle,
+        mut scalar: impl FnMut(&Polynomial) -> Option<crate::ScopedArithmeticValue>,
+    ) -> Option<Vec<crate::ScopedArithmeticBinding>> {
+        use crate::{
+            ScopedArithmeticBinder as Binder, ScopedArithmeticBinding as Binding,
+            ScopedArithmeticValue as Value,
+        };
+        match self {
+            Self::Scalar(value) => Some(vec![Binding {
+                binder: Binder::Symbol(formal),
+                value: scalar(value)?,
+            }]),
+            Self::Record {
+                snapshot, reads, ..
+            } => {
+                let mut bindings = vec![Binding {
+                    binder: Binder::Symbol(formal),
+                    value: Value::OwnedSnapshot(snapshot.clone()?),
+                }];
+                for (coordinate, value) in reads {
+                    bindings.push(Binding {
+                        binder: Binder::Coordinate(crate::RankSubjectCoordinate {
+                            parameter: formal,
+                            path: coordinate.path.clone(),
+                        }),
+                        value: scalar(value)?,
+                    });
+                }
+                Some(bindings)
+            }
+        }
+    }
     /// The flow owner has already authenticated each read and its observation
-    /// frontier. Consume the complete occurrence roster without normalizing a
+    /// frontier. Consume the complete coordinate roster without normalizing a
     /// record as an integer or reopening its source in the caller namespace.
     pub(in crate::proof_contracts::contract_entailment) fn captured(
         engine: &super::Engine<'_>,
@@ -64,11 +99,22 @@ impl IntegerApplicationInput {
         let reads = shape
             .reads
             .iter()
-            .flat_map(|read| &read.occurrences)
-            .map(|source| Some((*source, engine.strict_occurrence_value(*source)?)))
+            .map(|read| {
+                Some((
+                    read.coordinate.clone(),
+                    engine.coordinate_value(&read.coordinate)?,
+                ))
+            })
             .collect::<Option<Vec<_>>>()?;
         Some(Self::Record {
             type_reference: input_type,
+            snapshot: engine
+                .owned_arguments
+                .iter()
+                .find_map(|(binder, snapshot)| {
+                    (*binder == crate::ScopedArithmeticBinder::Symbol(shape.parameter))
+                        .then(|| snapshot.clone())
+                }),
             reads,
         })
     }
@@ -88,14 +134,61 @@ impl IntegerApplicationInput {
             Self::Scalar(value) => Self::Scalar(map(value)?),
             Self::Record {
                 type_reference,
+                snapshot,
                 reads,
             } => Self::Record {
                 type_reference: *type_reference,
+                snapshot: snapshot.clone(),
                 reads: reads
                     .iter()
-                    .map(|(source, value)| Some((*source, map(value)?)))
+                    .map(|(source, value)| Some((source.clone(), map(value)?)))
                     .collect::<Option<Vec<_>>>()?,
             },
+        })
+    }
+}
+
+impl super::Engine<'_> {
+    /// Select a whole captured argument first, then retain only its scalar
+    /// coordinates. A leaf roster without this root cannot form a record call.
+    pub(super) fn captured_owned_call_input(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<IntegerApplicationInput> {
+        let place = crate::canonical_place_from_expression(self.program, expression)?;
+        let root = place.root.as_symbol()?;
+        let (_, snapshot) = self
+            .owned_arguments
+            .iter()
+            .find(|(binder, _)| *binder == crate::ScopedArithmeticBinder::Symbol(root))?;
+        let snapshot = snapshot.project(self.program, &place.segments)?;
+        let actual_type = self.source_result_type(expression)?;
+        if !super::super::ranking_range::declared_input_type_matches(
+            self.program,
+            snapshot.actual_type(),
+            actual_type,
+        ) {
+            return None;
+        }
+        let reads = self
+            .formal_read_arguments
+            .iter()
+            .filter_map(|(coordinate, value)| {
+                (coordinate.parameter == root).then_some(())?;
+                let path = coordinate.path.strip_prefix(place.segments.as_slice())?;
+                Some((
+                    crate::RankSubjectCoordinate {
+                        parameter: root,
+                        path: path.to_vec(),
+                    },
+                    value.clone(),
+                ))
+            })
+            .collect();
+        Some(IntegerApplicationInput::Record {
+            type_reference: actual_type,
+            snapshot: Some(snapshot),
+            reads,
         })
     }
 }

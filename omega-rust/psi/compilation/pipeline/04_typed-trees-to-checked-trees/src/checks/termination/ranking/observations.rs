@@ -100,9 +100,6 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
-                if inputs.is_empty() {
-                    return None;
-                }
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
@@ -145,6 +142,16 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     {
                         return None;
                     }
+                    let whole_input = retain_coordinate(admitted, destination.clone(), Vec::new());
+                    let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::owned_copy(
+                            program,
+                            admitted,
+                            state,
+                            formal.symbol,
+                            whole_input,
+                        )
+                    });
                     admitted.application_formations.insert(
                         checked_trees::CheckedRankApplicationFormation {
                             machine: machine.symbol,
@@ -152,6 +159,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
+                            owned_copy,
                         },
                     )
                 } else {

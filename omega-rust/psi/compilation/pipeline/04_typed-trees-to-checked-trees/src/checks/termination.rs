@@ -13,6 +13,7 @@
 //! source judgment; it cannot consume a later compile's retained facts. Proof
 //! recursion and runtime call topology remain independent early authorities.
 
+mod application_inputs;
 mod component_selection;
 mod graph;
 mod joint_natural;

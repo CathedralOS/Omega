@@ -29,11 +29,8 @@ pub(in crate::proof_contracts::contract_entailment) enum CapturedIntegerInput {
     },
     Record {
         type_reference: typed_trees::types::TypeReferenceHandle,
-        reads: Vec<(
-            typed_trees::expression::ExpressionHandle,
-            StructuralTerm,
-            PrimitiveType,
-        )>,
+        snapshot: Option<crate::CapturedOwnedSnapshot>,
+        reads: Vec<(crate::RankSubjectCoordinate, StructuralTerm, PrimitiveType)>,
     },
 }
 
@@ -249,17 +246,19 @@ impl StructuralJudge<'_> {
             CapturedIntegerInput::Record {
                 type_reference,
                 reads,
+                snapshot,
             } => {
                 let reads = reads
                     .iter()
                     .map(|(source, value, primitive)| {
                         self.integer_value(value, *primitive, observations, 0)
-                            .map(|value| (*source, value))
+                            .map(|value| (source.clone(), value))
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or("a record rank read has no exact integer observation")?;
                 Ok(IntegerApplicationInput::Record {
                     type_reference: *type_reference,
+                    snapshot: snapshot.clone(),
                     reads,
                 })
             }

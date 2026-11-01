@@ -44,7 +44,7 @@ impl CheckedCallOrigin {
             || plan
                 .bindings
                 .span(application.bindings)
-                .is_none_or(|bindings| bindings.is_empty())
+                .is_none_or(|bindings| bindings.is_empty() && application.owned_copy.is_none())
             || plan
                 .application_calls
                 .span(application.application.calls)
@@ -56,6 +56,21 @@ impl CheckedCallOrigin {
                 .any(|candidate| candidate == call)
         {
             return Err("declaration call changed its owning body, state or complete input roster");
+        }
+        if let Some(input) = application.owned_copy {
+            if !input.formal.is_valid()
+                || !input.actual_type.is_valid()
+                || !plan.coordinates.is_valid(input.actual)
+            {
+                return Err("declaration call has an invalid whole-value input receipt");
+            }
+            let coordinate = plan.coordinates.get(input.actual);
+            if !coordinate.parameter.is_valid()
+                || plan.path_segments.span(coordinate.path).is_none()
+                || plan.entry_indexes.span(coordinate.entry_indexes).is_none()
+            {
+                return Err("declaration call changed its whole-value input coordinate");
+            }
         }
         let call = plan.application_calls.get(call);
         if !call.expression.is_valid()

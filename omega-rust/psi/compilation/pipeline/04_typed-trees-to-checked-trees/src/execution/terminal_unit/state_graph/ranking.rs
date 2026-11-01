@@ -126,6 +126,7 @@ pub(super) fn natural_rank_plans_for_fused(
                                             measure,
                                             bindings,
                                             primitive_type,
+                                            formation,
                                             ..
                                         },
                                     ) => {
@@ -137,6 +138,13 @@ pub(super) fn natural_rank_plans_for_fused(
                                             && measure.is_valid()
                                             && primitive_type == state.primitive_type
                                             && retained == state.application_bindings
+                                            && (!admitted.application_formations.is_valid(formation)
+                                                || admitted.application_formations.get(formation).owned_copy.is_none_or(|input| {
+                                                let coordinate = admitted.coordinates.get(input.actual);
+                                                coordinate.parameter == state.coordinate.parameter
+                                                    && admitted.path_segments.span(coordinate.path) == Some(state.coordinate.path.as_slice())
+                                                    && validation::declared_input_type_matches(program, input.actual_type, state.input_type)
+                                            }))
 
                                     }
                                     (

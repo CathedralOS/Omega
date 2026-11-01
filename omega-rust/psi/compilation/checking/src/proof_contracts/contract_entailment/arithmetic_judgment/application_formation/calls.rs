@@ -2,7 +2,10 @@
 //! The outer declaration application owns the transaction and exact inputs;
 //! operational purity and totality are independent specification-call debts.
 
-use super::{ApplicationDecisions, Engine, Polynomial, dispatch, formed_type, formed_value};
+use super::{
+    ApplicationDecisions, Engine, IntegerApplicationInput, Polynomial, dispatch, formed_type,
+    formed_value,
+};
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_return_type, owner_symbol,
@@ -21,6 +24,14 @@ pub(super) fn form(
     decisions: &mut ApplicationDecisions,
 ) -> Option<Polynomial> {
     let call = expression_table(program).call_node(expression)?;
+    if super::super::super::struct_trace() {
+        eprintln!(
+            "STRUCT declaration-call begin expression={expression:?} owner={:?} owned={} reads={}",
+            engine.source_owner,
+            engine.owned_arguments.len(),
+            engine.formal_read_arguments.len()
+        );
+    }
     let owner = selected_call_contract(program, engine.source_owner, call)?;
     let parameters = owner_parameters(program, &owner);
     let arguments = expression_table(program).expression_handles(call.arguments);
@@ -29,57 +40,91 @@ pub(super) fn form(
     {
         return None;
     }
-    let actuals = arguments
+    let actuals = parameters
         .iter()
-        .map(|argument| {
-            Some((
-                *argument,
-                formed_value(engine, program, *argument, depth + 1, decisions)?,
-            ))
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            let input = if program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+            {
+                IntegerApplicationInput::Scalar(formed_value(
+                    engine,
+                    program,
+                    *argument,
+                    depth + 1,
+                    decisions,
+                )?)
+            } else {
+                engine.captured_owned_call_input(*argument)?
+            };
+            if !crate::has_anonymous_numeric_results(program, *argument) {
+                let actual_type = engine.source_result_type(*argument)?;
+                if !crate::declared_input_type_matches(
+                    program,
+                    actual_type,
+                    parameter.type_reference,
+                ) {
+                    return None;
+                }
+            }
+            Some((*argument, input))
         })
         .collect::<Option<Vec<_>>>()?;
-    // Numeric fit cannot silently change an already-typed argument's carrier
-    // or policy. Only an anonymous value lands at its receiving parameter;
-    // explicit conversions have already retained their own target type.
-    for (parameter, (argument, _)) in parameters.iter().zip(&actuals) {
-        if crate::has_anonymous_numeric_results(program, *argument) {
-            continue;
-        }
-        let actual_type = engine.source_result_type(*argument)?;
-        if program.primitive_type_reference(actual_type)
-            != program.primitive_type_reference(parameter.type_reference)
-            || program.arithmetic_domain_for_type_reference(actual_type)
-                != program.arithmetic_domain_for_type_reference(parameter.type_reference)
-        {
-            return None;
-        }
+    if super::super::super::struct_trace() {
+        eprintln!("STRUCT declaration-call inputs expression={expression:?} actuals={actuals:?}");
     }
-    let formals = parameters
-        .iter()
-        .zip(&actuals)
-        .map(|(formal, (_, value))| (formal.symbol, value.clone()))
-        .collect::<Vec<_>>();
-    engine.with_formal_arguments(owner_symbol(&owner), &formals, |engine| {
-        for (parameter, (_, value)) in parameters.iter().zip(&actuals) {
-            if !formed_type(engine, program, parameter.type_reference, value) {
-                return None;
+    with_arguments(
+        engine,
+        owner_symbol(&owner),
+        parameters,
+        &actuals,
+        |engine| {
+            for (parameter, (_, input)) in parameters.iter().zip(&actuals) {
+                match input {
+                    IntegerApplicationInput::Scalar(value) => {
+                        formed_type(engine, program, parameter.type_reference, value)
+                            .then_some(())?;
+                    }
+                    IntegerApplicationInput::Record {
+                        type_reference,
+                        snapshot,
+                        ..
+                    } => {
+                        let snapshot = snapshot.as_ref()?;
+                        if !crate::declared_input_type_matches(
+                            program,
+                            snapshot.actual_type(),
+                            *type_reference,
+                        ) || !crate::declared_input_type_matches(
+                            program,
+                            *type_reference,
+                            parameter.type_reference,
+                        ) {
+                            return None;
+                        }
+                    }
+                }
             }
-        }
-        for contract in owner_contracts(program, &owner)
-            .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(requirement) = fact else {
-                    return None;
-                };
+            for contract in owner_contracts(program, &owner)
+                .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            {
                 if contract.binding.is_some() {
                     return None;
                 }
-                dispatch::require_condition(engine, *requirement, depth + 1)?;
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(requirement) = fact else {
+                        return None;
+                    };
+                    dispatch::require_condition(engine, *requirement, depth + 1)?;
+                }
             }
-        }
-        Some(())
-    })?;
+            Some(())
+        },
+    )?;
+    if super::super::super::struct_trace() {
+        eprintln!("STRUCT declaration-call requires expression={expression:?}");
+    }
     let value = engine.selected_call_value(
         engine.source_owner,
         expression,
@@ -101,9 +146,16 @@ pub(super) fn form(
     if !engine.complete_formed_call(expression, &actuals, &value) {
         return None;
     }
-    engine.with_formal_arguments(owner_symbol(&owner), &formals, |engine| {
-        formed_type(engine, program, result_type, &value).then_some(())
-    })?;
+    if super::super::super::struct_trace() {
+        eprintln!("STRUCT declaration-call guarantees expression={expression:?}");
+    }
+    with_arguments(
+        engine,
+        owner_symbol(&owner),
+        parameters,
+        &actuals,
+        |engine| formed_type(engine, program, result_type, &value).then_some(()),
+    )?;
     let SelectedCallContract::Concrete(machine, state) = owner else {
         return None;
     };
@@ -119,4 +171,48 @@ pub(super) fn form(
         decisions.calls.push(decision);
     }
     Some(value)
+}
+
+/// Every actual has formed in its caller before the selected public telescope
+/// becomes visible. Scalar reads and whole-value identity share this cut.
+fn with_arguments<Output>(
+    engine: &mut Engine<'_>,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    actuals: &[(ExpressionHandle, IntegerApplicationInput)],
+    query: impl FnOnce(&mut Engine<'_>) -> Option<Output>,
+) -> Option<Output> {
+    let scalar = parameters
+        .iter()
+        .zip(actuals)
+        .filter_map(|(formal, (_, input))| match input {
+            IntegerApplicationInput::Scalar(value) => Some((formal.symbol, value.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    engine.with_formal_arguments(owner, &scalar, |engine| {
+        for (formal, (_, input)) in parameters.iter().zip(actuals) {
+            if let IntegerApplicationInput::Record {
+                snapshot, reads, ..
+            } = input
+            {
+                engine.owned_arguments.push((
+                    crate::ScopedArithmeticBinder::Symbol(formal.symbol),
+                    snapshot.clone()?,
+                ));
+                engine
+                    .formal_read_arguments
+                    .extend(reads.iter().map(|(coordinate, value)| {
+                        (
+                            crate::RankSubjectCoordinate {
+                                parameter: formal.symbol,
+                                path: coordinate.path.clone(),
+                            },
+                            value.clone(),
+                        )
+                    }));
+            }
+        }
+        query(engine)
+    })
 }

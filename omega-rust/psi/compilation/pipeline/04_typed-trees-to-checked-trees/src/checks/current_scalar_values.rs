@@ -1088,7 +1088,10 @@ impl<'program> CurrentScalarValues<'program> {
         expression: &ScopedArithmeticExpression,
         input_type: typed_trees::types::TypeReferenceHandle,
         result: PrimitiveType,
-    ) -> Option<validation::IntegerApplicationFormation> {
+    ) -> Option<(
+        validation::IntegerApplicationFormation,
+        ScopedArithmeticValue,
+    )> {
         validation::scoped_declared_integer_application_formation(
             self.program,
             machine,
@@ -1873,6 +1876,8 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
             charge(right, budget, depth + 1)?;
         }
         ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::OwnedSnapshot(_)
+        | ScopedArithmeticValue::CapturedInteger(_)
         | ScopedArithmeticValue::Atom { .. }
         | ScopedArithmeticValue::Integer(_) => {}
     }

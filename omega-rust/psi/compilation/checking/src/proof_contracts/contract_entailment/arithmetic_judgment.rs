@@ -20,7 +20,7 @@ mod denotations;
 #[cfg(test)]
 mod difference_constraint_tests;
 mod difference_matrix;
-pub(super) use denotations::IntegerDenotation;
+pub use denotations::IntegerDenotation;
 mod integer_operations;
 mod integer_policy;
 mod intervals;
@@ -217,7 +217,7 @@ impl Polynomial {
 /// The operands one opaque atom was minted from, retained so a later
 /// simultaneous substitution can re-mint the same shape under the
 /// transported operands rather than dropping the term.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum OpaqueTerm {
     DeclarationApplication {
         measure: SymbolHandle,
@@ -232,7 +232,7 @@ pub(super) enum OpaqueTerm {
         owner: SymbolHandle,
         expression: ExpressionHandle,
         target: SymbolHandle,
-        arguments: Vec<Polynomial>,
+        arguments: Vec<IntegerApplicationInput>,
     },
     /// A completed finite-carrier value, distinct from its unbounded
     /// mathematical calculation. Wrapping retains its residue polynomial;
@@ -318,7 +318,8 @@ pub(super) struct Engine<'program> {
     /// A callee telescope denotes completed caller values before any operation
     /// simplifies. This overlays symbol identity, not arithmetic capabilities.
     formal_arguments: Option<Vec<(SymbolHandle, Polynomial)>>,
-    formal_read_arguments: Vec<(ExpressionHandle, Polynomial)>,
+    formal_read_arguments: Vec<(crate::RankSubjectCoordinate, Polynomial)>,
+    owned_arguments: Vec<(crate::ScopedArithmeticBinder, crate::CapturedOwnedSnapshot)>,
     strict_symbol_bindings_valid: bool,
     /// Only the exact-meaning call adapter licenses widening while capturing
     /// actuals. Other strict readers (ranges and saved locals) have not checked
@@ -434,6 +435,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings,
             formal_arguments: None,
             formal_read_arguments: Vec::new(),
+            owned_arguments: Vec::new(),
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
@@ -588,7 +590,11 @@ impl<'program> Engine<'program> {
                     arm.visit_operands(|value| mentions |= poly_mentions(value));
                     mentions
                 }),
-                OpaqueTerm::Call { arguments, .. } => arguments.iter().any(poly_mentions),
+                OpaqueTerm::Call { arguments, .. } => arguments.iter().any(|input| {
+                    let mut mentions = false;
+                    input.visit_values(|value| mentions |= poly_mentions(value));
+                    mentions
+                }),
                 OpaqueTerm::Bitwise { left, right, .. } => {
                     poly_mentions(left) || poly_mentions(right)
                 }
@@ -1240,12 +1246,8 @@ impl<'program> Engine<'program> {
         {
             return Some(value.clone());
         }
-        if let Some((_, value)) = self
-            .formal_read_arguments
-            .iter()
-            .find(|(source, _)| *source == expression)
-        {
-            return Some(value.clone());
+        if let Some(value) = self.formal_coordinate_value(expression) {
+            return Some(value);
         }
         // Closed constants keep their declaration's carrier and selected
         // operation. This is not a runtime-value lookup or a body replay.
@@ -1608,7 +1610,21 @@ impl<'program> Engine<'program> {
                     let arguments = expression_table(self.program)
                         .expression_handles(call.arguments)
                         .iter()
-                        .map(|argument| self.normalize(*argument))
+                        .map(|argument| {
+                            if self
+                                .source_result_type(*argument)
+                                .and_then(|reference| {
+                                    self.program.primitive_type_reference(reference)
+                                })
+                                .is_some()
+                                || crate::has_anonymous_numeric_results(self.program, *argument)
+                            {
+                                self.normalize(*argument)
+                                    .map(IntegerApplicationInput::Scalar)
+                            } else {
+                                self.captured_owned_call_input(*argument)
+                            }
+                        })
                         .collect::<Option<Vec<_>>>()?;
                     return self.selected_call_value(
                         self.source_owner,
