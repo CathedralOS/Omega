@@ -1,7 +1,12 @@
 //! Retain reusable whole entry values independently of scalar proof reads.
 //! A real state parameter supplies initialized storage; every selected prefix
 //! stays owned, and canonical Copy plus unrestricted multiplicity authorize
-//! duplication. Other dispositions require their own loan/transfer evidence.
+//! duplication. Copy records may contain shared descriptors: copying those
+//! retains their existing backing and lifetime rather than copying referents.
+//! Exclusive descriptors and other dispositions still require their own
+//! loan/transfer evidence and cannot acquire this entry-copy receipt.
+//! This is source reuse permission, not disposal for a materialized carrier:
+//! the call's access mode separately decides whether its operand is only lent.
 
 pub(super) fn owned_copy(
     program: &dyn validation::CheckingInput,
@@ -71,14 +76,6 @@ pub(super) fn owned_copy(
         validation::project_type_reference_from_segments(program, parameter.type_reference, path)?;
     if program.primitive_type_reference(actual_type).is_some()
         || !validation::reference_result_custody::source_value_is_copied(program, actual_type)
-        || validation::reference_result_custody::result_multiplicity(program, actual_type)
-            != language_semantics::Multiplicity::Unrestricted
-        || !validation::has_contents(
-            program,
-            actual_type,
-            &[],
-            validation::ContentsRequirement::BorrowFree,
-        )
     {
         return None;
     }
