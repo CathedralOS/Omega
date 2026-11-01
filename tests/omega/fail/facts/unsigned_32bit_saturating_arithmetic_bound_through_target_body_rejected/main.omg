@@ -2,56 +2,63 @@
 // Place: another target body (invalid twin). The lhs upper bound is widened to 81u32 so sum reaches 101u32, underflowing 100u32 - sum.
 // Expected diagnostic: may overflow `u32`
 
-linux_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_sum: u32 in Saturating = a + b;
-    let sum: u32 = sat_sum as u32;
-    let headroom: u32 = 100u32 - sum;
-    let margin: u32 = sum - 50u32;
-    headroom + margin
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_sum: u32 in Saturating = a + b;
-    let sum: u32 = sat_sum as u32;
-    let headroom: u32 = 100u32 - sum;
-    let margin: u32 = sum - 50u32;
-    headroom + margin
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_sum: u32 in Saturating = a + b;
-    let sum: u32 = sat_sum as u32;
-    let headroom: u32 = 100u32 - sum;
-    let margin: u32 = sum - 50u32;
-    headroom + margin
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_sum: u32 in Saturating = a + b;
-    let sum: u32 = sat_sum as u32;
-    let headroom: u32 = 100u32 - sum;
-    let margin: u32 = sum - 50u32;
-    headroom + margin
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20;
+}
+
+X86SatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: u32 in Saturating = lhs as u32 in Saturating;
+        let b: u32 in Saturating = rhs as u32 in Saturating;
+        let sat_sum: u32 in Saturating = a + b;
+        let sum: u32 = sat_sum as u32;
+        let headroom: u32 = 100u32 - sum;
+        let margin: u32 = sum - 50u32;
+        headroom + margin
+    }
+}
+
+ArmSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 40 && lhs <= 81 && rhs >= 10 && rhs <= 20
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: u32 in Saturating = lhs as u32 in Saturating;
+        let b: u32 in Saturating = rhs as u32 in Saturating;
+        let sat_sum: u32 in Saturating = a + b;
+        let sum: u32 = sat_sum as u32;
+        let headroom: u32 = 100u32 - sum;
+        let margin: u32 = sum - 50u32;
+        headroom + margin
+    }
 }
 
 machine probe() -> u32 {
-    sat_target(60u32, 15u32)
+    SelectedSatTarget::sat_target(60u32, 15u32)
 }
 
 machine main() crashes Trap {
@@ -61,4 +68,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

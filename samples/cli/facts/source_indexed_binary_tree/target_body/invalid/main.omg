@@ -47,61 +47,81 @@ ensures result <= 80
     tree_bound<Nodes, Total>(next);
     Total
 }
-windows_x86_64 machine produced() -> u64 ensures result <= 80 {
-    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let left [erased]: Tree<1, 2> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
-    };
-    let right [erased]: Tree<1, 4> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
-    };
-    open_total<1, 2, 1, 4, 3, 7>(left, right)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine produced() -> u64 ensures result <= 80 {
-    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let left [erased]: Tree<1, 2> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
-    };
-    let right [erased]: Tree<1, 4> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
-    };
-    open_total<1, 2, 1, 4, 3, 7>(left, right)
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine produced() -> u64 ensures result <= 80 {
-    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let left [erased]: Tree<1, 2> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
-    };
-    let right [erased]: Tree<1, 4> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
-    };
-    open_total<1, 2, 1, 4, 3, 7>(left, right)
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine produced() -> u64 ensures result <= 80 {
-    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
-    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
-    let left [erased]: Tree<1, 2> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
-    };
-    let right [erased]: Tree<1, 4> = Tree::Fork {
-        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
-    };
-    open_total<1, 2, 1, 4, 3, 7>(left, right)
+
+boundary trait SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80;
 }
+
+X86Produced satisfies SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+        let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+        let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+        let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+        let left [erased]: Tree<1, 2> = Tree::Fork {
+            left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
+        };
+        let right [erased]: Tree<1, 4> = Tree::Fork {
+            left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
+        };
+        open_total<1, 2, 1, 4, 3, 7>(left, right)
+    }
+}
+
+ArmProduced satisfies SelectedProduced {
+    machine produced() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 80
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+        let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+        let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+        let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+        let left [erased]: Tree<1, 2> = Tree::Fork {
+            left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
+        };
+        let right [erased]: Tree<1, 4> = Tree::Fork {
+            left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
+        };
+        open_total<1, 2, 1, 4, 3, 7>(left, right)
+    }
+}
+
+
 machine main() crashes Trap {
-    let remaining: u64 = 80u64 - produced();
+    let remaining: u64 = 80u64 - SelectedProduced::produced();
     transition remaining == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

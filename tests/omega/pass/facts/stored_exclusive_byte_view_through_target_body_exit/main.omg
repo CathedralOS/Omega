@@ -1,46 +1,70 @@
 // An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
 // Place: target_body.
 // Expected exit: 0
-windows_x86_64 machine observe(windows: [&mut [u8]; 1]) -> bool
-requires windows[0].len == 1
-{
-    let length: u64 = windows[0].len;
-    let observed: bool = windows[0][0] == 19 && length == 1;
-    observed
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine observe(windows: [&mut [u8]; 1]) -> bool
-requires windows[0].len == 1
-{
-    let length: u64 = windows[0].len;
-    let observed: bool = windows[0][0] == 19 && length == 1;
-    observed
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine observe(windows: [&mut [u8]; 1]) -> bool
-requires windows[0].len == 1
-{
-    let length: u64 = windows[0].len;
-    let observed: bool = windows[0][0] == 19 && length == 1;
-    observed
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine observe(windows: [&mut [u8]; 1]) -> bool
-requires windows[0].len == 1
-{
-    let length: u64 = windows[0].len;
-    let observed: bool = windows[0][0] == 19 && length == 1;
-    observed
+boundary trait SelectedObserve {
+    machine observe(windows: [&mut [u8]; 1]) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1;
 }
+
+X86Observe satisfies SelectedObserve {
+    machine observe(windows: [&mut [u8]; 1]) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let length: u64 = windows[0].len;
+        let observed: bool = windows[0][0] == 19 && length == 1;
+        observed
+    }
+}
+
+ArmObserve satisfies SelectedObserve {
+    machine observe(windows: [&mut [u8]; 1]) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let length: u64 = windows[0].len;
+        let observed: bool = windows[0][0] == 19 && length == 1;
+        observed
+    }
+}
+
 
 machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];
     let windows: [&mut [u8]; 1] = [&mut backing[..]];
-    let observed: bool = observe(windows);
+    let observed: bool = SelectedObserve::observe(windows);
     transition observed {
         true -> done()
         false -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

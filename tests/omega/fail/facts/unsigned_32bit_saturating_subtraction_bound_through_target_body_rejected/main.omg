@@ -8,48 +8,59 @@ machine verify_diff(value: u32) -> u32 requires value >= 40u32 && value <= 100u3
     headroom + margin
 }
 
-linux_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
+}
+
+X86SatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: u32 in Saturating = lhs as u32 in Saturating;
+        let b: u32 in Saturating = rhs as u32 in Saturating;
+        let sat_diff: u32 in Saturating = a - b;
+        let diff: u32 = sat_diff as u32;
+        verify_diff(diff)
+    }
+}
+
+ArmSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: u32 in Saturating = lhs as u32 in Saturating;
+        let b: u32 in Saturating = rhs as u32 in Saturating;
+        let sat_diff: u32 in Saturating = a - b;
+        let diff: u32 = sat_diff as u32;
+        verify_diff(diff)
+    }
 }
 
 machine probe() -> u32 {
-    sat_target(100u32, 30u32)
+    SelectedSatTarget::sat_target(100u32, 30u32)
 }
 
 machine main() crashes Trap {
@@ -59,4 +70,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

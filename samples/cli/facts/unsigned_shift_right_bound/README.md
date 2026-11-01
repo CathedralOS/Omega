@@ -87,3 +87,15 @@ Parent task: **ONE-INTEGER-BOUNDS-ENGINE** ([TASKS.md](../../../../TASKS.md)) â€
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07â€“09` + emission):** Shift and subtraction instructions encode into target machine code, basic blocks and branch offsets relax with offset reflow, machine-state footprints validate, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 Remaining: the native and combined golden rows are macOS arm64 legs; `corpus_native_linux_x86_64.txt`, `corpus_native_windows_x86_64.txt` and `corpus_both_linux_x86_64.txt` carry no rows for these fixtures yet, so Linux and Windows host agreement is established by the four-target `ProgramEntry` bindings and the shared Terminal Psi product, not by a replayed run on those hosts.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

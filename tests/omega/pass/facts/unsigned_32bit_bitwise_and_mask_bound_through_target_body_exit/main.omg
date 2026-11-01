@@ -2,60 +2,65 @@
 // Place: another target body. Each of four target-scoped machine bodies masks the bounded 32-bit operand and performs exact subtractions.
 // Expected exit: 0
 
-linux_x86_64 machine mask_target(raw: u32, mask: u32) -> i32
-requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
-{
-    let masked: u32 = raw & mask;
-    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
-    transition masked == 52u32 && check == 0u32 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine mask_target(raw: u32, mask: u32) -> i32
-requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
-{
-    let masked: u32 = raw & mask;
-    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
-    transition masked == 52u32 && check == 0u32 {
-        true -> pass()
-        _ -> fail()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-macos_arm64 machine mask_target(raw: u32, mask: u32) -> i32
-requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
-{
-    let masked: u32 = raw & mask;
-    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
-    transition masked == 52u32 && check == 0u32 {
-        true -> pass()
-        _ -> fail()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-windows_x86_64 machine mask_target(raw: u32, mask: u32) -> i32
-requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
-{
-    let masked: u32 = raw & mask;
-    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
-    transition masked == 52u32 && check == 0u32 {
-        true -> pass()
-        _ -> fail()
+boundary trait SelectedMaskTarget {
+    machine mask_target(raw: u32, mask: u32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116u32 && raw <= 116u32 && mask == 63u32;
+}
+
+X86MaskTarget satisfies SelectedMaskTarget {
+    machine mask_target(raw: u32, mask: u32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let masked: u32 = raw & mask;
+        let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
+        transition masked == 52u32 && check == 0u32 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+}
+
+ArmMaskTarget satisfies SelectedMaskTarget {
+    machine mask_target(raw: u32, mask: u32) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let masked: u32 = raw & mask;
+        let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
+        transition masked == 52u32 && check == 0u32 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
+    }
 }
 
 machine probe() -> i32 {
-    mask_target(116u32, 63u32)
+    SelectedMaskTarget::mask_target(116u32, 63u32)
 }
 
 machine main() crashes Trap {
@@ -65,4 +70,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
