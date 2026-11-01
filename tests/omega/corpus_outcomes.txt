@@ -1756,6 +1756,8 @@ fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b18
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
+fail/providers/table_leaf_without_dispatch_borrow rejected 5039ms expected @7e63d263ac51
+	cannot realize table field `measure` for `length`: table leaf's first parameter must borrow its dispatch table
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -12341,6 +12343,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 35
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_result_field_guarantee_exit checked 4145ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/table_leaf_dispatch_parameter_exit checked 5776ms check-target:linux_x86_64 @7e63d263ac51
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
 pass/providers/token_machine_family_override_exit checked 12968ms check-target:macos_arm64 @ccdb99ca2214
@@ -15406,8 +15409,8 @@ fail/borrows/whole_referent_store_type_mismatch rejected 673ms expected @ccdb99c
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 781ms expected @ccdb99ca2214
 	data `Main` field `console` uses boundary trait `Console` as a value type; call a `Console` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
-fail/boundary/named_foreign_provider_wrong_table rejected 3214ms expected @ccdb99ca2214
-	cannot realize table field `call` for `read`: first table parameter does not borrow the exact attached table type
+fail/boundary/named_foreign_provider_wrong_table rejected 4858ms expected @7e63d263ac51
+	cannot realize table field `call` for `read`: no runtime field `call` in the dispatch table
 fail/boundary/named_target_foreign_provider_missing_member rejected 3879ms expected @ccdb99ca2214
 	build selects provider `ProbeProvider` for slot `Probe`, but no candidate exists in the loaded dependency closure
 fail/boundary/opaque_result_requires_representation rejected 3524ms expected @ccdb99ca2214
@@ -33211,8 +33214,8 @@ fail/providers/direct_foreign_missing_reach rejected 3083ms expected @ccdb99ca22
 	machine `RestrictedProvider::current` state `current` does not satisfy trait `Restricted` machine `current`: service `Process` is not allowed by the trait requirement
 fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99ca2214
 	calling policy rejected the boundary: direct foreign policy refuses
-fail/providers/direct_foreign_wrong_table rejected 4796ms expected @ccdb99ca2214
-	cannot realize table field `invoke` for `query`: first table parameter does not borrow the exact attached table type
+fail/providers/direct_foreign_wrong_table rejected 5700ms expected @7e63d263ac51
+	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
 fail/providers/erased_routed_result_not_recovered checked 2624ms @ccdb99ca2214
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
