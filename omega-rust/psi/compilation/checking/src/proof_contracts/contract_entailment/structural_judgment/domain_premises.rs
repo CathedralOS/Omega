@@ -1021,6 +1021,11 @@ impl StructuralJudge<'_> {
             .into_iter()
             .chain(standing)
             .fold(carrier, |bounds, restriction| bounds.intersect(restriction));
+        // The captured value already retains its physical carrier. Only a
+        // declaration refinement supplies additional observation premises.
+        if bounds == carrier {
+            return;
+        }
         for (operator, bound) in [
             (BinaryOperator::GreaterOrEqual, bounds.low),
             (BinaryOperator::LessOrEqual, bounds.high),
