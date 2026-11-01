@@ -13,11 +13,14 @@ requires pixels.len == 6
         bytes[0] == 0x33 && bytes[12] == 0x66 && bytes[22] == 0x77
     }
 }
-machine empty(pixels: &[i32]) -> bool
+machine empty(pixels: &mut [i32]) -> bool
 requires pixels.len == 0
 {
-    let bytes: &[u8] = pixels as &[u8];
-    bytes.len == 0
+    shared(pixels)
+    machine shared(pixels: &[i32]) -> bool requires pixels.len == 0 {
+        let bytes: &[u8] = pixels as &[u8];
+        bytes.len == 0
+    }
 }
 // Shared attenuation must declare the callee's stored descriptor even when
 // the caller supplies only a mutable descriptor of the same element carrier.
