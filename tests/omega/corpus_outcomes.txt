@@ -1468,6 +1468,25 @@ fail/facts/recorded_build_role/parameter rejected 1541ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/parameter/my_library/values.omg: captured entry is absent: my_library
 fail/facts/recorded_build_role/target_body rejected 1250ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/target_body/my_library/values.omg: captured entry is absent: my_library
+fail/facts/representation_conversion_primitive_shadow_rejected rejected 3051ms expected @dde0f3a03bcd
+	data `Int` shadows the builtin type of the same name -- references would silently bind to the builtin and this definition would never be used (its contracts would go unvalidated). Pick a different name.
+fail/facts/representation_conversion_stored_output_source_write_rejected rejected 6488ms expected @dde0f3a03bcd
+	statement 2 mutates `source` while local borrow `slot` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/representation_conversion_through_field_wrong_endpoint_rejected rejected 1634ms expected @dde0f3a03bcd
+	generic machine `observe` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `compose` cannot bind `First` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `inspect` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `decoded` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+fail/facts/representation_conversion_through_local_wrong_endpoint_rejected rejected 1403ms expected @dde0f3a03bcd
+	generic machine `observe` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `compose` cannot bind `First` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `inspect` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `decoded` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+fail/facts/representation_conversion_through_parameter_wrong_endpoint_rejected rejected 1298ms expected @dde0f3a03bcd
+	generic machine `observe` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `compose` cannot bind `First` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `inspect` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+	generic machine `decoded` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -8550,6 +8569,9 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
+pass/facts/representation_conversion_through_local_exit checked 7916ms check-target:macos_arm64 @dde0f3a03bcd
+pass/facts/representation_conversion_through_parameter_exit checked 10497ms check-target:macos_arm64 @dde0f3a03bcd
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214
