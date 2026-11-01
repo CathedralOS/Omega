@@ -1,0 +1,22 @@
+// Expected exit: 0. A completed conversion preserves its value and the incoming index bound.
+public data Outcome { next: i32; shifted: i32; }
+machine identity(value: i32 in Saturating) -> i32 in Saturating { value }
+public machine exercise(index: i32) -> Outcome
+requires index >= 0 && index < 48
+{
+    let shifted: i32 in Saturating = identity((index as i32 in Saturating) + (16 as i32 in Saturating));
+    transition { _ -> finish(index, shifted) }
+    machine finish(index: i32, shifted: i32 in Saturating) -> Outcome {
+        Outcome { next: index + 1, shifted: shifted as i32 }
+    }
+}
+machine main() crashes Trap {
+    let high: Outcome = exercise(47);
+    let low: Outcome = exercise(0);
+    transition high.next == 48 && high.shifted == 63 && low.next == 1 && low.shifted == 16 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

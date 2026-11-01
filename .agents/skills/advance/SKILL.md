@@ -570,7 +570,7 @@ Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
 Validate the submitted change, push HEAD directly to origin (`git push origin HEAD:refs/heads/work/<name>`), open or reuse a draft PR, and use
-the native merge queue under the linked protocol. Mark the draft ready only when that protocol says it can be enqueued. Put actual agent/model
+the native merge queue under the linked protocol. When the work is finished, run `tools/landing.py land`, which marks it ready and lets the queue take it when `compiler-check` passes. Put actual agent/model
 provenance in the PR body when known. Do not invent unknown metadata. Release
 local build slots before waiting. Never chase main with gates, rebases, or rebuilds:
 GitHub Actions CI does the integration build and checks in the merge queue. No local publication

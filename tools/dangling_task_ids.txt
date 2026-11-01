@@ -30,8 +30,6 @@ samples/cli/facts/exact_integer_narrowing/README.md DOMAIN-DEFAULT-PREDICATE-UNI
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md COUNTS-AND-ADDRESSES
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md LAYOUT-PLANS
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md STRUCTURAL-ACCESS
-samples/cli/facts/four_variant_enum_payload_bound/README.md CASE-PAYLOAD-BOUND
-samples/cli/facts/four_variant_enum_payload_bound/README.md ENUM-PAYLOAD
 samples/cli/facts/free_entry_local_state/README.md EXPLICIT-ENTRY-STORAGE
 samples/cli/facts/index_every_width/README.md ONE-INTEGER-BOUNDS-ENGINE
 samples/cli/facts/inherited_scalar_domain/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION

@@ -9,6 +9,13 @@ use object_file::{
 };
 use std::sync::Arc;
 
+/// Witness that an [`ObjectArtifact`] was projected from admitted fragments.
+/// Its field is private to this module, so fragment projection is the only
+/// route that can build the carrier; a second builder would need its own
+/// machine-code record model and a byte replay to check it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ProjectedObject(());
+
 pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
     pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
     pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
@@ -240,6 +247,7 @@ pub fn build_function_fragment_object_artifact(
         &mut relocations,
     )?;
     let artifact = ObjectArtifact {
+        projected: ProjectedObject(()),
         hosted_receiver: None,
         physical_entry: None,
         retained_entry_storage,
@@ -265,7 +273,7 @@ pub fn build_function_fragment_object_artifact(
         native_code_layout_pool,
     };
     // The object is projected from the container this compile just placed;
-    // `validate_function_fragment_object_artifact_with_private_functions`
+    // `validate_function_fragment_object_artifact`
     // replays that projection for retained-artifact readers and tests.
     Ok(artifact)
 }

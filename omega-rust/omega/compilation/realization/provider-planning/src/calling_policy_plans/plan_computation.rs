@@ -6,10 +6,9 @@ use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeom
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use build_time_evaluation::BuildTimeProgram;
+use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
-use calling_conventions::{
-    CallingPolicy, ValidatedBoundaryEntryPlan, evaluate_ordinary_boundary_entry_plan,
-};
+use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 
@@ -82,40 +81,10 @@ pub(crate) fn evaluate_default_calling_applications(
                     .map_err(|_| "default dispatch prefix exceeds usize")?,
             )?;
         }
-        let mut application = calling_conventions::BoundaryCallingApplication {
-            abi: canonical.abi,
-            requirement_identity: canonical.requirement_identity,
-            target: signature.target,
-            report_fingerprint: 0,
-            commitment: [0; 32],
-            plan: validated,
-            dispatch_only_parameter_count,
-            signature: geometry.clone(),
-            opaque_applications: canonical.opaque_uses.iter().map(|occurrence| {
-                let selected = &occurrence.application;
-                calling_conventions::BoundaryOpaqueApplication {
-                    shape_root: occurrence.shape_root,
-                    application_report_fingerprint: selected.application_report_fingerprint,
-                    selected_application_commitment: selected.selected_application_commitment,
-                    conformance_application_commitment: selected.conformance_application_commitment,
-                    representation_schema_version: selected.schema_version,
-                    checked_semantic_copy: matches!(selected.copy_disposition,
-                        language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
-                }
-            }).collect(),
-            callback_context: signature.callbacks.clone(),
-            callback_context_closed: false,
-        };
-        application.commitment = application.recomputed_commitment()?;
-        application.report_fingerprint = callback_nominal_report_fingerprint(
-            b"omega.boundary-plan-application-report.v3",
-            &[&application.commitment],
-        );
-        applications.push(application);
+        applications.push(canonical.native_application(&validated, dispatch_only_parameter_count)?);
     }
     Ok(applications)
 }
-
 /// Prepare Source invocation admission and exact review coordinates only.
 /// Canonical publication owns declaration storage; target activation reads it.
 pub fn prepare_boundary_calling_plans<'checked>(

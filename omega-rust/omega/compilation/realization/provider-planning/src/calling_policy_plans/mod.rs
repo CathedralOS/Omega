@@ -10,7 +10,7 @@
 //! exact source-entry association and finite invocation accounting;
 //! `terminal_execution.rs` runs the canonical code without source,
 //! `policy_signature.rs` encodes canonical ABI input and validates the result,
-//! `terminal_signature.rs` constructs that input from the canonical catalog,
+//! `terminal_signature.rs` constructs that input from the canonical catalog;
 //! Psi's service catalog retains the exact named map and inherited signatures,
 //! `callback_bindings.rs` binds and closes callbacks; backend `layout` constructs
 //! their native value graphs and `build_time_decoding.rs` decodes build-time

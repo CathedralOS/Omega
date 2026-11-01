@@ -350,42 +350,17 @@ fn flat_place_segments(
 
 pub(crate) fn apply_right_literal_guard(
     proof_plan: &ProofPlan,
-    mut range: IntegerRange,
+    range: IntegerRange,
     operator: BinaryOperator,
     right: ExpressionHandle,
 ) -> IntegerRange {
     let Some(value) = integer_literal_handle(proof_plan, right) else {
         return range;
     };
-
-    let value = BigInt::from_i64(value);
-    let one = BigInt::from_i64(1);
-    match operator {
-        BinaryOperator::Equal => {
-            range.minimum = range.minimum.max(value.clone());
-            range.maximum = range.maximum.min(value);
-        }
-        BinaryOperator::Greater => range.minimum = range.minimum.max(value.add(&one)),
-        BinaryOperator::GreaterOrEqual => range.minimum = range.minimum.max(value),
-        BinaryOperator::Less => range.maximum = range.maximum.min(value.sub(&one)),
-        BinaryOperator::LessOrEqual => range.maximum = range.maximum.min(value),
-        BinaryOperator::Add
-        | BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Divide
-        | BinaryOperator::Modulo
-        | BinaryOperator::Multiply
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::Subtract
-        | BinaryOperator::CaseMembership => {}
+    match validation::BigIntInterval::from_comparison(operator, true, BigInt::from_i64(value)) {
+        Some(interval) => interval.refine_closed(range),
+        None => range,
     }
-
-    range
 }
 
 /// `K OP place` restated as `place OP' K` — the comparison seen from the

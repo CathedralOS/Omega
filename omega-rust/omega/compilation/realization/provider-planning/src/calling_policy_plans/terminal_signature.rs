@@ -7,8 +7,11 @@
 use super::CallingPolicySignature;
 use calling_conventions::validate_fresh_native_parameter_identity;
 use calling_conventions::{
-    BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
+    BoundaryCallingApplication, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
+    BoundaryNativeParameterShape, BoundaryOpaqueApplication, ValidatedBoundaryEntryPlan,
+    callback_nominal_report_fingerprint,
 };
+use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
 use layout::BoundaryValueLayout;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +31,59 @@ pub struct CanonicalOpaqueUse {
 }
 
 impl CanonicalCallingSignature {
+    /// Publish the canonical geometry and its validated plan without attaching
+    /// Source correspondence. Callback custody is retained, not admitted here.
+    pub fn native_application(
+        self,
+        validated: &ValidatedBoundaryEntryPlan,
+        dispatch_only_parameter_count: u32,
+    ) -> Result<BoundaryCallingApplication, String> {
+        let CallingPolicySignature {
+            target,
+            geometry,
+            callbacks,
+        } = self.policy;
+        let mut application = BoundaryCallingApplication {
+            abi: self.abi,
+            requirement_identity: self.requirement_identity,
+            target,
+            report_fingerprint: 0,
+            commitment: [0; 32],
+            plan: validated.clone(),
+            dispatch_only_parameter_count,
+            signature: geometry,
+            opaque_applications: self
+                .opaque_uses
+                .into_iter()
+                .map(|occurrence| BoundaryOpaqueApplication {
+                    shape_root: occurrence.shape_root,
+                    application_report_fingerprint: occurrence
+                        .application
+                        .application_report_fingerprint,
+                    selected_application_commitment: occurrence
+                        .application
+                        .selected_application_commitment,
+                    conformance_application_commitment: occurrence
+                        .application
+                        .conformance_application_commitment,
+                    representation_schema_version: occurrence.application.schema_version,
+                    checked_semantic_copy: matches!(
+                        occurrence.application.copy_disposition,
+                        OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+                    ),
+                })
+                .collect(),
+            callback_context: callbacks,
+            callback_context_closed: false,
+        };
+        application.commitment = application.recomputed_commitment()?;
+        application.report_fingerprint = callback_nominal_report_fingerprint(
+            b"omega.boundary-plan-application-report.v3",
+            &[&application.commitment],
+        );
+        Ok(application)
+    }
+
     /// Project an exact declaration application, including dormant declarations
     /// requested by a policy that have no emitted boundary invocation.
     pub fn materialize(

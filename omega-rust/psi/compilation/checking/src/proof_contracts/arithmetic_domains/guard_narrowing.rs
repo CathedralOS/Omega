@@ -596,7 +596,7 @@ pub(super) fn narrow_environment_by_comparison(
         _ => None,
     };
     if positive && let Some(subject) = membership_subject {
-        case_facts::contribute_case_where_facts(
+        case_facts::contribute_case_requirements(
             program,
             machine,
             state,

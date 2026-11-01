@@ -19,6 +19,7 @@ use terminal_psi::{TerminalCallbackApplication, TerminalModule};
 /// on decoded artifacts; unselected candidates create no placement demand.
 pub fn settle_native_callback_placements(
     module: &TerminalModule,
+    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
     selected: &effects::SelectedProviderPlanFacts,
     calling: &[BoundaryCallingApplication],
 ) -> Result<Vec<NativeCallbackPlacement>, String> {
@@ -67,6 +68,8 @@ pub fn settle_native_callback_placements(
         let inbound_boundary = application
             .boundary
             .ok_or("admitted callback lost its exact inbound declaration")?;
+        let inbound_boundary =
+            crate::optimization::selected_calling_boundary(module, targets, inbound_boundary)?;
         let inbound = calling_application(
             calling,
             &module.calling_abi_identity(inbound_boundary)?,
@@ -75,7 +78,11 @@ pub fn settle_native_callback_placements(
         if inbound.dispatch_only_parameter_count != 0 {
             return Err("callback inbound entry cannot omit dispatch-only formals".into());
         }
-        let registrar_abi = module.calling_abi_identity(boundary)?;
+        // Selection and occurrence custody retain the portable head above;
+        // only ABI and telescope formation use its admitted physical member.
+        let registrar_boundary =
+            crate::optimization::selected_calling_boundary(module, targets, boundary)?;
+        let registrar_abi = module.calling_abi_identity(registrar_boundary)?;
         let selected_calling = selected_plan
             .schema
             .calling_application(&registrar_abi)
@@ -86,7 +93,7 @@ pub fn settle_native_callback_placements(
         let inbound_telescope =
             TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
         let registrar_telescope =
-            TerminalCallingTelescope::for_application(module, boundary, registrar)?;
+            TerminalCallingTelescope::for_application(module, registrar_boundary, registrar)?;
         let entry_parameters = inbound_telescope
             .parameters
             .iter()

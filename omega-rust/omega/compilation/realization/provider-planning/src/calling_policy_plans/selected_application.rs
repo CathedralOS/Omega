@@ -205,11 +205,16 @@ pub(crate) struct SelectedCallingApplications<'catalog> {
 /// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
     services: ServiceCatalog<'_>,
-    native_target: target::NativeTarget,
+    profile: target::TargetProfile,
     program: &super::CallingProgram,
     providers: &[&crate::SelectedProviderReviewProvenance],
     explicit: &[super::BoundaryCallingPlanRealization],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    let native_target = profile.native_realization().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "component calling application target has no native realization",
+        )]
+    })?;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
     for provider in providers {
         let plan = &provider.plan;
@@ -221,11 +226,11 @@ pub fn component_calling_applications(
         }) {
             continue;
         }
-        let profile = target::TargetProfile::from_canonical_target_name(&plan.target)
+        let plan_profile = target::TargetProfile::from_canonical_target_name(&plan.target)
             .map_err(|error| vec![error])?;
         let layout_target = layout::LayoutTarget::for_profile(profile)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if layout_target.native_target() != native_target {
+        if plan_profile != profile || layout_target.native_target() != native_target {
             return Err(vec![Diagnostic::error(
                 "component ABI request names another selected native target",
             )]);

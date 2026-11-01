@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
+use super::super::{Elaboration, verify_bounded_certificate_with_machine_parameters};
 use super::Law;
 use crate::mathematical_core::Term;
 use crate::{
@@ -229,7 +229,7 @@ fn negative_multiplier_fixture() -> Fixture {
 /// only the fixed law roster, interned numeral equations and the cited
 /// premises/axioms close the assumption set.
 fn check(fixture: &Fixture, laws: &[Law]) {
-    verify_bounded_certificate_on_current_thread(
+    verify_bounded_certificate_with_machine_parameters(
         &fixture.context,
         &fixture.goal,
         &fixture.premises,
@@ -405,7 +405,7 @@ fn forbidden_roots_rejects_mutated_conclusion() {
         },
     };
     assert!(matches!(
-        verify_bounded_certificate_on_current_thread(
+        verify_bounded_certificate_with_machine_parameters(
             &fixture.context,
             &proof.conclusion,
             &fixture.premises,
@@ -434,7 +434,7 @@ fn forbidden_roots_rejects_mutated_witness() {
     drifted.dividend.steps[0].definition_axiom = 3;
     let proof = proof_node!(fixture.goal.clone() => ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted });
     assert!(
-        verify_bounded_certificate_on_current_thread(
+        verify_bounded_certificate_with_machine_parameters(
             &fixture.context,
             &fixture.goal,
             &fixture.premises,

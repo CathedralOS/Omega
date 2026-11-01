@@ -780,7 +780,7 @@ pub fn settle_checked_providers(
     let component_calling_applications =
         crate::calling_policy_plans::component_calling_applications(
             services,
-            provider_selection_target,
+            planning_target.unwrap_or_else(target::TargetProfile::host),
             &calling_program,
             &component_providers,
             &boundary_calling_plan_realizations,

@@ -51,16 +51,20 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     // Derive this source-only projection from the original compiler program;
     // ordinary native products obtain their associations from Terminal instead.
     let selected_instances = selected_execution.provider_source.project_instances()?;
+    // Every selected plan reads this capture's same declaration vocabulary.
+    // Reuse it across plans; each signature still receives fresh mutable tables.
+    let mut signatures = services::SignatureProjection::new(*compilation);
     let mut plans = selected_execution
         .selected_provider_provenance
         .as_slice()
         .iter()
         .enumerate()
         .map(|(index, retained)| {
-            project_plan(compilation, target, retained, &selected_instances)
+            project_plan(&mut signatures, target, retained, &selected_instances)
                 .map(|plan| (index, plan))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    drop(signatures);
     plans.sort_by(|(_, left), (_, right)| left.compare_canonical(right));
     // Row-local substitution checks cannot justify a circular collection of
     // mutually asserted rows. Require grounded checked dependency paths before
@@ -100,11 +104,13 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
 }
 
 fn project_plan(
-    compilation: &PackageReviewInput<'_>,
+    signatures: &mut services::SignatureProjection<'_>,
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
     selected_instances: &effects::SelectedProviderPlanFacts,
 ) -> Result<PackagePolicyProviderPlan, Vec<Diagnostic>> {
+    let input = signatures.input();
+    let compilation = &input;
     let selected_execution = compilation.custody.execution();
     let plan = &retained.plan;
     // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
@@ -147,7 +153,6 @@ fn project_plan(
         None => return Err(rejected("provider type has no exact declaration")),
     }
     let mut methods = Vec::with_capacity(plan.schema.declaration.methods.len());
-    let mut signatures = services::SignatureProjection::new(*compilation);
     for method in &plan.schema.declaration.methods {
         let matching_rows = plan
             .rows
@@ -168,7 +173,7 @@ fn project_plan(
             ));
         };
         methods.push(services::project(
-            &mut signatures,
+            signatures,
             &plan.schema,
             retained.provider.schema,
             retained.provider.provider_type,

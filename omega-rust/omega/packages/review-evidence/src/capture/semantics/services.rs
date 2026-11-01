@@ -116,7 +116,7 @@ fn project_inner(
         Vec::new()
     } else {
         calling::project(
-            compilation,
+            projection,
             schema,
             provider_type,
             requirement,
