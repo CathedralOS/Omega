@@ -350,11 +350,13 @@ impl ExitScalars<'_, '_> {
                 entry,
                 bound,
             )?;
-            stage = "endpoint carrier or return stability";
-            if exact_integer_carrier(self.program, bound_type)? != primitive
-                || !self
-                    .return_expression_is_stable(exit_return_expression(self.program, self.exit))
-            {
+            stage = "endpoint carrier";
+            let bound_carrier = exact_integer_carrier(self.program, bound_type)?;
+            if bound_carrier != primitive {
+                return None;
+            }
+            stage = "return stability";
+            if !self.return_expression_is_stable(exit_return_expression(self.program, self.exit)) {
                 return None;
             }
             // The return may await target closure even when its comparison endpoint
