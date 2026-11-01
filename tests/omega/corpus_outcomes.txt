@@ -270,6 +270,9 @@ fail/facts/dynamic_float_input_alias_through_parameter_weakened_input rejected 5
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_target_body_weakened_input rejected 5124ms expected @da76dcbec7ab
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/foreign_retained_shared_borrow_wrapper_redemption rejected 2135ms expected @dadce3a3cb48
+	callable `Reader::redeem_wrapper` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Reader::redeem_wrapper` returns content-bearing custody `Pending::Retained` sourced only from borrowed parameter `pending` through a structural field; retained-after-return authority requires a consumed owned input
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
 	machine `step` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
 	machine `step$specialized$47e79a86f727bf08$0` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
@@ -3162,6 +3165,8 @@ pass/core/content_conservation_wrapper_shared_result_exit checked 12892ms check-
 pass/core/content_counted_partition_exit checked 4525ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/content_membership_return checked 4312ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/content_membership_return_boundary_crossing checked 2483ms @ccdb99ca2214
+pass/core/content_owned_field_in_bare_family checked 2005ms @dadce3a3cb48
+pass/core/content_owned_sibling_in_loan_carrier checked 1793ms @dadce3a3cb48
 pass/core/content_projection_exact_integer_arithmetic checked 2330ms @ccdb99ca2214
 pass/core/content_projection_readable_reference_observation checked 2354ms @ccdb99ca2214
 pass/core/content_projection_signed_integer_cancellation checked 2974ms @ccdb99ca2214
@@ -5890,7 +5895,7 @@ pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 4938ms
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 4973ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 4617ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_retained_shared_borrow_shared_aliases checked 4411ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_retained_shared_borrow_target_body checked 3841ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/foreign_retained_shared_borrow_target_body checked 3361ms check-target:macos_arm64 @dadce3a3cb48
 pass/facts/foreign_scalar_backing_through_call_result_exit checked 2549ms check-target:macos_arm64 @9964870962c4
 pass/facts/foreign_scalar_backing_through_const_name_exit checked 2511ms check-target:macos_arm64 @9964870962c4
 pass/facts/foreign_scalar_backing_through_field_exit checked 2654ms check-target:macos_arm64 @9964870962c4
@@ -22512,7 +22517,7 @@ fail/facts/foreign_retained_shared_borrow_retained_escape rejected 2478ms expect
 	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 3347ms expected @ccdb99ca2214
 	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
-fail/facts/foreign_retained_shared_borrow_target_body rejected 3399ms expected @ccdb99ca2214
+fail/facts/foreign_retained_shared_borrow_target_body rejected 2253ms expected @dadce3a3cb48
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_scalar_backing_through_call_result_rejected rejected 1492ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
