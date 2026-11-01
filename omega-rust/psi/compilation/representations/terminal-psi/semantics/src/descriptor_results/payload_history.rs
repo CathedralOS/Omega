@@ -90,12 +90,14 @@ impl Ord for SharedPremise {
 }
 
 /// Published premise handles and their lazily materialized public contract.
-/// The cache has no semantic identity. A writer invalidates it before changing
-/// any row; unchanged readers share one complete proposition allocation.
+/// The cache has no semantic identity and owns no expanded proposition trees.
+/// Simultaneous readers share their complete theory; dropping the last reader
+/// releases it even while earlier replay cuts retain their prepared handles.
+/// A writer invalidates the weak cache before changing any row.
 #[derive(Default)]
 struct PremiseRoster {
     rows: Vec<SharedPremise>,
-    materialized: std::sync::OnceLock<Arc<Vec<semantic_vocabulary::Proposition>>>,
+    materialized: std::sync::Mutex<std::sync::Weak<Vec<semantic_vocabulary::Proposition>>>,
 }
 impl From<Vec<SharedPremise>> for PremiseRoster {
     fn from(rows: Vec<SharedPremise>) -> Self {
@@ -124,20 +126,28 @@ impl std::ops::Deref for PremiseRoster {
 }
 impl PremiseRoster {
     fn rows_mut(&mut self) -> &mut Vec<SharedPremise> {
-        self.materialized.take();
+        *self
+            .materialized
+            .get_mut()
+            .expect("payload premise cache poisoned") = std::sync::Weak::new();
         &mut self.rows
     }
     fn materialized(&self) -> Arc<Vec<semantic_vocabulary::Proposition>> {
-        self.materialized
-            .get_or_init(|| {
-                Arc::new(
-                    self.rows
-                        .iter()
-                        .map(|premise| premise.as_ref().clone())
-                        .collect(),
-                )
-            })
-            .clone()
+        let mut cache = self
+            .materialized
+            .lock()
+            .expect("payload premise cache poisoned");
+        if let Some(theory) = cache.upgrade() {
+            return theory;
+        }
+        let theory = Arc::new(
+            self.rows
+                .iter()
+                .map(|premise| premise.as_ref().clone())
+                .collect(),
+        );
+        *cache = Arc::downgrade(&theory);
+        theory
     }
 }
 
@@ -1772,6 +1782,22 @@ mod tests {
             ScalarTerm::Boolean(true),
             ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
         )
+    }
+
+    #[test]
+    fn published_roster_does_not_retain_a_readers_expanded_theory() {
+        let roster: PremiseRoster = vec![SharedPremise::new(condition(1))].into();
+        let first = roster.materialized();
+        let second = roster.materialized();
+        assert!(Arc::ptr_eq(&first, &second));
+        let lifetime = Arc::downgrade(&first);
+        drop(first);
+        assert!(lifetime.upgrade().is_some());
+        drop(second);
+        assert!(lifetime.upgrade().is_none());
+        // The immutable prepared theory remains complete after its disposable
+        // expansion is reclaimed, including queries of earlier retained cuts.
+        assert_eq!(roster.materialized().as_slice(), &[condition(1)]);
     }
 
     #[test]
