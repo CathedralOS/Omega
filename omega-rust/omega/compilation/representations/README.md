@@ -52,7 +52,7 @@ roots rather than treating its name as one undifferentiated IR:
 | --- | --- |
 | Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/machine_code/encoding.rs), produced by [stage 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/selected_form_encoding.rs) from the post-allocation machine and selected-program roots. |
 | Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/machine_code/layout.rs), produced by [stage 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout.rs) from encoded forms. [Stage 09](../pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs) optimizes the same layout type. |
-| Emitted machine-code program | [`MachineCodePlan`](machine-code/src/machine_code.rs), containing target functions and their executable bytes and replay records. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
+| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/machine_code/fragments/mod.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/machine_code/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
 
 [`ResolvedMachineProgram`](machine-code/src/machine_code/layout/program.rs)
 retains shared selected, allocated, physical, encoding, layout, and frame inputs

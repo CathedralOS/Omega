@@ -2,7 +2,7 @@
 //! append-half of `cursor.rs`. Each helper appends one already-decided wire
 //! value; framing and field order stay with the encoder.
 
-pub(crate) use optimization_core::codec_bytes::{push_encoded, u32_at};
+pub(crate) use optimization_core::codec_bytes::u32_at;
 
 /// Read a u16 little-endian value at `offset`, or None when out of range.
 pub(crate) fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {

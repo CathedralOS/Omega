@@ -52,11 +52,11 @@ pub use fragments::{
     identity, publication,
 };
 pub use functions::{
-    CompilerPrivateMachineCodeFunction, MachineCodeFunction, WholeFunctionCrashEvidence,
-    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
-    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionProcessExitEvidence,
-    WholeFunctionReturnEvidence, WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
+    WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
+    WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
+    WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
+    WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
+    WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
 };
 pub use image_addresses::{
@@ -85,21 +85,6 @@ pub use layout::{
 pub use ownership::*;
 pub use provenance::*;
 pub use storage::*;
-
-use semantic_vocabulary::MachineId;
-use target::NativeTarget;
-use terminal_psi::TerminalPsiIdentity;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineCodePlan {
-    pub psi: TerminalPsiIdentity,
-    pub target: NativeTarget,
-    pub entry: MachineId,
-    /// Identity text every `TerminalIdentityIndex` in this plan resolves
-    /// against; the sealed module table travels with the plan verbatim.
-    pub identities: terminal_psi::TerminalIdentityTable,
-    pub functions: Vec<MachineCodeFunction>,
-}
 
 pub(crate) fn encode_units(
     hasher: &mut crate::digest_encoder::DomainDigestEncoder,
