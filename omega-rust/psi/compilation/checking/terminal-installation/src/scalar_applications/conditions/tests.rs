@@ -1,3 +1,4 @@
+use super::super::ScalarConditionScope;
 use super::*;
 use arena::Arena;
 use numerics::{bignum::BigInt, scalar_predicates::ScalarValue};
@@ -117,7 +118,7 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             false,
             [(boundary, MachineId::new(body).unwrap())],
             &[],
-            None,
+            &ScalarConditionScope::Source,
         )
         .unwrap();
         assert_eq!(selected.ranges(), ranges);
@@ -127,9 +128,16 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             [ScalarApplicationId::new(7).unwrap()]
         );
     }
-    let none =
-        ScalarConditionSelection::select(&scope, &conditions, "macos_arm64", false, [], &[], None)
-            .unwrap();
+    let none = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "macos_arm64",
+        false,
+        [],
+        &[],
+        &ScalarConditionScope::Source,
+    )
+    .unwrap();
     assert_eq!(none.ranges(), [0, 5]);
     assert!(
         ScalarConditionSelection::select(
@@ -139,7 +147,7 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             false,
             [(boundary, MachineId::new(99).unwrap())],
             &[],
-            None
+            &ScalarConditionScope::Source
         )
         .is_err()
     );
@@ -156,7 +164,7 @@ fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_sep
         false,
         [],
         &[],
-        None,
+        &ScalarConditionScope::Source,
     )
     .unwrap();
     assert_eq!(secondary.ranges(), [5]);
@@ -168,7 +176,7 @@ fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_sep
         true,
         [],
         &[pending],
-        None,
+        &ScalarConditionScope::Source,
     )
     .unwrap();
     // The untargeted selected machines are primary seeds; declaration 5 owes
@@ -207,18 +215,79 @@ fn scalar_condition_scope_selects_family_members_without_rooting_other_targets()
         }
     });
     for (target, predicate) in [("macos_arm64", 1), ("windows_x86_64", 2)] {
-        let selected =
-            ScalarConditionSelection::select(&scope, &conditions, target, true, [], &[], None)
-                .unwrap();
+        let selected = ScalarConditionSelection::select(
+            &scope,
+            &conditions,
+            target,
+            true,
+            [],
+            &[],
+            &ScalarConditionScope::Source,
+        )
+        .unwrap();
         assert_eq!(selected.predicates(), [predicate, 5]);
         assert!(
             !selected.predicates().contains(&0),
             "family head is not a selected body"
         );
     }
-    let unavailable =
-        ScalarConditionSelection::select(&scope, &conditions, "linux_arm64", false, [], &[], None)
-            .unwrap();
+    let unavailable = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "linux_arm64",
+        false,
+        [],
+        &[],
+        &ScalarConditionScope::Source,
+    )
+    .unwrap();
     assert_eq!(unavailable.predicates(), [5]);
     assert_eq!(unavailable.ranges(), [5]);
+}
+
+#[test]
+fn entry_admission_retains_module_and_reached_debts_without_certifying_product_formation() {
+    let (scope, mut conditions) = fixture();
+    for owner in [2, 4, 5] {
+        conditions.retain_completion(
+            ScalarConditionSubject::Declaration(ProofDeclarationId(owner)),
+            ScalarApplicationId::new(u64::from(owner)).unwrap(),
+        );
+    }
+    let roots = [ProofDeclarationId(2)];
+    let select = |scope_kind| {
+        ScalarConditionSelection::select(
+            &scope,
+            &conditions,
+            "windows_x86_64",
+            true,
+            [],
+            &[],
+            &scope_kind,
+        )
+        .unwrap()
+    };
+    let mut entry = select(ScalarConditionScope::Invocation(roots.to_vec()));
+    // Entry 2 reaches declaration 4. Unrelated ground declaration 5 remains
+    // owed by the Product and the Module predicate stays owed by both.
+    assert_eq!(entry.ranges(), [1, 3, 5]);
+    assert_eq!(entry.predicates(), [1, 5]);
+    assert_eq!(entry.completions(), [0, 1]);
+    let product = select(ScalarConditionScope::SourceRoots(roots.to_vec()));
+    assert!(product.ranges().contains(&4));
+    assert_eq!(product.completions(), [0, 1, 2]);
+
+    // A discovered scalar job is an actual new entry. Its ordinary helper debt
+    // joins the same ledger without admitting unrelated Product declarations.
+    entry
+        .include_evaluation_entry(MachineId::new(3).unwrap())
+        .unwrap();
+    let mut predicates = entry.predicates().to_vec();
+    predicates.sort_unstable();
+    assert_eq!(predicates, [1, 2, 5]);
+    assert!(!entry.ranges().contains(&4));
+    assert_eq!(
+        entry.scope(),
+        &ScalarConditionScope::Invocation(roots.to_vec())
+    );
 }

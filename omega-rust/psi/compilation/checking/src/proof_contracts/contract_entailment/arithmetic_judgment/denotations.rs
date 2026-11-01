@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// A mathematical denotation, not a formation certificate. The consumer owns
 /// the proof that this value exists and any bounds it retains after effects.
-pub(in crate::proof_contracts::contract_entailment) struct IntegerDenotation {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntegerDenotation {
     value: Polynomial,
     operations: Vec<(String, OpaqueTerm)>,
     leaves: Vec<String>,
@@ -28,7 +29,9 @@ impl OpaqueTerm {
             Self::Conditional { arms } => {
                 arms.iter().for_each(|arm| arm.visit_operands(&mut visit))
             }
-            Self::Call { arguments, .. } => arguments.iter().for_each(visit),
+            Self::Call { arguments, .. } => arguments
+                .iter()
+                .for_each(|input| input.visit_values(&mut visit)),
             Self::IntegerPolicy { value, .. } => visit(value),
             Self::Remainder {
                 operand, modulus, ..
@@ -146,7 +149,10 @@ impl Engine<'_> {
                 *owner,
                 *expression,
                 *target,
-                arguments.iter().map(mapped).collect::<Option<Vec<_>>>()?,
+                arguments
+                    .iter()
+                    .map(|input| input.mapped(&mapped))
+                    .collect::<Option<Vec<_>>>()?,
             ),
             OpaqueTerm::IntegerPolicy {
                 primitive,

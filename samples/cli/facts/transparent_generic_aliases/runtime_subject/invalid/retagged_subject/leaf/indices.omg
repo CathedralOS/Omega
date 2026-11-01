@@ -1,0 +1,4 @@
+module indices;
+public data Indexed<Subject: u64> [copy] { value: u64; }
+public data Captured<Index: u64> = Indexed<Index>;
+public data Erased<Index: u64> = u64;

@@ -41,7 +41,6 @@ pub struct ProviderBindingRequest<'a> {
 /// validation. Native-only source refusals remain deferred until that handoff.
 pub fn prepare_selected_execution(
     program: Arc<CheckedProgram>,
-    accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     if !Arc::ptr_eq(settlement.provider_inventory.program(), &program) {
@@ -61,9 +60,9 @@ pub fn prepare_selected_execution(
         .iter()
         .map(provider_planning::ProviderPlanCandidate::plan)
         .collect::<Vec<_>>();
-    if settlement.package_inputs.is_some() {
+    if settlement.package_inputs.is_some() && !settlement.root_grants.is_empty() {
         trust_model::reject_package_non_provider_grants(
-            &program.typed,
+            settlement.provider_inventory.trust_declarations(),
             settlement.root_grants,
             &provider_plans,
             &settlement.selected_provider_plan_facts,
@@ -207,7 +206,6 @@ pub fn prepare_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         selected_provider_grants,
         callback_roots,
-        accepted_template_classifications,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings,
     })

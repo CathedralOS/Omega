@@ -182,6 +182,16 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
+The [multi-target observation fixture](omega/compilation/driver/tests/README.md#shared-multi-target-pipeline-observations)
+records actual native coordinator invocations by exact target profile. Each
+application retains entry counts for Omega 00–09 and fragment/image emission
+attempts, including the entered prefix of a failed invocation. Independently
+admitted callable bodies remain separate observed units. Collection uses the
+existing optional phase profiler and supplies no semantic or admission input.
+The fixture also checks shared Terminal allocation, single-target byte equality,
+and native/reloaded-Terminal execution. Its source/Build/publication counters
+remain coarse observations; full numbered source/Psi invocation acceptance is
+still open.
 Composition admission runs once per application, after canonical publication.
 Psi projects ordered entry, callback and physical-adapter roots with deferred
 source diagnostics, and retains their pre-optimization semantic operations in
@@ -1128,7 +1138,10 @@ equality rejoins the projection's clone; report hashes or source pointers cannot
 replace it. Missing preparation refuses a nonempty use roster, while a completed
 empty selection remains valid. Registration failures
 suppress only that occurrence's plan diagnostics. Selected roots borrow the same
-identity table in occurrence order. The application carries exact declarations,
+identity table in occurrence order. Terminal Psi owns the prepared root records
+and their exact retained-body join; its constructor refuses invocation-local
+declaration owners before those records cross into Omega. Psi projects the
+requests and diagnostic associations. The application carries exact declarations,
 not callback source symbols. Composition rejoins each complete
 owner/signature/contract/specialization to exactly one unoptimized body, lazily
 after the semantic entry and before the physical adapter. Unavailable declarations
@@ -1198,10 +1211,15 @@ backend entry plans and image emission consume the completed signature. The
 initial source-aware selection and planning remain migration work.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
-owns trust obligation reconstruction and admission, consuming source
-judgments and selected-provider evidence. The CLI supplies policy admissions;
-the compiler sequences admission. Its checked-tree input remains a transitional
-boundary. Host file writing and timing have no dependency on these semantics.
+owns trust obligation reconstruction and admission over source-free Psi
+declarations and selected-provider evidence. Psi's immutable provider inventory
+publishes every eligible accepted-machine declaration with exact template and
+contract commitments; absent or duplicate evidence remains deferred until the
+corresponding grant needs it. Package admission and final reconstruction borrow
+that same roster. The workspace dependency guard rejects typed/checked source
+reachability from this owner. The roster remains invocation-owned; complete
+canonical publication and source-discard replay are still required. Host file
+writing and timing have no dependency on these semantics.
 
 `omega/packages/package-manager/` owns package operations. Independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates are

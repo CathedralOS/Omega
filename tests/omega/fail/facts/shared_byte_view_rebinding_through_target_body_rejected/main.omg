@@ -1,37 +1,56 @@
 // Expected exit: 0
 // Rebinding a shared byte-view parameter retains its declared descriptor identity and observes replacement backing without mutating either backing.
 machine identity<'storage>(view: &'storage [u8]) -> &'storage [u8] requires view.len == 1 ensures result.len == 1 { view }
-windows_x86_64 machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
-requires selected.len == 1 && replacement.len == 1 {
-    selected = replacement;
-    selected = replacement;
-    selected[0] = 99;
-    selected[0]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
-requires selected.len == 1 && replacement.len == 1 {
-    selected = replacement;
-    selected = replacement;
-    selected[0] = 99;
-    selected[0]
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
-requires selected.len == 1 && replacement.len == 1 {
-    selected = replacement;
-    selected = replacement;
-    selected[0] = 99;
-    selected[0]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
-requires selected.len == 1 && replacement.len == 1 {
-    selected = replacement;
-    selected = replacement;
-    selected[0] = 99;
-    selected[0]
+boundary trait SelectedReplace {
+    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1;
 }
+
+X86Replace satisfies SelectedReplace {
+    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        selected = replacement;
+        selected = replacement;
+        selected[0] = 99;
+        selected[0]
+    }
+}
+
+ArmReplace satisfies SelectedReplace {
+    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        selected = replacement;
+        selected = replacement;
+        selected[0] = 99;
+        selected[0]
+    }
+}
+
+
 machine finish(observed: u8, original: &[u8], replacement: &[u8]) crashes Trap
 requires original.len == 1 && replacement.len == 1 {
     transition observed == 29 && original[0] == 5 && replacement[0] == 29 {
@@ -44,6 +63,14 @@ requires original.len == 1 && replacement.len == 1 {
 machine main() crashes Trap {
     let original: [u8; 1] = [5];
     let replacement: [u8; 1] = [29];
-    let observed: u8 = replace(&original[..], &replacement[..]);
+    let observed: u8 = SelectedReplace::replace(&original[..], &replacement[..]);
     finish(observed, &original[..], &replacement[..]);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

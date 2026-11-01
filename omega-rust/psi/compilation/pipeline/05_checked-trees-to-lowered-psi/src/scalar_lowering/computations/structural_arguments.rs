@@ -9,7 +9,7 @@ use crate::emission::operation_emission::calls::PreparedStructuralArgument;
 pub(super) fn lower(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    source_call: arena::Handle<checked_trees::FlowCallFact>,
+    source_call: Option<arena::Handle<checked_trees::FlowCallFact>>,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
@@ -38,6 +38,14 @@ pub(super) fn lower(
             let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 return unsupported("computed constructor did not retain its structural value");
             };
+            // Declaration inputs are authenticated whole entry copies. They
+            // bind the same owned parameter home as ordinary calls, but cannot
+            // acquire a statement's loan or anonymous temporary reservation.
+            if source_call.is_none() && (argument.access != checked_trees::CheckedStructuralAccess::Owned
+                || !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }))
+            {
+                return unsupported("declaration input lacks the required loan or temporary custody");
+            }
             if argument.type_identity != parameter.type_identity
                 || argument.access != parameter.access
                 || !matches!(
@@ -53,7 +61,7 @@ pub(super) fn lower(
             }
             if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
                     let slot = produced_values.iter().find(|slot| {
-                        slot.source_call == source_call && slot.argument_ordinal == Some(argument_ordinal)
+                        source_call.is_some_and(|source| slot.source_call == source) && slot.argument_ordinal == Some(argument_ordinal)
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
@@ -72,7 +80,7 @@ pub(super) fn lower(
             }
             if let Some(bytes) = literals::source_bytes(argument) {
                 let slot = literals.iter().find(|slot| {
-                    slot.source_call == source_call
+                    source_call.is_some_and(|source| slot.source_call == source)
                         && slot.argument_ordinal == argument_ordinal
                         && slot.literal.bytes.as_slice() == bytes
                 }).ok_or(LoweringError::Unsupported("computed literal has no reserved place"))?;

@@ -8,6 +8,7 @@
 //! callee bodies and a matching carrier cannot donate a source observation.
 
 use super::observed_projections::project_observed_value;
+use crate::frozen_program::CheckingQuery;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixVisitor, observe_runtime_state_prefix,
@@ -580,39 +581,6 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
     }
 }
 
-// A population walk can itself consult this same query for another
-// statement or machine. Track the machines already populating on this
-// thread; a nested request for one of them keeps the ordinary
-// per-occurrence path, never a provisional verdict from an unfinished
-// population.
-std::thread_local! {
-    static ACTIVE_COMPLETED_CASE_POPULATIONS: std::cell::RefCell<Vec<SymbolHandle>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
-struct CompletedCasePopulation;
-
-impl CompletedCasePopulation {
-    fn enter(machine: SymbolHandle) -> Option<Self> {
-        ACTIVE_COMPLETED_CASE_POPULATIONS.with(|active| {
-            let mut active = active.borrow_mut();
-            if active.contains(&machine) {
-                return None;
-            }
-            active.push(machine);
-            Some(Self)
-        })
-    }
-}
-
-impl Drop for CompletedCasePopulation {
-    fn drop(&mut self) {
-        ACTIVE_COMPLETED_CASE_POPULATIONS.with(|active| {
-            active.borrow_mut().pop();
-        });
-    }
-}
-
 /// Every completed-case occurrence in `machine`'s states is enumerable from
 /// the statement shapes the default-domain walkers consume. One prefix pass
 /// per state answers them all; each verdict (including "no proven case") is
@@ -720,9 +688,10 @@ pub(crate) fn completed_value_case_at_occurrence(
                 .lock()
                 .map(|populated| populated.contains_key(&machine.symbol))
                 .unwrap_or(false)
-            && let Some(_population) = CompletedCasePopulation::enter(machine.symbol)
+            && let Some(population) =
+                CheckingQuery::completed_case_population(program, machine.symbol)
         {
-            populate_machine_completed_cases(program, machine, memos);
+            populate_machine_completed_cases(&population, machine, memos);
             cached = memos
                 .completed_case_outcomes
                 .lock()

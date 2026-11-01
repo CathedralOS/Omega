@@ -103,7 +103,7 @@ pub(crate) use boundary_admission::{
 pub(in super::super) use call_operations::ExpectedCallValueResult;
 pub(in super::super) use call_operations::build_call_operation;
 pub(crate) use computation_arguments::{
-    structural_computation_argument, subslice_computation_argument,
+    owned_argument, structural_computation_argument, subslice_computation_argument,
 };
 pub(crate) use signatures::{
     ambient_self_scalar_signature, entry_claims, free_structural_scalar_entry_signature_traced,

@@ -4,12 +4,13 @@
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
-public data ClockProbe { }
-public boundary requirement ClockProbe::read(selector: u32) -> u64;
-public boundary requirement ClockProbe::read_other(selector: u32) -> u64;
-public boundary requirement ClockProbe::wait_unit(pointer: u64, count: u64, milliseconds: i32);
-public boundary requirement ClockProbe::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32;
-public boundary requirement ClockProbe::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32;
+public boundary trait ClockProbe {
+    machine read(selector: u32) -> u64 reaches invokes LinuxClockRead;
+    machine read_other(selector: u32) -> u64 reaches invokes LinuxClockRead;
+    machine wait_unit(pointer: u64, count: u64, milliseconds: i32) reaches;
+    machine wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32 reaches;
+    machine wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32 reaches;
+}
 data ClockImports { }
 
 macos_arm64 machine clock_binding() -> ForeignBinding<26, 22, 0> {
@@ -68,8 +69,9 @@ machine main() crashes Trap {
 // Linux supplies the same two scalar clock operations through one admitted
 // timespec import. Darwin's 6/8 monotonic selectors map to CLOCK_MONOTONIC=1.
 data LinuxInstant { seconds: i64; nanoseconds: i64; }
-data LinuxClockRead {}
-boundary requirement LinuxClockRead::read(selector: u32, instant: &mut LinuxInstant) -> i32;
+boundary trait LinuxClockRead {
+    machine read(selector: u32, instant: &mut LinuxInstant) -> i32 reaches;
+}
 
 linux_x86_64 machine linux_clock_binding() -> ForeignBinding<9, 13, 10> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {

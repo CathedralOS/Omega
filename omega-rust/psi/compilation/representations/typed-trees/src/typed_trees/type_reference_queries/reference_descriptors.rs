@@ -23,10 +23,6 @@ impl TypedTrees {
                 | TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => return Some(1),
-                // Legacy consumers still disagree on nominal `string` versus
-                // their spelling-based unsized text form. Do not certify a
-                // descriptor until that ambiguity has an identity-based owner.
-                TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => return None,
                 TypeReferenceNode::Named { symbol, .. }
                 | TypeReferenceNode::Generic {
                     base_symbol: symbol,
@@ -149,7 +145,7 @@ mod tests {
             None
         );
         let string = named(&mut program, string, "string");
-        assert_eq!(program.reference_descriptor_word_count(string), None);
+        assert_eq!(program.reference_descriptor_word_count(string), Some(1));
         let unresolved = named(&mut program, SymbolHandle::invalid(), "string");
         assert_eq!(program.reference_descriptor_word_count(unresolved), None);
         let fake_slice = named(&mut program, fake_slice, "Slice");

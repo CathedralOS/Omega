@@ -86,3 +86,15 @@ The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for locals and arguments, basic blocks lay out with short/near branch relaxation and offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi and native execution agree with exit 0 (`omega run --both`) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 - **What remains open:** Bounded products involving signed operands with mixed positive/negative ranges (`[-50, 50]`), dynamic interval width bounds parameterized by runtime variables, and multi-factor product chains.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

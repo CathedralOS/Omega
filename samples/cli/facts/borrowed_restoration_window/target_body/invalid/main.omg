@@ -6,26 +6,53 @@ data Cell {
     value: u64;
 }
 
-linux_x86_64 machine write_cell(cell: &mut Cell) {
-    cell.value = 100u64;
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine write_cell(cell: &mut Cell) {
-    cell.value = 100u64;
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine write_cell(cell: &mut Cell) {
-    cell.value = 100u64;
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine write_cell(cell: &mut Cell) {
-    cell.value = 100u64;
+boundary trait SelectedWriteCell {
+    machine write_cell(cell: &mut Cell)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86WriteCell satisfies SelectedWriteCell {
+    machine write_cell(cell: &mut Cell)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        cell.value = 100u64;
+    }
+}
+
+ArmWriteCell satisfies SelectedWriteCell {
+    machine write_cell(cell: &mut Cell)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        cell.value = 100u64;
+    }
 }
 
 machine main() crashes Trap {
     let mut cell: Cell = Cell { value: 0u64 };
     let held: &mut Cell = &mut cell;
-    write_cell(&mut cell);
+    SelectedWriteCell::write_cell(&mut cell);
     held.value = 99u64;
     let val: u64 = cell.value;
     transition val >= 100u64 && val <= 100u64 {
@@ -38,4 +65,12 @@ machine main() crashes Trap {
     machine bad() {
         crash Trap;
     }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

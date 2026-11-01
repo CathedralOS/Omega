@@ -103,7 +103,7 @@ pub fn admit_selected_checked_providers(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[TerminalTargetProviderPlan],
 ) -> Result<terminal_installation::AdmittedProviderSelections, String> {
-    require_selected_declarations(selected, declarations)?;
+    require_selected_provider_declarations(selected, declarations)?;
     let mut supplied = Vec::new();
     for matched in selected_checked_candidates(declarations, artifact.module())? {
         supplied.extend(matched.installations());
@@ -292,7 +292,7 @@ pub fn close_checked_provider_specializations(
     declarations: &[TerminalTargetProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<effects::SelectedProviderPlanFacts, String> {
-    require_selected_declarations(&selected, declarations)?;
+    require_selected_provider_declarations(&selected, declarations)?;
     let selected = selected.without_checked_specializations();
     let mut rows = selected.specialized_requirement_rows().to_vec();
     let mut identities = selected.identities().clone().into_builder();
@@ -329,7 +329,9 @@ pub fn close_checked_provider_specializations(
     selected.with_specialized_requirement_rows(rows, &identities.build())
 }
 
-fn require_selected_declarations(
+/// Join whole selected plans to their exact declaration roster.
+/// Display names in diagnostics never participate in this comparison.
+pub fn require_selected_provider_declarations(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[TerminalTargetProviderPlan],
 ) -> Result<(), String> {
@@ -342,9 +344,28 @@ fn require_selected_declarations(
                 != 1
         })
     {
-        return Err(
-            "native provider declaration roster differs from the complete selected plans".into(),
-        );
+        let unmatched = selected
+            .plans()
+            .iter()
+            .filter(|plan| {
+                declarations
+                    .iter()
+                    .filter(|declaration| &declaration.plan == *plan)
+                    .count()
+                    != 1
+            })
+            .map(|plan| plan.name.as_str())
+            .collect::<Vec<_>>();
+        let extra = declarations
+            .iter()
+            .filter(|declaration| !selected.plans().contains(&declaration.plan))
+            .map(|declaration| declaration.plan.name.as_str())
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "native provider declaration roster differs from the complete selected plans: {} plans, {} declarations; without unique exact declaration: {unmatched:?}; unselected declarations: {extra:?}",
+            selected.plans().len(),
+            declarations.len(),
+        ));
     }
     Ok(())
 }
@@ -408,6 +429,19 @@ fn selected_checked_candidates<'plan, 'terminal>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
+                        // The portable catalog retains every member of the
+                        // remaining legacy families. A target-keyed plan joins
+                        // only its exact member before checking uniqueness;
+                        // other targets are not competing implementations.
+                        && module.target_machine_families.iter().all(|family| {
+                            let callable = terminal_psi::TargetMachineCallable::Machine(
+                                candidate.candidate,
+                            );
+                            !family.members.iter().any(|member| member.callable == callable)
+                                || family.members.iter().any(|member| {
+                                    member.target == plan.target && member.callable == callable
+                                })
+                        })
                 })
                 .collect::<Vec<_>>();
             // A template can supply many distinct closed requirements, never
@@ -419,7 +453,21 @@ fn selected_checked_candidates<'plan, 'terminal>(
             requirements.sort();
             if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
                 return Err(format!(
-                    "selected provider requirement `{requirement}` has duplicate canonical realizations"
+                    "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
+                    matching
+                        .iter()
+                        .map(|candidate| (
+                            candidate.candidate,
+                            module.identities.text(candidate.candidate_identity),
+                            module
+                                .machine(candidate.candidate)
+                                .and_then(|machine| machine.declaration.as_ref())
+                                .and_then(|declaration| module
+                                    .identities
+                                    .text(declaration.semantic_declaration)),
+                            module.identities.text(candidate.receiving_application),
+                        ))
+                        .collect::<Vec<_>>()
                 ));
             }
             selections.push(SelectedCheckedCandidate {

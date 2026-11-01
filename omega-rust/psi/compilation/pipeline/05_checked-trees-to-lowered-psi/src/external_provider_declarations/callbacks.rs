@@ -6,7 +6,6 @@
 
 use crate::PreparedTerminalRoots;
 use crate::machine_lowering::declarations;
-use crate::prepared_terminal_roots::{PreparedRoot, RootDeclaration};
 use checked_trees::CheckedTrees;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -14,6 +13,7 @@ use terminal_psi::{
     CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,
     CallbackEntryResources, CallbackRequirementDeclaration, CallbackRequirementId,
     CallbackUseDeclaration, CallbackUseId, TerminalIdentityTable, TerminalIdentityTableBuilder,
+    TerminalRootDeclaration, TerminalRootRequest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,42 +185,22 @@ impl PreparedCallbackDeclarations {
         identities: Arc<TerminalIdentityTable>,
         selected: impl IntoIterator<Item = CallbackUseId>,
     ) -> PreparedTerminalRoots {
-        let mut roots = arena::Arena::new();
-        for selected in selected {
+        let requests = selected.into_iter().map(|selected| {
             let usage = self.declarations.uses.get(selected);
             let diagnostic = self
                 .occurrences
                 .iter()
                 .find(|occurrence| occurrence.usage == selected);
-            roots.insert(PreparedRoot {
+            TerminalRootRequest {
                 declaration: match &usage.selected_declaration {
-                    Ok(declaration)
-                        if !identities.is_invocation_local(declaration.machine.identity())
-                            && !identities.is_invocation_local(declaration.state.identity())
-                            && !identities
-                                .is_invocation_local(declaration.semantic_declaration)
-                            && declaration.specialization.as_ref().is_none_or(
-                                |specialization| {
-                                    !identities
-                                        .is_invocation_local(specialization.template.identity())
-                                        && !identities.is_invocation_local(
-                                            specialization.template_semantic_declaration,
-                                        )
-                                },
-                            ) =>
-                    {
-                        RootDeclaration::Available(declaration.clone())
-                    }
-                    Ok(_) => RootDeclaration::Unavailable(
-                        "checked declaration has no exact package or toolchain owner".into(),
-                    ),
-                    Err(reason) => RootDeclaration::Unavailable(reason.clone()),
+                    Ok(declaration) => TerminalRootDeclaration::Available(declaration.clone()),
+                    Err(reason) => TerminalRootDeclaration::Unavailable(reason.clone()),
                 },
                 name: diagnostic.and_then(|diagnostic| diagnostic.name.clone()),
                 span: diagnostic.and_then(|diagnostic| diagnostic.span),
-            });
-        }
-        PreparedTerminalRoots { identities, roots }
+            }
+        });
+        PreparedTerminalRoots::new(identities, requests)
     }
 }
 

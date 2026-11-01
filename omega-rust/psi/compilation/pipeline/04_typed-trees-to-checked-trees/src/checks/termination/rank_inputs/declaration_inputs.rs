@@ -87,6 +87,17 @@ impl RecordInput {
         prepared: &EntryInputs<'_>,
     ) -> Option<CapturedRankApplicationInput> {
         let mut bindings = Vec::new();
+        if let Some(snapshot) = validation::captured_entry_owned_snapshot(
+            prepared.values.program(),
+            prepared.values.machine(),
+            prepared.values.state(),
+            &self.root,
+        ) {
+            bindings.push(ScopedArithmeticBinding {
+                binder: validation::ScopedArithmeticBinder::Symbol(self.shape.parameter),
+                value: validation::ScopedArithmeticValue::OwnedSnapshot(snapshot),
+            });
+        }
         for (read, path) in self.shape.reads.iter().zip(self.paths()) {
             let coordinate = prepared.coordinates.iter().find(|coordinate| {
                 coordinate.parameter == self.root.parameter
@@ -96,14 +107,10 @@ impl RecordInput {
                         .values
                         .same_scalar_projection(&coordinate.path, &path)
             })?;
-            bindings.extend(
-                read.occurrences
-                    .iter()
-                    .map(|source| ScopedArithmeticBinding {
-                        binder: validation::ScopedArithmeticBinder::Occurrence(*source),
-                        value: coordinate.entry_value.clone(),
-                    }),
-            );
+            bindings.push(ScopedArithmeticBinding {
+                binder: validation::ScopedArithmeticBinder::Coordinate(read.coordinate.clone()),
+                value: coordinate.entry_value.clone(),
+            });
         }
         Some(CapturedRankApplicationInput {
             input_type: self.input_type,

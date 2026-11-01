@@ -170,7 +170,25 @@ not mean an unfilled or one-place fact is done: write the next missing place,
 or take the next uncovered fact. Take a new fact from an open `TASKS.md`
 item's remaining acceptance and name that item in the README; a folder that
 changes only a count, width, arity or extension pair of an existing row repeats
-that row and is not a new fact. Several places with one demonstrated root
+that row and is not a new fact.
+
+Before creating a fact folder, find the nearest existing row and show what is
+different, in the new README:
+
+- a different requirement or layer: name it, and show that the twin's
+  diagnostic names an obligation the nearest row's twins do not; or
+- a physical boundary: show the emitted placement, frame, register, encoding
+  or branch form that differs from the nearest row's, on at least one target.
+
+If neither holds, the program is a variation inside the existing row, or it is
+not needed. On 2026-11-01 three folds removed about 300,000 lines of rows that
+failed this test: 29 `live_across_{two…thirty}_calls` families with the same
+frame and register at every count, N-argument stack-call families on the same
+side of the register/stack boundary, and fixed-array sizes with the same frame
+layout. Twins that give the same diagnostic in every family are the usual
+sign.
+
+Several places with one demonstrated root
 cause may belong to one repair. Do not leave `samples/cli/facts` to fill
 compiler-advance capacity.
 
@@ -235,6 +253,19 @@ session until its oracle holds. Do not open a second feature while it still
 fails. State the
 sample, its oracle, the current failure and the acceptance command.
 
+Look for in-flight work repeatedly, not once. Claims do not list draft or
+unregistered pull requests, and main keeps landing changes while you work.
+Before the first build of a repair, before pushing, and before enqueueing, run
+`gh pr list --state open` and `git log <base>..origin/main -- <files you
+edit>`. When an open or just-merged change touches the same function, check its
+head out detached, build it into its own `CARGO_TARGET_DIR` and run your
+reproduction on it: a fix that already works is verified, not rewritten. When
+main lands a change in your area, rerun the reproduction on current main before
+porting your work, because a landed change can close the defect, leave it open,
+or delete the code your repair read. Reading main for duplicates is not
+integration; the recorded base stays fixed until a conflict or prerequisite
+justifies moving it.
+
 Keep that short record in the claim note: parent task, remaining acceptance,
 current sample and the requirement it discharges, failure, next action and
 dependencies. Name what of the customer now runs and what still fails, in
@@ -246,8 +277,10 @@ from that repair. The rule for cloud pods is in
 [cursor-swarm](../cursor-swarm/SKILL.md#reuse-the-session). When resuming
 saved work after a crash or compaction, inspect its existing checkpoint, PR and
 receipts before reapplying a patch or rerunning validation. Preserve its fixed
-base and warm producers; resumption does not require a rebase. A new obstacle
-updates this frontier; it does not create a task for someone else. Do not split work or
+base and warm producers; resumption does not require a rebase. To carry files
+onto a newer base, name them: `git checkout <old-sha> -- <directory>` copies the
+whole directory from the old commit and silently reverts everything newer in it.
+A new obstacle updates this frontier; it does not create a task for someone else. Do not split work or
 mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
@@ -463,6 +496,16 @@ in its own worktree and lists every lost outcome, expected fragment and
 execution fact. Compare against the commit your series sits on, never a newer
 `main`. A failure that reproduces on the base is outside this change; record
 its command and revision. A failure introduced by this change blocks landing.
+A shared golden can be stamped dozens of commits behind (the row's `@sha` shows
+the distance), so a filtered compare reports moves that no change of yours
+caused. When a second checkout would take longer than a build, revert only your
+source files in your worktree, build that base into a separate
+`CARGO_TARGET_DIR`, run `omega --check` on every moved fixture with both
+producers, strip the path prefixes and diff the sorted `error:` lines; identical
+output attributes the move to the base. First run one fixture that your change
+flips on both producers, so each is known to be the build you think it is, and
+do not run a sweep with a producer that a build in progress is about to replace:
+its rows fail for the wrong reason.
 For a failure already red on landed main, `tools/triage_advisor.py` (failure
 output plus command -> suspect commit and layer) and `tools/jev_attribute.py`
 (signature plus commit window -> ranked blame) order the investigation before

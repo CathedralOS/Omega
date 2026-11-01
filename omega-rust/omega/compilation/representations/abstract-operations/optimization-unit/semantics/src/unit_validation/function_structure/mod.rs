@@ -61,7 +61,7 @@ pub(crate) fn validate_function(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     cycle_policy: &control_flow::ControlCyclePolicy,
-    call_accesses: &current_ownership::CallAccesses,
+    call_accesses: &mut current_ownership::CallAccesses,
     descriptor_requirements: &mut Vec<
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,

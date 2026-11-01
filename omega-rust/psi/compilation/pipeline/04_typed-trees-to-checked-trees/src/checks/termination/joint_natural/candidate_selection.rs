@@ -71,9 +71,19 @@ fn observe(
 ) -> Option<Rank> {
     let (entry_value, formation) = match application {
         Some(application) => {
-            let (input_type, bindings) = subject.bindings(program, application, |coordinate| {
-                Some(coordinate.entry_value.clone())
-            })?;
+            let (input_type, bindings) = subject.bindings(
+                program,
+                application,
+                || {
+                    validation::captured_entry_owned_snapshot(
+                        program,
+                        machine,
+                        values.state(),
+                        &subject.root(),
+                    )
+                },
+                |coordinate| Some(coordinate.entry_value.clone()),
+            )?;
             let formed = application.observe(values, machine, input_type, bindings)?;
             (formed.value, Some(formed.formation))
         }

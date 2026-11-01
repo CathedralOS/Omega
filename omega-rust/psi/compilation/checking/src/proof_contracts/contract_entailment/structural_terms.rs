@@ -80,41 +80,42 @@ pub(crate) fn denotation_preserving_conversion(
                     == program.arithmetic_domain_for_type_reference(cast.target_type)))
 }
 
-/// An exact integer conversion denotes its operand, and that operand keeps
-/// the bounds of the carrier it was read from: a `u8` widened into `i32`
-/// still lies in `0..=255`. A symbolic operand carries no type of its own,
-/// so the conversion records the source carrier as an embedding, which the
-/// integer owner bounds by that carrier. A literal already denotes itself, a
-/// same-carrier conversion changes no bounds, and an embedding already names
-/// its carrier. This conveys no new value and no storage authority.
-pub(in crate::proof_contracts::contract_entailment) fn exact_conversion_term(
+/// Retain both the receiving carrier and the mathematical value observed by
+/// an admitted conversion. Integer formation remains with the original cast;
+/// its source observation supplies bounds instead of a destination annotation.
+/// Descriptors still need independent content observation before conversion.
+pub(super) fn conversion_term(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
     source: typed_trees::types::TypeReferenceHandle,
     value: StructuralTerm,
-) -> StructuralTerm {
-    let fixed_integer = |reference| {
+) -> Option<StructuralTerm> {
+    if !denotation_preserving_conversion(program, cast, source) {
+        return scalar_representation_term(program, cast, source, value);
+    }
+    let integer = |reference| {
         program
             .primitive_type_reference(reference)
-            .filter(|primitive| primitive.is_fixed_integer())
+            .is_some_and(|primitive| {
+                primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Addr
+            })
     };
-    let (Some(source_primitive), Some(target_primitive)) =
-        (fixed_integer(source), fixed_integer(cast.target_type))
-    else {
-        return value;
-    };
-    if source_primitive == target_primitive
-        || matches!(
-            value.semantic_value(),
-            StructuralTerm::Integer(_) | StructuralTerm::IntegerEmbedding { .. }
-        )
-    {
-        return value;
+    if integer(source) && integer(cast.target_type) {
+        if !scalar_operand_is_observed(program, source, &value) {
+            return None;
+        }
+        return Some(StructuralTerm::ObservedValue {
+            observed_type: crate::value_custody::expression_types::cast_result_type_reference(
+                program, cast,
+            )?,
+            descriptor: None,
+            value: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: source,
+                value: Box::new(value),
+            }),
+        });
     }
-    StructuralTerm::IntegerEmbedding {
-        reference: source,
-        value: Box::new(value),
-    }
+    Some(value)
 }
 
 /// The builtin embedding observes the authenticated payload, not the source
@@ -516,6 +517,9 @@ pub(super) fn static_type_predicate_term(
 
 /// Type equality has the same exact identity in a declaration and at an
 /// independently observed body occurrence. No synthetic source goal is needed.
+/// The atom's name carries each operand's identity and whether it is closed,
+/// in sorted order, so a judge can tell `T == i32` from `T == bool` without the
+/// program: see [`open_closed_type_atom`].
 pub(super) fn static_type_equation_term(
     program: &dyn crate::CheckingInput,
     left: typed_trees::types::TypeReferenceHandle,
@@ -534,15 +538,48 @@ pub(super) fn static_type_equation_term(
             },
         ))
     };
-    let mut operands = [identity(left)?, identity(right)?];
+    let closed = |reference| {
+        typed_trees::domain::index_argument_is_closed_with_substitutions(
+            program.typed_program(),
+            reference,
+            substitutions,
+        )
+    };
+    let mut operands = [
+        (identity(left)?, closed(left)),
+        (identity(right)?, closed(right)),
+    ];
     operands.sort_unstable();
     Some(StructuralTerm::Variable(format!(
-        "$static-type-predicate:{}:{}:{}:{}:{negate}",
-        operands[0].len(),
-        operands[0],
-        operands[1].len(),
-        operands[1],
+        "$static-type-predicate:{}:{}:{}:{}:{negate}:{}{}",
+        operands[0].0.len(),
+        operands[0].0,
+        operands[1].0.len(),
+        operands[1].0,
+        u8::from(operands[0].1),
+        u8::from(operands[1].1),
     )))
+}
+
+/// The binder and the closed type of a non-negated type atom that equates an
+/// open type with a closed one (`T == i32`), decoded from its name. Operands
+/// are length-prefixed because identities contain `:`.
+pub(super) fn open_closed_type_atom(name: &str) -> Option<(&str, &str)> {
+    let rest = name.strip_prefix("$static-type-predicate:")?;
+    let (first_length, rest) = rest.split_once(':')?;
+    let first_length: usize = first_length.parse().ok()?;
+    let first = rest.get(..first_length)?;
+    let rest = rest.get(first_length..)?.strip_prefix(':')?;
+    let (second_length, rest) = rest.split_once(':')?;
+    let second_length: usize = second_length.parse().ok()?;
+    let second = rest.get(..second_length)?;
+    let rest = rest.get(second_length..)?.strip_prefix(':')?;
+    let (negate, flags) = rest.split_once(':')?;
+    match (negate, flags) {
+        ("false", "01") => Some((first, second)),
+        ("false", "10") => Some((second, first)),
+        _ => None,
+    }
 }
 
 pub(super) fn structural_term(
@@ -678,11 +715,7 @@ pub(super) fn structural_term(
                 })
             }?;
             let value = structural_term(program, scope, frame, cast.value, bindings)?;
-            if denotation_preserving_conversion(program, cast, source) {
-                Some(exact_conversion_term(program, cast, source, value))
-            } else {
-                scalar_representation_term(program, cast, source, value)
-            }
+            conversion_term(program, cast, source, value)
         }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays

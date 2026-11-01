@@ -8,6 +8,20 @@ use super::{CapturedStorageCoordinate, StructuralJudge};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
 impl StructuralJudge<'_> {
+    /// Whole entry values use the entry selector namespace too. A header
+    /// coordinate has no executed selector occurrence in the body ledger.
+    pub(in crate::proof_contracts::contract_entailment) fn captured_entry_place_projection(
+        &self,
+        place: crate::CanonicalPlace,
+    ) -> Option<StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let coordinate = self.capture_entry_storage_place(place)?;
+        self.captured_projection(
+            &coordinate,
+            language_semantics::content::ContentPlaceVersion::Entry,
+        )
+    }
+
     pub(super) fn capture_entry_storage_place(
         &self,
         place: crate::CanonicalPlace,

@@ -24,32 +24,58 @@ machine replacement(cursor: &mut Cursor) -> i32 in Wrapping {
     42
 }
 machine store(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { value = incoming; }
-linux_x86_64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
-requires row == 2, column == 1 {
-    transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
-requires row == 2, column == 1 {
-    transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
-requires row == 2, column == 1 {
-    transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
-requires row == 2, column == 1 {
-    transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+
+boundary trait SelectedVisit {
+    machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires row == 2, column == 1;
 }
+
+X86Visit satisfies SelectedVisit {
+    machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires row == 2, column == 1
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
+        machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    }
+}
+
+ArmVisit satisfies SelectedVisit {
+    machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires row == 2, column == 1
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
+        machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    }
+}
+
+
 machine main() crashes Trap {
     let mut rows: [Row; 3];
     let mut cursor: Cursor;
     rows[2].tag = 7;
     rows[1].data[1] = 5;
-    visit(&mut rows, &mut cursor, 2, 1);
+    SelectedVisit::visit(&mut rows, &mut cursor, 2, 1);
     transition rows[2].data[1] == 42 && rows[2].data[0] == 0
         && rows[0].data[0] == 0 && rows[1].data[1] == 5
         && rows[2].tag == 7 && cursor.calls == 3 && cursor.trace == 123 {
@@ -58,4 +84,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

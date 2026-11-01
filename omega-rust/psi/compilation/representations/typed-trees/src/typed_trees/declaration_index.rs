@@ -5,7 +5,7 @@
 //! used to live in thread-local caches keyed on the program's address or
 //! instance tag; the address could be recycled under a dropped program and
 //! every entry had to re-derive its own freshness. The indexes now live
-//! with the program. Data-definition storage owns its index directly: mutable
+//! with the program. Data-definition and machine storage own their indexes: mutable
 //! arena access clears it, replacement carries it with the arena, and queries
 //! key the complete visible root span. This also covers public table replacement
 //! and root-generation changes without relying on an additive revision key.
@@ -15,9 +15,10 @@
 //! a whole replacement carries the identity of its matching contents.
 //!
 //! The remaining declaration indexes retain their existing arena-revision and
-//! roster-key strategies below; the data-definition ownership boundary does not
+//! roster-key strategies below; those storage ownership boundaries do not
 //! establish arbitrary replacement freshness for those separate owners.
 
+use super::machine_declarations::MachinePositionIndex;
 use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
@@ -42,7 +43,7 @@ type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 /// Compact roster marker retained by the remaining revision-keyed indexes.
 /// It includes the start index and count, not the handle generation. The
-/// data-definition storage owner instead keys its complete `HandleSpan`.
+/// data-definition and machine storage owners instead key complete `HandleSpan`s.
 fn roster_marker<T>(span: HandleSpan<T>) -> u64 {
     ((span.start().arena_index() as u64) << 32) | span.count() as u64
 }
@@ -105,15 +106,6 @@ fn roots_fingerprint(roots: &crate::typed_trees::TypedTreeRoots) -> u64 {
         .wrapping_add(roster_marker(roots.traits))
         .wrapping_add(roster_marker(roots.conformances))
         .wrapping_add(roster_marker(roots.wire_schemas))
-}
-
-/// Machine-symbol lookup: the machine table is queried once per call
-/// expression through `machine_by_symbol`; a roster scan per query walks
-/// every machine. Stable symbol rows preserve all declarations; the common
-/// lookup takes the first, while ambiguity queries read the complete group.
-#[derive(Clone, Default)]
-struct MachinePositionIndex {
-    rows: Vec<(SymbolHandle, u32)>,
 }
 
 /// Stored states in full-symbol order, retaining their machine and local
@@ -206,12 +198,10 @@ pub struct DomainCandidateIndex {
 }
 
 /// The program-owned declaration indexes. One `Mutex` per index keeps
-/// unrelated lookups from contending. Machine/state topology keys retain the
-/// arena revisions and full visible root span separately: shortening a roster
-/// must not cancel an arena mutation or hide a root generation change.
+/// unrelated lookups from contending. State topology keys retain arena revisions and the full visible root span
+/// separately. Machine storage owns its root and retained declaration indexes.
 #[derive(Clone, Default, compiler_storage::Record)]
 pub struct DeclarationIndexes {
-    machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
     state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
@@ -266,7 +256,7 @@ impl super::TypedTrees {
         self.with_requirement_application_index(|_| ());
         self.with_operator_spelling_index(|_| ());
         let indexes = &mut self.declaration_indexes;
-        indexes.machines.seal();
+        self.tables.machines.seal();
         indexes.states.seal();
         indexes.state_declarations.seal();
         indexes.data_members.seal();
@@ -289,7 +279,7 @@ impl super::TypedTrees {
     /// Return sealed indexes to their lazy slots before the program mutates.
     pub(super) fn unseal_declaration_indexes(&mut self) {
         let indexes = &mut self.declaration_indexes;
-        indexes.machines.unseal();
+        self.tables.machines.unseal();
         indexes.states.unseal();
         indexes.state_declarations.unseal();
         indexes.data_members.unseal();
@@ -365,20 +355,9 @@ impl super::TypedTrees {
     }
 
     fn with_machine_position_index<R>(&self, run: impl FnOnce(&MachinePositionIndex) -> R) -> R {
-        self.declaration_indexes.machines.with(
-            (self.tables.machines.revision(), self.roots.machines),
-            || {
-                let mut rows = self
-                    .machines()
-                    .iter()
-                    .enumerate()
-                    .map(|(position, machine)| (machine.symbol, position as u32))
-                    .collect::<Vec<_>>();
-                relationships::sort_symbol_rows(&mut rows);
-                MachinePositionIndex { rows }
-            },
-            run,
-        )
+        self.tables
+            .machines
+            .with_root_index(self.roots.machines, run)
     }
 
     /// The machine declaring `symbol`.
@@ -404,16 +383,7 @@ impl super::TypedTrees {
         if let Some(machine) = self.machine_by_symbol(symbol) {
             return Some(machine);
         }
-        let mut declarations = self
-            .tables
-            .machines
-            .iter()
-            .map(|(_, machine)| machine)
-            .filter(|machine| machine.symbol == symbol);
-        let declaration = declarations.next()?;
-        declarations
-            .all(|copy| copy == declaration)
-            .then_some(declaration)
+        self.tables.machines.retained_declaration(symbol)
     }
 
     /// Position of `state` inside `machine`'s state span. Freshness covers

@@ -20,38 +20,55 @@ ensures result == 0u64
     }
 }
 
-linux_x86_64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
+boundary trait SelectedEvaluateBytes {
+    machine evaluate_bytes() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0u64;
+}
+
+X86EvaluateBytes satisfies SelectedEvaluateBytes {
+    machine evaluate_bytes() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let bytes: &[u8] = "omega";
+        inspect_bytes(bytes)
+    }
+}
+
+ArmEvaluateBytes satisfies SelectedEvaluateBytes {
+    machine evaluate_bytes() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let bytes: &[u8] = "omega";
+        inspect_bytes(bytes)
+    }
 }
 
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    evaluate_bytes()
+    SelectedEvaluateBytes::evaluate_bytes()
 }
 
 machine main() crashes Trap {
@@ -61,4 +78,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

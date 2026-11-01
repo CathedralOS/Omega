@@ -309,6 +309,25 @@ pub enum DescriptorSlotKind {
     AccessOrigins,
 }
 impl DescriptorSlotKind {
+    /// Returned tag constraints and exported descriptor slots are independent
+    /// observations. Keep case-bearing values even in a view-only catalog;
+    /// reference payload absence alone never supplies their active tag.
+    pub fn tracks_returned_value(
+        self,
+        types: &[StructuralTypeDeclaration],
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> bool {
+        self.owned_slots(types, place, structural_type)
+            .is_some_and(|slots| !slots.is_empty())
+            || case_flow::contains_case(
+                types,
+                structural_type,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )
+    }
+
     pub fn tracks_views(self) -> bool {
         matches!(self, Self::Views | Self::BorrowedStorage)
     }

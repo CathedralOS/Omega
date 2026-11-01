@@ -40,12 +40,14 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
 
 // The scalar clock seam is foreign on Darwin and a checked timespec adapter
 // on Linux. Both expose nanoseconds on CLOCK_MONOTONIC to the same callers.
-data ElapsedClock {}
-boundary requirement ElapsedClock::now(selector: u32) -> u64 reaches Clock;
+boundary trait ElapsedClock {
+    machine now(selector: u32) -> u64 reaches Clock;
+}
 data ElapsedClockImports {}
 data ElapsedInstant { seconds: i64; nanoseconds: i64; }
-data ElapsedClockRead {}
-boundary requirement ElapsedClockRead::read(selector: u32, instant: &mut ElapsedInstant) -> i32;
+boundary trait ElapsedClockRead {
+    machine read(selector: u32, instant: &mut ElapsedInstant) -> i32 reaches;
+}
 
 macos_arm64 machine macos_elapsed_binding() -> ForeignBinding<26, 22, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {

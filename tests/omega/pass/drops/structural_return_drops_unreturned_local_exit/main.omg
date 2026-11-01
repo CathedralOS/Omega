@@ -8,7 +8,7 @@ use omega::language::core::external_binding;
 // This fixture retains the existing reviewed finite byte-write assumption.
 // It does not strengthen the standard Console contract.
 public boundary trait Console {
-    machine write_byte(byte: i32) reaches Console terminates;
+    machine write_byte(byte: i32) reaches Console invokes PosixConsoleIo invokes WindowsConsoleIo terminates;
     machine exit_process(return_code: i32) reaches Console;
 }
 
@@ -23,10 +23,11 @@ public NativeConsole satisfies Console {
 }
 // The finite-write assumption is attached to an explicit foreign contract,
 // not to the standard compiler-owned Console primitive.
-data PosixConsoleIo {}
-boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-terminates
-reaches Console;
+boundary trait PosixConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    terminates
+    reaches Console;
+}
 data PosixConsoleImports {}
 macos_arm64 machine macos_arm64_write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write" } }
@@ -72,10 +73,11 @@ linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
     satisfies Console::exit_process;
 // Windows writes the byte to stdout through MSVCRT `_write`, one byte from
 // the low byte of an i32 cell.
-data WindowsConsoleIo { }
-boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-terminates
-reaches Console;
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    terminates
+    reaches Console;
+}
 data WindowsConsoleImports { }
 windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
     ForeignBinding::DllImport {

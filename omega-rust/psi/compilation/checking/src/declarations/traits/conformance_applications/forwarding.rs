@@ -237,7 +237,12 @@ mod tests {
                 .is_err()
             );
             let mut applied = selected.clone();
-            applied.application = Some(Box::default());
+            applied.application =
+                Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: Box::new([]),
+                    arguments: Box::new([]),
+                }));
             assert!(
                 validate_forwarded_argument(&program, &promised, &applied, |_| panic!(
                     "an applied binder must refuse first"

@@ -1,0 +1,11 @@
+// Static alias operands keep their complete argument obligations even when the expansion erases the parameter.
+// Expected exit: 0
+data Fixed<T [copy]> = u64;
+data Resource { value: u64; }
+machine identity<T>(value: T) -> T { value }
+machine main() crashes Trap {
+    let result: u64 = identity<Fixed<u64>>(42u64);
+    transition result == 42u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

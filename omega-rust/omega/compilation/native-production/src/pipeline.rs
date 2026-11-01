@@ -9,6 +9,7 @@
 
 mod error;
 
+use crate::observations::{NativePipelineObservation, NativePipelineStage};
 use abstract_operations_to_target_operations::lower_optimized_to_target_operations;
 use abstract_operations_to_target_operations::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
@@ -32,9 +33,11 @@ pub(crate) fn lower_to_target(
     request: OptimizedTargetLoweringRequest<'_>,
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
+    observation: &NativePipelineObservation,
 ) -> Result<ValidatedOptimizedTargetOperations, TargetLoweringError> {
     phase_profile::scope("06.1.d.01_lower_to_target", || {
         let selections = selections.selections();
+        observation.enter(NativePipelineStage::AbstractOptimization);
         let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
             input.into_optimization_input(),
             selections,
@@ -42,6 +45,7 @@ pub(crate) fn lower_to_target(
             budget,
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
+        observation.enter(NativePipelineStage::AbstractToTarget);
         let target = lower_optimized_to_target_operations(optimized, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
@@ -51,23 +55,28 @@ pub(crate) fn lower_to_target(
 /// Emit a body after its caller has captured the target layout companions.
 pub(crate) fn emit_target(
     optimized_target: ValidatedOptimizedTargetOperations,
+    observation: &NativePipelineObservation,
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let selected = phase_profile::scope("06.1.d.04_stage_instruction_selection", || {
+        observation.enter(NativePipelineStage::InstructionSelection);
         stage_optimized_instruction_selection(optimized_target, register_environment)
             .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     })?;
     let selected = phase_profile::scope("06.1.d.04b_optimize_selected_instructions", || {
+        observation.enter(NativePipelineStage::SelectedOptimization);
         optimize_selected_instructions(selected)
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     })?;
     let allocation = phase_profile::scope("06.1.d.05_stage_register_allocation", || {
+        observation.enter(NativePipelineStage::RegisterAllocation);
         stage_register_allocation(selected)
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     })?;
     phase_profile::scope("06.1.d.06_stage_frame_realization", || {
         let machine = phase_profile::scope("06.1.d.06.a_post_allocation_machine", || {
+            observation.enter(NativePipelineStage::PostAllocationMachine);
             stage_optimized_post_allocation_machine_plan(&allocation.current())
                 .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
         })?;
@@ -83,6 +92,7 @@ pub(crate) fn emit_target(
             )
         })?;
         let encoding = phase_profile::scope("06.1.d.06.c_selected_form_encoding", || {
+            observation.enter(NativePipelineStage::SelectedFormEncoding);
             stage_optimized_layout_independent_selected_form_encoding(
                 selected,
                 &machine,
@@ -92,10 +102,12 @@ pub(crate) fn emit_target(
             .map_err(FunctionRelativeOptimizationRealizationError::Encoding)
         })?;
         let layout = phase_profile::scope("06.1.d.06.d_resolved_selected_form_layout", || {
+            observation.enter(NativePipelineStage::ResolvedLayout);
             stage_optimized_resolved_selected_form_layout(selected, &machine, registers, &encoding)
                 .map_err(FunctionRelativeOptimizationRealizationError::Layout)
         })?;
         let optimized_layout = phase_profile::scope("06.1.d.06.e_resolved_layout_opt", || {
+            observation.enter(NativePipelineStage::LayoutOptimization);
             execute_resolved_layout_optimization(
                 registers,
                 &layout,
@@ -118,6 +130,7 @@ pub(crate) fn emit_target(
         })?;
         let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
         phase_profile::scope("06.1.d.06.g_emit_fragment_object", || {
+            observation.enter(NativePipelineStage::FragmentEmission);
             native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
         })
     })

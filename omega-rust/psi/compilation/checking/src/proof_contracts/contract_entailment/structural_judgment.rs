@@ -16,6 +16,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
 mod domain_premises;
+pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod invocation_entry;
@@ -96,6 +97,8 @@ pub(super) struct CaseGuarantee {
     data: SymbolHandle,
     case: SymbolHandle,
 }
+
+pub(crate) mod owned_snapshots;
 
 #[derive(Clone, PartialEq)]
 struct MembershipGuarantee {
@@ -655,57 +658,6 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn has_exact_case_subjects(&self) -> bool {
         !self.resolve_applications
-    }
-
-    /// Fingerprint of the effect-bearing term vectors, for the
-    /// OMEGA_PATH_COUNT re-traversal investigation only.
-    pub(super) fn path_fingerprint(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        self.capture_sequence.hash(&mut hash);
-        self.storage_write_sequence.hash(&mut hash);
-        for value in self.stored_values.iter() {
-            if let Some(term) = &value.current {
-                format!("{:?}", term.semantic_value()).hash(&mut hash);
-            }
-        }
-        for (_, term) in self.normal_results.iter() {
-            format!("{:?}", term.semantic_value()).hash(&mut hash);
-        }
-        for (left, right) in self.normal_guarantees.iter() {
-            format!("{:?}", left.semantic_value()).hash(&mut hash);
-            format!("{:?}", right.semantic_value()).hash(&mut hash);
-        }
-        for (name, term) in self.substitutions.iter() {
-            name.hash(&mut hash);
-            format!("{:?}", term.semantic_value()).hash(&mut hash);
-        }
-        for (left, right) in self.disequalities.iter() {
-            format!("{:?}", left.semantic_value()).hash(&mut hash);
-            format!("{:?}", right.semantic_value()).hash(&mut hash);
-        }
-        self.captured_result_equations.len().hash(&mut hash);
-        hash.finish()
-    }
-
-    /// Field sizes of the effect-bearing vectors, for the OMEGA_PATH_COUNT
-    /// memory investigation only.
-    pub(super) fn field_size_report(&self) -> String {
-        format!(
-            "results={} captures={} memberships={} stored={} guarantees={} diseq={} case={} subst={} equations={} invalidated={} bodies={} content={}",
-            self.normal_results.len(),
-            self.completed_nominal_captures.len(),
-            self.normal_memberships.len(),
-            self.stored_values.len(),
-            self.normal_guarantees.len(),
-            self.disequalities.len(),
-            self.case_facts.len(),
-            self.substitutions.len(),
-            self.captured_result_equations.len(),
-            self.invalidated_storage.len(),
-            self.body_invocations.len(),
-            self.normal_content_guarantees.len(),
-        )
     }
 
     /// True when `self` has performed no storage writes and added no call
@@ -1638,11 +1590,13 @@ impl<'program> StructuralJudge<'program> {
             }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
-                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
+                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right.clone()));
+                    self.note_type_atom(name, &right);
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
+                Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
+                self.note_type_atom(name, &left);
             }
             // A parameter-rooted member place resolves to its Opaque display
             // (`left.code`), so it carries the same rewrite as the unresolved
@@ -1663,6 +1617,31 @@ impl<'program> StructuralJudge<'program> {
                 self.hypotheses_contradictory = true;
             }
             _ => {}
+        }
+    }
+
+    /// Static type equality is exact (generics.md, "Static type equality"): a
+    /// type binder equated to one closed type is not equal to any other. This
+    /// judge sees `T == i32` and `T == bool` as unrelated atoms, so binding the
+    /// second one true while the first holds is the contradiction that lets a
+    /// contract's equation refute a case whose default domain states another.
+    fn note_type_atom(&mut self, name: &str, value: &StructuralTerm) {
+        let Some((open, closed)) = super::structural_terms::open_closed_type_atom(name) else {
+            return;
+        };
+        if value_predicates::boolean_value(value.semantic_value()) != Some(true) {
+            return;
+        }
+        let conflicts = self.substitutions.iter().any(|(other, bound)| {
+            other != name
+                && super::structural_terms::open_closed_type_atom(other).is_some_and(
+                    |(other_open, other_closed)| other_open == open && other_closed != closed,
+                )
+                && value_predicates::boolean_value(self.resolve(bound.clone()).semantic_value())
+                    == Some(true)
+        });
+        if conflicts {
+            self.hypotheses_contradictory = true;
         }
     }
 
@@ -2997,16 +2976,7 @@ impl<'program> StructuralJudge<'program> {
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
                 let value = child_term!(cast.value)?;
-                if super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                {
-                    Some(super::structural_terms::exact_conversion_term(
-                        program, cast, source, value,
-                    ))
-                } else {
-                    super::structural_terms::scalar_representation_term(
-                        program, cast, source, value,
-                    )
-                }
+                super::structural_terms::conversion_term(program, cast, source, value)
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {

@@ -15,7 +15,7 @@ module translation;
 // provider's activation crossing requalifies that same carrier `Installed`;
 // only an installed mapping may be unmapped. `unmap` returns reusable
 // `Granted` custody for both ranges plus the owed cross-core shootdown
-// token -- TLB debt that must be discharged through `Shootdown::discharge`
+// token -- TLB debt that must be discharged through `ShootdownDischarge::discharge`
 // before the teardown is complete. Equal-length ranges are the contract's
 // structural precondition, matching the conservation model's check.
 //
@@ -250,7 +250,9 @@ public boundary trait TranslationAuthority {
         == Granted::content(old(&active.destination));
 }
 
-public boundary requirement Shootdown::discharge(owed: Shootdown)
-reaches MachineControl
-requires
+public boundary trait ShootdownDischarge {
+    machine discharge(owed: Shootdown)
+    reaches MachineControl
+    requires
     owed in Shootdown::Owed;
+}

@@ -403,18 +403,11 @@ impl StructuralJudge<'_> {
                 Some((_, replacement)) => self.resolve_case_subject(replacement.clone(), depth + 1),
                 None => Some(term),
             },
-            StructuralTerm::Constructor { data, case, fields } => {
-                Some(StructuralTerm::Constructor {
-                    data,
-                    case,
-                    fields: fields
-                        .into_iter()
-                        .map(|(name, field)| {
-                            Some((name, self.resolve_case_subject(field, depth + 1)?))
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                })
-            }
+            // The tag is already produced, regardless of whether a payload
+            // has a tag denotation of its own. Resolving every field here
+            // discarded valid constructors containing scalar computations.
+            // Payload projection and equality own their selected reads.
+            StructuralTerm::Constructor { .. } => Some(term),
             StructuralTerm::RepeatedArray { length, element } => {
                 Some(StructuralTerm::RepeatedArray {
                     length,

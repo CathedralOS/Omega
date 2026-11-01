@@ -1,0 +1,26 @@
+// Library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+data Record [copy] { first: u8; second: u64; last: u16; }
+machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
+machine main() crashes Trap {
+    let mut record: CLayout<Record>;
+    record.first = 17u8;
+    record.second = 42u64;
+    record.last = 9u16;
+    let same: LayoutStorage<Record, CAbiPolicy<Record>> = explicit(record);
+    // All raw words, including future record padding, are initialized. The
+    // shared record view reads only its scalar fields and grants no new writes.
+    let mut words: [u64; 3];
+    words[0] = 17u64;
+    words[1] = 42u64;
+    words[2] = 9u64;
+    let mapped: &CLayout<Record> = &words as &CLayout<Record>;
+    transition same.first == 17u8 && same.second == 42u64 && same.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of<CLayout<Record>>() == 24u64 && align_of<CLayout<Record>>() == 8u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

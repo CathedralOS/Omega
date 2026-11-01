@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume_param from sat_param: sum >= 50 && sum <= 100

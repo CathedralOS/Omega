@@ -132,9 +132,11 @@ impl PrivateCallbackLayout {
             || terminal.slot != callback_layout_slot_id(terminal.layout, &terminal.slot_identity)
             || terminal.requirement
                 != callback_requirement_id(&terminal.callback_requirement_identity)
-            || !terminal.slot_application.declaration.is_valid()
-            || !terminal.slot_application.trait_definition.is_valid()
-            || terminal.slot_application.commitment.is_zero()
+            || !terminal.slot_application.has_complete_identity()
+            || terminal.slot_application.layout_identity
+                != terminal.layout_subject_identity.as_ref()
+            || terminal.slot_application.requirement_identity
+                != terminal.callback_requirement_identity.as_ref()
         {
             return Err("callback layout catalog lost its named slot application".to_owned());
         }

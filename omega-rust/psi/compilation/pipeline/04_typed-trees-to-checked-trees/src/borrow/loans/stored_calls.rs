@@ -16,7 +16,7 @@ pub(super) fn roster_at_expression(
     expression: typed_trees::expression::ExpressionHandle,
     frames: &validation::CallFrameResolver<'_>,
     incoming: &[super::StateLoanTracker],
-) -> Option<Vec<super::StateLoanTracker>> {
+) -> Result<Vec<super::StateLoanTracker>, validation::StoredReferenceRelationRefusal> {
     let effects = frames.stored_reference_effects_at_expression(
         machine,
         state,
@@ -53,7 +53,7 @@ pub(super) fn roster_at_expression(
         place: loan.place,
         retained_operand: loan.retained_operand,
     }));
-    Some(current)
+    Ok(current)
 }
 
 pub(super) fn loans(

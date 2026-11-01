@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "produced an invalid plan: entry_count 65 is outside 0..=64"
+  ]
+}

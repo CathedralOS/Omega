@@ -1,10 +1,9 @@
 //! Run one retained calling policy without a source compiler or source trees.
 
-use super::MaterializedBoundarySignature;
+use super::CallingPolicySignature;
 use super::build_time_decoding::decode_boundary_plan_result;
-use super::plan_computation::{
-    build_boundary_signature, validate_materialized_boundary_plan_result,
-};
+use super::policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
+use super::scalar_completion::complete_policy_scalar_inputs;
 use super::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -23,7 +22,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,
     pub entry: TargetMachineCallable,
     pub target: target::TargetProfile,
-    pub signature: &'input MaterializedBoundarySignature,
+    pub signature: &'input CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
 }
 
@@ -42,7 +41,7 @@ pub fn evaluate_terminal_calling_policy(
         signature,
         account,
     } = invocation;
-    if signature.native_target() != target.native_target() {
+    if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
     }
     let selected = terminal_installation::admit_target_machine_selections(
@@ -54,18 +53,44 @@ pub fn evaluate_terminal_calling_policy(
         .ok_or("calling policy target has no layout facts")?;
     let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
+    let providers = terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
+        .map_err(|error| format!("calling policy providers: {error:?}"))?;
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: None,
+            installation: Some(&providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
             target_layouts: Some(&layouts),
         })
         .map_err(|error| format!("calling policy selection: {error:?}"))?;
+    let requirements = program
+        .execution_requirements(Some(&installation))
+        .map_err(|error| format!("calling policy demands: {error:?}"))?;
+    let mut demanded = requirements.scalar_applications;
+    for application in requirements.scalar_entry_conditions {
+        if !demanded.contains(&application) {
+            demanded.push(application);
+        }
+    }
+    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
+        .map_err(|error| format!("calling policy fuel: {error:?}"))?;
+    let scalars =
+        complete_policy_scalar_inputs(artifact, target, entry, &demanded, &providers, &mut meter)?;
+    let installation = program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            x86_flags: None,
+            memory_ordering: None,
+            installation: Some(&providers),
+            host_imports: &[],
+            entry: Some(entry),
+            target_machines: Some(&selected),
+            target_layouts: Some(scalars.primary().layouts()),
+        })
+        .map_err(|error| format!("calling policy scalar installation: {error:?}"))?;
     let entry = program
         .entry_installed(&installation)
         .map_err(|error| format!("calling policy entry: {error:?}"))?;
@@ -80,7 +105,7 @@ pub fn evaluate_terminal_calling_policy(
         .structural()
         .ok_or("calling policy result must be structural")?
         .structural_type;
-    let argument = build_boundary_signature(signature)?;
+    let argument = encode_calling_policy_signature(signature)?;
     let contents = [input_contents(
         &program,
         parameter.structural_type,
@@ -100,11 +125,10 @@ pub fn evaluate_terminal_calling_policy(
             },
             installation: Some(&installation),
             account: Some(&account),
+            scalar_admission: Some(&scalars),
             ..Default::default()
         })
         .map_err(|error| format!("calling policy arguments: {error:?}"))?;
-    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
-        .map_err(|error| format!("calling policy fuel: {error:?}"))?;
     let result = instance
         .invoke(&mut meter)
         .map_err(|error| format!("calling policy execution: {error:?}"))?;
@@ -128,7 +152,7 @@ pub fn evaluate_terminal_calling_policy(
         .charge_result_custody(cells, bytes)
         .map_err(|error| format!("calling policy result custody: {error}"))?;
     let plan = decode_boundary_plan_result(&value)?;
-    let validated = validate_materialized_boundary_plan_result(plan, signature)?;
+    let validated = validate_calling_policy_result(plan, signature)?;
     instance
         .close()
         .map_err(|error| format!("calling policy close: {error:?}"))?;

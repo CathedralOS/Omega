@@ -100,7 +100,12 @@ pub(super) fn record(
                 .collect::<Vec<_>>();
             let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
                 .and_then(|subjects| subjects.first().copied());
-            if let RankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
+            if let RankMeasure::DeclaredMeasure {
+                bindings,
+                formation,
+                ..
+            } = rank.measure
+            {
                 let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
                     inputs
                         .iter()
@@ -126,6 +131,24 @@ pub(super) fn record(
                     continue;
                 };
                 declaration_bindings.extend(inputs);
+                if admitted.application_formations.is_valid(formation)
+                    && let Some(input) = admitted.application_formations.get(formation).owned_copy
+                {
+                    let coordinate = admitted.coordinates.get(input.actual);
+                    let Some(path) = admitted.path_segments.span(coordinate.path) else {
+                        continue;
+                    };
+                    declaration_bindings.push((
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(input.formal),
+                            segments: Vec::new(),
+                        },
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                            segments: path.to_vec(),
+                        },
+                    ));
+                }
             }
             let parameters = inputs
                 .iter()

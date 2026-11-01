@@ -8,13 +8,12 @@ use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayout
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
     BoundaryCallbackBinder, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
-    BoundaryNativeParameterShape, MaterializedBoundarySignature,
+    MaterializedBoundarySignature,
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
-    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, NativePlace,
-    ValidatedBoundaryEntryPlan, callback_requirement_id,
-    validate_boundary_entry_plan_with_callback_materializations,
+    CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
+    callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
@@ -431,60 +430,60 @@ fn close_direct_callback_parameters(
     signature: &mut MaterializedBoundarySignature,
     target: NativeTarget,
 ) -> Result<Vec<NativeCallbackDemand>, String> {
-    signature.native_parameters.retain(|parameter| {
-        matches!(
-            parameter.origin,
-            BoundaryNativeParameterOrigin::SemanticFormal { .. }
-        )
-    });
-
-    let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
-    for direct in &signature.direct_callback_parameters {
-        validate_fresh_native_parameter_report_identity(
-            &signature.native_parameters,
-            direct.identity,
-            direct.native_ordinal,
-        )?;
-        signature.native_parameters.push(BoundaryNativeParameter {
+    let semantic = signature
+        .native_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.origin,
+                BoundaryNativeParameterOrigin::SemanticFormal { .. }
+            )
+        })
+        .map(
+            |parameter| calling_conventions::BoundaryNativeParameterGeometry {
+                identity: parameter.identity,
+                native_ordinal: parameter.native_ordinal,
+                shape: parameter.shape,
+                origin: parameter.origin,
+            },
+        );
+    let callbacks = signature.direct_callback_parameters.iter().map(|direct| {
+        terminal_psi::CallingDirectCallback {
             identity: direct.identity,
             native_ordinal: direct.native_ordinal,
-            shape: BoundaryNativeParameterShape::function_pointer(target)?,
-            origin: BoundaryNativeParameterOrigin::PrivateCallback {
-                binder: direct.binder,
-                requirement: direct.requirement,
-            },
-            layout_data_symbol: symbols::SymbolHandle::invalid(),
-        });
-        demands.push(NativeCallbackDemand {
-            destination: NativePlace::Parameter(direct.identity),
+            binder: direct.binder,
             requirement: direct.requirement,
+        }
+    });
+    let closed = calling_conventions::NativeParameterTelescope::close(semantic, callbacks, target)?;
+    let demands = closed.direct_demands().collect();
+    let mut parameters = Vec::with_capacity(closed.parameters.len());
+    for parameter in closed.parameters {
+        let layout_data_symbol = match parameter.origin {
+            BoundaryNativeParameterOrigin::SemanticFormal { .. } => {
+                signature
+                    .native_parameters
+                    .iter()
+                    .find(|source| {
+                        source.identity == parameter.identity && source.origin == parameter.origin
+                    })
+                    .ok_or("native telescope lost its exact semantic layout correspondence")?
+                    .layout_data_symbol
+            }
+            BoundaryNativeParameterOrigin::PrivateCallback { .. } => {
+                symbols::SymbolHandle::invalid()
+            }
+        };
+        parameters.push(BoundaryNativeParameter {
+            identity: parameter.identity,
+            native_ordinal: parameter.native_ordinal,
+            shape: parameter.shape,
+            origin: parameter.origin,
+            layout_data_symbol,
         });
     }
-    signature
-        .native_parameters
-        .sort_unstable_by_key(|parameter| parameter.native_ordinal);
-    for (expected, parameter) in signature.native_parameters.iter().enumerate() {
-        if usize::try_from(parameter.native_ordinal).ok() != Some(expected) {
-            return Err(format!(
-                "native parameter telescope has position {} where contiguous position {expected} is required",
-                parameter.native_ordinal,
-            ));
-        }
-    }
+    signature.native_parameters = parameters;
     Ok(demands)
-}
-
-pub(crate) fn validate_fresh_native_parameter_report_identity(
-    prior: &[BoundaryNativeParameter],
-    identity: NativeParameterId,
-    ordinal: u32,
-) -> Result<(), String> {
-    if prior.iter().any(|parameter| parameter.identity == identity) {
-        return Err(format!(
-            "boundary runtime parameter {ordinal} collides with an earlier exact parameter on one compact native-parameter report identity"
-        ));
-    }
-    Ok(())
 }
 
 pub(crate) fn callback_materialization_context(
@@ -510,48 +509,12 @@ pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
-    let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
-    let mut callback_binding_rows = arena::HandleSpan::empty();
-    for binder in &signature.callback_binders {
-        callback_bindings.append_to_span(
-            &mut callback_binding_rows,
-            calling_conventions::BoundaryCallbackBinding {
-                binder: binder.binder,
-                requirement: binder.requirement,
-                static_machine_ordinal: binder.static_machine_ordinal,
-                requirement_identity: binder.requirement_identity.clone(),
-                invokes_synchronously: binder.invokes_synchronously,
-            },
-        );
-    }
-    let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
-    let mut native_parameter_rows = arena::HandleSpan::empty();
-    for parameter in &signature.native_parameters {
-        native_parameters.append_to_span(
-            &mut native_parameter_rows,
-            calling_conventions::BoundaryNativeParameterGeometry {
-                identity: parameter.identity,
-                native_ordinal: parameter.native_ordinal,
-                origin: parameter.origin,
-                shape: parameter.shape,
-            },
-        );
-    }
-    let mut callback_layouts = arena::Arena::with_capacity(signature.callback_layout_catalog.len());
-    let mut callback_layout_rows = arena::HandleSpan::empty();
-    for entry in &signature.callback_layout_catalog {
-        callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
-    }
+    let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
         requirement_identity: signature.owner_requirement_identity().to_owned(),
-        target: signature.native_target(), report_fingerprint: 0, commitment: [0;32],
+        target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),
-        signature: calling_conventions::BoundarySignatureGeometry {
-            shapes: signature.shapes().to_vec(), fields: signature.fields().to_vec(),
-            parameters: signature.parameters().to_vec(), result: signature.result(),
-            native_parameters, native_parameter_rows, callback_layouts, callback_layout_rows,
-            callback_bindings, callback_binding_rows,
-        },
+        signature: policy.geometry,
         opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
             calling_conventions::BoundaryOpaqueApplication {
                 shape_root: use_.shape_root(), application_report_fingerprint: use_.application_report_fingerprint(),
@@ -562,7 +525,65 @@ pub(super) fn source_free_application(
                     representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
-        callback_context: callback_materialization_context(signature),
+        callback_context: policy.callbacks,
         callback_context_closed: false,
     })
+}
+
+impl MaterializedBoundarySignature {
+    /// Detach the ABI input from source correspondence. Native publication and
+    /// policy activation consume this same projection, including unused callback
+    /// binders and every target-closed destination demand.
+    pub fn policy_signature(&self) -> Result<super::CallingPolicySignature, String> {
+        let signature = self;
+        let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
+        let mut callback_binding_rows = arena::HandleSpan::empty();
+        for binder in &signature.callback_binders {
+            callback_bindings.append_to_span(
+                &mut callback_binding_rows,
+                calling_conventions::BoundaryCallbackBinding {
+                    binder: binder.binder,
+                    requirement: binder.requirement,
+                    static_machine_ordinal: binder.static_machine_ordinal,
+                    requirement_identity: binder.requirement_identity.clone(),
+                    invokes_synchronously: binder.invokes_synchronously,
+                },
+            );
+        }
+        let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
+        let mut native_parameter_rows = arena::HandleSpan::empty();
+        for parameter in &signature.native_parameters {
+            native_parameters.append_to_span(
+                &mut native_parameter_rows,
+                calling_conventions::BoundaryNativeParameterGeometry {
+                    identity: parameter.identity,
+                    native_ordinal: parameter.native_ordinal,
+                    origin: parameter.origin,
+                    shape: parameter.shape,
+                },
+            );
+        }
+        let mut callback_layouts =
+            arena::Arena::with_capacity(signature.callback_layout_catalog.len());
+        let mut callback_layout_rows = arena::HandleSpan::empty();
+        for entry in &signature.callback_layout_catalog {
+            callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
+        }
+        Ok(super::CallingPolicySignature {
+            target: signature.native_target(),
+            geometry: calling_conventions::BoundarySignatureGeometry {
+                shapes: signature.shapes().to_vec(),
+                fields: signature.fields().to_vec(),
+                parameters: signature.parameters().to_vec(),
+                result: signature.result(),
+                native_parameters,
+                native_parameter_rows,
+                callback_layouts,
+                callback_layout_rows,
+                callback_bindings,
+                callback_binding_rows,
+            },
+            callbacks: callback_materialization_context(signature),
+        })
+    }
 }

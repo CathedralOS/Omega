@@ -2015,6 +2015,11 @@ impl<'program> StructuralJudge<'program> {
         // denotation (for example a window's end minus start). Keep that
         // equation visible to the existing polynomial owner. Executable
         // operands embedded inside it still owe their original formation.
+        if matches!(value, StructuralTerm::IntegerEmbedding { .. }) {
+            // An observed conversion changes the receiving carrier while its
+            // embedded source keeps the original value, policy and formation.
+            return self.mathematical_value(value, observations, depth + 1);
+        }
         if matches!(value, StructuralTerm::MathematicalBinary { .. }) {
             return self.mathematical_value(value, observations, depth + 1);
         }

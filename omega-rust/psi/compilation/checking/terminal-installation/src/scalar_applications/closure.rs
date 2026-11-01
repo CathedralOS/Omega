@@ -80,6 +80,7 @@ impl ScalarScopeInputs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedScalarApplications {
     terminal: TerminalPsiIdentity,
+    product_formation: bool,
     primary: CompletedScalarScope,
     supplemental: Vec<ScalarScopeInputs>,
 }
@@ -92,6 +93,13 @@ struct CompletedScalarScope {
 }
 
 impl AdmittedScalarApplications {
+    /// An exact activation receipt cannot certify whole-Product formation.
+    pub fn require_product_formation(&self) -> Result<(), String> {
+        self.product_formation.then_some(()).ok_or_else(|| {
+            "entry scalar admission does not establish Product declaration formation".into()
+        })
+    }
+
     pub fn terminal(&self) -> TerminalPsiIdentity {
         self.terminal
     }
@@ -122,7 +130,13 @@ pub struct ScalarApplicationClosure<'artifact> {
     completions: Vec<bool>,
     primary_result: Option<CompletedScalarScope>,
     supplemental: Vec<ScalarScopeInputs>,
-    deployed: bool,
+    kind: ScalarClosureKind,
+}
+
+enum ScalarClosureKind {
+    Source,
+    Deployment,
+    Invocation(Vec<terminal_psi::ProofDeclarationId>),
 }
 
 impl<'artifact> ScalarApplicationClosure<'artifact> {
@@ -166,22 +180,58 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             .into_iter()
             .map(|scope| (scope.to_owned(), false))
             .collect();
+        Self::with_scopes(artifact, primary, scopes, ScalarClosureKind::Source)
+    }
+
+    fn with_scopes(
+        artifact: TerminalArtifactView<'artifact>,
+        primary: &str,
+        scopes: Vec<(String, bool)>,
+        kind: ScalarClosureKind,
+    ) -> Self {
+        let conditions = &artifact.module().scalar_applications.conditions;
         Self {
             artifact,
             primary: primary.to_owned(),
             scopes,
-            ranges: vec![false; catalog.conditions.ranges().len()],
-            predicates: vec![false; catalog.conditions.predicates().len()],
-            completions: vec![false; catalog.conditions.completions().len()],
+            ranges: vec![false; conditions.ranges().len()],
+            predicates: vec![false; conditions.predicates().len()],
+            completions: vec![false; conditions.completions().len()],
             primary_result: None,
             supplemental: Vec::new(),
-            deployed: false,
+            kind,
         }
+    }
+
+    /// A restricted judgment for the supplied invocation, not whole-source
+    /// acceptance. Its resulting machine membership still gates execution.
+    pub fn for_invocation(
+        artifact: TerminalArtifactView<'artifact>,
+        primary: &str,
+        roots: &[terminal_psi::ProofDeclarationId],
+    ) -> Self {
+        let mut declarations = Vec::with_capacity(roots.len());
+        for &root in roots {
+            if !declarations.contains(&root) {
+                declarations.push(root);
+            }
+        }
+        Self::with_scopes(
+            artifact,
+            primary,
+            vec![(primary.to_owned(), false)],
+            ScalarClosureKind::Invocation(declarations),
+        )
     }
 
     /// Additional scopes belong to actual Build rows, never Source family tags.
     pub fn with_deployment_scopes(mut self, scopes: &[String]) -> Self {
-        self.deployed = true;
+        // A source deployment starts its own source judgment; an earlier
+        // invocation cannot donate narrower coverage to it.
+        if matches!(self.kind, ScalarClosureKind::Invocation(_)) {
+            self = Self::new(self.artifact, &self.primary);
+        }
+        self.kind = ScalarClosureKind::Deployment;
         for scope in scopes {
             if !self.scopes.iter().any(|(target, _)| target == scope) {
                 self.scopes.push((scope.clone(), false));
@@ -209,7 +259,16 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
                 "scalar closure selection differs from its artifact or scope inputs".into(),
             );
         }
-        if self.deployed != conditions.application_machines().is_some() {
+        let matching_scope = match (&self.kind, conditions.scope()) {
+            (ScalarClosureKind::Source, super::ScalarConditionScope::Source) => true,
+            (ScalarClosureKind::Deployment, super::ScalarConditionScope::SourceRoots(_)) => true,
+            (
+                ScalarClosureKind::Invocation(expected),
+                super::ScalarConditionScope::Invocation(actual),
+            ) => expected == actual,
+            _ => false,
+        };
+        if !matching_scope {
             return Err(
                 "scalar closure deployment roots differ from its selected conditions".into(),
             );
@@ -349,7 +408,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             let ScalarCompletionCondition::Complete { subject, .. } = condition else {
                 return Err("scalar closure has an absent completion condition".into());
             };
-            if !self.deployed
+            if matches!(self.kind, ScalarClosureKind::Source)
                 && !matches!(subject, ScalarConditionSubject::Application(_))
                 && !self.completions[position]
             {
@@ -365,7 +424,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             let ScalarRangeCondition::Range { subject, .. } = condition else {
                 return Err("scalar closure has an absent range condition".into());
             };
-            if !self.deployed
+            if matches!(self.kind, ScalarClosureKind::Source)
                 && !matches!(subject, ScalarConditionSubject::Application(_))
                 && !self.ranges[position]
             {
@@ -373,7 +432,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             }
         }
         for (position, condition) in conditions.predicates().iter().enumerate() {
-            if !self.deployed
+            if matches!(self.kind, ScalarClosureKind::Source)
                 && !matches!(condition.subject, ScalarConditionSubject::Application(_))
                 && !self.predicates[position]
             {
@@ -385,6 +444,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             .ok_or("scalar closure has no primary value scope")?;
         Ok(AdmittedScalarApplications {
             terminal: self.artifact.identity(),
+            product_formation: !matches!(self.kind, ScalarClosureKind::Invocation(_)),
             primary,
             supplemental: self.supplemental,
         })

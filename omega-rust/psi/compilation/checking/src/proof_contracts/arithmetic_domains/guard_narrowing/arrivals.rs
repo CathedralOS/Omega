@@ -468,7 +468,7 @@ pub(super) fn incoming_environments(
         &State,
         &[(SymbolHandle, Interval, Option<IntegerRangeRecipe>)],
     )>,
-    return_ranges: Option<&ReturnInference>,
+    return_ranges: Option<&ReturnInference<'_>>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let root_ranges = ReturnInference::default();
     let return_ranges = return_ranges.or_else(|| invocation.is_none().then_some(&root_ranges));
@@ -714,7 +714,7 @@ struct ArrivalWalk<'program, 'frames> {
     observations: Vec<ExpressionObservation>,
     completed_children:
         BTreeMap<(u32, u32), super::super::expression_analysis::CheckedIntegerValue>,
-    return_ranges: Option<&'frames ReturnInference>,
+    return_ranges: Option<&'frames ReturnInference<'frames>>,
     collect_arrivals: bool,
 }
 

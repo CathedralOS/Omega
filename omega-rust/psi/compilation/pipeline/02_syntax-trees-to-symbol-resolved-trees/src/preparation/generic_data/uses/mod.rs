@@ -18,11 +18,12 @@ pub(super) use constructors::{
     closed_constructor_carrier, constructor_carrier_span, constructor_path_name, expected_instance,
     relabel_data_literal_for_expected_type, selected_constructor,
 };
-pub(in crate::preparation) use expressions::collect_expression_handles;
 pub(super) use expressions::{
-    ConstructorFrontier, collect_statement_expression_handles, concrete_machine_declarations,
-    concrete_machine_expression_handles, selected_machine_expression_handles,
-    selected_machine_state_handles,
+    ConstructorFrontier, concrete_machine_declarations, concrete_machine_expression_handles,
+    selected_machine_expression_handles, selected_machine_state_handles,
+};
+pub(in crate::preparation) use expressions::{
+    collect_expression_handles, collect_statement_expression_handles,
 };
 pub(super) use patterns::{
     closed_sum_path, named_type_name, relabel_closed_sum_memberships_from_local_types,

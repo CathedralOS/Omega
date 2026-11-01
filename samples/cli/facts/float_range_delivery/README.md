@@ -87,3 +87,15 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Mixed-format float delivery (e.g. `f32` to `f64` widening without explicit conversion), non-orderable float NaN handling across arithmetic domains, and broader interval arithmetic chains beyond direct subset entailment remain governed under the wider `CANONICALIZE-SCALAR-RANGE-CONTRACTS` and `wiki/spec/language/numeric_values.md` roadmap.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

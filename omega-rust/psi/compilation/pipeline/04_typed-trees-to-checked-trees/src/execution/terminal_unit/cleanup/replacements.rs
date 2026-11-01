@@ -163,6 +163,7 @@ pub(super) fn actions(
                 checked_trees::CheckedUnitStructuralTypeShape::Reference {
                     referent_identity,
                     access,
+                    ..
                 } => {
                     program.normalized_type_identity(shell.referee) == carrier.source.type_identity
                         && validation::stored_structural_type_identity(

@@ -191,7 +191,7 @@ impl StructuralJudge<'_> {
                     .map(|(_, value)| (parameter.symbol, value.clone()))
             })
             .collect::<Vec<_>>();
-        let Some(term) = self.bound_contract_term(
+        let term = self.bound_contract_term(
             expression,
             owner,
             parameters,
@@ -200,7 +200,13 @@ impl StructuralJudge<'_> {
             &[],
             None,
             0,
-        ) else {
+        );
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT captured-predicate owner={owner:?} expression={expression:?} term={term:?}"
+            );
+        }
+        let Some(term) = term else {
             return StructuralJudgment::Unknown;
         };
         // The bound-term owner authenticates every completed scalar cell and

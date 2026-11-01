@@ -150,10 +150,8 @@ with `cannot prove requires contract for call count ... index <= 4`;
 `corpus_gate.py` re-pinned the 27 fail rows to record the actual emitted
 diagnostics (previously recorded without diagnostic text).
 
-The row is pinned under two selectors: `tests/omega/{pass,fail}/facts/
-range_fact_delivery_through_<place>_{exit,rejected}` and
-`tests/omega/{pass,fail}/facts/integer_range_delivery_through_<place>_{exit,
-missing_bound}` — the integer `count` row pinned twice under both names.
+The row is pinned under `tests/omega/{pass,fail}/facts/
+range_fact_delivery_through_<place>_{exit,rejected}`.
 Every positive records native exit 0, every twin records its emitted
 rejection diagnostic. (The `float_range_delivery_through_*` family pins the
 sibling `samples/cli/facts/float_range_delivery/` row, not this folder.)
@@ -165,3 +163,15 @@ python3 tools/sample_gate.py --filter cli/facts/range_fact_delivery --cli <omega
 python3 tools/sample_native_gate.py --filter cli/facts/range_fact_delivery --cli <omega>
 python3 tools/corpus_gate.py --filter range_delivery,range_fact_delivery
 ```
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

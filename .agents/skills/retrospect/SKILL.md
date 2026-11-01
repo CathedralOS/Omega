@@ -1,8 +1,8 @@
 ---
 name: retrospect
 description: >-
-  Review a batch of agent work histories for recurring friction and evidence-backed
-  improvements to how the agent works. Use when asked to retrospect on multiple
+  Review a batch of agent work histories and what they left on main for recurring
+  friction, costly patterns, and evidence-backed improvements to how agents work. Use when asked to retrospect on multiple
   runs, find recurring workflow problems, or evaluate a previous process change.
   Not a routine step within advance, a single-run bug fix, or a compiler optimization.
 ---
@@ -20,6 +20,14 @@ Use the requested batch, time window, or earlier experiment. If none is supplied
 select a bounded recent batch of completed runs for the same project and explain
 the selection. Use available conversation history, run logs, tool observations,
 diffs, and check results, and inspect the underlying records behind summaries.
+
+The repository is evidence too. Read what the period's work left on `main`:
+commits by subject and author, lines and fixtures added, and what later work
+had to fold, revert or delete. A pattern can be invisible inside every
+transcript and plain in the history; in the week to 2026-11-01, 170 of 647
+commits were per-production "preserve/retain/carry" repairs, and about 300,000
+lines of repeated fact rows were added, each from a run that looked
+productive.
 
 Identify which runs and revisions were examined and any missing history. If only
 one run is available, report its observations as hypotheses and name what
@@ -46,6 +54,18 @@ Do not impose a magic sample count: multiple independent observations are necess
 for a recurring-pattern claim, but their comparability and causal evidence determine
 whether a process change is justified.
 
+Friction is one signal; locally reasonable steps that add up to a global cost
+are another. An agent can be fast and successful at the wrong thing: one more
+fact folder, one more per-case repair, one more broad gate. Judge each pattern
+against the goal of a correctly abstracted compiler that ships: capability
+gained (fact rows closed, `TASKS.md` acceptance removed, programs that now
+run) against what the work leaves behind (code and fixtures someone must keep,
+audit or later delete), not only the time and tokens of the run.
+
+When a pattern breaks a rule that already exists, find out why the rule did
+not hold: it was unenforced, buried, or contradicted by other text. Prefer a
+check that fails at creation time over more prose.
+
 Examine the whole route to the result. Repeated searches might reflect an unclear
 ownership boundary or missing diagnostic. Consider instructions, source
 organization, tools, and the environment as possible causes; check current code
@@ -65,6 +85,9 @@ required checks as the quality gate. Compare available time, tokens, repeated
 investigation, and rework; account for task difficulty, cache state, model, tools,
 and other changed conditions. Shorter reasoning or fewer steps alone is not a win.
 Do not claim a speedup from unlike tasks or infer unknown usage.
+A change can move its number without improving the system: renaming to dodge
+a name check, shortening paths to cut lines, or folding fixtures across a real
+boundary. Show that the underlying property improved, not only the measure.
 
 Distinguish a proposed experiment, an implemented but unevaluated change, and an
 improvement supported across runs. Retain, revise, or revert based on those outcomes.

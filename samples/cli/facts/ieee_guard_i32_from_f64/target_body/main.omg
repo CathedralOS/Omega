@@ -1,21 +1,53 @@
 // Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32::from_f64(value) is finite and in range.
 // Expected exit: 0
 use omega::language::core::float_operations;
-linux_x86_64 machine convert(value: f64) -> i32
-requires value == value && value >= 0.0 && value < 1000000000.0
-{ I32::from_f64(value) }
-linux_arm64 machine convert(value: f64) -> i32
-requires value == value && value >= 0.0 && value < 1000000000.0
-{ I32::from_f64(value) }
-macos_arm64 machine convert(value: f64) -> i32
-requires value == value && value >= 0.0 && value < 1000000000.0
-{ I32::from_f64(value) }
-windows_x86_64 machine convert(value: f64) -> i32
-requires value == value && value >= 0.0 && value < 1000000000.0
-{ I32::from_f64(value) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConvert {
+    machine convert(value: f64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires value == value && value >= 0.0 && value < 1000000000.0;
+}
+
+X86Convert satisfies SelectedConvert {
+    machine convert(value: f64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires value == value && value >= 0.0 && value < 1000000000.0
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     I32::from_f64(value) 
+    }
+}
+
+ArmConvert satisfies SelectedConvert {
+    machine convert(value: f64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires value == value && value >= 0.0 && value < 1000000000.0
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     I32::from_f64(value) 
+    }
+}
+
+
 machine bounded(value: f64) -> i32 {
     transition value == value && value >= 0.0 && value < 1000000000.0 {
-        true -> convert(value)
+        true -> SelectedConvert::convert(value)
         false -> zero()
     }
     machine zero() -> i32 { 0 }
@@ -33,4 +65,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

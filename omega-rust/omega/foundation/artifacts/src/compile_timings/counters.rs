@@ -21,6 +21,19 @@ static BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomi
 static PRODUCT_SOURCE_COMPLETIONS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 static TERMINAL_PRODUCTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PRODUCT_SOURCE_CHECKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Executed Product judgments, excluding the separate Build language judgment.
+#[doc(hidden)]
+pub fn product_source_check_count() -> u64 {
+    PRODUCT_SOURCE_CHECKS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Account a fresh Product check in both its own and the aggregate totals.
+pub fn record_product_source_check(elapsed: std::time::Duration) {
+    PRODUCT_SOURCE_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    record_settled_check(elapsed);
+}
 
 /// Product-adapter Psi production attempts, including independent callback roots.
 #[doc(hidden)]
@@ -144,5 +157,9 @@ mod tests {
         assert_eq!(source_assembly_invocation_count(), assemblies + 1);
         assert_eq!(typed_frontier_reuse_count(), reuses + 1);
         assert_eq!(settled_check_totals(), (settled.0 + 1, settled.1 + 11));
+        let products = product_source_check_count();
+        record_product_source_check(std::time::Duration::from_micros(7));
+        assert_eq!(product_source_check_count(), products + 1);
+        assert_eq!(settled_check_totals(), (settled.0 + 2, settled.1 + 18));
     }
 }

@@ -21,7 +21,10 @@ pub fn scoped_declared_integer_application_formation(
     expression: &ScopedArithmeticExpression,
     input_type: typed_trees::types::TypeReferenceHandle,
     result: PrimitiveType,
-) -> Option<super::super::IntegerApplicationFormation> {
+) -> Option<(
+    super::super::IntegerApplicationFormation,
+    super::ScopedArithmeticValue,
+)> {
     let Some(declaration) = program
         .measures()
         .iter()
@@ -49,7 +52,10 @@ pub fn scoped_declared_integer_application_formation(
         return None;
     }
     let input = IntegerApplicationInput::captured(&engine, declaration.symbol, input_type)?;
-    engine
-        .form_declared_integer_application(declaration.symbol, &input)
-        .and_then(|application| application.formation)
+    let application = engine.form_declared_integer_application(declaration.symbol, &input)?;
+    let value = engine.capture_integer_denotation(&application.value)?;
+    Some((
+        application.formation?,
+        super::ScopedArithmeticValue::CapturedInteger(value),
+    ))
 }

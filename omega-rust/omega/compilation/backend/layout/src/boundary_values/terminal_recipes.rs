@@ -57,14 +57,10 @@ impl<'module> TerminalBoundaryRecipes<'module> {
         &mut self,
         referent: StructuralTypeId,
     ) -> Result<Handle<BoundaryValueRecipe>, String> {
-        let declaration = self
+        let descriptor = self
             .module
-            .structural_type(referent)
-            .ok_or("identity-only referent does not retain its foreign reference representation")?;
-        let descriptor = matches!(
-            declaration.shape,
-            StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. }
-        );
+            .foreign_reference_descriptor(referent)
+            .ok_or("referent has no retained foreign reference representation")?;
         Ok(self
             .recipes
             .values

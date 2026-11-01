@@ -26,6 +26,7 @@ pub mod build_requests;
 pub use boundary_bodies::{BoundaryBodySelection, CheckedBodyCandidate};
 pub mod boundary_provider_review;
 pub mod byte_predicates;
+pub mod conformance_identity;
 pub mod const_value;
 pub mod content;
 pub mod declaration_selection;
@@ -42,6 +43,7 @@ mod service_reach;
 pub mod service_surface;
 #[cfg(test)]
 mod tests;
+pub mod trust_declarations;
 pub mod type_identity;
 pub mod value_domain;
 pub mod wire;

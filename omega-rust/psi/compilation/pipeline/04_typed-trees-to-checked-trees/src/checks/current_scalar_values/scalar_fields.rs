@@ -132,7 +132,53 @@ impl CurrentScalarValues<'_> {
         &self,
         field: &ScalarField,
     ) -> Option<Vec<checked_trees::CheckedEntryIndexBound>> {
-        let path = source_path(&field.path);
+        let geometry = validation::structural_scalar_coordinate(
+            self.program,
+            self.program.state_parameters(self.state),
+            field.owner,
+            &source_path(&field.path),
+        )?;
+        self.projection_indexes(field.owner, &field.path, &geometry.projections)
+    }
+
+    /// Form an arbitrary typed entry projection without choosing a scalar leaf.
+    /// Selector values are captured once in the entry frame. This supplies
+    /// index/case formation only, never whole-value read or copy authority.
+    pub(crate) fn entry_projection_indexes(
+        &self,
+        owner: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<checked_trees::CheckedEntryIndexBound>> {
+        let execution = self
+            .program
+            .statement_table
+            .admitted_execution_order(self.state.statement_nodes);
+        let first = execution.indices().first().copied().unwrap_or(0);
+        if self.statement_index != first || self.in_transition_target {
+            return None;
+        }
+        let geometry = validation::structural_coordinate(
+            self.program,
+            self.program.state_parameters(self.state),
+            owner,
+            path,
+        )?;
+        let captured = capture_path(path, |selector| {
+            entry_selector_value(self.occurrence(), selector, &self.current, &self.fields)
+        })?;
+        self.projection_indexes(owner, &captured, &geometry.projections)
+    }
+
+    /// Scalar and structural entry projections share the same case and index
+    /// obligations. The supplied path already contains its selector snapshots;
+    /// no later source spelling is used to prove a bound.
+    fn projection_indexes(
+        &self,
+        owner: SymbolHandle,
+        captured: &[ScalarProjection],
+        projections: &[validation::ScalarCoordinateProjection],
+    ) -> Option<Vec<checked_trees::CheckedEntryIndexBound>> {
+        let path = source_path(captured);
         if path
             .iter()
             .any(|step| matches!(step, facts::PlaceSegment::Case { .. }))
@@ -167,21 +213,15 @@ impl CurrentScalarValues<'_> {
                 self.program.state_parameters(self.state),
                 &requires,
                 &validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(field.owner),
+                    root: facts::PlaceRoot::Symbol(owner),
                     segments: path.clone(),
                 },
             ) {
                 return None;
             }
         }
-        let geometry = validation::structural_scalar_coordinate(
-            self.program,
-            self.program.state_parameters(self.state),
-            field.owner,
-            &source_path(&field.path),
-        )?;
         let mut indexes = Vec::new();
-        for (path_step, step) in geometry.projections.iter().enumerate() {
+        for (path_step, step) in projections.iter().enumerate() {
             let validation::ScalarCoordinateProjection::Element {
                 selector: expression,
                 collection_type,
@@ -193,7 +233,7 @@ impl CurrentScalarValues<'_> {
             else {
                 continue;
             };
-            let ScalarProjection::Element { selector, .. } = field.path.get(*source_step)? else {
+            let ScalarProjection::Element { selector, .. } = captured.get(*source_step)? else {
                 return None;
             };
             let extent = extent.map(u64::try_from).transpose().ok()?;
@@ -202,7 +242,7 @@ impl CurrentScalarValues<'_> {
             } else {
                 // The retained roster names this exact descriptor binding,
                 // never its backing capacity or a same-typed sibling's count.
-                self.coordinate_collection_length(field.owner, collection_path)?
+                self.coordinate_collection_length(owner, collection_path)?
             };
             if !self.proves_values_relation(
                 self.program,
@@ -233,7 +273,7 @@ impl CurrentScalarValues<'_> {
             };
             indexes.push(checked_trees::CheckedEntryIndexBound {
                 state: self.state.symbol,
-                parameter: field.owner,
+                parameter: owner,
                 path_step: u32::try_from(path_step).ok()?,
                 selector: expression.clone(),
                 collection_path: collection_path.clone(),

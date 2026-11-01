@@ -494,7 +494,6 @@ pub(crate) fn validate_type_reference_handle(
         symbols,
         diagnostics,
         owner,
-        false,
         type_parameter_scope,
         formation_obligations,
     );
@@ -606,7 +605,6 @@ fn validate_type_reference_node(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
-    allow_bare_str: bool,
     mut type_parameter_scope: TypeParameterScope<'_>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
@@ -630,14 +628,13 @@ fn validate_type_reference_node(
         formation_obligations,
     );
     macro_rules! validate_node {
-        ($type_reference:expr, $allow_bare_str:expr $(,)?) => {
+        ($type_reference:expr $(,)?) => {
             validate_type_reference_node(
                 program,
                 $type_reference,
                 symbols,
                 diagnostics,
                 owner,
-                $allow_bare_str,
                 type_parameter_scope,
                 formation_obligations,
             )
@@ -655,7 +652,6 @@ fn validate_type_reference_node(
                 symbols,
                 diagnostics,
                 owner.generic_argument(),
-                false,
                 type_parameter_scope,
                 formation_obligations,
             );
@@ -677,13 +673,13 @@ fn validate_type_reference_node(
                     lifetime.as_str()
                 )));
             }
-            validate_node!(*referee, type_reference_is_named_str(program, *referee));
+            validate_node!(*referee);
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_node!(*base_type, allow_bare_str);
+            validate_node!(*base_type);
             validate_type_constraints_node(
                 program,
                 *base_type,
@@ -713,10 +709,10 @@ fn validate_type_reference_node(
                 owner,
                 diagnostics,
             );
-            validate_node!(*element_type, false);
+            validate_node!(*element_type);
         }
         TypeReferenceNode::Slice { element_type } => {
-            validate_node!(*element_type, false);
+            validate_node!(*element_type);
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -997,13 +993,6 @@ fn validate_type_reference_node(
                 )));
                 return;
             }
-            if name.as_str() == "string" && !allow_bare_str {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses unsized text view type `string` by value; use `&string`"
-                )));
-                return;
-            }
-
             let type_resolves = symbols.has_type_symbol(*symbol)
                 || PrimitiveType::from_name(name.as_str()).is_some()
                 || (!program.symbols.has_source_metadata() && symbols.has_type(name));
@@ -1123,16 +1112,6 @@ impl<'program> TypeParameterScope<'program> {
                     || parameter.name.as_str() == name)
         })
     }
-}
-
-fn type_reference_is_named_str(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    matches!(
-        program.type_reference_table.type_reference(type_reference),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
-    )
 }
 
 pub(crate) fn type_references_match(

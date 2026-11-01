@@ -38,3 +38,15 @@ On Windows x86-64, all nine positives then return native exit 0 and Terminal exi
 - **Omega 07–09 and emission:** The Windows x86-64 image executes with the authored result and agrees with Terminal. The other three hosted targets are authored and were not executed on this host.
 
 This completes the bounded saved-byte-predicate currentness repair, not all R5 or exact disjointness between windows within one coarsened collection.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

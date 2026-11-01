@@ -501,6 +501,9 @@ profiles bound to the actual binary digests. See
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
   exceeds the Windows command-line limit at this workspace's size.
+  `cargo fmt -p <package>` formats the whole package, so drift in files you did
+  not edit lands in your diff: check `git status` afterwards and restore the
+  extras, or check only your files with `rustfmt --edition 2024 --check <file>...`.
 - Compile a program: `mbx run -p omega -- --check <root.omg>`; run it:
   `mbx run -p omega -- run <root.omg>`. The CLI package is `omega` (binary
   `omega`) — there is no `omega-cli` package. The full flag surface:
@@ -537,6 +540,11 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Reuse valid completed evidence when its inputs and affected consumers still
+  apply; retain its revision, command and outcome. A broader run needs a concrete
+  change-specific obligation that focused affected-path tests and relevant
+  positive/rejection controls cannot establish. This does not authorize the
+  user-triggered sweeps above or replace required GitHub `compiler-check`.
 - **Keep progress PRs bounded.** Name the changed behavior and its necessary
   checks before building. Reuse unchanged results; finish and enqueue once
   those checks and required review pass. Full Product builds, self-hosting,
@@ -691,6 +699,16 @@ The rules that touch every edit:
   into `source/library` and migrates its consumers together, preserving oracles
   and negative coverage. Do not create another permanent hierarchy or stale
   inventory. A Rust test of one crate stays beside that crate.
+- Tests check behavior or structure, never source text. Do not read source
+  files with `include_str!` or similar and assert that names or fragments
+  are present or absent: such a test breaks on a rename, passes when the
+  forbidden call goes through another spelling, and says nothing about what
+  the program does. An ownership or dependency rule belongs in
+  `tools/check_native_boundary.py` (cargo metadata) or in visibility and
+  types, so a violation stops compiling. An order or count rule belongs in a
+  test that runs the code and observes it. In the week to 2026-11-01, 261
+  such reads were added; PR #1139 replaced the ones it could and deleted
+  165 spelling-only asserts.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,

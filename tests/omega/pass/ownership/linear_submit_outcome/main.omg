@@ -28,9 +28,15 @@ data SubmitOutcome {
 // Type-attached bodyless requirements on linear data: each declared edge is
 // the authorized terminal disposition for a hook-less linear type, called
 // like an ordinary machine.
-boundary requirement Submission::release(submission: Submission);
-boundary requirement Ticket::release(ticket: Ticket);
-boundary requirement SubmitOutcome::release(outcome: SubmitOutcome);
+boundary trait SubmissionRelease {
+    machine release(submission: Submission) reaches;
+}
+boundary trait TicketRelease {
+    machine release(ticket: Ticket) reaches;
+}
+boundary trait SubmitOutcomeRelease {
+    machine release(outcome: SubmitOutcome) reaches;
+}
 
 machine submit(submission: Submission, claim: Ticket, open: bool) -> SubmitOutcome {
     transition open {
@@ -39,12 +45,12 @@ machine submit(submission: Submission, claim: Ticket, open: bool) -> SubmitOutco
     }
 
     machine admit(submission: Submission, claim: Ticket) -> SubmitOutcome {
-        Submission::release(submission);
+        SubmissionRelease::release(submission);
         SubmitOutcome::Accepted { ticket: claim }
     }
 
     machine refuse(submission: Submission, claim: Ticket) -> SubmitOutcome {
-        Ticket::release(claim);
+        TicketRelease::release(claim);
         SubmitOutcome::Rejected {
             submission: submission,
             reason: SubmissionRejection { code: -1 },
@@ -60,7 +66,7 @@ machine main() -> i32 {
     };
     // Member projection moves the payload claim back out of the sum.
     let returned: Submission = outcome.submission;
-    Submission::release(returned);
+    SubmissionRelease::release(returned);
 
     let claim: Ticket = Ticket { executor: 1, slot: 0 };
     let admitted: SubmitOutcome = submit(
@@ -68,6 +74,6 @@ machine main() -> i32 {
         claim,
         true
     );
-    SubmitOutcome::release(admitted);
+    SubmitOutcomeRelease::release(admitted);
     0
 }

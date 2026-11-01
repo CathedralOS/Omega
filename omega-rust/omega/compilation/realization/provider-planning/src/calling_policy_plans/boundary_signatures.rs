@@ -2,13 +2,13 @@
 //! call carries, the materialized signature, and how signatures are
 //! collected from the typed program and its calling-policy machines.
 
-use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
 use crate::provider_planning::type_reference_node;
+use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
@@ -42,124 +42,6 @@ pub struct MaterializedBoundarySignature {
 }
 
 impl MaterializedBoundarySignature {
-    /// Materialize one exact published signature from canonical storage.
-    /// This projection owns no source coordinates and grants no provider or
-    /// representation authority. Private callback geometry must be closed by
-    /// its dedicated catalog owner before that surface can enter this route.
-    pub fn from_terminal(
-        module: &terminal_psi::TerminalModule,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-        target: target::TargetProfile,
-    ) -> Result<Self, String> {
-        let signature = module
-            .calling_signatures
-            .iter()
-            .find(|signature| signature.boundary == boundary)
-            .ok_or("boundary has no retained calling signature declaration")?;
-        let declaration = module
-            .boundary_machine(boundary)
-            .ok_or("calling signature lost its exact boundary declaration")?;
-        let telescope = signature.telescope.as_ref().map_err(Clone::clone)?;
-        if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
-            return Err(
-                "Terminal calling signature still requires private callback geometry closure"
-                    .into(),
-            );
-        }
-        if declaration.parameter_order.len() != telescope.parameters.len() {
-            return Err(
-                "calling telescope differs from its exact boundary parameter roster".into(),
-            );
-        }
-        let mut recipes = layout::TerminalBoundaryRecipes::new(module, target.target_name());
-        let layout_target = layout::LayoutTarget::for_profile(target)?;
-        let mut values = BoundaryValueLayout::new(layout_target, &[]);
-        let mut parameters = Vec::with_capacity(telescope.parameters.len());
-        let mut native_parameters = Vec::with_capacity(telescope.parameters.len());
-        let mut scalars = declaration.scalar_parameters.iter();
-        let mut structural = declaration.structural_parameters.iter();
-        for (formal_ordinal, (kind, formal)) in declaration
-            .parameter_order
-            .iter()
-            .zip(&telescope.parameters)
-            .enumerate()
-        {
-            let recipe = match kind {
-                terminal_psi::BoundaryParameterKind::Scalar => recipes.scalar(
-                    *scalars
-                        .next()
-                        .ok_or("calling scalar parameter is outside its exact lane")?,
-                )?,
-                terminal_psi::BoundaryParameterKind::Structural => {
-                    let parameter = structural
-                        .next()
-                        .ok_or("calling structural parameter is outside its exact lane")?;
-                    match parameter.access {
-                        terminal_psi::StructuralAccess::Owned => {
-                            recipes.value(parameter.structural_type)?
-                        }
-                        _ => recipes.reference(parameter.structural_type)?,
-                    }
-                }
-            };
-            let (_, root) = values.value_type(recipes.recipes(), recipe)?;
-            validate_fresh_native_parameter_report_identity(
-                &native_parameters,
-                formal.identity,
-                formal.native_ordinal,
-            )?;
-            parameters.push(root);
-            native_parameters.push(BoundaryNativeParameter {
-                identity: formal.identity,
-                native_ordinal: formal.native_ordinal,
-                shape: BoundaryNativeParameterShape::Semantic(root),
-                origin: BoundaryNativeParameterOrigin::SemanticFormal {
-                    formal_ordinal: u32::try_from(formal_ordinal)
-                        .map_err(|_| "calling signature has too many formals")?,
-                },
-                layout_data_symbol: symbols::SymbolHandle::invalid(),
-            });
-        }
-        if scalars.next().is_some() || structural.next().is_some() {
-            return Err("calling telescope omitted a declared parameter lane".into());
-        }
-        let result = match &declaration.result {
-            terminal_psi::BoundaryMachineResult::Unit => None,
-            terminal_psi::BoundaryMachineResult::Scalar(scalar) => {
-                Some(recipes.scalar(scalar.scalar_type)?)
-            }
-            terminal_psi::BoundaryMachineResult::Structural(result) => {
-                Some(recipes.value(result.structural_type)?)
-            }
-        }
-        .map(|recipe| {
-            values
-                .value_type(recipes.recipes(), recipe)
-                .map(|(_, root)| root)
-        })
-        .transpose()?;
-        let (shapes, fields, opaque_representations) = values.into_parts();
-        Ok(Self {
-            owner_requirement_identity: module
-                .identities
-                .text(signature.requirement_identity)
-                .filter(|identity| !identity.is_empty())
-                .ok_or("calling signature has no exact requirement identity")?
-                .to_owned(),
-            native_target: target.native_target(),
-            opaque_representations,
-            shapes,
-            fields,
-            parameters,
-            callback_binders: Vec::new(),
-            callback_demands: Vec::new(),
-            callback_layout_catalog: Vec::new(),
-            native_parameters,
-            direct_callback_parameters: Vec::new(),
-            result,
-        })
-    }
-
     /// Named layout-owned destinations in native-demand order. Direct callback
     /// parameters have no layout field and therefore contribute no entry here.
     /// Typed slot applications survive without retaining a complete LayoutPlan.
@@ -483,12 +365,13 @@ pub(crate) fn materialize_prepared_signature(
             invokes_synchronously: binder.invokes_synchronously,
         })
         .collect();
-    let (representation_types, representation_uses) =
-        crate::boundary_value_recipes::representation_inputs(opaque_representation_selections);
+    let representation_types =
+        crate::boundary_value_recipes::representation_types(opaque_representation_selections);
     let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
-    let mut values = BoundaryValueLayout::new(layout_target, &representation_uses);
+    let mut values = BoundaryValueLayout::new(layout_target);
     let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
-    let mut native_parameters = Vec::with_capacity(prepared.parameter_types.len());
+    let mut native_parameters =
+        Vec::<BoundaryNativeParameter>::with_capacity(prepared.parameter_types.len());
     for (formal_ordinal, (type_reference, formal)) in prepared
         .parameter_types
         .iter()
@@ -503,8 +386,8 @@ pub(crate) fn materialize_prepared_signature(
         let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
-        validate_fresh_native_parameter_report_identity(
-            &native_parameters,
+        validate_fresh_native_parameter_identity(
+            native_parameters.iter().map(|parameter| parameter.identity),
             formal.identity,
             formal.native_ordinal,
         )?;
@@ -522,7 +405,11 @@ pub(crate) fn materialize_prepared_signature(
     } else {
         None
     };
-    let (shapes, fields, opaque_representations) = values.into_parts();
+    let (shapes, fields, occurrences) = values.into_parts();
+    let opaque_representations = crate::boundary_value_recipes::representation_uses(
+        opaque_representation_selections,
+        &occurrences,
+    )?;
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: declaration.requirement_identity.clone(),
         native_target: layout_target.native_target(),

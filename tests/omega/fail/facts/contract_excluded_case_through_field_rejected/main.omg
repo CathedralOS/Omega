@@ -1,0 +1,38 @@
+// A generic extractor whose contract states `T == i32` (or `T == bool`) owes no arm for the case whose default domain states the other type, so `extract_int` lists only `Integer` and `extract_flag` only `Boolean`: they return `7` and `9` from `Value<i32>`, `true` and `false` from `Value<bool>`.
+// Expected error: match does not cover its subject
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine extract_int<T>(v: Value<T>) -> T {
+    match v {
+        Value::Integer { value } -> value
+    }
+}
+machine extract_flag<T>(v: Value<T>) -> T requires T == bool {
+    match v {
+        Value::Boolean { value } -> value
+    }
+}
+data Carrier [copy] { number: Value<i32>; other_number: Value<i32>; flag: Value<bool>; other_flag: Value<bool>; }
+machine read(carrier: Carrier) -> bool {
+    extract_int(carrier.number) == 7 && extract_int(carrier.other_number) == 9
+        && extract_flag(carrier.flag) == true && extract_flag(carrier.other_flag) == false
+}
+machine main() crashes Trap {
+    let carrier: Carrier = Carrier {
+        number: Value::Integer { value: 7 },
+        other_number: Value::Integer { value: 9 },
+        flag: Value::Boolean { value: true },
+        other_flag: Value::Boolean { value: false }
+    };
+    transition read(carrier) == true {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

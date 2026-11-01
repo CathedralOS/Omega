@@ -1521,7 +1521,11 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 }
                 for geometry in plan.geometries(program) {
                     for demand in &geometry.private_callback_demands {
-                        visit_closed_conformance(program, retained, &demand.slot_application);
+                        visit_closed_conformance(
+                            program,
+                            retained,
+                            &demand.slot_application.application,
+                        );
                     }
                 }
             }
@@ -1585,39 +1589,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, definition.symbol);
-        visit_symbol(retained, definition.symbol);
-        visit_type_parameters(program, retained, definition.type_parameters);
-
-        for requirement in program
-            .trait_requirements(definition)
-            .iter()
-            .chain(definition.refines.iter())
-        {
-            visit_symbol(retained, requirement.symbol);
-            for argument in program.type_reference_handles(requirement.arguments) {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        for refinement in &definition.refinement_clauses {
-            visit_signature(program, retained, &refinement.signature);
-        }
-        for bound in &definition.conformance_bounds {
-            for argument in &bound.arguments {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        // Application copies own distinct proof/type payloads. Omitting them
-        // leaves their indexed identities frozen at the declaration's tuple
-        // even after the copied operands have been substituted.
-        let include_derived = retained.derived_declaration_references();
-        for signature in program.trait_machine_signatures(definition).iter().chain(
-            program
-                .applied_trait_signatures(definition.symbol)
-                .filter(|_| include_derived),
-        ) {
-            visit_signature(program, retained, signature);
-        }
+        visit_trait(program, retained, definition);
     }
 
     for conformance in program.conformances() {
@@ -1897,6 +1869,48 @@ fn visit_proposition_formula(
         PropositionFormula::BooleanExpression(expression) => {
             visit_expression(program, retained, *expression);
         }
+    }
+}
+
+/// Traverse one trait's declaration-owned vocabulary without changing roots.
+/// Descriptive replay uses the same signatures while excluding derived rows.
+fn visit_trait(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    definition: &crate::trait_definition::TraitDefinition,
+) {
+    visit_declaration_dependencies(program, retained, definition.symbol);
+    visit_symbol(retained, definition.symbol);
+    visit_type_parameters(program, retained, definition.type_parameters);
+
+    for requirement in program
+        .trait_requirements(definition)
+        .iter()
+        .chain(definition.refines.iter())
+    {
+        visit_symbol(retained, requirement.symbol);
+        for argument in program.type_reference_handles(requirement.arguments) {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    for refinement in &definition.refinement_clauses {
+        visit_signature(program, retained, &refinement.signature);
+    }
+    for bound in &definition.conformance_bounds {
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    // Application copies own distinct proof/type payloads. Omitting them
+    // leaves their indexed identities frozen at the declaration's tuple
+    // even after the copied operands have been substituted.
+    let include_derived = retained.derived_declaration_references();
+    for signature in program.trait_machine_signatures(definition).iter().chain(
+        program
+            .applied_trait_signatures(definition.symbol)
+            .filter(|_| include_derived),
+    ) {
+        visit_signature(program, retained, signature);
     }
 }
 

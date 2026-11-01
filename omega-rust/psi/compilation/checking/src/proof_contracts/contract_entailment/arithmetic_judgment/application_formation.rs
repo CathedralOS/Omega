@@ -110,6 +110,9 @@ impl Engine<'_> {
         let primitive = program.primitive_type_reference(declaration.return_type)?;
         let (minimum, maximum) = primitive.integer_bounds()?;
         let input = input.into();
+        if super::super::struct_trace() {
+            eprintln!("STRUCT declaration-application measure={measure:?} input={input:?}");
+        }
         let shape = super::super::ranking_range::declared_input_shape(program, declaration)?;
         let (arguments, reads) = match &input {
             IntegerApplicationInput::Scalar(value) => {
@@ -121,6 +124,7 @@ impl Engine<'_> {
             IntegerApplicationInput::Record {
                 type_reference,
                 reads,
+                ..
             } => {
                 if program
                     .primitive_type_reference(formal.type_reference)
@@ -133,15 +137,13 @@ impl Engine<'_> {
                 {
                     return None;
                 }
-                let expected = shape
-                    .reads
-                    .iter()
-                    .flat_map(|read| &read.occurrences)
-                    .copied()
-                    .collect::<Vec<_>>();
-                if reads.len() != expected.len()
-                    || expected.iter().any(|source| {
-                        reads.iter().filter(|(bound, _)| bound == source).count() != 1
+                if reads.len() != shape.reads.len()
+                    || shape.reads.iter().any(|read| {
+                        reads
+                            .iter()
+                            .filter(|(bound, _)| *bound == read.coordinate)
+                            .count()
+                            != 1
                     })
                 {
                     return None;
@@ -155,6 +157,16 @@ impl Engine<'_> {
             // A fresh formal namespace prevents caller occurrence bindings
             // from authenticating a different declaration's source reads.
             engine.formal_read_arguments = reads;
+            if let IntegerApplicationInput::Record {
+                snapshot: Some(snapshot),
+                ..
+            } = &input
+            {
+                engine.owned_arguments.push((
+                    crate::ScopedArithmeticBinder::Symbol(formal.symbol),
+                    snapshot.clone(),
+                ));
+            }
             match &input {
                 IntegerApplicationInput::Scalar(value) => {
                     if !formed_type(engine, program, formal.type_reference, value) {
@@ -163,20 +175,9 @@ impl Engine<'_> {
                 }
                 IntegerApplicationInput::Record { .. } => {
                     for read in &shape.reads {
-                        let mut captured = None;
-                        for occurrence in &read.occurrences {
-                            let value = engine.normalize(*occurrence)?;
-                            let canonical = engine.substituted(&value);
-                            if captured
-                                .as_ref()
-                                .is_some_and(|previous| *previous != canonical)
-                            {
-                                return None;
-                            }
-                            captured = Some(canonical);
-                            if !formed_type(engine, program, read.type_reference, &value) {
-                                return None;
-                            }
+                        let value = engine.coordinate_value(&read.coordinate)?;
+                        if !formed_type(engine, program, read.type_reference, &value) {
+                            return None;
                         }
                     }
                 }
@@ -237,12 +238,8 @@ fn formed_value(
     // Only the complete typed input owner installs these leaves. Treating any
     // normalized parent as formed could erase a partial child (x / 0, a bad
     // index, or a selected user operation) after polynomial cancellation.
-    if let Some((_, value)) = engine
-        .formal_read_arguments
-        .iter()
-        .find(|(source, _)| *source == expression)
-    {
-        return Some(value.clone());
+    if let Some(value) = engine.formal_coordinate_value(expression) {
+        return Some(value);
     }
     // Wholly anonymous integers have unbounded intermediates until landing.
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {

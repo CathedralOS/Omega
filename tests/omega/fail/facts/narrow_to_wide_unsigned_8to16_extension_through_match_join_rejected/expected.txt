@@ -1,1 +1,0 @@
-cannot prove requires contract for call choose from probe: wide >= 40 && wide <= 160 && 100 >= 40 && 100 <= 160 (needs fact `first >= 40 && first <= 160 && second >= 40 && second <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

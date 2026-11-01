@@ -4,6 +4,7 @@ use omega::language::core::external_binding;
 public boundary trait Console {
     machine write_byte(byte: i32)
     reaches Console
+    invokes WindowsConsoleIo
     terminates;
 
     machine exit_process(return_code: i32)
@@ -24,10 +25,11 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     satisfies Console::exit_process;
 
 // Windows writes through MSVCRT `_write` via a DLL import binding.
-data WindowsConsoleIo { }
-boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-terminates
-reaches Console;
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    terminates
+    reaches Console;
+}
 
 windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
     ForeignBinding::DllImport {

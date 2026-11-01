@@ -517,8 +517,9 @@ mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;
 pub use structural_scalar_field::{
-    ScalarCoordinateProjection, StructuralScalarCoordinate, StructuralScalarField,
-    StructuralSource, saved_dispatch_call, saved_dispatch_subject, structural_atomic_field,
+    ScalarCoordinateProjection, StructuralCoordinate, StructuralScalarCoordinate,
+    StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
+    structural_atomic_field, structural_coordinate, structural_coordinate_in_type,
     structural_scalar_coordinate, structural_scalar_coordinate_in_type, structural_scalar_field,
     structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
     structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,

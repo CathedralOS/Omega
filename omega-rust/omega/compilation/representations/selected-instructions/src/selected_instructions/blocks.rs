@@ -180,13 +180,14 @@ impl BlockEntry {
             slot_summary: OnceLock::new(),
         })
     }
-    fn digest(&self) -> [u8; 32] {
+    fn digest(&self, scratch: &mut Vec<u8>) -> [u8; 32] {
         *self.digest.get_or_init(|| {
             let (digest, encoding) = selected_block_digest_with_encoding(
                 &self.block,
                 self.previous_encoding
                     .as_ref()
                     .map(|(enc, prefix, suffix)| (enc.as_ref(), *prefix, *suffix)),
+                scratch,
             );
             let _ = self.encoding.set(encoding);
             digest
@@ -964,7 +965,8 @@ impl SelectedBlocks {
             .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
     }
     pub(crate) fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
-        self.0.iter().map(|entry| entry.digest())
+        let mut scratch = Vec::new();
+        self.0.iter().map(move |entry| entry.digest(&mut scratch))
     }
 }
 impl From<Vec<SelectedBlock>> for SelectedBlocks {

@@ -73,7 +73,7 @@ fn certificate_receipt_reuses_admission_verification_stack() {
 }
 
 #[test]
-fn standalone_certificate_receipt_reserves_stack_and_matches_admission() {
+fn standalone_certificate_receipt_uses_default_stack_and_matches_admission() {
     let (context, axioms, proof) = transport_certificate();
     let accepted = accept_certificate(&context, &proof.conclusion, &[], &axioms, &proof)
         .expect("transport certificate");
@@ -88,7 +88,7 @@ fn standalone_certificate_receipt_reserves_stack_and_matches_admission() {
     .expect("independent denotation and kernel check");
     let before = verification_workers_started();
     let receipt = denoted.receipt();
-    assert_eq!(verification_workers_started(), before + 1);
+    assert_eq!(verification_workers_started(), before);
     assert_eq!(
         accepted.mathematical_core,
         MathematicalCoreDecision::Judged(receipt)

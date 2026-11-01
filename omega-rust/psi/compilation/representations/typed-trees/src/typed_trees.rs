@@ -121,10 +121,12 @@ mod frozen;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
 mod data_definitions;
+mod machine_declarations;
 pub mod declaration_index;
 mod declaration_tables;
 mod spelled_declarations;
 pub use data_definitions::DataDefinitionTable;
+pub use machine_declarations::MachineDeclarationTable;
 pub use spelled_declarations::SpelledDeclarationTable;
 mod access_views;
 pub mod declarations;
@@ -149,8 +151,8 @@ pub use access_views::{
     AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
     PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
     PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ScalarAccessorDeclaration,
-    ScalarAccessorOperation,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication,
+    ScalarAccessorDeclaration, ScalarAccessorOperation,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
@@ -448,7 +450,7 @@ pub struct TypedTreeTables {
     pub mathematical_types: Arena<mathematical::MathematicalType>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
-    pub machines: Arena<machine::Machine>,
+    pub machines: MachineDeclarationTable,
     pub measures: Arena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,

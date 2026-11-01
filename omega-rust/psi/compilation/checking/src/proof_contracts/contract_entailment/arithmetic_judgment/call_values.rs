@@ -27,8 +27,11 @@ impl Engine<'_> {
                 } => {
                     let normalized = arguments
                         .iter()
-                        .map(|value| self.substituted(value))
-                        .collect::<Vec<_>>();
+                        .map(|input| input.mapped(|value| Some(self.substituted(value))))
+                        .collect::<Option<Vec<_>>>();
+                    let Some(normalized) = normalized else {
+                        return false;
+                    };
                     if normalized == *arguments {
                         continue;
                     }
@@ -101,7 +104,7 @@ impl Engine<'_> {
         owner: SymbolHandle,
         expression: ExpressionHandle,
         target: SymbolHandle,
-        arguments: Vec<Polynomial>,
+        arguments: Vec<IntegerApplicationInput>,
     ) -> Option<Polynomial> {
         if !owner.is_valid() || !target.is_valid() {
             return None;
@@ -117,7 +120,19 @@ impl Engine<'_> {
         {
             return None;
         }
-        let atom = format!("\0applied-call:{owner:?}:{expression:?}:{target:?}:{arguments:?}");
+        if let Some((atom, _)) = self.opaque_terms.iter().find(|(_, operation)| {
+            matches!(operation, OpaqueTerm::Call { owner: existing_owner, expression: existing_expression,
+                target: existing_target, arguments: existing_arguments }
+                if *existing_owner == owner && *existing_expression == expression
+                && *existing_target == target && *existing_arguments == arguments)
+        }) { return Some(Polynomial::atom(atom.clone())); }
+        let identity = self
+            .denotation_identities
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .ok()?;
+        let atom = format!("\0applied-call:{identity}");
         self.register_opaque_term(
             atom.clone(),
             OpaqueTerm::Call {

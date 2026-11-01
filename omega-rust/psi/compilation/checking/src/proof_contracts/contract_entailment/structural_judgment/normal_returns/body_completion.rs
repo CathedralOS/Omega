@@ -5,7 +5,8 @@
 
 use super::super::super::citations::CitationFacts;
 use super::super::super::structural_case_arms::{
-    call_entries::body_can_be_observed, is_subordinate_machine, recognize_structural_state_leaves,
+    StructuralArrivalLog, call_entries::body_can_be_observed, is_subordinate_machine,
+    recognize_structural_state_leaves,
 };
 use super::*;
 
@@ -120,6 +121,8 @@ impl<'program> StructuralJudge<'program> {
                 Vec::new(),
                 true,
                 &mut Vec::new(),
+                &mut StructuralArrivalLog::new(),
+                usize::MAX,
                 &mut 0,
                 &mut [],
                 CitationFacts::default(),

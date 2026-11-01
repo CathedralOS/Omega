@@ -54,8 +54,7 @@ pub(crate) use optimization::digest_encoder;
 mod machine_lowering;
 mod program_roots;
 pub use program_roots::TerminalProgramRoots;
-mod prepared_terminal_roots;
-pub use prepared_terminal_roots::{PreparedTerminalRoots, RetainedTerminalRoot};
+pub use terminal_psi::{PreparedTerminalRoots, RetainedTerminalRoot};
 
 // The plan families `machine_dispatch` selects between, in their dependency
 // order: each reaches down this list and never back up it.
@@ -83,7 +82,7 @@ mod checked_facts;
 mod content_classes;
 mod declarations;
 mod direct_calls;
-mod lowered_machine_provenance;
+mod lowered_provenance;
 mod lowering_error;
 mod producer_result;
 mod reference_custody;
@@ -99,7 +98,7 @@ pub use machine_lowering::lower_machine;
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 
 // Diagnostic-only source attribution for the unoptimized lowering.
-pub use lowered_machine_provenance::lowered_machine_provenance;
+pub use lowered_provenance::lowered_module_provenance;
 
 // Proof artifacts this stage produces for owners outside it.
 pub use proofs::content_conservation::{

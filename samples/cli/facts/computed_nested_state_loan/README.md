@@ -45,3 +45,15 @@ python3 tools/corpus_gate.py --filter computed_nested_state_loan
 - **Encoding and image (`Omega 07–09`):** the emitted Linux x86-64 image must actually exit 0 and agree with Terminal. Compile-only output is insufficient.
 
 Canonical authority: [evaluation schedule](../../../../wiki/spec/language/expressions.md#evaluation-schedule), [captured places](../../../../wiki/spec/terminal-psi/loans.md#captured-places-and-available-premises) and [referent identity](../../../../wiki/spec/terminal-psi/structural_access.md#referent-identity). Producer identities, exact commands and raw outcomes are retained in the task's qualification evidence. Windows x86-64, macOS ARM64 and Linux ARM64 execution are unverified here.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

@@ -163,7 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms, remaining nonscalar orders beyond fixed-integer
+    declaration calls needing loan or affine input custody or declaration-local
+    selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -328,23 +329,33 @@ retired-syntax deletions to completion.
     Migrate layout-policy applications that currently name family callables to
     ordinary implementation identities and Build rows, retaining target-dependent
     geometry and changing format identity instead of reinterpreting legacy bytes.
-  - Migrate the bundled library, product compiler, samples, and corpus fixtures
-    together to ordinary named implementations and explicit requirements with
-    target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
-    sine, square, and melody consumers through unchanged playback oracles;
-    shared binding-value producers and helpers remain ordinary machines.
-    Frontier: 410 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 17 facts spell it in all nine places
-    (`checked_asm_{arm_load,compare_preserves,fence_contracts,register_contract_bound}`,
-    `foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
-    `generic_calling_policy`, `opaque_closed_carrier_exchange`,
-    `scalar_boundary_parameter`, `selected_provider_issuance`,
-    `target_family_contract_operand`, `target_layout_derived_constant`,
-    `target_recursive_bound`, `target_scoped_constant_realization`).
+  - Migrate the remaining target-prefixed sources to ordinary named
+    implementations and explicit requirements with target-keyed Build rows: the
+    bundled library's `core/targets` and `std/targets` bodies, the product
+    compiler, fact places whose per-OS bodies differ or that use `dyn`, boundary
+    traits, qualified names or family recursion, and the target-family fixtures
+    under `tests/omega/{pass,fail}/{targets,providers,host,asm}`. Carry
+    `samples/cli/audio/audio_playback` and its sine, square, and melody
+    consumers through unchanged playback oracles; shared binding-value producers
+    and helpers remain ordinary machines.
+    Frontier: 73 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 14 facts spell it in all nine places
+    (`foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    `generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
+    `selected_provider_issuance`, `target_family_contract_operand`,
+    `target_layout_derived_constant`, `target_recursive_bound`,
+    `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
+  - Carry the facts that still refuse behind a selected implementation: `&write`
+    and exclusive-loan arguments (an opaque selected implementation requires an
+    admitted write-only boundary claim), evidence binders in requirement
+    generics, the invocation ceiling of boundary traits a body calls, and
+    effectful performed writes (`IntegerAt`). Their `target_body` places keep
+    the retired prefix until then.
   - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
@@ -405,9 +416,21 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
-    probe to boundary traits with explicit reach clauses, and preserve
-    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 66 std raw platform rows
+    (`std/posix_filesystem_adapter.omg`,
+    `std/targets/{linux_x86_64,macos_arm64}/posix_filesystem_impl.omg`,
+    `std/targets/windows_x86_64/{console_impl,windows_gui_impl}.omg`) to
+    boundary traits. A trait slot is selected whole, so the per-member
+    `select_provider<Owner::member, ...>` rows collapse to one trait row or
+    callers call the leaf satisfier directly (the `*ByteViews` precedent); a
+    call to a trait member adds that trait to the caller's `invokes` edges, so
+    the public portable requirements must not silently gain platform edges.
+  - Migrate `pass/host/runtime_descriptor_{direct_array,nested_array_window,output_streams}_exit`:
+    their foreign `&[u8]` leaves rely on the standalone row's compatibility
+    slice ABI, which trait members refuse without an explicit `Calling<C>`
+    policy.
+  - Preserve source-selected trait tokens
+    (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.
@@ -533,23 +556,6 @@ engine over frozen typed trees (`FrozenTypedTrees`), proof-carrying code (PCC)
 receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
-
-- **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
-  immutable `FrozenTypedTrees` boundary between
-  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  and stage 04 (`CheckFacts`), with no checking-time mutation of
-  `CheckedTrees.typed` and no `thread_local!` or `RefCell` working state in
-  checking/stage-04 production paths.
-  Acceptance: the immutable-boundary and `thread_local!`/`RefCell` source
-  guards pass; the full check corpus and focused native cohort (including
-  `runtime_computed_backing_reference_copy_exit`,
-  `runtime_boundary_range_view_exit`,
-  `runtime_case_qualified_reference_storage_exit`,
-  `runtime_linear_constructor_instances_exit`,
-  `runtime_qualified_byte_array_storage_exit`,
-  `runtime_inherited_composite_requirement_exit`, and
-  `runtime_applied_default_domain_setter_exit` with their negative controls)
-  pass without regression.
 
 - **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope; also covers
   **STAGE-05-REFUSAL-REVALIDATIONS** and **RETIRE-EXPORTED-AUDIT-FACADE**)
@@ -861,14 +867,6 @@ helper that passes does not close an item.
     and conformance selection, lifetime/value-subject preservation, public
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
-    The [imported transparent-family rung](samples/cli/facts/transparent_generic_aliases/imported_representation/README.md)
-    now interchanges partial aliases and explicit `LayoutStorage` applications
-    with a caller-computed const policy, value 42 and byte-offset oracles in
-    Linux x86_64 native/Terminal execution; all seven intended controls reject.
-    An [imported borrowed alias](samples/cli/facts/transparent_generic_aliases/borrowed_view/README.md)
-    also preserves its own lifetime/Type telescope through a generic call and
-    explicit-reference interchange: Linux native/Terminal observe 42/17, while
-    wrong returned input and undeclared-region controls reject.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands and captured Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
@@ -876,24 +874,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
-    now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
-    with the original 256-width and mismatched-policy-argument rejects.
-    A [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
-    now returns the loaded reference/scalar from a temporary holder and observes
-    pointee 43/value 7 in Mac ARM64 native/Terminal execution. Its local, field
-    and parameter placements and returned-region twins also pass. Same-geometry
-    policy mismatch and unrelated returned-region controls reject. The remaining
-    six places, byte roundtrips, other-host execution and broader reference
-    composition remain outstanding; see the [composition scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
-    [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
-    now executes the original call with both independent environment/storage
-    binders and the same const index, preserving value 42 in Mac ARM64
-    native/Terminal execution. All nine transport places and their region-only
-    twins are established on that host, with exact corpus mirrors. Other-host
-    execution and the parent capability remain open; wrong regions/indices and
-    stored evidence still reject.
-  - Supply a library C-layout family and migrate complete platform ABI records;
+    Complete byte roundtrips, broader reference composition, and other-host
+    execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
+    and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
+  - Complete the [C-layout transport row](samples/cli/facts/c_layout_scalar_record/README.md)
+    and remaining schema composition support; migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.
@@ -1542,27 +1527,6 @@ defines the complete product bar.
   `omega run --both` agreement. Pending views cannot cross valid-value interfaces;
   only established results travel. No implementation completion is claimed by the
   documentation ratification.
-
-- **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
-  lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
-  04–07` and `Omega 00–09`) under
-  [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_accessor_attachment` in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
-  - Extend native publication in
-    `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
-    and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
-    so direct-entry and subordinate placed-view loans establish, access, and
-    retire with exact original backing and qualifications across Terminal Psi
-    and native execution.
-  Acceptance: `tests/omega/pass/layouts/placed_view_source_access_exit`
-  (upgraded from `_compile`) establishes, accesses, and retires a placed view
-  under `python3 tools/corpus_gate.py --both --filter placed_view_source_access`,
-  and stale/substituted plan, backing, range, rights, occurrence, or overlapping
-  exclusive controls reject.
 
 - **DEVICE-EXTENT-ACCESS.** Execute provider-backed lending, completion, and
   restored CPU access end to end (`Psi 04–07` and `Omega 00–09`) in

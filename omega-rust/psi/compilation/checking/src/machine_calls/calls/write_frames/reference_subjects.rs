@@ -1032,9 +1032,15 @@ pub(super) fn validate_source_projection(
                 return None;
             };
             let root = source_root_type(program, state, index, recast.root)?;
+            // Readability and single-descriptor shape are judged on the
+            // carrier; the join below projects from the qualified storage
+            // type because the carrier query peels constraint shells.
+            carrier_storage_type(program, root)?;
+            let storage_root =
+                crate::reference_shell(program, root).map_or(root, |shell| shell.referee);
             let source_type = crate::project_type_reference_from_segments(
                 program,
-                carrier_storage_type(program, root)?,
+                storage_root,
                 &recast.segments,
             )?;
             // The endpoint's qualifications name resident custody. Geometry
