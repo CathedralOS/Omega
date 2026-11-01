@@ -1,0 +1,446 @@
+{
+  "accepted": true,
+  "decision": "accept",
+  "reviewer": "Codex independent semantic reviewer",
+  "candidate": "b8f98eea81a12ff4fb87fce90d9ccee3fdcadb5b",
+  "reviewed_first_parent": "1fd11b2b41ed1ce30708eaee1fa7a1c2a3869d78",
+  "integration_second_parent": "762e3530fcf423e68c28930aaf970dc6e747d0a8",
+  "original_fixed_base": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "scope": "Affected review of actual corpus-golden merge conflict and unchanged owned source. Prior source/runtime review remains historical.",
+  "blocking_findings": [],
+  "rationale": [
+    "Authenticated exact merge parents and clean tree. Main-to-head changed paths equal the prior87 owned paths; all85 non-golden files match reviewed1fd byte-for-byte.",
+    "All six owned Rust files are unchanged from original0948 base in incoming762e main. Main-to-head feature Rust patch is identical to prior reviewed/R4-executed patch.",
+    "For both golden files, selected scope24 records exactly equal reviewed1fd, and every nonselected record exactly equals current main. No adjacent main record is overwritten.",
+    "Zero-case Source record is checked26374ms check-target:macos_arm64 @72e837cecddf, with no historical overflow continuation. Final files contain no conflict markers.",
+    "Historical R4 observations retain actual producer0948+patch1aef identities; no integrated-head execution is claimed."
+  ],
+  "golden_comparisons": [
+    {
+      "path": "tests/omega/corpus_outcomes.txt",
+      "git_blob": "c1707ec72d12dbcf25d6d0e389e300c72bd9366a",
+      "sha256": "4dfb223798f2d47b86cbe344e105b67b0fe0dcfe2e07eadbf31f7fcb1b4da293",
+      "selected_rows_exact_prior_reviewed_bytes": true,
+      "unselected_rows_exact_main_bytes": true,
+      "changed_from_main": [
+        "fail/dependent/case_where_payload_write_exit_open",
+        "fail/facts/case_dependent_default_domain_through_call_result_rejected",
+        "fail/facts/case_dependent_default_domain_through_const_name_rejected",
+        "fail/facts/case_dependent_default_domain_through_field_rejected",
+        "fail/facts/case_dependent_default_domain_through_local_rejected",
+        "fail/facts/case_dependent_default_domain_through_match_join_rejected",
+        "fail/facts/case_dependent_default_domain_through_other_machine_rejected",
+        "fail/facts/case_dependent_default_domain_through_other_state_rejected",
+        "fail/facts/case_dependent_default_domain_through_parameter_rejected",
+        "fail/facts/case_dependent_default_domain_through_target_body_rejected",
+        "fail/facts/case_predicate_missing_type_equation_rejected",
+        "fail/facts/case_predicate_other_default_argument_rejected",
+        "fail/facts/case_predicate_stale_write_rejected",
+        "pass/dependent/zero_case_predicate_entry_exit",
+        "pass/facts/case_dependent_default_domain_through_call_result_exit",
+        "pass/facts/case_dependent_default_domain_through_const_name_exit",
+        "pass/facts/case_dependent_default_domain_through_field_exit",
+        "pass/facts/case_dependent_default_domain_through_local_exit",
+        "pass/facts/case_dependent_default_domain_through_match_join_exit",
+        "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+        "pass/facts/case_dependent_default_domain_through_other_state_exit",
+        "pass/facts/case_dependent_default_domain_through_parameter_exit",
+        "pass/facts/case_dependent_default_domain_through_target_body_exit",
+        "pass/facts/case_predicate_restoration_exit"
+      ],
+      "zero_record": "pass/dependent/zero_case_predicate_entry_exit checked 26374ms check-target:macos_arm64 @72e837cecddf\n"
+    },
+    {
+      "path": "tests/omega/corpus_both_macos_arm64.txt",
+      "git_blob": "005ae9f7f4b70800af944dc338e476c58e5e28d5",
+      "sha256": "795d4630735babf10a8ef5e1d0be6f48dd6e937c76a0a7709868f82ca28a8fc8",
+      "selected_rows_exact_prior_reviewed_bytes": true,
+      "unselected_rows_exact_main_bytes": true,
+      "changed_from_main": [
+        "pass/dependent/zero_case_predicate_entry_exit",
+        "pass/facts/case_dependent_default_domain_through_call_result_exit",
+        "pass/facts/case_dependent_default_domain_through_const_name_exit",
+        "pass/facts/case_dependent_default_domain_through_field_exit",
+        "pass/facts/case_dependent_default_domain_through_local_exit",
+        "pass/facts/case_dependent_default_domain_through_match_join_exit",
+        "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+        "pass/facts/case_dependent_default_domain_through_other_state_exit",
+        "pass/facts/case_dependent_default_domain_through_parameter_exit",
+        "pass/facts/case_dependent_default_domain_through_target_body_exit",
+        "pass/facts/case_predicate_restoration_exit"
+      ],
+      "zero_record": "pass/dependent/zero_case_predicate_entry_exit built 24465ms exit:65 interpreter-exit:65 interpreter:agrees @72e837cecddf\n"
+    }
+  ],
+  "source_identities": [
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs",
+      "git_blob": "da082b0256059bcfdaa9394ecceb9ad88d233e70"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs",
+      "git_blob": "3bebb0d53774367c8bae5d03b3705a4b049430ef"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs",
+      "git_blob": "3b2a374dd9e8f04989a85932c290da728a9a09c7"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs",
+      "git_blob": "1c06f125ecb662d50af7f1100238dc7c2ef10897"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs",
+      "git_blob": "868c8e398a0b80a02edb34ab05a13d81cc544e36"
+    },
+    {
+      "path": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs",
+      "git_blob": "a2c5453ba89e05c3c4dad51bcc157c52d35fee04"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/README.md",
+      "git_blob": "19f6215d7692fb0f3b0b35dfb604068efed67d92"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg",
+      "git_blob": "eca2fea56c03bc2e05fcdcb0b54a1d56a9d040f6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/main.omg",
+      "git_blob": "eaf1fbe7877657496be8dfd70d9ae688af745ce6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg",
+      "git_blob": "6236962cb2b55246365e92a053bf72af76c30334"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/main.omg",
+      "git_blob": "e0065a27352287cefdf6ed3db4baa2c609ba2e6d"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/expected.txt",
+      "git_blob": "6b8def75df91f3072a5294ed6c9a4730d351d11b"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/main.omg",
+      "git_blob": "e840aaa34946ae627fe219905ff589c33d1ab13f"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/sample.json",
+      "git_blob": "a3a6ee687b2f24baa37d8f8218f0c6fb61386684"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/main.omg",
+      "git_blob": "baf4ffb6845aa154de28dc151b77b2cb688ac3f1"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg",
+      "git_blob": "0fa7dc82d8369a1aee5fd65a05002afed4151b64"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg",
+      "git_blob": "50d4b5d3a452edc4d5156c6486f411f52de3cf95"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg",
+      "git_blob": "159445af338c9807c183bf189fad0f06485bd793"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/main.omg",
+      "git_blob": "42b8aa308039f7ba7f9fb7fbd510eaf325e1c536"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg",
+      "git_blob": "197cd6b85214139dc37af1ba6dedcca086ae04f9"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/main.omg",
+      "git_blob": "57c543b290a156f9f9099cb308b02cd50efe3314"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg",
+      "git_blob": "f7de96d92009f1a0ff2a4d99d8f58598f757f0dd"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/main.omg",
+      "git_blob": "2cf3426a978ccf40f8a821889e031fe9fdd1a2e7"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg",
+      "git_blob": "e05b12f579c6014553af350c91846f24fa98635a"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/main.omg",
+      "git_blob": "2aae7025d2b8b6af5e0144bf08d3f142ab4ec7c6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg",
+      "git_blob": "af4c4d971ab3d0ff637461643747252e429da2f1"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/main.omg",
+      "git_blob": "912f9277b2f23aaf7e784ce12f4945d45ff8702e"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg",
+      "git_blob": "88b3eff43de2006435674e222fef69d936c1c260"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/main.omg",
+      "git_blob": "2e5d3eb17302d51f799f9d6dcdde6b80f0660e74"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg",
+      "git_blob": "abd0dd05adf5c8fd0d3a0d2815a150fb2797b710"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/main.omg",
+      "git_blob": "e1aca4434c04e380182559b5b1cbc395c7989d37"
+    },
+    {
+      "path": "tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt",
+      "git_blob": "bb610f628f9864195fedfb03a6cca8ecab62dec1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg",
+      "git_blob": "eca2fea56c03bc2e05fcdcb0b54a1d56a9d040f6"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg",
+      "git_blob": "6236962cb2b55246365e92a053bf72af76c30334"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg",
+      "git_blob": "159445af338c9807c183bf189fad0f06485bd793"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg",
+      "git_blob": "197cd6b85214139dc37af1ba6dedcca086ae04f9"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg",
+      "git_blob": "f7de96d92009f1a0ff2a4d99d8f58598f757f0dd"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg",
+      "git_blob": "e05b12f579c6014553af350c91846f24fa98635a"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg",
+      "git_blob": "af4c4d971ab3d0ff637461643747252e429da2f1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg",
+      "git_blob": "88b3eff43de2006435674e222fef69d936c1c260"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg",
+      "git_blob": "abd0dd05adf5c8fd0d3a0d2815a150fb2797b710"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/expected.txt",
+      "git_blob": "6b8def75df91f3072a5294ed6c9a4730d351d11b"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/main.omg",
+      "git_blob": "e840aaa34946ae627fe219905ff589c33d1ab13f"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_other_default_argument_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_other_default_argument_rejected/main.omg",
+      "git_blob": "baf4ffb6845aa154de28dc151b77b2cb688ac3f1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg",
+      "git_blob": "50d4b5d3a452edc4d5156c6486f411f52de3cf95"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg",
+      "git_blob": "eaf1fbe7877657496be8dfd70d9ae688af745ce6"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg",
+      "git_blob": "e0065a27352287cefdf6ed3db4baa2c609ba2e6d"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg",
+      "git_blob": "42b8aa308039f7ba7f9fb7fbd510eaf325e1c536"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg",
+      "git_blob": "57c543b290a156f9f9099cb308b02cd50efe3314"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg",
+      "git_blob": "2cf3426a978ccf40f8a821889e031fe9fdd1a2e7"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg",
+      "git_blob": "2aae7025d2b8b6af5e0144bf08d3f142ab4ec7c6"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg",
+      "git_blob": "912f9277b2f23aaf7e784ce12f4945d45ff8702e"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg",
+      "git_blob": "2e5d3eb17302d51f799f9d6dcdde6b80f0660e74"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg",
+      "git_blob": "e1aca4434c04e380182559b5b1cbc395c7989d37"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_predicate_restoration_exit/main.omg",
+      "git_blob": "0fa7dc82d8369a1aee5fd65a05002afed4151b64"
+    }
+  ],
+  "evidence_applicability": {
+    "owned_non_golden_bytes_identical": 85,
+    "owned_feature_rust_patch_unchanged": true,
+    "incoming_main_owned_rust_files_unchanged": true,
+    "historical_runtime_source": "0948d66c9cda2a14b141212ba98e6d126a08752d + patch1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc",
+    "fresh_merge_head_runtime_claim": false
+  },
+  "artifacts": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-conflict-resolution.json",
+      "sha256": "9a83085ca6bb62379a6806bd4f76726237c4d5c87ebd59985c803336c3b79ea4"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-final-independent-review.json",
+      "sha256": "5c64587dd0804edc9acd0479b9925a65e838bd73d78b47145634b3c879cc1909"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-final-evidence-ledger.json",
+      "sha256": "6a6038900400248e303ffe568c2e69fb841f81d790bd9d501beec8d3ebb2cf61"
+    }
+  ],
+  "limitations": [
+    "Bounded affected-source/golden review is not a fresh whole integrated-compiler build/runtime. Incoming unrelated main changes remain under normal CI/integration validation.",
+    "Other-host runtime, GUI qualification, filesystem runtime and broad parent migration closure remain unclaimed.",
+    "Abstract symbolic relational snapshot restoration remains open.",
+    "The corrected pre-push local script attempt is not a validation result; approval binds only the final clean marker-free merge tree."
+  ],
+  "reviewer_launched_builds_tests_or_compiler": false,
+  "source_or_policy_mutation_by_reviewer": false
+}

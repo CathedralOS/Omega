@@ -1,0 +1,11 @@
+{
+  "reviewed_candidate": "1fd11b2b41ed1ce30708eaee1fa7a1c2a3869d78",
+  "integration_base": "762e3530fcf423e68c28930aaf970dc6e747d0a8",
+  "conflict_paths": [
+    "tests/omega/corpus_outcomes.txt"
+  ],
+  "resolution": "Preserve current-main adjacent records; retain exact reviewed zero_case_predicate_entry_exit checked 26374ms @72e837cecddf record, remove historical overflow rejection continuation. Other row changes merge normally.",
+  "owned_non_golden_files_byte_identical": 85,
+  "unchanged_owned_inputs": true,
+  "runtime_replay": "Historical producer and observations unchanged; no compiler/source fixture edit in conflict resolution. CI owns current-main integration."
+}
