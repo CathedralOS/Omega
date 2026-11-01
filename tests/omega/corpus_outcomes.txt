@@ -600,6 +600,9 @@ fail/facts/nested_machine_header_contracts_parameter_rejected rejected 200ms exp
 	tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_header_contracts_target_body_rejected rejected 202ms expected @2fc408782574
 	tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_invocation/generic_context rejected 1632ms expected @99a35aae42ec
+	machine `keep` state `entry` return value expects `T`, but the value is delivered as `U`
+	machine `keep$specialized$5d0e37fe7ba7ec68$0` state `entry` stores a boolean into a `u64` return value, which holds a numeric value
 fail/facts/nested_machine_invocation/sibling_cycle rejected 6509ms expected @1fe4c72f984e
 	machine call cycle: `ping`, `pong` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_rejected rejected 1651ms expected @be61262f3842
@@ -10694,6 +10697,7 @@ pass/generics/mixed_value_case_constructor_checked checked 3567ms check-target:m
 pass/generics/mixed_value_nullary_case_checked checked 3454ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/named_reference_equation_reversed_telescope_order_exit checked 3403ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/named_reference_equation_telescope_order_exit checked 3546ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/nested_static_type_equality_refines_delivery checked 4601ms @99a35aae42ec
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccdb99ca2214
 pass/generics/omitted_data_binder_range_equation checked 13551ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/omitted_fixed_domain_array_equation checked 2743ms @ccdb99ca2214
@@ -30855,7 +30859,8 @@ fail/generics/named_reference_equation_undeclared_region rejected 601ms expected
 fail/generics/named_reference_equation_wrong_result_source rejected 3022ms expected @ccdb99ca2214
 	machine `capture$specialized$557d5dbbe30cd83e$0` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/generics/named_value_parameter_mismatch checked 2711ms @ccdb99ca2214
+fail/generics/named_value_parameter_mismatch rejected 1084ms expected @99a35aae42ec
+	machine `finish` state `entry` return value expects `Output`, but the value is delivered as `Input`
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 656ms expected @ccdb99ca2214
 	static machine argument `lookalike` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Handler::call`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/generics/omitted_data_binder_explicit_conflict rejected 55ms expected @ccdb99ca2214
