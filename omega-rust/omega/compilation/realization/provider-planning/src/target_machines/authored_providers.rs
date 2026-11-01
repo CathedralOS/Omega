@@ -62,7 +62,9 @@ pub struct TargetProviderInventoryRequest<'program> {
     pub origins: &'program [crate::SelectedTargetMachineOrigin],
     pub services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'program>,
     pub defaults: &'program [crate::TargetProviderDefaults],
-    pub settlement: &'program crate::ProviderSettlement,
+    pub authored: &'program Arc<AuthoredTargetProviders>,
+    pub calling_plans: &'program [crate::calling_policy_plans::BoundaryCallingPlanRealization],
+    pub bindings: &'program crate::evaluated_via_bindings::EvaluatedViaBindingTable,
 }
 
 impl TargetProviderInventoryRequest<'_> {
@@ -77,7 +79,7 @@ impl TargetProviderInventoryRequest<'_> {
                 "target `{target}` has no provider realization in this compiler"
             ))]
         })?;
-        let retained = &self.settlement.authored_providers;
+        let retained = self.authored;
         if retained.target == Some(profile) {
             return Ok(Arc::clone(retained));
         }
@@ -85,8 +87,8 @@ impl TargetProviderInventoryRequest<'_> {
         AuthoredTargetProviders::derive(
             self.services,
             self.body_declarations,
-            &self.settlement.boundary_calling_plan_realizations,
-            &self.settlement.evaluated_via_bindings,
+            self.calling_plans,
+            self.bindings,
             Some(profile),
             declarations,
         )

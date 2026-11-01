@@ -455,16 +455,17 @@ fn prepare_target_provider_selection(
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let deployment = build_config.provider_deployment()?;
     provider_planning::settle_checked_providers(
         &source.program,
         source.sources.exact_toolchain_sources(),
         one_refusal(source.provider_inventory.services_for(&source.program))?,
-        one_refusal(source.provider_inventory.uses_for(&source.program))?,
         one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
         settled_target_machines,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,
+        deployment.roots.as_deref(),
         &build_config.native_bindings,
         &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),

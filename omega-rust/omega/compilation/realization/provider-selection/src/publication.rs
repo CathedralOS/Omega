@@ -1,6 +1,8 @@
 //! Select canonical Build companions against the emitted Terminal demand catalog.
 //!
-//! These inputs contain no source handles, typed trees, or deferred source work.
+//! Selection reads only canonical declarations, never typed trees or deferred
+//! source work. Opaque producer correspondence travels unchanged to the caller;
+//! publication discards it instead of interpreting source addresses.
 //! Nominal owner and callable overload remain separate from application identity.
 //! Receiving artifact admission remains independent of this descriptive choice.
 
@@ -19,42 +21,120 @@ pub enum CanonicalProviderDeclaration {
 }
 
 #[derive(Debug, Clone)]
-pub struct PreparedProviderRealizations {
+pub struct PreparedProviderRealizations<Owner = ()> {
     pub provider_declaration: Option<String>,
     pub row_numeric_realizations: Vec<Option<String>>,
+    pub owner: Owner,
 }
 
 #[derive(Debug, Clone)]
-pub struct PreparedProviderCandidate {
+pub struct PreparedProviderCandidate<Owner = ()> {
     pub choice: ProviderCandidate<
         CanonicalProviderDeclaration,
-        Result<PreparedProviderRealizations, Vec<Diagnostic>>,
+        Result<PreparedProviderRealizations<Owner>, Vec<Diagnostic>>,
     >,
     pub schema_owner: String,
     pub explicitly_selected: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct PreparedTargetChoices {
+pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub application_roots: Option<Vec<CanonicalProviderDeclaration>>,
     pub profile: target::TargetProfile,
-    pub candidates: Vec<PreparedProviderCandidate>,
-    pub defaults: Vec<ProviderDeclaration<CanonicalProviderDeclaration>>,
-    pub overrides: Vec<ProviderDeclaration<CanonicalProviderDeclaration>>,
+    pub candidates: Vec<PreparedProviderCandidate<Owner>>,
+    pub defaults: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>,
+    pub overrides: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>,
     pub independent_components: Vec<std::sync::Arc<component_description::VerifiedComponent>>,
+}
+
+/// The whole canonical choice and its exact original candidate/declaration
+/// correspondence. Consumers attach review metadata; they never select again.
+pub struct SelectedTargetProviders<Owner, Origin> {
+    pub selection: backend_plan::TerminalTargetProviderSelection,
+    pub facts: effects::SelectedProviderPlanFacts,
+    pub choices: Vec<crate::SelectedProvider<CanonicalProviderDeclaration, Owner, Origin>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TargetProviderChoice {
+    Prepared(PreparedTargetChoices),
+    Selected {
+        selected: std::sync::Arc<SelectedTargetProviderPublication>,
+        application_roots: Option<Vec<CanonicalProviderDeclaration>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTargetProviderPublication {
+    pub profile: target::TargetProfile,
+    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    pub selection: backend_plan::TerminalTargetProviderSelection,
+}
+
+impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Publication carries only canonical declarations. Original producer
+    /// addresses are for the caller's review, not another selection input.
+    pub fn without_correspondence(self) -> PreparedTargetChoices {
+        let declarations =
+            |rows: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>| {
+                rows.into_iter()
+                    .map(|row| ProviderDeclaration {
+                        target: row.target,
+                        subject: row.subject,
+                        provider_type: row.provider_type,
+                        composition_mode: row.composition_mode,
+                        origin: (),
+                    })
+                    .collect()
+            };
+        PreparedTargetChoices {
+            application_roots: self.application_roots,
+            profile: self.profile,
+            candidates: self
+                .candidates
+                .into_iter()
+                .map(|candidate| {
+                    let ProviderCandidate {
+                        plan,
+                        declarations,
+                        native_build,
+                        owner,
+                    } = candidate.choice;
+                    PreparedProviderCandidate {
+                        choice: ProviderCandidate {
+                            plan,
+                            declarations,
+                            native_build,
+                            owner: owner.map(|realizations| PreparedProviderRealizations {
+                                provider_declaration: realizations.provider_declaration,
+                                row_numeric_realizations: realizations.row_numeric_realizations,
+                                owner: (),
+                            }),
+                        },
+                        schema_owner: candidate.schema_owner,
+                        explicitly_selected: candidate.explicitly_selected,
+                    }
+                })
+                .collect(),
+            defaults: declarations(self.defaults),
+            overrides: declarations(self.overrides),
+            independent_components: self.independent_components,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct PreparedTargetProviderPublication {
     deployed: bool,
     application_scopes: Vec<String>,
-    targets: Vec<(String, Result<PreparedTargetChoices, Vec<Diagnostic>>)>,
+    targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
     assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
 }
 
 impl PreparedTargetProviderPublication {
     pub fn new(
-        targets: Vec<(String, Result<PreparedTargetChoices, Vec<Diagnostic>>)>,
+        targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
         assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
         deployed: bool,
         application_scopes: Vec<String>,
@@ -78,7 +158,35 @@ impl PreparedTargetProviderPublication {
                 let mut application_roots = self.deployed.then(Vec::new);
                 let application_required = self.application_scopes.contains(&target);
                 let selection = prepared
-                    .and_then(|prepared| {
+                    .and_then(|choice| {
+                        let prepared = match choice {
+                            TargetProviderChoice::Prepared(prepared) => prepared,
+                            TargetProviderChoice::Selected { selected, application_roots: roots } => {
+                                if selected.terminal_psi != artifact.identity() {
+                                    return Err(vec![Diagnostic::error(
+                                        "retained provider choice belongs to another Terminal artifact",
+                                    )]);
+                                }
+                                if selected.profile.target_name() != target {
+                                    return Err(vec![Diagnostic::error(
+                                        "retained provider choice belongs to another target",
+                                    )]);
+                                }
+                                let expected_roots = roots.as_deref()
+                                    .map(|roots| close_application_roots(roots, artifact))
+                                    .transpose()
+                                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                                if expected_roots != selected.application_roots
+                                    || self.assumed_bindings != selected.selection.assumed_bindings
+                                {
+                                    return Err(vec![Diagnostic::error(
+                                        "retained provider choice has different application roots or assumed bindings",
+                                    )]);
+                                }
+                                application_roots = selected.application_roots.clone();
+                                return Ok(selected.selection.clone());
+                            }
+                        };
                         if target::TargetProfile::from_canonical_target_name(&target).ok()
                             != Some(prepared.profile)
                         {
@@ -96,7 +204,7 @@ impl PreparedTargetProviderPublication {
                             artifact,
                             application_roots.as_deref(),
                             &self.assumed_bindings,
-                        )
+                        ).map(|selected| selected.selection)
                     })
                     .map_err(|diagnostics| {
                         diagnostics
@@ -117,7 +225,19 @@ impl PreparedTargetProviderPublication {
     }
 }
 
-impl PreparedTargetChoices {
+impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
+    /// Exact canonical entry roots for this target, independent of selection.
+    pub fn close_application_roots(
+        &self,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+    ) -> Result<Option<Vec<terminal_psi::ProofDeclarationId>>, Vec<Diagnostic>> {
+        self.application_roots
+            .as_deref()
+            .map(|roots| close_application_roots(roots, artifact))
+            .transpose()
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+
     /// Grow actual application demand through exact selected providers. Catalog
     /// retention alone never applies a requirement on an unrelated target.
     /// Each demanded schema still selects and admits its complete provider.
@@ -126,9 +246,9 @@ impl PreparedTargetChoices {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         roots: Option<&[terminal_psi::ProofDeclarationId]>,
         assumed_bindings: &[effects::AssumedBindingContractSelection],
-    ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
+    ) -> Result<SelectedTargetProviders<Owner, Origin>, Vec<Diagnostic>> {
         let mut demanded = vec![false; self.candidates.len()];
-        let mut previous = describe_selection(&[], artifact, assumed_bindings)?;
+        let mut previous = describe_selection::<Owner, Origin>(&[], artifact, assumed_bindings)?;
         loop {
             self.extend_application_demand(artifact, roots, &previous, &mut demanded)?;
             let candidates = self
@@ -144,11 +264,37 @@ impl PreparedTargetChoices {
             if proposed == previous {
                 // Intermediate choices discover calls, not evidence. Admit the
                 // complete fixed point once, including all independent edges.
-                let (_, selected) = crate::admit(
+                let (facts, selected) = crate::admit(
                     selected,
                     self.independent_components.iter().map(AsRef::as_ref),
                 )?;
-                return describe_selection(&selected, artifact, assumed_bindings);
+                let selection = describe_selection(&selected, artifact, assumed_bindings)?;
+                let choices = selected
+                    .into_iter()
+                    .map(|selected| {
+                        let crate::ProviderCandidate {
+                            plan,
+                            declarations,
+                            native_build,
+                            owner,
+                        } = selected.candidate;
+                        let owner = owner?;
+                        Ok(crate::SelectedProvider {
+                            candidate: ProviderCandidate {
+                                plan,
+                                declarations,
+                                native_build,
+                                owner: owner.owner,
+                            },
+                            selected_by: selected.selected_by,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+                return Ok(SelectedTargetProviders {
+                    selection,
+                    facts,
+                    choices,
+                });
             }
             previous = proposed;
         }
@@ -230,13 +376,14 @@ impl PreparedTargetChoices {
     }
 }
 
-type SelectedCanonicalProvider = crate::SelectedProvider<
+type SelectedCanonicalProvider<Owner, Origin> = crate::SelectedProvider<
     CanonicalProviderDeclaration,
-    Result<PreparedProviderRealizations, Vec<Diagnostic>>,
+    Result<PreparedProviderRealizations<Owner>, Vec<Diagnostic>>,
+    Origin,
 >;
 
-fn describe_selection(
-    selected: &[SelectedCanonicalProvider],
+fn describe_selection<Owner, Origin>(
+    selected: &[SelectedCanonicalProvider<Owner, Origin>],
     artifact: terminal_codec::TerminalArtifactView<'_>,
     assumed_bindings: &[effects::AssumedBindingContractSelection],
 ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
