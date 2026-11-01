@@ -906,166 +906,126 @@ fn application_identity(
     trait_arguments: &[String],
     rows: &[typed_trees::trait_definition::ConformanceRow],
 ) -> Result<ApplicationIdentity, Diagnostic> {
-    let mut bytes = Vec::new();
-
-    let singleton_lanes = [declaration, trait_name];
-    for lane in singleton_lanes {
-        bytes.extend(1u64.to_le_bytes());
-        bytes.extend((lane.len() as u64).to_le_bytes());
-        bytes.extend(lane.as_bytes());
-        bytes.push(0xff);
-    }
-    for lane in [
+    use language_semantics::conformance_identity::{
+        ConformanceConstIdentity, ConformanceIdentityDescription, ConformanceRowIdentity,
+    };
+    let const_arguments = const_arguments
+        .iter()
+        .map(|argument| {
+            Ok(match argument {
+                ClosedConformanceConstArgument::Evaluated {
+                    parameter_carrier,
+                    declared_carrier,
+                    value,
+                } => ConformanceConstIdentity::Evaluated {
+                    parameter_carrier: program.normalized_type_identity_text(*parameter_carrier),
+                    declared_carrier: program.normalized_type_identity_text(*declared_carrier),
+                    value_type: value.type_name.as_str(),
+                    value_encoding: value.encoding.as_str(),
+                },
+                ClosedConformanceConstArgument::CallerExpression {
+                    parameter_carrier,
+                    expression,
+                } => ConformanceConstIdentity::CallerExpression {
+                    parameter_carrier: program.normalized_type_identity_text(*parameter_carrier),
+                    // Closure requires this canonical declaration-owned identity;
+                    // source display text never participates.
+                    expression_identity: const_expression_identity(program, *expression)
+                        .ok_or_else(|| {
+                            Diagnostic::error("closed const expression lost its canonical identity")
+                        })?,
+                },
+                ClosedConformanceConstArgument::CallerBinder {
+                    parameter_carrier,
+                    binder,
+                    binder_carrier,
+                } => ConformanceConstIdentity::CallerBinder {
+                    parameter_carrier: program.normalized_type_identity_text(*parameter_carrier),
+                    binder_carrier: program.normalized_type_identity_text(*binder_carrier),
+                    binder_identity: program
+                        .symbols
+                        .display_path(*binder, "::")
+                        .as_str()
+                        .to_owned(),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let machine_arguments = machine_arguments
+        .iter()
+        .map(|machine| {
+            program
+                .machines()
+                .iter()
+                .flat_map(|owner| {
+                    program
+                        .machine_states(owner)
+                        .iter()
+                        .map(move |state| (owner, state))
+                })
+                .find(|(_, state)| state.symbol == *machine)
+                .map(|(owner, state)| format!("{}::{}", owner.name, state.name))
+                .unwrap_or_else(|| "<unresolved-machine>".to_owned())
+        })
+        .collect();
+    // The declaration symbol alone aliases explicit callback applications.
+    // Retain the complete authored tuple independently of executable selection.
+    let machine_operands = machine_operands
+        .iter()
+        .map(|operand| normalize_machine_operand(program, operand))
+        .collect();
+    let rows = rows
+        .iter()
+        .map(|row| {
+            let signature = program
+                .trait_definition_by_symbol(row.declaring_trait)
+                .and_then(|definition| {
+                    program.trait_machine_signature_by_symbol(definition, row.requirement)
+                });
+            Ok(ConformanceRowIdentity {
+                declaring_trait: row.declaring_trait_name.as_str(),
+                requirement: row.requirement_name.as_str(),
+                realization: row.realization_name.as_str(),
+                requirement_signature: signature
+                    .map(|signature| {
+                        crate::contract_identities::canonical_state_signature_bytes(
+                            program, signature,
+                        )
+                    })
+                    .transpose()?,
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let description = ConformanceIdentityDescription {
+        declaration,
+        trait_name,
         lifetime_arguments,
         type_arguments,
         trait_lifetime_arguments,
         trait_arguments,
-    ] {
-        bytes.extend((lane.len() as u64).to_le_bytes());
-        for item in lane {
-            bytes.extend((item.len() as u64).to_le_bytes());
-            bytes.extend(item.as_bytes());
-        }
-        bytes.push(0xff);
-    }
-
-    bytes.extend((const_arguments.len() as u64).to_le_bytes());
-    for argument in const_arguments {
-        let append = |bytes: &mut Vec<u8>, value: &str| {
-            bytes.extend((value.len() as u64).to_le_bytes());
-            bytes.extend(value.as_bytes());
-        };
-        match argument {
-            ClosedConformanceConstArgument::Evaluated {
-                parameter_carrier,
-                declared_carrier,
-                value,
-            } => {
-                bytes.push(0);
-                append(
-                    &mut bytes,
-                    &program.normalized_type_identity_text(*parameter_carrier),
-                );
-                append(
-                    &mut bytes,
-                    &program.normalized_type_identity_text(*declared_carrier),
-                );
-                append(&mut bytes, value.type_name.as_str());
-                append(&mut bytes, value.encoding.as_str());
-            }
-            ClosedConformanceConstArgument::CallerExpression {
-                parameter_carrier,
-                expression,
-            } => {
-                bytes.push(2);
-                append(
-                    &mut bytes,
-                    &program.normalized_type_identity_text(*parameter_carrier),
-                );
-                // Closure already requires this canonical declaration-owned
-                // identity; source display text never participates.
-                append(
-                    &mut bytes,
-                    &const_expression_identity(program, *expression).ok_or_else(|| {
-                        Diagnostic::error("closed const expression lost its canonical identity")
-                    })?,
-                );
-            }
-            ClosedConformanceConstArgument::CallerBinder {
-                parameter_carrier,
-                binder,
-                binder_carrier,
-            } => {
-                bytes.push(1);
-                append(
-                    &mut bytes,
-                    &program.normalized_type_identity_text(*parameter_carrier),
-                );
-                append(
-                    &mut bytes,
-                    &program.normalized_type_identity_text(*binder_carrier),
-                );
-                append(
-                    &mut bytes,
-                    program.symbols.display_path(*binder, "::").as_str(),
-                );
-            }
-        }
-        bytes.push(0xfd);
-    }
-
-    for machine in machine_arguments {
-        let identity = program
-            .machines()
-            .iter()
-            .flat_map(|owner| {
-                program
-                    .machine_states(owner)
-                    .iter()
-                    .map(move |state| (owner, state))
-            })
-            .find(|(_, state)| state.symbol == *machine)
-            .map(|(owner, state)| format!("{}::{}", owner.name, state.name))
-            .unwrap_or_else(|| "<unresolved-machine>".to_owned());
-        bytes.extend((identity.len() as u64).to_le_bytes());
-        bytes.extend(identity.as_bytes());
-    }
-
-    // The declaration symbol alone aliases explicit callback applications.
-    // Retain the complete authored tuple independently of executable selection.
-    bytes.extend((machine_operands.len() as u64).to_le_bytes());
-    for operand in machine_operands {
-        encode_machine_operand(program, operand, &mut bytes);
-    }
-
-    for row in rows {
-        for item in [
-            row.declaring_trait_name.as_str(),
-            row.requirement_name.as_str(),
-            row.realization_name.as_str(),
-        ] {
-            bytes.extend((item.len() as u64).to_le_bytes());
-            bytes.extend(item.as_bytes());
-        }
-
-        if let Some(signature) = program
-            .trait_definition_by_symbol(row.declaring_trait)
-            .and_then(|definition| {
-                program.trait_machine_signature_by_symbol(definition, row.requirement)
-            })
-        {
-            let signature_bytes =
-                crate::contract_identities::canonical_state_signature_bytes(program, signature)?;
-            bytes.push(1);
-            bytes.extend((signature_bytes.len() as u64).to_le_bytes());
-            bytes.extend(signature_bytes);
-        } else {
-            bytes.push(0);
-        }
-        bytes.push(0xfe);
-    }
-    let mut hash = semantic_vocabulary::Fnv1a::new();
-    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.psi.closed-conformance-application.v4\0",
-    );
-    strong.raw(&bytes);
-    hash.bytes(&bytes);
+        const_arguments,
+        machine_arguments,
+        machine_operands,
+        rows,
+    };
+    let (report_fingerprint, commitment) = description.fingerprint_and_commitment();
     Ok(ApplicationIdentity {
-        report_fingerprint: hash.finish(),
+        report_fingerprint,
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
-            strong.finish(),
+            commitment,
         ),
     })
 }
 
-fn encode_machine_operand(
+fn normalize_machine_operand(
     program: &dyn crate::CheckingInput,
     operand: &StaticMachineArgument,
-    bytes: &mut Vec<u8>,
-) {
-    let identity = if let Some(value) = program.static_const_argument_identity(operand) {
-        bytes.push(1);
-        value
+) -> language_semantics::conformance_identity::MachineOperandIdentity {
+    use language_semantics::conformance_identity::{
+        MachineOperandApplicationIdentity, MachineOperandIdentity, MachineOperandSelectionIdentity,
+    };
+    let selection = if let Some(value) = program.static_const_argument_identity(operand) {
+        MachineOperandSelectionIdentity::Const(value)
     } else if operand.type_reference.is_valid()
         || (operand.symbol.is_valid()
             && matches!(
@@ -1073,26 +1033,27 @@ fn encode_machine_operand(
                 SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
             ))
     {
-        bytes.push(2);
-        type_argument_identity(program, operand)
+        MachineOperandSelectionIdentity::Type(type_argument_identity(program, operand))
     } else {
-        bytes.push(3);
-        crate::contract_identities::conformance_symbol_identity(program, operand.symbol)
+        MachineOperandSelectionIdentity::Conformance(
+            crate::contract_identities::conformance_symbol_identity(program, operand.symbol),
+        )
     };
-    bytes.extend((identity.len() as u64).to_le_bytes());
-    bytes.extend(identity.as_bytes());
-    if let Some(application) = &operand.application {
-        bytes.push(1);
-        bytes.extend((application.lifetime_arguments.len() as u64).to_le_bytes());
-        for lifetime in &application.lifetime_arguments {
-            bytes.extend((lifetime.as_str().len() as u64).to_le_bytes());
-            bytes.extend(lifetime.as_str().as_bytes());
-        }
-        bytes.extend((application.arguments.len() as u64).to_le_bytes());
-        for argument in &application.arguments {
-            encode_machine_operand(program, argument, bytes);
-        }
-    } else {
-        bytes.push(0);
+    MachineOperandIdentity {
+        selection,
+        application: operand.application.as_ref().map(|application| {
+            MachineOperandApplicationIdentity {
+                lifetime_arguments: application
+                    .lifetime_arguments
+                    .iter()
+                    .map(|lifetime| lifetime.as_str().to_owned())
+                    .collect(),
+                arguments: application
+                    .arguments
+                    .iter()
+                    .map(|argument| normalize_machine_operand(program, argument))
+                    .collect(),
+            }
+        }),
     }
 }
