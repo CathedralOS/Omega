@@ -114,8 +114,7 @@ fn search(
                         parameter: coordinate.parameter,
                         path: coordinate.path.clone(),
                     },
-                    entry_indexes: scalar
-                        .map_or_else(Vec::new, |coordinate| coordinate.entry_indexes.clone()),
+                    entry_indexes: rank.subject.entry_indexes().to_vec(),
                     parameter_position: u32::try_from(rank.subject.position()).ok()?,
                     application_bindings: match rank.application {
                         Some(application) => {

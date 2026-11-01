@@ -225,8 +225,8 @@ pub use value_custody::atomic_operations::{
     place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, ScalarCoordinateProjection, StructuralScalarCoordinate,
-    StructuralScalarField, StructuralSource, assignment_target_indexes,
+    AttachedStorageRoot, ScalarCoordinateProjection, StructuralCoordinate,
+    StructuralScalarCoordinate, StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     ensured_range_call_endpoints, exact_attached_field, exact_attached_storage_field,
@@ -234,7 +234,8 @@ pub use value_custody::places::{
     fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
-    saved_dispatch_subject, structural_atomic_field, structural_scalar_coordinate,
+    saved_dispatch_subject, structural_atomic_field, structural_coordinate,
+    structural_coordinate_in_type, structural_scalar_coordinate,
     structural_scalar_coordinate_in_type, structural_scalar_field,
     structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
     structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
@@ -286,8 +287,8 @@ pub use crate::machine_calls::calls::{
     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
     ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
     ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceEffect,
-    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
-    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    StoredReferenceRelationRefusal, ValidatedSelfCallDescent, assignment_stored_value_type,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{

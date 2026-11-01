@@ -1,0 +1,9 @@
+module routes;
+
+public data Routed<machine Selected>
+
+= Erased<Selected>;
+
+public data Erased<machine Selected>
+requires machine Selected(value: u64) -> u64;
+= u64;

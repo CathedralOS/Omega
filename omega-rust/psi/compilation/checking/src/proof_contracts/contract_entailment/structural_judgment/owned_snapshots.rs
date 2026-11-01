@@ -8,7 +8,6 @@ use crate::proof_contracts::contract_entailment::structural_prefix::{
 };
 use crate::{CheckingInput, RankSubjectCoordinate};
 use facts::PlaceRoot;
-use language_semantics::content::ContentPlaceVersion;
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
 
@@ -43,6 +42,54 @@ impl CapturedOwnedSnapshot {
                 self.actual_type,
                 self.value.clone(),
                 path,
+            )?,
+        })
+    }
+
+    fn project_call_input(
+        &self,
+        judge: &StructuralJudge<'_>,
+        path: &[facts::PlaceSegment],
+        site: crate::CallSite<'_>,
+        caller: SymbolHandle,
+        actuals: &[StructuralTerm],
+    ) -> Option<Self> {
+        let program = judge.program;
+        let parameters = site.parameters(program, caller)?;
+        if parameters.len() != actuals.len() {
+            return None;
+        }
+        let target = site.target_symbol(program);
+        let bindings = parameters
+            .iter()
+            .zip(actuals)
+            .map(|(formal, value)| (formal.symbol, value.clone()))
+            .collect::<Vec<_>>();
+        Some(Self {
+            actual_type: crate::project_type_reference_from_segments(
+                program,
+                self.actual_type,
+                path,
+            )?,
+            source_scope: self.source_scope,
+            value: super::super::observed_projections::project_observed_value_with_selectors(
+                program,
+                judge,
+                self.actual_type,
+                self.value.clone(),
+                path,
+                |selector| {
+                    judge.bound_contract_term(
+                        selector,
+                        target,
+                        parameters,
+                        target,
+                        &bindings,
+                        &[],
+                        None,
+                        0,
+                    )
+                },
             )?,
         })
     }
@@ -183,7 +230,13 @@ impl StructuralPrefixVisitor for CallSnapshot<'_> {
                     actual_type,
                     value,
                 )?
-                .project(program, self.path)?;
+                .project_call_input(
+                    &entry.judge,
+                    self.path,
+                    self.site,
+                    machine.symbol,
+                    &actuals,
+                )?;
                 if self
                     .value
                     .as_ref()
@@ -221,13 +274,10 @@ impl StructuralPrefixVisitor for EntrySnapshot<'_> {
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (_, _, state, judge, _) = observation;
         let captured = (|| {
-            let value = judge.captured_place_projection(
-                &crate::CanonicalPlace {
-                    root: PlaceRoot::Symbol(self.coordinate.parameter),
-                    segments: self.coordinate.path.clone(),
-                },
-                ContentPlaceVersion::Entry,
-            )?;
+            let value = judge.captured_entry_place_projection(crate::CanonicalPlace {
+                root: PlaceRoot::Symbol(self.coordinate.parameter),
+                segments: self.coordinate.path.clone(),
+            })?;
             CapturedOwnedSnapshot::completed(&judge, state.symbol, self.actual_type, &value)
         })();
         let Some(captured) = captured else {

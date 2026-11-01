@@ -55,10 +55,15 @@ fn produce(
     }
     let applications = machines
         .iter()
-        .map(|machine| psi_compiler::TerminalApplicationCustody {
-            entry_machine: Some(psi_compiler::TerminalMachineSelection::Symbol(*machine)),
-            composition: Some(psi_compiler::TerminalCompositionRoots::default()),
-            ..Default::default()
+        .map(|machine| {
+            psi_compiler::TerminalApplicationCustody::prepare(
+                &source.program,
+                psi_compiler::TerminalMachineSelection::Symbol(*machine),
+                None,
+                Some(psi_compiler::TerminalCompositionRoots::default()),
+                source.sources.exact_toolchain_sources(),
+                &mut psi_compiler::UnmeasuredProduction,
+            )
         })
         .collect::<Vec<_>>();
     let mut request = psi_compiler::TerminalProductionRequest::new(
@@ -72,38 +77,33 @@ fn produce(
     };
     let produced = request
         .produce(
-            psi_compiler::TerminalProductionCustody {
-                applications: &applications,
-            },
+            psi_compiler::TerminalProductionCustody::default(),
             &mut psi_compiler::UnmeasuredProduction,
         )
         .map_err(|error| error.diagnostics())?;
-    let (artifact, applications) = produced
-        .into_parts()
+    let program = produced
+        .into_shared_portable()
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    if applications.len() != machines.len() {
-        return Err(vec![Diagnostic::error(
-            "calling-policy publication lost its exact entry roster",
-        )]);
-    }
     let entries = machines
         .into_iter()
         .zip(applications)
         .map(|(machine, application)| {
-            let entry = application.and_then(|application| {
-                let [root] = <[_; 1]>::try_from(application.roots).map_err(|_| {
-                    vec![Diagnostic::error(
-                        "calling-policy publication did not retain one exact root",
-                    )]
-                })?;
-                root.map(|root| root.machine)
-            });
+            let entry = program
+                .attach_application(&application, &mut psi_compiler::UnmeasuredProduction)
+                .and_then(|application| {
+                    let [root] = <[_; 1]>::try_from(application.roots).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "calling-policy publication did not retain one exact root",
+                        )]
+                    })?;
+                    root.map(|root| root.machine)
+                });
             (machine, entry)
         })
         .collect();
     Ok(Some(Arc::new(CallingPolicyCode {
         source_owner: Arc::downgrade(&source.program),
-        artifact,
+        artifact: Arc::clone(program.artifact()),
         entries,
     })))
 }

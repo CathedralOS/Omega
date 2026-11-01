@@ -392,27 +392,22 @@ fn encode_block_header(bytes: &mut Vec<u8>, block: &crate::SelectedBlock) {
     crate::codec_bytes::encode_len(bytes, block.instructions.len());
 }
 
-std::thread_local! {
-    static BLOCK_DIGEST_BUFFER: std::cell::RefCell<Vec<u8>> =
-        std::cell::RefCell::new(Vec::with_capacity(64 * 1024));
-}
-
+/// `bytes` is encoding scratch owned by the caller's digest walk; its contents
+/// on entry are ignored and it is never an identity input.
 pub(crate) fn selected_block_digest_with_encoding(
     block: &crate::SelectedBlock,
     previous: Option<(&CachedBlockEncoding, usize, usize)>,
+    bytes: &mut Vec<u8>,
 ) -> ([u8; 32], std::sync::Arc<CachedBlockEncoding>) {
     let total_instructions = block.instructions.len();
     if total_instructions < INSTRUCTION_PAGE_SIZE {
-        let digest = BLOCK_DIGEST_BUFFER.with(|cell| {
-            let mut bytes = cell.borrow_mut();
-            bytes.clear();
-            encode_block_header(&mut bytes, block);
-            for instruction in &block.instructions {
-                encode_instruction(&mut bytes, instruction);
-            }
-            ordinary::encode_terminator(&mut bytes, &block.terminator);
-            crate::digest_encoder::content_identity(&bytes)
-        });
+        bytes.clear();
+        encode_block_header(bytes, block);
+        for instruction in &block.instructions {
+            encode_instruction(bytes, instruction);
+        }
+        ordinary::encode_terminator(bytes, &block.terminator);
+        let digest = crate::digest_encoder::content_identity(bytes);
         return (
             digest,
             std::sync::Arc::new(CachedBlockEncoding { chunks: Vec::new() }),
@@ -477,47 +472,44 @@ pub(crate) fn selected_block_digest_with_encoding(
         }
     }
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
-    BLOCK_DIGEST_BUFFER.with(|cell| {
-        let mut bytes = cell.borrow_mut();
+    bytes.clear();
+    encode_block_header(bytes, block);
+    hasher.raw(bytes);
+    for chunk in &chunks {
+        hasher.raw(&chunk.bytes);
+    }
+    let mut cursor = middle_start;
+    while cursor < middle_end {
+        let rem = middle_end - cursor;
+        let step = if rem <= INSTRUCTION_PAGE_SIZE {
+            rem
+        } else if rem < INSTRUCTION_PAGE_SIZE + MIN_REUSED_CHUNK_SIZE {
+            rem / 2
+        } else {
+            INSTRUCTION_PAGE_SIZE
+        };
         bytes.clear();
-        encode_block_header(&mut bytes, block);
-        hasher.raw(&bytes);
-        for chunk in &chunks {
+        for instruction in &block.instructions[cursor..cursor + step] {
+            encode_instruction(bytes, instruction);
+        }
+        hasher.raw(bytes);
+        chunks.push(std::sync::Arc::new(EncodedChunk {
+            instruction_count: step,
+            bytes: bytes.as_slice().into(),
+        }));
+        cursor += step;
+    }
+    if let Some((prev_enc, _, _)) = previous
+        && !prev_enc.chunks.is_empty()
+    {
+        for chunk in &prev_enc.chunks[suffix_start_chunk..] {
             hasher.raw(&chunk.bytes);
+            chunks.push(std::sync::Arc::clone(chunk));
         }
-        let mut cursor = middle_start;
-        while cursor < middle_end {
-            let rem = middle_end - cursor;
-            let step = if rem <= INSTRUCTION_PAGE_SIZE {
-                rem
-            } else if rem < INSTRUCTION_PAGE_SIZE + MIN_REUSED_CHUNK_SIZE {
-                rem / 2
-            } else {
-                INSTRUCTION_PAGE_SIZE
-            };
-            bytes.clear();
-            for instruction in &block.instructions[cursor..cursor + step] {
-                encode_instruction(&mut bytes, instruction);
-            }
-            hasher.raw(&bytes);
-            chunks.push(std::sync::Arc::new(EncodedChunk {
-                instruction_count: step,
-                bytes: bytes.as_slice().into(),
-            }));
-            cursor += step;
-        }
-        if let Some((prev_enc, _, _)) = previous
-            && !prev_enc.chunks.is_empty()
-        {
-            for chunk in &prev_enc.chunks[suffix_start_chunk..] {
-                hasher.raw(&chunk.bytes);
-                chunks.push(std::sync::Arc::clone(chunk));
-            }
-        }
-        bytes.clear();
-        ordinary::encode_terminator(&mut bytes, &block.terminator);
-        hasher.raw(&bytes);
-    });
+    }
+    bytes.clear();
+    ordinary::encode_terminator(bytes, &block.terminator);
+    hasher.raw(bytes);
     (
         hasher.finish(),
         std::sync::Arc::new(CachedBlockEncoding { chunks }),
@@ -527,7 +519,7 @@ pub(crate) fn selected_block_digest_with_encoding(
 /// Canonical block content only; the storage's memo is never an input.
 #[allow(dead_code)]
 pub(crate) fn selected_block_digest(block: &crate::SelectedBlock) -> [u8; 32] {
-    selected_block_digest_with_encoding(block, None).0
+    selected_block_digest_with_encoding(block, None, &mut Vec::new()).0
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {

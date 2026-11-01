@@ -106,7 +106,8 @@ pub fn structural_scalar_field_in_parameters(
 
 mod coordinates;
 pub use coordinates::{
-    ScalarCoordinateProjection, StructuralScalarCoordinate, structural_scalar_coordinate,
+    ScalarCoordinateProjection, StructuralCoordinate, StructuralScalarCoordinate,
+    structural_coordinate, structural_coordinate_in_type, structural_scalar_coordinate,
     structural_scalar_coordinate_in_type, structural_scalar_field_at_coordinate,
     structural_scalar_field_at_element_coordinate,
 };

@@ -421,12 +421,14 @@ impl<'program> CallFrameResolver<'program> {
         state: &State,
         statement_index: usize,
         expression: ExpressionHandle,
-    ) -> Option<Vec<super::StoredReferenceEffect>> {
+    ) -> Result<Vec<super::StoredReferenceEffect>, super::StoredReferenceRelationRefusal> {
+        use super::StoredReferenceRelationRefusal::{TemplateDependent, Unavailable};
         let statement = self
             .program
             .statement_table
             .statements(state.statement_nodes)
-            .get(statement_index)?;
+            .get(statement_index)
+            .ok_or(Unavailable)?;
         // The caller's current loan roster already owns prior statements.
         // A call-free statement adds no invocation effects and needs no second
         // reconstruction of that entry through source-level write inference.
@@ -435,7 +437,7 @@ impl<'program> CallFrameResolver<'program> {
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         }
         // Prove empty reference-slot demand from the same ordered evaluator.
         // A completed invocation with a known empty writable frontier adds no
@@ -458,7 +460,7 @@ impl<'program> CallFrameResolver<'program> {
             expression,
         );
         if unbound.is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty()) {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         }
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
@@ -468,7 +470,8 @@ impl<'program> CallFrameResolver<'program> {
             &self.tables.symbols,
             statement_index,
             true,
-        )?;
+        )
+        .ok_or(Unavailable)?;
         let transfer = super::stored_calls::effects_at_expression(
             self.program,
             machine,
@@ -478,11 +481,18 @@ impl<'program> CallFrameResolver<'program> {
             &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
             expression,
-        )?;
-        if !transfer.is_complete() {
-            return None;
+        )
+        .ok_or(Unavailable)?;
+        if !transfer.incomplete_calls.is_empty() {
+            return Err(Unavailable);
         }
-        super::stored_calls::public_effects(transfer.effects)
+        // A relation that still depends on a type parameter is unknown
+        // structure, not a proved failure; the selected closed instances
+        // publish it with concrete types.
+        if transfer.template_dependent {
+            return Err(TemplateDependent);
+        }
+        super::stored_calls::public_effects(transfer.effects).ok_or(Unavailable)
     }
 
     /// Failures belong to actual invocations, not a target-wide classification.

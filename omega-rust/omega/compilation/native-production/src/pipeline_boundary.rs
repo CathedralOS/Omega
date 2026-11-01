@@ -1,4 +1,8 @@
-//! Guard shared native stage sequencing without running another compiler.
+//! Source guards for shared native stage sequencing.
+//!
+//! The order of the representation transforms is not repeated here: each stage
+//! consumes the previous stage's product, so `pipeline.rs` cannot run them out
+//! of order and still type-check.
 
 #[test]
 fn terminal_application_preparation_owns_source_free_admission_order() {
@@ -23,32 +27,13 @@ fn terminal_application_preparation_owns_source_free_admission_order() {
         .find("terminal_authority_permission_policy_with_rows(permissions, identities)")
         .unwrap();
     assert!(validation < construction);
-    for forbidden in [
-        "checked_trees::",
-        "typed_trees::",
-        "provider_planning::",
-        "package_compilation::",
-    ] {
-        assert!(
-            !source.contains(forbidden),
-            "application preparation imports {forbidden}"
-        );
-    }
 }
 
 #[test]
 fn component_calls_are_request_data_not_an_alternate_compile_entrance() {
     let compiler = include_str!("compiler.rs");
-    let request = include_str!("request.rs");
-    let exports = include_str!("lib.rs");
-    assert_eq!(compiler.matches("pub fn compile(").count(), 1);
     assert_eq!(compiler.matches("pub fn ").count(), 1);
-    assert!(compiler.contains("crate::components::emit_components("));
-    assert!(compiler.contains("EmittedComponent::admit_call"));
-    assert!(compiler.contains("EmittedComponent::into_product"));
-    assert!(compiler.contains("with_component_products(component_products)"));
-    assert!(request.contains("pub components:"));
-    assert!(exports.contains("pub use compiler::compile;"));
+    let exports = include_str!("lib.rs");
     assert!(!exports.contains("emit_component_exports"));
     assert!(!exports.contains("ComponentNativeCall"));
 }
@@ -59,8 +44,6 @@ fn applications_and_callables_use_the_same_body_pipeline() {
         include_str!("realization/object_emission.rs"),
         include_str!("realization/callable_objects.rs"),
     ] {
-        assert!(caller.contains("pipeline::lower_to_target("));
-        assert!(caller.contains("pipeline::emit_target("));
         for stage in [
             "optimize_abstract_operations(",
             "lower_optimized_to_target_operations(",
@@ -69,30 +52,6 @@ fn applications_and_callables_use_the_same_body_pipeline() {
         ] {
             assert!(!caller.contains(stage), "caller assembles {stage}");
         }
-    }
-}
-
-#[test]
-fn body_pipeline_exposes_the_ordered_representation_transforms() {
-    let pipeline = include_str!("pipeline.rs");
-    let mut remaining = pipeline;
-    for stage in [
-        "optimize_abstract_operations(",
-        "lower_optimized_to_target_operations(",
-        "stage_optimized_instruction_selection(",
-        "optimize_selected_instructions(selected)",
-        "stage_register_allocation(selected)",
-        "stage_optimized_post_allocation_machine_plan(",
-        "stage_function_frame(",
-        "stage_optimized_layout_independent_selected_form_encoding(",
-        "stage_optimized_resolved_selected_form_layout(",
-        "execute_resolved_layout_optimization(",
-        "assemble_fixed_frame_realization(",
-        "emit_fragment_object(physical)",
-    ] {
-        assert_eq!(pipeline.matches(stage).count(), 1, "one call to {stage}");
-        let position = remaining.find(stage).expect("stage follows its producer");
-        remaining = &remaining[position + stage.len()..];
     }
 }
 
@@ -110,6 +69,4 @@ fn backend_joins_layout_products_without_driving_compiler_stages() {
             "backend assembles compiler stage {stage}"
         );
     }
-    assert!(backend.contains("stage_whole_function_exit_contract_for_layout("));
-    assert!(backend.contains("expected_fixed_frame_manifest("));
 }

@@ -540,6 +540,11 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Reuse valid completed evidence when its inputs and affected consumers still
+  apply; retain its revision, command and outcome. A broader run needs a concrete
+  change-specific obligation that focused affected-path tests and relevant
+  positive/rejection controls cannot establish. This does not authorize the
+  user-triggered sweeps above or replace required GitHub `compiler-check`.
 - **Keep progress PRs bounded.** Name the changed behavior and its necessary
   checks before building. Reuse unchanged results; finish and enqueue once
   those checks and required review pass. Full Product builds, self-hosting,

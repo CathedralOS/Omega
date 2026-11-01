@@ -620,6 +620,14 @@ lifecycle and copy disposition stay with that review/publication owner, whose
 commitment and exact-occurrence checks are unchanged. Layout geometry alone
 cannot publish selected representation custody.
 
+Application entry/callback/adapter requests freeze their source identities
+before portable production. After sealing, Psi attaches their ordered root
+judgments and Unit entry receipts using only those descriptions and the final
+artifact. Module diagnostic names are captured once; each application's caller
+attribution follows the retained pre-optimization invocation graph, not reopened
+source or an optimized-away path. Shared executable roots come from all authored
+Build bindings, not whichever target's entry was selected first.
+
 Retained-product callback and checked-scope composition must close through
 actual native publication, not a zero-payload layout or provider-selection check.
 Widening scalar-provider forwarding additionally requires preserved incoming

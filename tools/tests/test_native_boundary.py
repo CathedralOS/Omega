@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
 from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
 from check_native_boundary import TRUST_ROOT, TRUST_OWNERS, representation_spelling_violations, psi_omega_dependency_violations, realization_checker_entry_violations
+from check_native_boundary import FORBIDDEN_DEPENDENCIES, PSI_FACADE, TERMINAL_PRODUCTION, forbidden_dependency_violations
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -221,6 +222,82 @@ class RepresentationSpellingTests(unittest.TestCase):
                     self.assertEqual(len(representation_spelling_violations(root)), 1)
             source.write_text('let name = "string";\nlet class = RepresentationClass::Slice;\n', encoding="utf-8")
             self.assertEqual(representation_spelling_violations(root), [])
+
+
+class ForbiddenDependencyTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(__file__).resolve().parents[2]
+        self.metadata = {"workspace_root": str(self.root), "packages": []}
+
+    def package(self, name, path):
+        package = {
+            "name": name,
+            "manifest_path": str(self.root / path / "Cargo.toml"),
+            "dependencies": [],
+        }
+        self.metadata["packages"].append(package)
+        return package
+
+    def edge(self, source, destination, **properties):
+        source["dependencies"].append({
+            "name": destination["name"],
+            "path": str(Path(destination["manifest_path"]).parent),
+            "kind": None,
+            **properties,
+        })
+
+    def test_every_rule_names_existing_workspace_paths(self):
+        for rule in FORBIDDEN_DEPENDENCIES:
+            for path in (*rule.owners, *rule.forbidden, *rule.except_owners):
+                self.assertTrue((self.root / path).is_dir(), f"{path}: {rule.reason}")
+
+    def test_psi_cannot_depend_on_omega(self):
+        checking = self.package("checking", "omega-rust/psi/compilation/checking")
+        target = self.package("target", "omega-rust/omega/compilation/backend/target")
+        self.edge(checking, target, optional=True, target='cfg(unix)')
+        failures = forbidden_dependency_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("checking -> target: Psi must not depend on Omega", failures[0])
+
+    def test_dev_dependency_on_omega_is_not_a_production_edge(self):
+        checking = self.package("checking", "omega-rust/psi/compilation/checking")
+        target = self.package("target", "omega-rust/omega/compilation/backend/target")
+        self.edge(checking, target, kind="dev")
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+
+    def test_product_consumer_cannot_assemble_a_source_stage(self):
+        products = self.package("compilation-products", "omega-rust/omega/compilation/products")
+        checker = self.package(
+            "typed-trees-to-checked-trees",
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+        )
+        facade = self.package("psi-compiler", PSI_FACADE)
+        self.edge(products, facade)
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+        self.edge(products, checker)
+        failures = forbidden_dependency_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("compilation-products -> 04_typed-trees-to-checked-trees", failures[0])
+
+    def test_only_terminal_production_sequences_the_terminal_stages(self):
+        stage = self.package(
+            "lowered-psi-to-terminal-psi",
+            "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
+        )
+        production = self.package("psi-terminal-production", TERMINAL_PRODUCTION)
+        self.edge(production, stage)
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+        facade = self.package("psi-compiler", PSI_FACADE)
+        self.edge(facade, stage)
+        failures = forbidden_dependency_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("psi-compiler -> 07_lowered-psi-to-terminal-psi", failures[0])
+
+    def test_sibling_with_owner_prefix_is_not_the_owner(self):
+        counterfeit = self.package("counterfeit", "omega-rust/psi-extra/driver")
+        target = self.package("target", "omega-rust/omega/compilation/backend/target")
+        self.edge(counterfeit, target)
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
 
 
 if __name__ == "__main__":

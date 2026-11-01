@@ -2,7 +2,7 @@
 //!
 //! One shared declaration table retains exact identities in occurrence order.
 //! Missing declarations stay deferred: checking-only products need not lower
-//! a body. Composition admission consumes each result lazily, before optimization.
+//! a body. Composition admission consumes each result lazily, after publication.
 
 use crate::{CheckedMachineDeclaration, TerminalIdentityTable, TerminalModule};
 use arena::Arena;
@@ -75,7 +75,7 @@ impl PreparedTerminalRoots {
         Self { identities, roots }
     }
 
-    /// Resolve each exact declaration against the unoptimized composition.
+    /// Resolve each exact declaration against the retained composition.
     /// Neither a nominal name alone nor a matching ABI may select another body.
     pub fn retained_roots<'a>(
         &'a self,
