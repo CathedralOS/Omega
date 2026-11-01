@@ -29,7 +29,7 @@ mod plan_computation;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
-mod signature_source;
+mod signature_review;
 mod terminal_execution;
 mod terminal_signature;
 mod terminal_values;
