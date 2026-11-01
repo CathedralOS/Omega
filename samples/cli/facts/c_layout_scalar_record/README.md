@@ -158,7 +158,7 @@ no compiler or library mechanism and needs no further build for these records.
 
 The complete nine-place transport row and policy twins now have focused
 observations. Broader schema composition, complete platform ABI records,
-Windows x86_64 and Linux ARM64 execution, and the parent acceptance remain open.
+Windows x86_64 execution, and the parent acceptance remain open.
 These observations do not qualify the full compiler.
 
 
@@ -181,6 +181,30 @@ and emitted summary/sample JSON retain the actual producer and target.
 The later prerequisite cleanup and evidence documentation change no Rust,
 library, project, workflow or helper execution inputs; they need no new build.
 
-Windows x86_64 and Linux ARM64 execution remain open, as do the parent capability's
+Windows x86_64 execution remains open, as do the parent capability's
 other representation, complete platform ABI, conversion and Product requirements.
 This observation does not qualify the new Darwin SDK records.
+
+## Linux ARM64 execution
+
+The complete nine-place row and all nine sole-type twins pass on native Linux
+ARM64 in [pilot 41317826843](https://github.com/CathedralOS/Omega/actions/runs/41317826843).
+The same producer observes both C-layout rows: 18 positives execute with native
+and Terminal exit 0, and all 18 twins reject their authored policy obligations.
+The source programs, four target bindings, values, backing observations and
+geometry oracles are unchanged.
+
+[Source `05bfe3d4b250f158f332757d02eb9670f3e0a7e7`](https://github.com/CathedralOS/Omega/tree/05bfe3d4b250f158f332757d02eb9670f3e0a7e7)
+produced authenticated opt-level 1 CLI
+`2ba88ac44acb292ff35f3bcebd70e7e2d39a236acf8caf04aa71acee019678f6`.
+The actual Rust host is `aarch64-unknown-linux-gnu`, the runtime target is
+`linux_arm64`, and the GitHub runner is `ubuntu-24.04-arm`. Preparation took
+984.501s, authentication 0.789s and the 36 projects 145.549s. The sample-only
+producer has no corpus runner or runner profile. Raw summary/sample JSON and an
+exportable source bundle preserve that producer identity independently of later
+documentation or queue commits. This is matching-host execution, not a cross
+compile or another host's checking record.
+
+Windows x86_64 execution, broader representation/conversion work, complete
+platform ABI records and Product acceptance remain parent work. The native Mac
+observation above retains its original producer identity.

@@ -37,6 +37,7 @@ pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_application;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
+pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,

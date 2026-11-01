@@ -88,6 +88,7 @@ impl<'a> TerminalProductionRequest<'a> {
                 inventory,
                 &mut lowered.semantic_module,
                 &lowered.source_boundary_declarations,
+                &lowered.source_machine_declarations,
             )
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         }

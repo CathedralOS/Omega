@@ -39,6 +39,113 @@ use typed_trees::signature::{
 use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::types::TypeReferenceHandle;
 
+/// A formed callable's authored facts and exact observation telescope.
+pub(crate) struct CallableContract<'a> {
+    pub(crate) owner: SymbolHandle,
+    pub(crate) contracts: &'a [SignatureContract],
+    pub(crate) parameters: &'a [StateParameter],
+    pub(crate) result: TypeReferenceHandle,
+}
+
+/// The same declaration implication used for a provider and for a nested
+/// callable input. Input variance is decided by the caller; this judgment
+/// always proves required premises imply actual premises, and conversely for
+/// guarantees. Binder pairs come from complete callable formation, not names.
+pub(crate) struct CallableContractRefinement {
+    required: ContractFacts,
+    actual: ContractFacts,
+}
+
+impl CallableContractRefinement {
+    pub(crate) fn prepare(
+        program: &dyn crate::CheckingInput,
+        required: CallableContract<'_>,
+        actual: CallableContract<'_>,
+        binders: &[(SymbolHandle, SymbolHandle)],
+    ) -> Option<Self> {
+        if !required.owner.is_valid()
+            || !actual.owner.is_valid()
+            || required.parameters.len() != actual.parameters.len()
+        {
+            return None;
+        }
+        let mut required_captures = Vec::new();
+        let mut actual_captures = Vec::new();
+        for (position, &(required, actual)) in binders.iter().enumerate() {
+            if !required.is_valid() || !actual.is_valid() {
+                return None;
+            }
+            let identity = format!("$callable-capture{position}");
+            required_captures.push((required, identity.clone()));
+            actual_captures.push((actual, identity));
+        }
+        for (side, captures) in [(&required, &required_captures), (&actual, &actual_captures)] {
+            if !binder_mapping_is_unique(&[], captures)
+                || side
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .any(|(index, parameter)| {
+                        !parameter.symbol.is_valid()
+                            || side.parameters[..index]
+                                .iter()
+                                .any(|earlier| earlier.symbol == parameter.symbol)
+                            || captures
+                                .iter()
+                                .any(|(symbol, _)| *symbol == parameter.symbol)
+                    })
+            {
+                return None;
+            }
+        }
+        Some(Self {
+            required: ContractFacts::collect(
+                program,
+                required.owner,
+                required.contracts.iter(),
+                required.parameters,
+                required.result,
+                &[],
+                &required_captures,
+            ),
+            actual: ContractFacts::collect(
+                program,
+                actual.owner,
+                actual.contracts.iter(),
+                actual.parameters,
+                actual.result,
+                &[],
+                &actual_captures,
+            ),
+        })
+    }
+
+    pub(crate) fn proves(
+        &self,
+        program: &dyn crate::CheckingInput,
+        kind: &SignatureContractKind,
+    ) -> bool {
+        let (premises, premise_scope, goals, goal_scope) = match kind {
+            SignatureContractKind::Requires => (
+                &self.required.requires,
+                &self.required,
+                &self.actual.requires,
+                &self.actual,
+            ),
+            SignatureContractKind::Ensures => (
+                &self.actual.ensures,
+                &self.actual,
+                &self.required.ensures,
+                &self.required,
+            ),
+            _ => return false,
+        };
+        goals
+            .iter()
+            .all(|goal| entailed(program, premises, premise_scope, goal, goal_scope))
+    }
+}
+
 pub(crate) fn check_contract_refinement(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

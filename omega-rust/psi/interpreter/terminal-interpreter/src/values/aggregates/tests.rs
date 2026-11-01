@@ -41,6 +41,7 @@ fn signed_value(value: i64) -> TerminalScalarValue {
 
 fn field(value: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        inline_carrier: None,
         id: StructuralFieldId::new(value.into()).unwrap(),
         identity: TerminalIdentityIndex(value),
         relevance: BindingRelevance::Relevant,

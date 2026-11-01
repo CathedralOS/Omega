@@ -104,6 +104,21 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             .module
             .structural_type(structural_type)
             .ok_or("boundary value has no canonical storage declaration")?;
+        if let Some((selection_ordinal, selected)) = self
+            .module
+            .opaque_representations
+            .iter()
+            .enumerate()
+            .find(|(_, row)| row.opaque == structural_type)
+        {
+            let carrier = self.value(selected.carrier)?;
+            return Ok(self.recipes.values.insert(BoundaryValueRecipe::Opaque {
+                name: selected.application.opaque_identity.clone(),
+                carrier_name: selected.application.carrier_identity.clone(),
+                selection_ordinal,
+                carrier,
+            }));
+        }
         if declaration.quotient_carrier.is_some() {
             return Err(
                 "nominally opaque boundary value requires retained selected-carrier custody".into(),

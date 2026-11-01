@@ -18,6 +18,24 @@ use crate::terminal_identities::{allocate_dense, lookup_type_id, structural_fiel
 
 mod scalar_refinements;
 
+pub(crate) fn lower_inline_carrier(
+    field: &checked_trees::CheckedUnitStructuralFieldPlan,
+    types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+) -> Result<Option<StructuralTypeId>, LoweringError> {
+    let identity = match (
+        field.scalar_carrier_identity.is_valid(),
+        field.byte_sequence_type_identity.is_valid(),
+    ) {
+        (true, false) => field.scalar_carrier_identity,
+        (false, true) => field.byte_sequence_type_identity,
+        (false, false) => return Ok(None),
+        (true, true) => {
+            return unsupported("inline field has competing scalar and byte carrier identities");
+        }
+    };
+    lookup_type_id(types, &identity).map(Some)
+}
+
 pub(crate) fn terminal_structural_field_type(
     primitive: PrimitiveType,
 ) -> Result<StructuralFieldType, LoweringError> {
@@ -122,6 +140,7 @@ pub(crate) fn lower_mixed_fields(
             }
             let field_type = lower_field_type(identities, checked, &field.field_type, type_ids)?;
             Ok(StructuralFieldDeclaration {
+                inline_carrier: lower_inline_carrier(field, type_ids)?,
                 storage: field.storage.clone(),
                 id: structural_field_id(allocate_dense(next_field)?),
                 identity: identities.intern(&field.identity.spelling()),

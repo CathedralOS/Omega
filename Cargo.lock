@@ -2013,7 +2013,7 @@ name = "representation-selections"
 version = "0.1.0"
 dependencies = [
  "compiler-storage",
- "optimization",
+ "language-semantics",
  "source",
  "symbols",
  "typed-trees",

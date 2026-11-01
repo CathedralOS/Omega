@@ -354,6 +354,7 @@ fn encode_fields(
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, field.identity.0.to_le_bytes());
+        encode_option_u64(bytes, field.inline_carrier.map(|carrier| carrier.get()));
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
@@ -369,6 +370,11 @@ fn decode_fields(
     let fields = decode_list(cursor, |cursor| {
         let id = decode_id(cursor, StructuralFieldId::new)?;
         let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+        let inline_carrier = match cursor.byte()? {
+            0 => None,
+            1 => Some(decode_id(cursor, StructuralTypeId::new)?),
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        };
         let relevance = match cursor.byte()? {
             1 => BindingRelevance::Relevant,
             2 => BindingRelevance::Erased,
@@ -376,6 +382,7 @@ fn decode_fields(
         };
         let field_type = decode_scalar_restriction(cursor)?;
         Ok(StructuralFieldDeclaration {
+            inline_carrier,
             storage: None,
             id,
             identity,

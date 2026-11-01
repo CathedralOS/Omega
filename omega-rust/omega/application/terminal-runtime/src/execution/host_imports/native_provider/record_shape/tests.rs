@@ -22,6 +22,7 @@ fn member(value: u32) -> Path {
 
 fn field(id: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        inline_carrier: None,
         id: field_id(id),
         identity: TerminalIdentityIndex(id),
         relevance: BindingRelevance::Relevant,

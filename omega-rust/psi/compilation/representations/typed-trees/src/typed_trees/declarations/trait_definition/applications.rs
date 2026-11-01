@@ -674,7 +674,17 @@ impl<'program> AppliedTraitScope<'program> {
     /// heads. An active-path guard prevents cycles without discarding a sibling
     /// path's different application of the same declaring trait.
     pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {
-        self.visit_inherited(program, &mut Vec::new(), visit);
+        self.visit_inherited(program, &mut Vec::new(), visit, &mut |_| {});
+    }
+
+    /// Preserve authored parent order while presenting inherited declarations
+    /// before their child. Distinct applications on sibling paths stay distinct.
+    pub fn visit_parents_first(
+        &self,
+        program: &'program TypedTrees,
+        visit: &mut impl FnMut(&Self),
+    ) {
+        self.visit_inherited(program, &mut Vec::new(), &mut |_| {}, visit);
     }
 
     fn visit_inherited(
@@ -682,6 +692,7 @@ impl<'program> AppliedTraitScope<'program> {
         program: &'program TypedTrees,
         active: &mut Vec<SymbolHandle>,
         visit: &mut impl FnMut(&Self),
+        after: &mut impl FnMut(&Self),
     ) {
         if active.contains(&self.declaration.symbol) {
             return;
@@ -716,8 +727,9 @@ impl<'program> AppliedTraitScope<'program> {
             let mut regions = self.region_scopes.clone();
             regions.append(&mut scope.region_scopes);
             scope.region_scopes = regions;
-            scope.visit_inherited(program, active, visit);
+            scope.visit_inherited(program, active, visit, after);
         }
+        after(self);
         active.pop();
     }
 }

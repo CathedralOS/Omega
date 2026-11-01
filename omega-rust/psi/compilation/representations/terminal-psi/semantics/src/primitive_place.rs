@@ -35,8 +35,8 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
@@ -138,10 +138,19 @@ pub fn primitive_projection_declaration<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
-    if let Some(declaration) = runtime_structural_path_tip(declarations.clone(), root, path)
-        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
-    {
-        return Some(declaration.id);
+    match walk_primitive_projection(declarations.clone(), root, path, plain_scalar_field, |_| {})? {
+        ProjectionTip::Declared(declaration) => {
+            return matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                .then_some(declaration.id);
+        }
+        ProjectionTip::ScalarField(_) => {
+            return runtime_structural_path_tip(declarations, root, path)
+                .filter(|declaration| {
+                    matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                })
+                .map(|declaration| declaration.id);
+        }
+        ProjectionTip::ByteElement => {}
     }
     let scalar = primitive_projection_type(declarations.clone(), root, path)?;
     let mut matching = declarations.filter(|declaration| {
@@ -160,6 +169,18 @@ pub fn primitive_projection_restriction<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldType> {
+    if let Some(field) = primitive_read_field(declarations.clone(), root, path)
+        && matches!(
+            field.field_type,
+            StructuralFieldType::Scalar(_)
+                | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::RefinedScalar(_)
+        )
+    {
+        return crate::scalar_field_requires_evidence(&field.field_type)
+            .then_some(&field.field_type);
+    }
     runtime_structural_path_tip(declarations, root, path)?
         .scalar_restriction
         .as_ref()
@@ -198,8 +219,13 @@ pub fn borrowed_primitive_projection_declaration<'a>(
     // A whole declared scalar keeps its exact type. An inline field presents
     // its observation carrier instead: the existence of a bounded declaration
     // elsewhere must not change a plain shared call's contract.
-    let expected =
-        expected.and_then(|expected| crate::structural_declaration(declarations.clone(), expected));
+    let expected = match expected {
+        Some(expected) => Some(crate::structural_declaration(
+            declarations.clone(),
+            expected,
+        )?),
+        None => None,
+    };
     let tip = walk_primitive_projection(
         declarations.clone(),
         root,
@@ -222,12 +248,16 @@ pub fn borrowed_primitive_projection_declaration<'a>(
         return Some(declaration.id);
     }
     let scalar = tip.primitive_scalar()?;
-    if let Some(expected) = expected
-        && expected.scalar_restriction.is_some()
-        && crate::primitive_read_field(declarations.clone(), root, path)
-            .is_some_and(|field| expected.scalar_restriction.as_ref() == Some(&field.field_type))
-    {
-        return Some(expected.id);
+    if let Some(field) = crate::primitive_read_field(declarations.clone(), root, path) {
+        let carrier = match expected {
+            Some(expected) => expected,
+            None => crate::structural_declaration(declarations.clone(), field.inline_carrier?)?,
+        };
+        return field
+            .field_type
+            .borrowed_presentation_type(StructuralAccess::SharedBorrow, Some(carrier))?
+            .declares_leaf(carrier)
+            .then_some(carrier.id);
     }
     let mut matching = declarations.filter(|declaration| {
         declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
@@ -383,8 +413,9 @@ pub fn runtime_structural_path_tip<'a>(
 ) -> Option<&'a StructuralTypeDeclaration> {
     match walk_primitive_projection(declarations.clone(), root, path, plain_scalar_field, |_| {})? {
         ProjectionTip::Declared(tip) => Some(tip),
-        ProjectionTip::ScalarField(field, _) => {
-            field.canonical_leaf_type()?.leaf_declaration(declarations)
+        ProjectionTip::ScalarField(_) => {
+            let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
+            crate::inline_carrier_declaration(declarations, field)
         }
         ProjectionTip::ByteElement => None,
     }
@@ -420,13 +451,13 @@ pub fn runtime_structural_copy_type<'a>(
         // Confirm the checked result against the field's complete copy
         // contract. An equal-width restricted scalar elsewhere in the catalog
         // must not select this value's identity or manufacture its predicate.
-        let expected = expected
-            .and_then(|identity| crate::structural_declaration(declarations.clone(), identity));
+        let expected =
+            crate::structural_declaration(declarations, expected.or(field.inline_carrier)?)?;
         return field
             .field_type
-            .leaf_copy_type(expected)?
-            .leaf_declaration(declarations)
-            .map(|declaration| declaration.id);
+            .leaf_copy_type(Some(expected))?
+            .declares_leaf(expected)
+            .then_some(expected.id);
     }
     runtime_structural_path_tip(declarations, root, path).map(|declaration| declaration.id)
 }
@@ -577,7 +608,7 @@ pub fn stored_descriptor_paths<'a>(
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum ProjectionTip<'a> {
     Declared(&'a StructuralTypeDeclaration),
-    ScalarField(&'a StructuralFieldType, Option<ScalarType>),
+    ScalarField(Option<ScalarType>),
     ByteElement,
 }
 
@@ -590,25 +621,6 @@ fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
         _ => None,
     }
-}
-
-/// The unique declaration describing an inline byte carrier. For a view this
-/// identifies descriptor geometry, not owned backing. Predicates and access
-/// stay attached to the original field; the path walker cannot canonicalize
-/// that borrowed crossing into owned storage.
-pub fn byte_carrier_field_declaration<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    carrier: ByteSequenceCarrier,
-) -> Option<&'a StructuralTypeDeclaration> {
-    let mut matching = declarations.filter(|declaration| {
-        matches!(
-            declaration.shape,
-            StructuralTypeShape::ByteSequence(declared)
-                if byte_carrier_geometry_matches(carrier, declared)
-        )
-    });
-    let declaration = matching.next()?;
-    matching.next().is_none().then_some(declaration)
 }
 
 /// Kind and extent identify carrier geometry; a field's access remains on
@@ -642,7 +654,7 @@ pub fn byte_carrier_geometry_matches(
 impl ProjectionTip<'_> {
     fn primitive_scalar(&self) -> Option<ScalarType> {
         match self {
-            Self::ScalarField(_, scalar) => *scalar,
+            Self::ScalarField(scalar) => *scalar,
             Self::Declared(declaration) => match declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
                 _ => None,
@@ -701,7 +713,7 @@ pub fn projection_storage_dependencies<'a>(
     )?;
     Some(match tip {
         ProjectionTip::Declared(declaration) => Some(declaration.id),
-        ProjectionTip::ScalarField(_, _) | ProjectionTip::ByteElement => None,
+        ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => None,
     })
 }
 
@@ -804,7 +816,7 @@ fn walk_primitive_projection_with_policy<'a>(
                                 step(None);
                             }
                             Position::Declared(
-                                byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
+                                crate::inline_carrier_declaration(declarations.clone(), field)?.id,
                             )
                         }
                         None => Position::ScalarField((
@@ -884,7 +896,7 @@ fn walk_primitive_projection_with_policy<'a>(
             }
             Some(ProjectionTip::Declared(declaration))
         }
-        Position::ScalarField((field, scalar)) => Some(ProjectionTip::ScalarField(field, scalar)),
+        Position::ScalarField((_, scalar)) => Some(ProjectionTip::ScalarField(scalar)),
         Position::ByteElement => Some(ProjectionTip::ByteElement),
     }
 }
@@ -907,6 +919,6 @@ pub(crate) fn projection_tip_with_policy<'a>(
         None,
     )? {
         ProjectionTip::Declared(tip) => Some(Some(tip.id)),
-        ProjectionTip::ScalarField(_, _) | ProjectionTip::ByteElement => Some(None),
+        ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => Some(None),
     }
 }

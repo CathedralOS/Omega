@@ -97,6 +97,7 @@ mod tests {
                     id: StructuralCaseId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(2),
                     fields: vec![StructuralFieldDeclaration {
+                        inline_carrier: None,
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: TerminalIdentityIndex(3),
                         relevance: BindingRelevance::Relevant,

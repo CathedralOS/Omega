@@ -399,6 +399,7 @@ mod cleanup_tests {
             StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
+                    inline_carrier: None,
                     storage: None,
                     id: StructuralFieldId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(2),
