@@ -192,6 +192,26 @@ fail/facts/case_type_equation_recovery_transition_rows_rejected rejected 2156ms 
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 	machine `extract_rows` state `entry` return value expects `T`, but the value is delivered as `bool`
 	machine `extract_rows$specialized$b86e4653a744cd38$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/contract_excluded_case_through_branch_world_rejected rejected 5621ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_call_result_rejected rejected 2949ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_const_name_rejected rejected 5399ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_field_rejected rejected 6551ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_local_rejected rejected 4361ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_match_join_rejected rejected 3717ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_other_machine_rejected rejected 3589ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_other_state_rejected rejected 3157ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_parameter_rejected rejected 3578ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/facts/contract_excluded_case_through_target_body_rejected rejected 3046ms expected @f8ae8d815e07
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -4891,6 +4911,16 @@ pass/facts/content_reunion_through_other_state_exit rejected 3756ms check-target
 	cannot prove ensures contract for exit from rejoin at statement 0: Owned.content(old(&whole)) == Owned.content(&result)
 pass/facts/content_reunion_through_parameter_exit checked 4746ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/content_reunion_through_target_body_exit checked 4465ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/contract_excluded_case_through_branch_world_exit checked 8462ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_call_result_exit checked 14714ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_const_name_exit checked 15676ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_field_exit checked 15583ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_local_exit checked 14727ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_match_join_exit checked 13265ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_other_machine_exit checked 14261ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_other_state_exit checked 10643ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_parameter_exit checked 16724ms check-target:macos_arm64 @f8ae8d815e07
+pass/facts/contract_excluded_case_through_target_body_exit checked 15698ms check-target:macos_arm64 @f8ae8d815e07
 pass/facts/copied_byte_view_argument_snapshot_through_call_result_exit checked 3261ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/copied_byte_view_argument_snapshot_through_const_name_exit checked 3353ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/copied_byte_view_argument_snapshot_through_field_exit checked 3911ms check-target:macos_arm64 @ccdb99ca2214
