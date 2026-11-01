@@ -2104,16 +2104,20 @@ impl TerminalExecution<'_> {
         let Some((prefix, field_path)) = scalar_field_projection(path) else {
             return Ok(None);
         };
-        let (carrier, view) =
-            self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        let projection =
+            self.resolve_live_storage_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        let carrier = projection.value;
+        let view = projection.view_tip;
         if let Some(view) = view {
             let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
                 &carrier,
                 view,
                 field_path,
-                self.aggregate_argument_backings
-                    .get(&source)
-                    .and_then(|backing| backing.collection_home.as_ref()),
+                projection.collection_home.as_ref().or_else(|| {
+                    self.aggregate_argument_backings
+                        .get(&source)
+                        .and_then(|backing| backing.collection_home.as_ref())
+                }),
                 false,
             )?;
             return self
