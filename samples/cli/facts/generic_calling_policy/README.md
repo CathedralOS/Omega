@@ -1,15 +1,19 @@
 # Generic calling-policy capture
 
-Owning task: **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** in
-[TASKS.md](../../../../TASKS.md). The requirement is exact generic named-policy
-selection, inline member closure and ordinary target-specific helper composition.
+Owning task: **BUILD-OWNED-TARGET-SELECTION** in
+[TASKS.md](../../../../TASKS.md). Preserve exact generic named-policy selection,
+inline member closure and target-dependent calling geometry while moving helper
+selection to explicit Build rows. Earlier conformance-migration evidence below
+retains its original source and producer identities.
 
 **Fact: GenericPolicy<Box<u64>, 8> places all eight bytes of boundary result 42 before the same value is observed.**
 
 The selected implementation captures the nested type `Box<u64>` and const
-`PolicyWidth = 8` in its inline `plan`. That plan calls the ordinary
-`value_plan` target family. Each body supplies its matching convention, result
-register, initial regime and shadow space to `scalar_plan`. The boundary call
+`PolicyWidth = 8` in its inline `plan`. That plan calls the explicit
+`ValuePlan::plan` requirement. Build selects `SysVValuePlan`,
+`MicrosoftValuePlan` or `AapcsValuePlan` for each hosted target. Each ordinary
+implementation supplies its matching convention, result register, initial
+regime and shadow space to the unchanged `scalar_plan`. The boundary call
 `LocalEntry::value()` returns 42; each place observes that same value and exits
 0. The observation checks runtime behavior. It does not establish the static
 placement fact: compatible complete byte coverage is checked on the evaluated
@@ -50,7 +54,7 @@ recorded separately.
 - [Named conformances](../../../../wiki/spec/language/conformances.md#declaration-and-selection): independent explicit implementation telescopes and inline members, with exact package-scoped identities.
 - [Calling-plan authorship](../../../../wiki/spec/build/calling_plans.md#authorship-and-evaluation): deterministic admitted plan evaluation; an ordinary helper may construct the plan, and each closed policy application has its own contract.
 - [Plan validation](../../../../wiki/spec/build/calling_plans.md#validation): every result byte is placed once and compatibly; registers, regime, shadow space and target applicability remain compiler obligations.
-- [Target families](../../../../wiki/spec/language/machines.md#target-scoped-families): every body is checked and published; realization selects the matching body without narrowing source checking.
+- [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection): explicit target-keyed Build rows select ordinary named implementations; every implementation remains source checked.
 - [Loan resources](../../../../wiki/spec/terminal-psi/loans.md): shape or logical facts cannot invent reference custody or extend access.
 
 ## Requirements and evidence
@@ -67,23 +71,23 @@ recorded separately.
    its literal-issued image backing and substitute every invocation-relative
    lifetime debt. Unknown origins and whole moved subtrees still require their
    complete captured source relations.
-3. **Composition.** The selected inline plan composes through an ordinary target
-   family and a scalar-plan helper. Boundary result 42 then crosses each row
+3. **Composition.** The selected inline plan composes through an explicit
+   requirement, its Build-selected ordinary implementation and a scalar-plan helper. Boundary result 42 then crosses each row
    place before the same runtime observation. Twins retain that source shape
    and consuming operation, changing only the policy input width.
-4. **Soundness boundaries.** Exact family membership is checked before consuming
-   an Omega-selected body. Admission still checks all reached bodies for
+4. **Soundness boundaries.** Exact requirement, implementation and checked-body
+   identities must agree before consuming a Build-selected body. Admission still checks all reached bodies for
    termination, linear carriers, service reach, suspension/blocking and authored
    declaration authority. Selection does not turn an external or deferred body
    into executable code. Width-4 result placement must fail independently.
 5. **Psi 05–07.** Terminal Psi retains the target-neutral boundary demand and
    checked runtime bodies. Evaluated target policy data remains a separate
-   realization input. All closed runtime family bodies still undergo ordinary
+   realization input. All closed runtime implementation bodies still undergo ordinary
    lowering; build-time use does not hide their carrier/custody gaps. `--both`
    is the execution oracle for the resulting Terminal program.
 6. **Omega 00–02.** The named application is joined to its exact inline plan;
-   Omega chooses target bodies and passes exact family/body handles to shared
-   target-neutral admission and evaluation. System V AMD64, Microsoft x64 and
+   Build supplies explicit target-keyed selections; Omega passes exact
+   requirement/body handles to shared target-neutral admission and evaluation. System V AMD64, Microsoft x64 and
    AAPCS64 policy data supplies compatible u64 result placements. Build entry
    and provider rows remain independent checked inputs.
 7. **Omega 03–06.** Realization must preserve the boundary result through each
@@ -94,7 +98,26 @@ recorded separately.
    Terminal execution at exit 0. The native row tests final emitted behavior;
    it does not claim unmeasured instruction encodings or cross-host execution.
 
-## Baselines and current frontier
+## Current Build-selection frontier
+
+The canonical row and its pinned sources now use ordinary implementations and
+explicit target-keyed Build selections. The Width-8 and Width-4 inputs, original
+calling geometry and authored result 42 are unchanged. This migration is not yet
+accepted: the exact optimized producer `d951339b24e70f6280c4cd286e2e066a757190e8`
+passes scoped Rust Clippy and builds both validation executables, but package
+preparation refuses the inline policy with `state graph: reference result origins`.
+The smaller `controls/returned_descriptor_selected` witness reproduces loss of
+an independent returned byte descriptor across one ordinary forwarding call;
+its direct-call control runs on the fixed baseline, and a descriptor borrowing a
+callee-local array rejects. These are prerequisite observations, not completed
+canonical-row evidence. Next acceptance remains the unchanged root plus all
+nine positive places with `omega run --both`, their fact-sensitive Width-4 twins,
+and the selected/missing/nested-provider controls.
+
+## Historical target-family evidence
+
+The observations below apply to the earlier target-family sources. They do not
+qualify the current Build-selection migration.
 
 Original Linux-only baseline: producer `591336bdc9e0b38268cbfa63b17aabb92a5d2389`,
 Linux x86-64, verified opt-level 1. The original root runs with native exit 0
