@@ -28,13 +28,7 @@ fn public_layout_constant_review_rejoins_the_complete_original_query() {
     let original_call = checked.expression_table.call_node(expression).unwrap();
     assert!(original_call.layout_query.is_some());
     let scalar_type = raw.declared_type;
-    let reject = |mutate: &dyn Fn(&mut typed_trees::expression::TableCallExpression),
-                  fragment: &str| {
-        let mut typed = checked.typed.clone().into_inner();
-        let ExpressionNode::Call(call) = typed.expression_table.expression_mut(expression) else {
-            panic!("retained initializer is a layout query")
-        };
-        mutate(call);
+    let reject_typed = |typed: typed_trees::TypedTrees, fragment: &str| {
         let candidate = checked_trees::CheckedTrees::with_roots(typed, checked.facts.clone());
         let errors = project_checked_package_policy(
             PackageReviewInput::supplied(&candidate, &checked),
@@ -46,6 +40,15 @@ fn public_layout_constant_review_rejoins_the_complete_original_query() {
             errors.iter().any(|error| error.message.contains(fragment)),
             "{errors:?}"
         );
+    };
+    let reject = |mutate: &dyn Fn(&mut typed_trees::expression::TableCallExpression),
+                  fragment: &str| {
+        let mut typed = checked.typed.clone().into_inner();
+        let ExpressionNode::Call(call) = typed.expression_table.expression_mut(expression) else {
+            panic!("retained initializer is a layout query")
+        };
+        mutate(call);
+        reject_typed(typed, fragment);
     };
     reject(
         &|call| {
@@ -82,4 +85,31 @@ fn public_layout_constant_review_rejoins_the_complete_original_query() {
         },
         "non-query semantic payload",
     );
+
+    let other_initializer = checked
+        .const_declarations()
+        .iter()
+        .find(|declaration| declaration.is_public && declaration.symbol != raw.symbol)
+        .unwrap()
+        .authored_initializer;
+    for clear_dependency in [true, false] {
+        let mut typed = checked.typed.clone().into_inner();
+        let handle = typed
+            .const_declarations
+            .handle_of(typed.const_declaration_by_symbol(raw.symbol).unwrap())
+            .unwrap();
+        let declaration = typed.const_declarations.get_mut(handle);
+        if clear_dependency {
+            declaration.pending_target_observation = false;
+            declaration.evaluated_value = Some(
+                language_core::constant_value::EvaluatedConstant::Encoded("1".to_owned()),
+            );
+        } else {
+            declaration.authored_initializer = other_initializer;
+        }
+        reject_typed(
+            typed,
+            "target dependency differs from immutable declaration custody",
+        );
+    }
 }

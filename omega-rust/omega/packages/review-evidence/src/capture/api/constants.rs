@@ -23,6 +23,27 @@ pub(crate) fn project_public_consts<'a>(
         let Some(identity) = owned_identity(compilation, package, declaration.symbol)? else {
             continue;
         };
+        let mut originals = compilation
+            .custody
+            .const_declarations()
+            .iter()
+            .filter(|original| original.symbol == declaration.symbol);
+        let original = originals.next().filter(|_| originals.next().is_none());
+        let Some(original) = original else {
+            return Err(vec![Diagnostic::error(format!(
+                "public const `{}` has no unique immutable declaration",
+                identity.path
+            ))]);
+        };
+        if declaration.pending_target_observation != original.pending_target_observation
+            || (declaration.pending_target_observation
+                && declaration.authored_initializer != original.authored_initializer)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "public const `{}` target dependency differs from immutable declaration custody",
+                identity.path
+            ))]);
+        }
         let meaning = if declaration.pending_target_observation {
             if !declaration.authored_initializer.is_valid() {
                 return Err(vec![Diagnostic::error(format!(
