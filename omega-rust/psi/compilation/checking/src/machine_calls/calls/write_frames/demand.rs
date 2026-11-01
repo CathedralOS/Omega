@@ -754,7 +754,7 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
         expression: ExpressionHandle,
     ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
-        super::reference_subjects::expression_origins_before_statement(
+        super::reference_subjects::expression_sources_before_statement(
             self.program,
             machine,
             &self.tables.symbols,
@@ -762,6 +762,7 @@ impl<'program> CallFrameResolver<'program> {
             expression,
             &self.caches.state_write_shared_collections,
         )
+        .map(|origins| origins.into_iter().map(Into::into).collect())
     }
 
     /// Complete exact storage sources for an already selected coordinate.

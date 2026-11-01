@@ -290,6 +290,21 @@ pub(super) fn expression_origins_before_statement(
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
 ) -> Option<Vec<FrameSourcePlace>> {
+    expression_sources_before_statement(program, machine, symbols, before, expression, collections)
+        .map(|origins| origins.into_iter().map(|origin| origin.source).collect())
+}
+
+/// Preserve complete chronological origins for interpretation-sensitive readers.
+pub(super) fn expression_sources_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<super::FramePlaceOrigin>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
@@ -308,7 +323,7 @@ pub(super) fn expression_origins_before_statement(
     )?;
     origins
         .into_iter()
-        .map(|origin| (origin.precision == FramePathPrecision::Exact).then_some(origin.source))
+        .map(|origin| (origin.precision == FramePathPrecision::Exact).then_some(origin))
         .collect()
 }
 
