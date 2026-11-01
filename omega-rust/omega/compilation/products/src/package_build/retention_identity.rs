@@ -762,5 +762,6 @@ fn symbol_kind_tag(kind: SymbolKind) -> u8 {
         SymbolKind::Function => 28,
         SymbolKind::Section => 29,
         SymbolKind::Import => 30,
+        SymbolKind::TypeAlias => 31,
     }
 }
