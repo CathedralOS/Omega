@@ -26,6 +26,17 @@ impl CurrentScalarValues<'_> {
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Vec<ScalarField>> {
         let frames = frames?;
+        let assignment = statement.as_assignment()?;
+        let stored = validation::assignment_stored_value_type(
+            self.program,
+            self.machine,
+            self.state,
+            assignment,
+        )?;
+        // Replacement cleanup is scheduled separately from operand/write
+        // frames. Only a replacement without executable cleanup is one exact
+        // store; Copy or unrestricted multiplicity cannot establish that.
+        validation::has_no_code_cleanup_contents(self.program, stored).then_some(())?;
         // RHS effects have already retired observations. They must also leave
         // the captured destination's selectors and descriptor bindings current.
         frames

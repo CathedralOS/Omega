@@ -60,7 +60,9 @@ Applicable requirement layers:
   selectors and endpoint order before the view/helper application forms.
 - Identity and lifetime: the entry and ordered call cut capture their own whole
   inputs. Executed writes replace the selected scalar value; independently
-  disjoint current fields retain their captured values and dependencies.
+  disjoint current fields retain their captured values and dependencies only
+  when the replaced type has no executable cleanup. Cleanup is independent of
+  Copy and unrestricted multiplicity.
 - Composition: every actual SCC edge substitutes the complete formal telescope;
   the helper's public Requires/Ensures supplies the result equation. Rank
   preservation on one edge still requires strict descent on every full cycle.
