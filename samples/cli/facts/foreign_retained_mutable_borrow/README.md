@@ -123,13 +123,14 @@ issuer is introduced.
 
 The full replay of 25 migrated programs on the actual `2409883f539c` producer
 observed 11 native/Terminal agreements, 13 intended Source rejections, and the
-existing uncovered-qualification native 0 / Terminal 201 refusal. The corrected
-`68fcb6037d19` generation uses the same SDK and restores a separate bare-family
-field-walker path. Fresh recording on that generation covers all 24 Source pins,
+existing uncovered-qualification native 0 / Terminal 201 refusal. The final
+`65452511bb0e` generation additionally preserves receiving-data lifetime scopes.
+Fresh recording on that generation covers all 24 Source pins,
 all 11 pinned native/Terminal agreements, public target-body/field/match/mixed
 issuer/stale-fact/uncovered cases, and Terminal marker falsifiers (positive 0,
-each wrong marker traps). Retained public observations keep their actual
-producer identity and require consumer applicability review across that change.
+each wrong marker traps). Retained public observations keep their actual producer identity and require
+consumer applicability review; fresh final-producer pins cover every positive
+program body and every intended Source rejection.
 
 The general owned-carrier repair preserves an already owned Pending and its
 complete existing debt; it does not reinterpret the value as a newly created
