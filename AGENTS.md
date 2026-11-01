@@ -501,6 +501,9 @@ profiles bound to the actual binary digests. See
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
   exceeds the Windows command-line limit at this workspace's size.
+  `cargo fmt -p <package>` formats the whole package, so drift in files you did
+  not edit lands in your diff: check `git status` afterwards and restore the
+  extras, or check only your files with `rustfmt --edition 2024 --check <file>...`.
 - Compile a program: `mbx run -p omega -- --check <root.omg>`; run it:
   `mbx run -p omega -- run <root.omg>`. The CLI package is `omega` (binary
   `omega`) — there is no `omega-cli` package. The full flag surface:
