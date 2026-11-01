@@ -40,7 +40,20 @@ On retained optimized Mac producer `3d5c5150f08151ca111b2e6b31545d1646085611`
 ordinary admission rejects the core `Result` declaration because the compiler
 reserves that name as an unimplemented builtin. Removing that obsolete
 reservation in both producers permits ordinary library ownership while leaving
-the primitive shadowing fence intact. Runtime acceptance is still pending.
+the primitive shadowing fence intact.
+
+The first hosted candidate `de69ac978923e0abb6b92d773a5f14a46a249768`
+(run 41337846412, optimized Linux image
+`f487f925ba43e5f280d5914e55a4843f014cc3e25fd05926270680003101a290`)
+passes the primitive control and all three wrong-endpoint controls. Each
+positive gets through the new ordinary `Result` declaration, then rejects the
+terminal call `Second::try_from`: its evidence binder already has an exact
+requirement-child symbol, but terminal-call normalization only admitted an
+unresolved implementation member. Normalizing the exact child through the
+ordinary expression-call route preserves selected-map specialization instead
+of inventing a body or treating it as an internal control edge. The producer
+preparation took 830.546 seconds and checking took 7.693 seconds. The failed
+run is retained as failed; native/Terminal acceptance is still pending.
 
 The independent [primitive shadow control](controls/primitive_shadow/invalid/main.omg)
 continues to reject an ordinary declaration named `Int`; retiring `Result` does
