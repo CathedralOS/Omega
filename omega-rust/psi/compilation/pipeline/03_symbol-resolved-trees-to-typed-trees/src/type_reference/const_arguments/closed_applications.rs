@@ -35,6 +35,22 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             program.data_type_parameters(data).to_vec()
         } else if let Some(interface) = program.trait_definition_by_symbol(declaration) {
             program.trait_type_parameters(interface).to_vec()
+        } else if program.symbols.get(declaration).kind == symbols::SymbolKind::TypeAlias {
+            let mut aliases = program
+                .type_aliases()
+                .iter()
+                .filter(|alias| alias.symbol == declaration);
+            let Some(alias) = aliases.next() else {
+                continue;
+            };
+            if aliases.next().is_some() {
+                continue;
+            }
+            program
+                .tables
+                .data_type_parameters
+                .span_or_empty(alias.type_parameters)
+                .to_vec()
         } else {
             continue;
         };
@@ -103,4 +119,121 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerics::{
+        arithmetic::ArithmeticDomain,
+        literals::{IntegerLanding, IntegerLiteral, LandedIntegerType},
+    };
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{
+        data::TypeParameter, expression::ExpressionNode, type_aliases::TypeAliasDefinition,
+    };
+
+    #[test]
+    fn alias_const_arguments_use_the_unique_header_and_keep_the_supplier() {
+        for header_count in [0, 1, 2] {
+            let mut builder = SymbolTableBuilder::default();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let children = builder.insert_children(
+                root,
+                symbols::builtin_type_symbols().into_iter().chain([
+                    (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("supplier")),
+                ]),
+            );
+            let u64_symbol = children.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
+            let alias = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+            let supplier = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+            let parameter = builder
+                .insert_children(
+                    alias,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
+                )
+                .start();
+            let mut program = TypedTrees::default();
+            program.symbols = builder.finish();
+            let carrier = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: u64_symbol,
+                    name: Identifier::generated("u64"),
+                });
+            let parameters = program.data_type_parameters.insert_many([TypeParameter {
+                symbol: parameter,
+                name: Identifier::generated("N"),
+                kind: TypeParameterKind::Const {
+                    type_reference: carrier,
+                },
+                ..Default::default()
+            }]);
+            for _ in 0..header_count {
+                program.push_type_alias_definition(TypeAliasDefinition {
+                    symbol: alias,
+                    type_parameters: parameters,
+                    ..Default::default()
+                });
+            }
+            let value = program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U64,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            ));
+            let argument = program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(value));
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles([argument]);
+            let application = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: alias,
+                    base_name: Identifier::generated("Alias"),
+                    arguments,
+                    lifetime_arguments: Vec::new(),
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(application, supplier)
+                .unwrap();
+            normalize(&mut program, 0).unwrap();
+            if header_count == 1 {
+                assert!(
+                    matches!(program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() && name.as_str() == "1")
+                );
+            } else {
+                assert_eq!(
+                    program.type_reference_table.type_reference(argument),
+                    &TypeReferenceNode::ConstExpression(value)
+                );
+            }
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(application),
+                supplier
+            );
+            if header_count == 1 {
+                let wrong_width = program.expression_table.insert(ExpressionNode::Integer(
+                    IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+                        landed_type: LandedIntegerType::U8,
+                        domain: ArithmeticDomain::Exact,
+                    }),
+                ));
+                program
+                    .type_reference_table
+                    .substitute_node(argument, TypeReferenceNode::ConstExpression(wrong_width));
+                assert!(normalize(&mut program, 0).is_err());
+                assert_eq!(
+                    program.type_reference_table.type_reference(argument),
+                    &TypeReferenceNode::ConstExpression(wrong_width)
+                );
+            }
+        }
+    }
 }
