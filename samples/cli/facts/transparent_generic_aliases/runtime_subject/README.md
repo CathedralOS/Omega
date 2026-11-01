@@ -1,0 +1,5 @@
+# Runtime subjects through transparent aliases
+
+The imported `Captured<Index: u64> = Indexed<Index>` family keeps a runtime-capable Value binder. `make` accepts an unknown ordinary runtime parameter, captures it in the underlying data's existing `Subject` descriptor, and returns through the alias. The caller changes its original variable from 7 to 9 before assigning the saved value to explicit `Indexed<7>`. Reading the descriptor and payload must still produce 7 and 42, while the source variable is 9.
+
+The retagged-subject twin changes only the receiving explicit application to the now-mutated variable. The carrier twin keeps the erased alias's `u64` contract unchanged but changes the selected ordinary function parameter and its matching call operand to `u32`; erasing the RHS must not erase that argument obligation. No dynamic layout, static promotion, alias wrapper storage or extra authority is introduced. Native/Terminal and intended-refusal observations are pending. Full binder/case/Product/nine-place/other-host acceptance remains separate.

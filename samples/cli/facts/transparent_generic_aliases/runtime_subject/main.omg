@@ -1,0 +1,21 @@
+// Expected exit: 0
+use leaf::indices;
+
+machine make(index: u64) -> leaf::indices::Captured<index> {
+    leaf::indices::Indexed { Subject: index, value: 42u64 }
+}
+machine keep(index: u64) -> leaf::indices::Erased<index> { 42u64 }
+
+machine main() crashes Trap {
+    let mut index: u64 = 7u64;
+    let captured: leaf::indices::Captured<index> = make(index);
+    index = 9u64;
+    let explicit: leaf::indices::Indexed<7u64> = captured;
+    let erased: u64 = keep(7u64);
+    transition explicit.Subject == 7u64 && explicit.value == 42u64 && index == 9u64 && erased == 42u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
