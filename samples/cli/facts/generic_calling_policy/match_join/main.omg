@@ -77,12 +77,20 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
 
 
 
-machine choose(left: bool) -> u64 reaches LocalEntry {
-    match left { true -> LocalEntry::value(), false -> LocalEntry::value() }
+data Joined [copy] { value: u64; branch: u64; }
+machine choose(left: bool) -> Joined reaches LocalEntry {
+    match left {
+        true -> Joined { value: LocalEntry::value(), branch: 17 },
+        false -> Joined { value: LocalEntry::value(), branch: 23 }
+    }
 }
 machine main() reaches LocalEntry crashes Trap {
-    let value: u64 = choose(true);
-    transition value == 42 { true -> done() _ -> bad() }
+    let left: Joined = choose(true);
+    let right: Joined = choose(false);
+    transition left.value == 42 && left.branch == 17 && right.value == 42 && right.branch == 23 {
+        true -> done()
+        _ -> bad()
+    }
     machine done() {}
     machine bad() { crash Trap; }
 }

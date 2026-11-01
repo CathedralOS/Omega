@@ -77,11 +77,11 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
 
 
 
-data Carrier [copy] { value: u64; }
+data Carrier [copy] { before: u64; value: u64; after: u64; }
 machine main() reaches LocalEntry crashes Trap {
-    let carrier: Carrier = Carrier { value: LocalEntry::value() };
+    let carrier: Carrier = Carrier { before: 17, value: LocalEntry::value(), after: 23 };
     let value: u64 = carrier.value;
-    transition value == 42 { true -> done() _ -> bad() }
+    transition carrier.before == 17 && value == 42 && carrier.after == 23 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
