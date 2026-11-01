@@ -430,9 +430,12 @@ pub(in crate::symbols) fn assign_name_symbol(
             }
         }
     }
+    // A selection is complete when it names every authored member and ends at
+    // its declaration. Package-address segments before the first declaration
+    // carry no identity of their own, so only a failed selection is withheld.
     if symbol.is_valid()
         && member_symbols.len() == path.members.count() as usize
-        && member_symbols.iter().all(|symbol| symbol.is_valid())
+        && member_symbols.last().is_some_and(|last| last.is_valid())
     {
         for (offset, member_symbol) in member_symbols.into_iter().enumerate() {
             expression_table.set_name_path_member_symbol_at_offset(

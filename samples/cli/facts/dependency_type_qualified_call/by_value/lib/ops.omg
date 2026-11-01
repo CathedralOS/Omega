@@ -1,0 +1,10 @@
+module ops;
+
+public data Pod [copy] { value: u16; }
+
+public machine Pod::describe(left: Pod, right: Pod) -> u64
+requires left.value > 0
+ensures result == (left.value as u64) + (right.value as u64)
+{
+    (left.value as u64) + (right.value as u64)
+}

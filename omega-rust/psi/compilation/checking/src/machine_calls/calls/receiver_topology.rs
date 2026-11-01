@@ -121,6 +121,15 @@ pub fn resolve_name_path_member_symbol(
 ) -> SymbolHandle {
     let members = expression_table(program).name_path_members(path.members);
     let authored = expression_table(program).name_path_member_symbols(path.member_symbols);
+    // A selected declaration is authoritative without re-deriving the members
+    // before it, which may be package-address segments with no symbol.
+    if let Some(declaration) = authored
+        .get(target_index)
+        .copied()
+        .filter(|declaration| declaration.is_valid())
+    {
+        return declaration;
+    }
     let mut selected = SymbolHandle::invalid();
 
     for (index, member) in members.iter().enumerate() {

@@ -1,0 +1,27 @@
+// A call spelled through a dependency's package alias selects the data type's machine,
+// proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum
+// for the caller.
+// Place: const_name.
+// Expected exit: 0
+use lib::ops;
+
+machine hold(total: u64) -> bool
+requires total == 260
+{
+    true
+}
+
+const LEFT: lib::ops::Wrapped = lib::ops::Wrapped { value: 0u16 };
+const RIGHT: lib::ops::Wrapped = lib::ops::Wrapped { value: 260u16 };
+
+machine main() crashes Trap {
+    let left: lib::ops::Wrapped = LEFT;
+    let right: lib::ops::Wrapped = RIGHT;
+    let total: u64 = lib::ops::Wrapped::describe(&left, &right);
+    transition hold(total) && total == 260 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
