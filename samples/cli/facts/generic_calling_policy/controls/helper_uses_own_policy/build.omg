@@ -1,0 +1,20 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "generic_policy_helper_uses_own_policy");
+    Build::depend(builder, Source::Path { location: "../../../../../../source/library/std" });
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<LocalEntry, LocalMap>(builder, linux_x86_64);
+    Build::select_provider<ValuePlan, SysVValuePlan>(builder, linux_x86_64);
+    Build::select_provider<Acquire, AcquireCode>(builder, linux_x86_64);
+    Build::select_provider<LocalEntry, LocalMap>(builder, windows_x86_64);
+    Build::select_provider<ValuePlan, MicrosoftValuePlan>(builder, windows_x86_64);
+    Build::select_provider<Acquire, AcquireCode>(builder, windows_x86_64);
+    Build::select_provider<LocalEntry, LocalMap>(builder, macos_arm64);
+    Build::select_provider<ValuePlan, AapcsValuePlan>(builder, macos_arm64);
+    Build::select_provider<Acquire, AcquireCode>(builder, macos_arm64);
+    Build::select_provider<LocalEntry, LocalMap>(builder, linux_arm64);
+    Build::select_provider<ValuePlan, AapcsValuePlan>(builder, linux_arm64);
+    Build::select_provider<Acquire, AcquireCode>(builder, linux_arm64);
+}
