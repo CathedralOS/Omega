@@ -32,16 +32,47 @@ type DeclaredOwnerPaths = std::sync::Arc<[Vec<checked_trees::BorrowLoanOwnerSegm
 
 pub(in crate::execution::terminal_unit) struct DeclaredStoragePlans<'program> {
     program: &'program dyn validation::CheckingInput,
-    owner_paths: std::cell::RefCell<
+    owner_paths:
         symbols::SymbolKeyMap<typed_trees::types::TypeReferenceHandle, Option<DeclaredOwnerPaths>>,
-    >,
 }
 
 impl<'program> DeclaredStoragePlans<'program> {
-    pub(super) fn new(program: &'program dyn validation::CheckingInput) -> Self {
+    pub(super) fn new(
+        program: &'program dyn validation::CheckingInput,
+        carriers: impl IntoIterator<Item = typed_trees::types::TypeReferenceHandle>,
+    ) -> Self {
+        // The graph's parameter roster is complete before retention starts.
+        // Prepare only its exact carriers, once, then lend immutable geometry
+        // to every call. Unknown remains distinct from an empty frontier.
+        let mut owner_paths = symbols::SymbolKeyMap::default();
+        for carrier in carriers {
+            if owner_paths.contains_key(&carrier) {
+                continue;
+            }
+            let paths =
+                validation::reference_result_custody::declared_carrier_references(program, carrier)
+                    .and_then(|sources| {
+                        sources
+                            .into_iter()
+                            .map(|source| {
+                                let segments =
+                                    validation::reference_result_custody::origin_place_segments(
+                                        program,
+                                        carrier,
+                                        source.path,
+                                    )?;
+                                Some(crate::borrow::owner_path_from_place_segments(
+                                    program, &segments,
+                                ))
+                            })
+                            .collect::<Option<Vec<_>>>()
+                    })
+                    .map(std::sync::Arc::from);
+            owner_paths.insert(carrier, paths);
+        }
         Self {
             program,
-            owner_paths: Default::default(),
+            owner_paths,
         }
     }
 
@@ -49,35 +80,7 @@ impl<'program> DeclaredStoragePlans<'program> {
         &self,
         carrier: typed_trees::types::TypeReferenceHandle,
     ) -> Option<DeclaredOwnerPaths> {
-        if let Some(paths) = self.owner_paths.borrow().get(&carrier).cloned() {
-            return paths;
-        }
-        // No map borrow survives the original complete query or its origin
-        // conversion. None remains refusal, distinct from an empty frontier.
-        let paths: Option<DeclaredOwnerPaths> =
-            validation::reference_result_custody::declared_carrier_references(
-                self.program,
-                carrier,
-            )
-            .and_then(|sources| {
-                sources
-                    .into_iter()
-                    .map(|source| {
-                        let segments = validation::reference_result_custody::origin_place_segments(
-                            self.program,
-                            carrier,
-                            source.path,
-                        )?;
-                        Some(crate::borrow::owner_path_from_place_segments(
-                            self.program,
-                            &segments,
-                        ))
-                    })
-                    .collect::<Option<Vec<_>>>()
-            })
-            .map(std::sync::Arc::from);
-        self.owner_paths.borrow_mut().insert(carrier, paths.clone());
-        paths
+        self.owner_paths.get(&carrier).cloned().flatten()
     }
 }
 

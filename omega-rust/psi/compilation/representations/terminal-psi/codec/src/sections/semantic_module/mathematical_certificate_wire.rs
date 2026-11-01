@@ -486,28 +486,31 @@ fn encode_sort(writer: &mut Writer, sort: Sort) -> Result<(), CodecError> {
 /// inside equal sorts already share the sort's table entry — and `depth`
 /// bounds nesting exactly like the term bound.
 fn encode_level(writer: &mut Writer, level: Level, depth: u32) -> Result<(), CodecError> {
-    if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
-        return Err(CodecError::MalformedMathematicalCertificate(
-            "level nesting too deep",
-        ));
-    }
-    match level {
-        Level::Constant(value) => {
-            writer.u8(1);
-            writer.u32(value);
+    let mut pending = vec![(&level, depth)];
+    while let Some((level, depth)) = pending.pop() {
+        if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
+            return Err(CodecError::MalformedMathematicalCertificate(
+                "level nesting too deep",
+            ));
         }
-        Level::Parameter(index) => {
-            writer.u8(2);
-            writer.u32(index);
-        }
-        Level::Successor(inner) => {
-            writer.u8(3);
-            encode_level(writer, *inner, depth + 1)?;
-        }
-        Level::Maximum(left, right) => {
-            writer.u8(4);
-            encode_level(writer, *left, depth + 1)?;
-            encode_level(writer, *right, depth + 1)?;
+        match level {
+            Level::Constant(value) => {
+                writer.u8(1);
+                writer.u32(*value);
+            }
+            Level::Parameter(index) => {
+                writer.u8(2);
+                writer.u32(*index);
+            }
+            Level::Successor(inner) => {
+                writer.u8(3);
+                pending.push((inner, depth + 1));
+            }
+            Level::Maximum(left, right) => {
+                writer.u8(4);
+                pending.push((right, depth + 1));
+                pending.push((left, depth + 1));
+            }
         }
     }
     Ok(())
@@ -777,4 +780,55 @@ fn decode_root(reader: &mut Reader<'_>, handles: &[TermHandle]) -> Result<TermHa
     handles.get(index).copied().ok_or({
         CodecError::MalformedMathematicalCertificate("root index outside the term table")
     })
+}
+
+#[cfg(test)]
+mod level_worklist_tests {
+    use super::*;
+
+    #[test]
+    fn inline_level_bytes_preserve_constructor_and_argument_order() {
+        let level = Level::Maximum(
+            Box::new(Level::Constant(17)),
+            Box::new(Level::Successor(Box::new(Level::Parameter(3)))),
+        );
+        let mut writer = Writer::default();
+        encode_level(&mut writer, level, 0).unwrap();
+        assert_eq!(writer.finish(), vec![4, 1, 17, 0, 0, 0, 3, 2, 3, 0, 0, 0]);
+    }
+
+    #[test]
+    fn level_depth_boundary_and_refusal_cleanup_use_default_stack() {
+        std::thread::spawn(|| {
+            let mut admitted = Level::Parameter(0);
+            for _ in 1..MAX_MATHEMATICAL_LEVEL_DEPTH {
+                admitted = Level::Successor(Box::new(admitted));
+            }
+            let mut writer = Writer::default();
+            encode_level(&mut writer, admitted.clone(), 0).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_level(&mut reader, 0).unwrap(), admitted);
+            let mut refused = Level::Parameter(0);
+            for _ in 0..131_072 {
+                refused = Level::Successor(Box::new(refused));
+            }
+            assert!(matches!(
+                encode_level(&mut Writer::default(), refused, 0),
+                Err(CodecError::MalformedMathematicalCertificate(
+                    "level nesting too deep"
+                ))
+            ));
+            let mut too_deep_bytes = vec![3; MAX_MATHEMATICAL_LEVEL_DEPTH as usize];
+            too_deep_bytes.extend([2, 0, 0, 0, 0]);
+            assert!(matches!(
+                decode_level(&mut Reader::new(&too_deep_bytes), 0),
+                Err(CodecError::MalformedMathematicalCertificate(
+                    "level nesting too deep"
+                ))
+            ));
+        })
+        .join()
+        .expect("wire depth guard and cleanup use the default stack");
+    }
 }

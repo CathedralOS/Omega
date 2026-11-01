@@ -1,0 +1,30 @@
+// An unsigned byte widened to i32 retains 0..255 in a selected-case construction.
+// Expected exit: 0
+use omega::language::core::numeric_conversion;
+data Read [copy] requires (self in Read::Empty) || ((self in Read::Byte) && self.value >= 0 && self.value <= 255) {
+    case Empty;
+    case Byte(value: i32);
+}
+machine direct(value: u8) -> Read { Read::Byte { value: (value as i32 in Wrapping) as i32 } }
+machine copied(value: u8) -> Read {
+    let byte: u8 = value;
+    Read::Byte { value: (byte as i32 in Wrapping) as i32 }
+}
+machine returned(value: i32) -> Read {
+    let byte: u8 = narrow_i32_to_u8_wrapping(value);
+    Read::Byte { value: (byte as i32 in Wrapping) as i32 }
+}
+machine consume(value: Read) -> i32 {
+    transition value {
+        Read::Byte { value } -> (255 - value)
+        Read::Empty -> (-1)
+    }
+}
+machine main() crashes Trap {
+    transition consume(direct(128u8)) == 127 && consume(copied(255u8)) == 0 && consume(returned(384)) == 127 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

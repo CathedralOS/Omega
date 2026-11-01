@@ -1,8 +1,8 @@
 //! Shared executable policy content and exact source-issued entry associations.
 //!
-//! This catalog is a compile-time dependency of provider settlement, not the
-//! final Product artifact. Publication is owned by the compiler's ordinary Psi
-//! production request. Source admission precedes each activation; retaining code
+//! This catalog borrows the same artifact as the final Product. Publication is
+//! owned by the compiler's ordinary Psi production request. Source admission
+//! precedes each activation; retaining code
 //! grants neither invocation nor provider authority.
 
 use super::{MaterializedBoundarySignature, TerminalCallingPolicyInvocation};
@@ -19,7 +19,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 pub struct CallingPolicyCode {
     /// Association only: this never keeps source alive or enters the interpreter.
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
-    pub artifact: CanonicalTerminalArtifact,
+    pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub entries: Vec<(SymbolHandle, Result<MachineId, Vec<Diagnostic>>)>,
 }
 

@@ -609,9 +609,14 @@ symbols used by package review and layout preparation never enter the policy
 activation. The canonical catalog materializer in
 [terminal_signature.rs](../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs)
 produces that policy input directly; it never constructs a source-bearing
-signature with invalid placeholder symbols. Preparation still reads source for ordinary/opaque layouts and
-inline callback slots; moving those owners after Terminal publication and
-removing the separate policy-code publication remain unfinished.
+signature with invalid placeholder symbols. Policy entries and final applications
+now borrow one invocation-owned Product publication, fixed to source completion's
+Psi optimization projection. Its roots include authored entries, policy bodies,
+constant providers and boundary declarations independently of selected targets.
+There is no policy-only compilation. Named inspection retains its distinct
+explicit root through the same Psi operation, without replacing Product code.
+Preparation still reads source for ordinary/opaque layouts and inline callback
+slots; moving those owners after Terminal publication remains unfinished.
 
 Native boundary packing retains no opaque source-selection record. It emits
 the recipe's exact selection ordinal and native shape root; provider planning
@@ -619,6 +624,14 @@ joins those occurrences to the original selection roster once. Source symbols,
 lifecycle and copy disposition stay with that review/publication owner, whose
 commitment and exact-occurrence checks are unchanged. Layout geometry alone
 cannot publish selected representation custody.
+
+Application entry/callback/adapter requests freeze their source identities
+before portable production. After sealing, Psi attaches their ordered root
+judgments and Unit entry receipts using only those descriptions and the final
+artifact. Module diagnostic names are captured once; each application's caller
+attribution follows the retained pre-optimization invocation graph, not reopened
+source or an optimized-away path. Shared executable roots come from all authored
+Build bindings, not whichever target's entry was selected first.
 
 Retained-product callback and checked-scope composition must close through
 actual native publication, not a zero-payload layout or provider-selection check.

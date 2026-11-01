@@ -42,6 +42,7 @@ mod service_reach;
 pub mod service_surface;
 #[cfg(test)]
 mod tests;
+pub mod trust_declarations;
 pub mod type_identity;
 pub mod value_domain;
 pub mod wire;

@@ -2,6 +2,8 @@
 //! Capture RHS first, authenticate exact locations at the same effect cut,
 //! retire overwritten observations, then publish the new value and dependencies.
 //! Typed origins establish equality; invalidation paths only expire observations.
+mod preservation;
+
 use super::scalar_fields::capture_path;
 use super::scalar_fields::same_projection;
 use super::scalar_fields::{CapturedScalarField, ScalarProjection, source_path};

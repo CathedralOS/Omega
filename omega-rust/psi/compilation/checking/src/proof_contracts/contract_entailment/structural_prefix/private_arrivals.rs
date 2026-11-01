@@ -95,15 +95,6 @@ where
             case_facts_only,
             &arrivals,
         );
-        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
-            eprintln!(
-                "[trial] machine={} roots={} outcome={} positive={}",
-                machine.name,
-                caller_roots.len(),
-                outcome,
-                trial.has_positive_proof()
-            );
-        }
         if outcome && trial.has_positive_proof() {
             *requirement = trial;
             return Some(true);
@@ -276,21 +267,7 @@ fn observe_frontier(
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
             return false;
         };
-        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
-            let reachable = super::super::structural_case_arms::prefix_site_is_reachable(
-                program, root_entry, &observer,
-            );
-            eprintln!(
-                "[frontier] machine={} root={} roots={} reachable={}",
-                machine.name,
-                arrival_root.name,
-                roots.len(),
-                reachable
-            );
-            if !reachable {
-                continue;
-            }
-        } else if !super::super::structural_case_arms::prefix_site_is_reachable(
+        if !super::super::structural_case_arms::prefix_site_is_reachable(
             program, root_entry, &observer,
         ) {
             continue;

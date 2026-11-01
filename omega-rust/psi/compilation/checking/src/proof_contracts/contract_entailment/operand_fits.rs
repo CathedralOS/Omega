@@ -8,6 +8,7 @@
 use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
+use crate::frozen_program::CheckingQuery;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
@@ -456,39 +457,6 @@ pub(crate) struct OperandFitOutcome {
     range_complete: bool,
 }
 
-// A population walk can itself consult this same query for another
-// expression or machine. Track the machines already populating on this
-// thread; a nested request for one of them keeps the ordinary
-// per-occurrence path, never a provisional verdict from an unfinished
-// population.
-std::thread_local! {
-    static ACTIVE_OPERAND_FIT_POPULATIONS: std::cell::RefCell<Vec<symbols::SymbolHandle>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
-struct OperandFitPopulation;
-
-impl OperandFitPopulation {
-    fn enter(machine: symbols::SymbolHandle) -> Option<Self> {
-        ACTIVE_OPERAND_FIT_POPULATIONS.with(|active| {
-            let mut active = active.borrow_mut();
-            if active.contains(&machine) {
-                return None;
-            }
-            active.push(machine);
-            Some(Self)
-        })
-    }
-}
-
-impl Drop for OperandFitPopulation {
-    fn drop(&mut self) {
-        ACTIVE_OPERAND_FIT_POPULATIONS.with(|active| {
-            active.borrow_mut().pop();
-        });
-    }
-}
-
 /// Rebuild the solo-path visitor from a recorded outcome. The statement
 /// coordinate is recomputed exactly as the solo path computes it, so a
 /// stored verdict can never outlive the occurrence check it came from.
@@ -710,9 +678,9 @@ fn observe_operand_fit_at_occurrence(
                 .lock()
                 .map(|populated| populated.contains_key(&machine.symbol))
                 .unwrap_or(false)
-            && let Some(_population) = OperandFitPopulation::enter(machine.symbol)
+            && let Some(population) = CheckingQuery::operand_fit_population(program, machine.symbol)
         {
-            populate_machine_operand_fits(program, machine, memos);
+            populate_machine_operand_fits(&population, machine, memos);
             cached = memos
                 .operand_fit_outcomes
                 .lock()

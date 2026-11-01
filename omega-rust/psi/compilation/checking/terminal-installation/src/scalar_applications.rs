@@ -46,6 +46,16 @@ enum EntryResult {
     },
 }
 
+/// Product formation and an entry activation owe different declaration sets.
+/// Entry completion never certifies unrelated declaration formation for native
+/// publication. Both retain Module debt and exact selected call dependencies.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum ScalarApplicationPurpose {
+    #[default]
+    Product,
+    Invocation,
+}
+
 /// Invocation-owned scratch, borrowing the exact canonical input. Results from
 /// another artifact, target or provider selection never share this namespace.
 pub struct ScalarApplicationObservations<'artifact> {
@@ -56,6 +66,7 @@ pub struct ScalarApplicationObservations<'artifact> {
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
     application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    purpose: ScalarApplicationPurpose,
 }
 
 /// Immutable provisional inputs to one evaluation. Cloning shares the retained
@@ -125,6 +136,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             carrier_layout: None,
             applications: std::sync::Arc::new(applications),
             application_roots: None,
+            purpose: ScalarApplicationPurpose::Product,
         })
     }
 
@@ -197,12 +209,32 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         Ok(self)
     }
 
+    /// Prepare a single entry's pure activation. The checked callable selects
+    /// the exact transitive declaration closure; it grants no provider or host
+    /// supply, and its receipt cannot satisfy Product formation.
+    pub fn for_invocation(
+        self,
+        entry: terminal_psi::TargetMachineCallable,
+    ) -> Result<Self, String> {
+        let owner = self
+            .artifact
+            .module()
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(entry)
+            .ok_or("scalar invocation entry has no exact checked proof declaration")?;
+        let mut observations = self.with_application_roots(Some(&[owner]))?;
+        observations.purpose = ScalarApplicationPurpose::Invocation;
+        Ok(observations)
+    }
+
     pub fn values(&self) -> ScalarApplicationValues {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
     }
 
     /// Select this target's debt and the explicitly demanded evaluation jobs.
-    /// The primary value scope additionally owes ground declaration formation.
+    /// Product checking additionally owes ground declaration formation; an
+    /// invocation owes only its reached declarations and retained Module debt.
     pub fn conditions(
         &self,
         value_scope: &str,
@@ -222,6 +254,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             ),
             demanded,
             self.application_roots.as_deref(),
+            self.purpose,
         )
     }
 

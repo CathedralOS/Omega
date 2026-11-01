@@ -18,7 +18,7 @@ use slot_relations::{DestinationInventory, SlotInventory};
 pub(super) use slot_relations::{SlotEffect, SlotRelationTransfer, SlotSource};
 pub use slot_relations::{
     StoredReferenceCallContext, StoredReferenceCallFailure, StoredReferenceEffect,
-    StoredReferenceSource,
+    StoredReferenceRelationRefusal, StoredReferenceSource,
 };
 mod slot_inventory;
 pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
@@ -261,6 +261,13 @@ fn invocation_reference_effects(
         || !machine_arguments_empty
         || !program.machine_type_parameters(callee).is_empty()
     {
+        // An application whose destination inventory still names a type
+        // parameter sits in a template body: its selected closed instances
+        // call the concrete specialized body and publish the real relation.
+        // Only a concrete application of an uninstantiable callee fails here.
+        if inventory.template_dependent && body_parameters.len() == arguments.len() {
+            return Some(SlotRelationTransfer::unknown(context, target, true, false));
+        }
         trace_refusal("checked-callee-application");
         return None;
     }

@@ -96,13 +96,14 @@ impl MathematicalCertificate {
     }
 }
 
-/// Stack reserved for one certificate verification or judgment traversal.
+/// Stack still reserved for kernel verification and bounded elaboration.
 /// The checkers recurse over the certificate's term structure — elaborated
 /// judgments from real programs nest far deeper than the default thread
 /// stack admits — so the public verification entries run on a dedicated
 /// stack rather than trusting the caller's, exactly as the checked
 /// interpreter runs its tree-walker. The reservation is virtual: pages
-/// commit only as recursion actually descends.
+/// commit only as recursion actually descends. Assumption and receipt collection
+/// use arena-handle worklists on their caller's stack.
 const VERIFICATION_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 #[cfg(test)]
@@ -186,17 +187,6 @@ pub(crate) fn verify_mathematical_certificate_on_current_thread(
 /// judgment actually commits to. See `foundation.md`'s
 /// assumptions-and-calculus-identity section.
 pub fn certificate_assumption_closure(
-    arena: &TermArena,
-    certificate: &MathematicalCertificate,
-) -> BTreeSet<u32> {
-    run_on_verification_stack(|| {
-        certificate_assumption_closure_on_current_thread(arena, certificate)
-    })
-}
-
-/// [`certificate_assumption_closure`] on the caller's stack, for callers
-/// already inside [`run_on_verification_stack`].
-pub(crate) fn certificate_assumption_closure_on_current_thread(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
 ) -> BTreeSet<u32> {

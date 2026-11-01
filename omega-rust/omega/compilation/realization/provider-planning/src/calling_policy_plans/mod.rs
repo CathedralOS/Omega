@@ -27,6 +27,7 @@ mod opaque_representations;
 mod plan_computation;
 mod policy_code;
 mod policy_signature;
+mod scalar_completion;
 mod selected_application;
 mod terminal_execution;
 mod terminal_signature;

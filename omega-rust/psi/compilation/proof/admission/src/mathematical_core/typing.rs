@@ -319,18 +319,14 @@ pub fn infer_sort(
 
 /// The type of `term` under `context`, computed without search.
 ///
-/// Single-child chains run on collected worklists rather than the call
-/// stack: a certificate can carry a telescope `Πx₁.Πx₂.…`, a curried
-/// application spine `f a₁…aₙ`, a right-nested tuple, or a projection
-/// chain thousands of links deep, and the judgment must not spend one
-/// native frame per link. The spine arms delegate to the helpers below
-/// `infer_type`; every branching position — an application's argument, a
-/// domain, an eliminator's motive and branches — still recurses through
-/// the same rules, so the residual call depth follows the term's
-/// branching structure instead of its chain length. Binder-spine
-/// contexts accumulate by pushing onto one cloned `bindings` vector,
-/// which also removes the per-link `extend` clone that squared the
-/// cost of a long telescope.
+/// Binder trees, curried application spines, right-nested tuples and projection
+/// chains use handle worklists. Π/Σ formation visits both domains and codomains
+/// under exact prefixes; Box/Squash formation retains its layer rules. Other
+/// branching judgments, including eliminator
+/// motives and branches, still recurse through their ordinary rules. These
+/// remaining paths and recursive universe syntax still require the general
+/// verification worker. Binder contexts push onto one cloned bindings vector
+/// instead of cloning the full prefix at every link.
 pub fn infer_type(
     arena: &mut TermArena,
     context: &Context,
@@ -355,7 +351,9 @@ pub fn infer_type(
             let level = sort.level().successor().ok_or(CoreError::LevelOverflow)?;
             Ok(arena.insert(Term::Sort(Sort::Type(level))))
         }
-        Term::Pi { .. } | Term::Sigma { .. } => infer_formation_spine(arena, context, term, budget),
+        Term::Pi { .. } | Term::Sigma { .. } | Term::Squash { .. } | Term::Box { .. } => {
+            infer_formation(arena, context, term, budget)
+        }
         Term::Lambda { .. } => infer_lambda_spine(arena, context, term, budget),
         Term::Apply { .. } => infer_apply_spine(arena, context, term, budget),
         Term::Pair { .. } => infer_pair_spine(arena, context, term, budget),
@@ -598,16 +596,6 @@ pub fn infer_type(
             check_type(arena, context, scrutinee, empty, budget)?;
             Ok(ty)
         }
-        Term::Squash { ty } => {
-            // `Squash A : Strict u` for `A : Type u`. The carrier must
-            // be a relevant type: a strict `A` is already a
-            // proposition, and squash adds nothing.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            match domain_sort {
-                Sort::Type(level) => Ok(arena.insert(Term::Sort(Sort::Strict(level)))),
-                Sort::Strict(_) => Err(CoreError::StrictSquashDomain { domain: ty }),
-            }
-        }
         Term::SquashIntro { ty, value } => {
             // `sq_A x : Squash A` for `x : A`. The annotation re-runs
             // the formation requirement — `A` must be a relevant type —
@@ -654,16 +642,6 @@ pub fn infer_type(
             let function_type = arena.insert(row!(Pi => carrier => codomain));
             check_type(arena, context, function, function_type, budget)?;
             Ok(proposition)
-        }
-        Term::Box { ty } => {
-            // `Box A : Type v` for `A : Strict v`. The payload must be a
-            // strict proposition: boxing wraps a proof-irrelevant type
-            // as relevant data, and a relevant `A` was never squashed.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            match domain_sort {
-                Sort::Strict(level) => Ok(arena.insert(Term::Sort(Sort::Type(level)))),
-                Sort::Type(_) => Err(CoreError::NonStrictBoxDomain { domain: ty }),
-            }
         }
         Term::BoxIntro { ty, value } => {
             // `box_A x : Box A` for `x : A`. The annotation re-runs the
@@ -759,22 +737,31 @@ pub fn infer_type(
 /// of their own, so the check is a structural walk; out-of-scope
 /// parameters are malformed universes, never valid judgments.
 fn check_level(arity: u32, level: &Level) -> Result<(), CoreError> {
-    match level {
-        Level::Constant(_) => Ok(()),
-        Level::Parameter(index) => {
-            if *index < arity {
-                Ok(())
-            } else {
-                Err(CoreError::UnboundLevelParameter {
+    let mut pending: Vec<&Level> = Vec::new();
+    let mut current = level;
+    loop {
+        match current {
+            Level::Constant(_) => {}
+            Level::Parameter(index) if *index < arity => {}
+            Level::Parameter(index) => {
+                return Err(CoreError::UnboundLevelParameter {
                     index: *index,
                     arity,
-                })
+                });
+            }
+            Level::Successor(inner) => {
+                current = inner;
+                continue;
+            }
+            Level::Maximum(left, right) => {
+                pending.push(right);
+                current = left;
+                continue;
             }
         }
-        Level::Successor(inner) => check_level(arity, inner),
-        Level::Maximum(left, right) => {
-            check_level(arity, left)?;
-            check_level(arity, right)
+        match pending.pop() {
+            Some(next) => current = next,
+            None => return Ok(()),
         }
     }
 }
@@ -946,53 +933,128 @@ enum Formation {
     Sigma,
 }
 
-/// `infer_type` over a `Π`/`Σ` codomain chain `Π(x₁:A₁). Σ(x₂:A₂). … R`.
-/// The judgment runs each domain's formation under the binders before it
-/// and each binder's context extension is one push — collecting the
-/// links and folding their sorts inside-out walks the same rules in the
-/// same order without a call-stack frame per binder.
-fn infer_formation_spine(
+/// Infer Π/Σ and relevant/strict layer formations using one local context.
+/// Domains are checked under the preceding prefix, then codomains under the
+/// added binder. Returning from either child restores the exact prefix; no
+/// branch borrows a sibling's declarations or reuses a judgment by depth.
+/// Both binder branches and Box/Squash payloads use handle work. Layer
+/// changes retain their exact domain refusal, and no link clones the full context.
+fn infer_formation(
     arena: &mut TermArena,
     context: &Context,
     term: TermHandle,
     budget: &mut Budget,
 ) -> Result<TermHandle, CoreError> {
+    enum Layer {
+        Squash,
+        Box,
+    }
+    enum Work {
+        Visit(TermHandle),
+        Layer {
+            layer: Layer,
+            domain: TermHandle,
+        },
+        Domain {
+            formation: Formation,
+            domain: TermHandle,
+            codomain: TermHandle,
+        },
+        Codomain {
+            formation: Formation,
+            domain_sort: Sort,
+            prefix: usize,
+        },
+    }
     let mut extended = context.clone();
-    let mut links: Vec<(Formation, Sort)> = Vec::new();
-    let mut tail = term;
-    loop {
-        let (formation, domain, codomain) = match arena.get(tail) {
-            Term::Pi { domain, codomain } => (Formation::Pi, domain, codomain),
-            Term::Sigma { domain, codomain } => (Formation::Sigma, domain, codomain),
-            _ => break,
-        };
-        let domain_sort = infer_sort(arena, &extended, domain, budget)?;
-        links.push((formation, domain_sort));
-        extended.bindings.push(domain);
-        tail = codomain;
-    }
-    let mut running = infer_sort(arena, &extended, tail, budget)?;
-    // `term` itself is a `Π`/`Σ`, so `links` always holds its own binder.
-    let mut result = TermHandle::invalid();
-    for (formation, domain_sort) in links.into_iter().rev() {
-        let level = domain_sort.level().maximum(running.level());
-        running = match formation {
-            // The codomain's sort selects the layer; the level is the maximum.
-            Formation::Pi => match running {
-                Sort::Strict(_) => Sort::Strict(level),
-                Sort::Type(_) => Sort::Type(level),
+    let mut pending = vec![Work::Visit(term)];
+    let mut sorts = Vec::new();
+    let mut result = None;
+    while let Some(work) = pending.pop() {
+        match work {
+            Work::Visit(term) => match arena.node(term) {
+                Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
+                    let formation = if matches!(arena.node(term), Term::Pi { .. }) {
+                        Formation::Pi
+                    } else {
+                        Formation::Sigma
+                    };
+                    pending.push(Work::Domain {
+                        formation,
+                        domain: *domain,
+                        codomain: *codomain,
+                    });
+                    pending.push(Work::Visit(*domain));
+                }
+                Term::Squash { ty } | Term::Box { ty } => {
+                    let layer = if matches!(arena.node(term), Term::Squash { .. }) {
+                        Layer::Squash
+                    } else {
+                        Layer::Box
+                    };
+                    pending.push(Work::Layer { layer, domain: *ty });
+                    pending.push(Work::Visit(*ty));
+                }
+                _ => sorts.push(infer_sort(arena, &extended, term, budget)?),
             },
-            // A pair type is a strict proposition only when both components
-            // are; any relevant component carries data and keeps the whole
-            // type relevant.
-            Formation::Sigma => match (domain_sort, running) {
-                (Sort::Strict(_), Sort::Strict(_)) => Sort::Strict(level),
-                _ => Sort::Type(level),
-            },
-        };
-        result = arena.insert(Term::Sort(running.clone()));
+            Work::Layer { layer, domain } => {
+                let domain_sort = sorts.pop().expect("the layer domain has one inferred sort");
+                let sort = match (layer, domain_sort) {
+                    (Layer::Squash, Sort::Type(level)) => Sort::Strict(level),
+                    (Layer::Squash, Sort::Strict(_)) => {
+                        return Err(CoreError::StrictSquashDomain { domain });
+                    }
+                    (Layer::Box, Sort::Strict(level)) => Sort::Type(level),
+                    (Layer::Box, Sort::Type(_)) => {
+                        return Err(CoreError::NonStrictBoxDomain { domain });
+                    }
+                };
+                result = Some(arena.insert(Term::Sort(sort.clone())));
+                sorts.push(sort);
+            }
+            Work::Domain {
+                formation,
+                domain,
+                codomain,
+            } => {
+                let domain_sort = sorts.pop().expect("the domain has one inferred sort");
+                let prefix = extended.bindings.len();
+                extended.bindings.push(domain);
+                pending.push(Work::Codomain {
+                    formation,
+                    domain_sort,
+                    prefix,
+                });
+                pending.push(Work::Visit(codomain));
+            }
+            Work::Codomain {
+                formation,
+                domain_sort,
+                prefix,
+            } => {
+                let codomain_sort = sorts.pop().expect("the codomain has one inferred sort");
+                extended.bindings.truncate(prefix);
+                let level = domain_sort.level().maximum(codomain_sort.level());
+                let sort = match formation {
+                    // Π's codomain selects its layer; Σ is strict only when
+                    // both components are. Both retain the predicative maximum.
+                    Formation::Pi => match codomain_sort {
+                        Sort::Strict(_) => Sort::Strict(level),
+                        Sort::Type(_) => Sort::Type(level),
+                    },
+                    Formation::Sigma => match (domain_sort, codomain_sort) {
+                        (Sort::Strict(_), Sort::Strict(_)) => Sort::Strict(level),
+                        _ => Sort::Type(level),
+                    },
+                };
+                result = Some(arena.insert(Term::Sort(sort.clone())));
+                sorts.push(sort);
+            }
+        }
     }
-    Ok(result)
+    debug_assert_eq!(sorts.len(), 1);
+    debug_assert_eq!(extended.bindings.len(), context.bindings.len());
+    Ok(result.expect("formation starts at a Π, Σ, Box or Squash"))
 }
 
 /// `infer_type` over a `λx₁. λx₂. … body` binder spine. Each domain is

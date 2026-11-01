@@ -685,6 +685,17 @@ restore the previous timing on any row whose status, expected-fragment
 verdict, facts and diagnostics are unchanged; otherwise a four-row movement
 lands as a forty-row diff in a file every lane edits.
 
+The same user cache retains checked source graphs, and environment-gated
+traces and knockout switches are not part of the compiler identity that keys
+them. On a warm cache, the same binary replays its earlier judgment, so a
+trace prints nothing and a knockout reports the verdict recorded without it.
+Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
+Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
+`omega-rust/omega/compilation/driver/build.rs` digests every `.rs`, `.toml`
+and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
+files, `rustc -vV` and the profile and flags. The selected library's content
+joins that digest, which names each record and is checked again in its header.
+
 **A full run can exceed the harness background cap, and the way through is
 slices, not detaching.** At six concurrent sessions on a 10-cpu host a full
 `--record` took 19 minutes of runner build plus over 100 minutes of

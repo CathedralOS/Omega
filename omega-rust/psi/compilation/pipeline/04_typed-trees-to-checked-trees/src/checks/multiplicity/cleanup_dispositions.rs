@@ -339,6 +339,12 @@ impl RemainingCustody {
             .map_or(&[], |(_, frontier)| frontier.established.as_slice())
     }
 
+    /// The path crosses a case proven inactive at this cut. Its payload is
+    /// absent by tag evidence, not by a missing establishment.
+    pub(super) fn crosses_inactive_case(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        self.inactive_cases.contains_prefix_of(root, path)
+    }
+
     pub(super) fn is_present(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         !self
             .excluded

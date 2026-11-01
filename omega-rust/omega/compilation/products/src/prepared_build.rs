@@ -102,8 +102,10 @@ pub struct CheckedProductSource {
     /// Complete source demand is shared across targets without forcing fallible
     /// external declarations or treating nominal references as invocations.
     pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
-    /// Invocation-local compile-time dependency, shared across target children.
-    /// This is not a historical cache or the final Product artifact.
+    /// One portable publication for both compile-time policies and final
+    /// Product applications. The holder carries no source or target selection.
+    pub terminal_publication: Arc<crate::ProductTerminalPublication>,
+    /// Exact policy-entry associations into that same Product artifact.
     pub calling_policy_code: Arc<
         std::sync::OnceLock<
             Result<
@@ -130,7 +132,6 @@ pub struct CheckedProductSource {
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,
     pub timings: CompileTimings,
-    pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }

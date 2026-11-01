@@ -1,5 +1,5 @@
 // Expected exit: 0
-// Existing routed membership on an owned opaque result from a checked independent provider survives transport into the next qualified consuming call, preserving libc hosts 66051 and 513 and replacement 1027.
+// Routed opaque input membership survives transport and an independent installed call, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
 use renamed::main;
 public data AddressBox { value: InternetAddress in Classified; }
 public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }

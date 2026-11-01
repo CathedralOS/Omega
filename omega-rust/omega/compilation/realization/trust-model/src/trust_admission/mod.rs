@@ -1,5 +1,8 @@
 //! Exact admission values: semantic subjects, strong digests, and identity comparison.
 
+use language_semantics::trust_declarations::{
+    AcceptedContractDeclaration, AcceptedTemplateDeclaration,
+};
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -110,12 +113,12 @@ impl TrustAdmission {
     pub(crate) fn for_machine_template(
         commitment: String,
         report_identity: u64,
-        template_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
+        template: AcceptedTemplateDeclaration,
     ) -> Result<Self, &'static str> {
         Self::derived(
             commitment,
             TrustAdmissionSubject::MachineTemplate,
-            &template_commitment.as_bytes(),
+            &template.commitment,
             Some(report_identity),
         )
     }
@@ -123,12 +126,12 @@ impl TrustAdmission {
     pub(crate) fn for_machine_contract(
         commitment: String,
         report_identity: u64,
-        contract_commitment: checked_trees::MachineContractCommitment,
+        contract: AcceptedContractDeclaration,
     ) -> Result<Self, &'static str> {
         Self::derived(
             commitment,
             TrustAdmissionSubject::MachineContract,
-            &contract_commitment.as_bytes(),
+            &contract.commitment,
             Some(report_identity),
         )
     }

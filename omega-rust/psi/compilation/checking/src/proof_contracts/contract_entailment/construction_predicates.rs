@@ -390,8 +390,10 @@ impl ConstructionPredicates<'_> {
                 );
                 if super::struct_trace() {
                     eprintln!(
-                        "STRUCT construction-fact data={} machine={} predicate={predicate:?} bindings={bindings:?} judgment={judgment:?}",
-                        self.literal.type_name, machine.name,
+                        "STRUCT construction-predicate machine={} expression={:?} predicate={} bindings={bindings:?} judgment={judgment:?}",
+                        machine.name,
+                        self.expression,
+                        expression_table(program).display_name(predicate),
                     );
                 }
                 judgment

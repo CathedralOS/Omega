@@ -486,8 +486,7 @@ fn selected_type_label(
 ) -> Result<String, String> {
     match syntax.type_references.type_reference(reference) {
         TypeReferenceNode::Named(name)
-            if !crate::constant::is_builtin_scalar_carrier(name.as_str(syntax))
-                && name.as_str(syntax) != "string" =>
+            if !crate::constant::is_builtin_scalar_carrier(name.as_str(syntax)) =>
         {
             // A rewritten instance spelling labels through its retained
             // authored application so the label is the synthesized name the
@@ -773,8 +772,7 @@ fn same_carrier(
         syntax.type_references.type_reference(required),
     ) {
         (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => {
-            let primitive =
-                |name: &str| crate::constant::is_builtin_scalar_carrier(name) || name == "string";
+            let primitive = |name: &str| crate::constant::is_builtin_scalar_carrier(name);
             if primitive(left.as_str(syntax)) || primitive(right.as_str(syntax)) {
                 return Ok(left.as_str(syntax) == right.as_str(syntax));
             }
@@ -1097,7 +1095,7 @@ fn validate_selected_const_type(
             {
                 return Ok(());
             }
-            if matches!(name.as_str(syntax), "f32" | "f64" | "string") {
+            if matches!(name.as_str(syntax), "f32" | "f64") {
                 return Err(format!(
                     "`{name}` is not eligible as a const index: runtime floating/text identity is not canonical structural data"
                 , name = name.as_str(syntax)));

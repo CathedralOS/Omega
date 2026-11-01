@@ -383,9 +383,7 @@ fn adapt(
             .result
             .structural()
             .filter(|result| {
-                slot_kind
-                    .owned_slots(types, result.place, result.structural_type)
-                    .is_some_and(|slots| !slots.is_empty())
+                slot_kind.tracks_returned_value(types, result.place, result.structural_type)
             })
             .map(|_| Vec::new()),
         places: Vec::new(),
@@ -1376,9 +1374,11 @@ fn adapt(
                             arguments.push(actual);
                         }
                         let descriptor_result = result.filter(|result| {
-                            slot_kind
-                                .owned_slots(types, result.place, result.structural_type)
-                                .is_some_and(|slots| !slots.is_empty())
+                            slot_kind.tracks_returned_value(
+                                types,
+                                result.place,
+                                result.structural_type,
+                            )
                         });
                         if let Some(result) = descriptor_result {
                             // Claim bindings record which linear custody the

@@ -106,7 +106,7 @@ pub(super) fn validate(
                     if machine_argument_name(program, *argument, scope).is_some() {
                         diagnostics.push(Diagnostic::error(format!("type parameter `{}` of type alias `{}` requires a type argument, not a machine symbol", parameter.name, alias.name)));
                     } else {
-                        validate_type_reference_node(program, *argument, symbols, diagnostics, owner.generic_argument(), false, scope, obligations);
+                        validate_type_reference_node(program, *argument, symbols, diagnostics, owner.generic_argument(), scope, obligations);
                     }
                 }
             }

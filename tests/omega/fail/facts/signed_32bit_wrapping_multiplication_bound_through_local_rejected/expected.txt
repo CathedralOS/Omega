@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_prod from probe: local_prod >= 50 && local_prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

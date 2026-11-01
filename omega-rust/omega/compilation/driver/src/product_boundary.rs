@@ -562,10 +562,29 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
         "callback bindings evaluate a materialized plan:",
         &["evaluate_materialized_calling_policy_plan("],
     );
-    // Calling-policy code is produced through one Terminal production request;
-    // the planner only names the plan it needs.
+    // Calling policies borrow the Product publication; there is no policy-only
+    // producer or decoder and no copied artifact at this boundary.
     let code = include_str!("terminal/calling_policy_code.rs");
-    assert_eq!(code.matches("TerminalProductionRequest::new(").count(), 1);
+    assert_absent(
+        &[code],
+        "policy entry preparation compiles or reloads code:",
+        &[
+            "TerminalProductionRequest",
+            ".produce(",
+            "CanonicalTerminalArtifact::from_bytes",
+        ],
+    );
+    assert!(code.contains("code.publish("));
+    assert!(code.contains("Arc::clone(program.artifact())"));
+    let product = include_str!("terminal/product_code.rs");
+    assert_eq!(
+        product
+            .matches("psi_compiler::TerminalProductionRequest {")
+            .count(),
+        1
+    );
+    assert!(product.contains("self.publication.retain("));
+    assert!(product.contains("machines.extend(self.calling_policy_roots()?);"));
     let execution =
         include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
     assert_absent(
@@ -755,7 +774,12 @@ fn terminal_composition_admission_follows_canonical_publication() {
     let producer = include_str!(
         "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
     );
-    assert_eq!(producer.matches("application.prepare_roots(").count(), 1);
+    assert_eq!(producer.matches("application.attach(").count(), 1);
+    assert_in_order(
+        producer,
+        "application attachment",
+        &["finalize_terminal_program(", "application.attach("],
+    );
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",
@@ -776,12 +800,49 @@ fn terminal_composition_admission_follows_canonical_publication() {
             "for machine in std::iter::once(selection.machine)",
         ],
     );
+    let attachment = composition.split("pub(crate) fn attach(").nth(1).unwrap();
+    assert_absent(
+        &[attachment],
+        "post-publication application attachment reopens source",
+        &[
+            "CheckedTrees",
+            "SymbolHandle",
+            "select_terminal_machine",
+            "exact_owner_nominal_identity",
+        ],
+    );
+    assert_in_order(
+        attachment,
+        "application roots",
+        &[
+            "roots.push(project_root(module, provenance, entry))",
+            "callbacks.retained_roots(module)",
+            "if let Some(adapter)",
+        ],
+    );
     let product = include_str!("terminal/terminal_artifact.rs");
+    assert!(!product.contains("machines.push(first.selected_machine)"));
     assert_in_order(
         product,
         "terminal product",
-        &[".into_parts()", "policy.admit("],
+        &[
+            "let produced = produce_shared_terminal(",
+            ".attach_application(",
+            "policy.admit(",
+        ],
     );
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    let portable = custody
+        .split("impl PortableTerminalProgram {")
+        .nth(1)
+        .unwrap();
+    assert_absent(
+        &[portable],
+        "late application attachment reopens source:",
+        &["CheckedTrees", "SymbolHandle", "TerminalProductionRequest"],
+    );
+    assert!(portable.contains("&self.provenance"));
     let policy = include_str!("terminal/behavior_exclusions.rs");
     assert_eq!(
         policy
@@ -911,6 +972,79 @@ fn target_body_policy_consumes_psi_direct_call_declarations() {
             "fn called_machine(",
         ],
     );
+}
+
+#[test]
+fn selected_callback_custody_carries_declarations_not_source_symbols() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    assert!(selection.contains("pub callback_roots: terminal_psi::PreparedTerminalRoots"));
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
+    );
+    assert!(!preparation.contains("symbols::SymbolHandle"));
+    assert!(preparation.contains("declaration.same_identity_as("));
+    assert!(preparation.contains("pub fn new("));
+    let compact_preparation = preparation
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",)", ")");
+    for owner in [
+        "declaration.machine.identity()",
+        "declaration.state.identity()",
+        "declaration.semantic_declaration",
+        "specialization.template.identity()",
+        "specialization.template_semantic_declaration",
+    ] {
+        assert!(compact_preparation.contains(&format!("identities.is_invocation_local({owner})")));
+    }
+    assert!(preparation.contains("selected root has multiple exact retained declarations"));
+    assert_absent(
+        &[preparation],
+        "Terminal root preparation reopens source",
+        &["checked_trees", "typed_trees", "psi_terminal_production"],
+    );
+    let declarations = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+    );
+    assert!(declarations.contains("checked.callback_declaration(usage)"));
+    assert!(declarations.contains("declarations::identity("));
+    assert!(declarations.contains("TerminalRootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("PreparedTerminalRoots::new(identities, requests)"));
+    assert!(declarations.contains("usage.published_requirement_envelope"));
+    assert!(declarations.contains("usage.selected_actual_envelope"));
+    assert!(declarations.contains("usage.callback_entry.map("));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
+    );
+    assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
+    assert!(admission.contains("callbacks.retained_roots(module)"));
+}
+
+#[test]
+fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() {
+    let surface =
+        include_str!("../../../../psi/foundation/language-semantics/src/service_surface.rs");
+    assert!(!surface.contains("BoundaryCallingPlanCommitment"));
+    assert!(!surface.contains("calling_plan_report_fingerprint"));
+    let projection = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/projection.rs"
+    );
+    assert!(projection.contains("requirements.push(ServiceRequirementSource"));
+    assert!(projection.contains("scope.type_identity("));
+    assert!(!projection.contains("BoundaryCallingPlanRealization"));
+    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
+    assert!(attachment.contains("application.argument_owner() == argument_owner"));
+    assert!(attachment.contains("application.boundary_arguments == boundary_arguments"));
+    assert!(attachment.contains("prepared.argument_owner,"));
+    assert!(attachment.contains("prepared.boundary_arguments,"));
+    assert!(!attachment.contains("ServiceMethod {"));
+    assert!(!attachment.contains("fn collect_service_methods("));
+    let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
+    assert!(catalog.contains("projected.exact_requirements()?"));
+    assert!(!catalog.contains("trait_requirements("));
 }
 
 #[test]

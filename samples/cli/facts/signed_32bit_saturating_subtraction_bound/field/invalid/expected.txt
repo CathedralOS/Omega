@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_diff from probe: held.diff >= 40 && held.diff <= 100

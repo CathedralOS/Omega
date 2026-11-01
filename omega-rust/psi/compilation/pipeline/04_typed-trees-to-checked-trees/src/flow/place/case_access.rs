@@ -236,7 +236,15 @@ impl<'program> CaseEvidence<'program> {
                 }
             }
             let reference = validation::peel_declared_constraints(self.program, reference);
-            let Some(data) = self.program.closed_data_definition(reference) else {
+            // The case roster does not depend on type arguments. A template
+            // body's open application retains its substituted view, whose
+            // variants are the ones the body's claim paths name; each
+            // exclusion below still requires this cut's guard evidence.
+            let Some(data) = self.program.closed_data_definition(reference).or_else(|| {
+                self.program
+                    .typed_program()
+                    .data_application_definition(reference)
+            }) else {
                 continue;
             };
             let prepared = self.prepare_stable_subject(subject);

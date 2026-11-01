@@ -412,3 +412,33 @@ log` on the remote worktree.
 provider-selection acceptance under PROVIDER-SELECTION-AFTER-TERMINAL
 cannot reach `run` on any target until checking completes. The same
 order-of-growth bounds all deeply-nested samples.
+
+## windowed_calculator frontier (2026-11-05) — in-traversal cycle blowup
+
+Completed-case batching (#1122 pending) collapsed the walk count:
+370 singular site walks -> 25 singular + 58 batched (431 occurrence
+members). The surviving wall is *inside one walk* on
+`display_digit_slot`'s `Handle` state - an exponential/divergent
+prefix traversal, not a count problem.
+
+Evidence (OMEGA_PATH_COUNT census, killed at 39 CPU-min):
+- `[envhash]` fingerprints recur exactly: `env=f5509a3b9745a2bd` at
+  depth=5, depth=9, depth=21; `bodies=N` grows 1/depth while the
+  semantic-value fingerprint holds - identical environments are
+  re-entered along the cycle.
+- The `path` cycle cut (`structural_case_arms.rs:1257`) only fires on
+  `start_index == 0` re-entry; mid-state re-entries ("a cycle back is
+  a new arrival", ~:2194) recurse per `bind_invocation` frame with no
+  dedup, so a cyclic machine topology (wcalc's ~40-state pump/input
+  loops) spins the depth without bound.
+- Judge fingerprints always differ (capture/storage sequence
+  counters) but the env fingerprint is stable - an arrival memo keyed
+  on (target_state, env fingerprint, entry kind) would hit; the
+  semantic_value hash already excludes counters.
+
+Next repair: canonicalized (state, env, entry-kind) arrival dedup on
+the recursive descent in `recognize_structural_state_leaves` - a
+second visit along the same ancestry adds no new provable arrival;
+determinism makes its subtree identical to the first visit's. Entry
+kind (fresh vs mid-state index) must be in the key since mid-state
+entries owe different contracts.
