@@ -1177,14 +1177,18 @@ fn payload_contract_at_cut(
                 // removes old instances without copying the shared theory into
                 // every unrelated payload. Captured RHS contracts already own
                 // their complete pre-rebinding theory.
-                if let Some(predicate) = edge_predicate {
+                // The shared roster is immutable throughout this batch and
+                // every published/retired roster remains canonical. Test it
+                // once per edge, not once per live payload; only local absence
+                // then determines which payload receives the predicate tail.
+                if let Some(predicate) = edge_predicate
+                    && arrival
+                        .shared_requirements
+                        .binary_search_by(|premise| premise.as_ref().cmp(predicate))
+                        .is_err()
+                {
                     for contract in arrival.values.values_mut() {
-                        if !contract.scalar_requirements.contains(predicate)
-                            && !arrival
-                                .shared_requirements
-                                .iter()
-                                .any(|premise| premise.as_ref() == predicate)
-                        {
+                        if !contract.scalar_requirements.contains(predicate) {
                             Arc::make_mut(contract)
                                 .scalar_requirements
                                 .make_mut()
