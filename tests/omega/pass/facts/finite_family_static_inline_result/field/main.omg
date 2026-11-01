@@ -6,8 +6,8 @@ trait Family {
     machine row<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> where Width == 16 || Width == 32;
 }
 machine produce<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> satisfies Family::row { value }
-Selected satisfies Family { Family::row = produce; }
-Other satisfies Family { Family::row = produce; }
+Selected satisfies Family { machine row<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> where Width == 16 || Width == 32 { produce<Width>(value) } }
+Other satisfies Family { machine row<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> where Width == 16 || Width == 32 { produce<Width>(value) } }
 machine row16(selected: dyn Family, value: Prepared<16>) -> Prepared<16> { Family::row<16>(selected, value) }
 machine row32(selected: dyn Family, value: Prepared<32>) -> Prepared<32> { Family::row<32>(selected, value) }
 machine input16(value: Prepared<16>, calls: &mut [u64; 1]) -> Prepared<16> {

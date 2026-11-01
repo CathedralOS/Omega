@@ -6,9 +6,9 @@ trait Right<Value>: Reading<Value> {}
 trait Diamond<First, Second>: Left<First> + Right<Second> {}
 
 Consistent<'mapping> satisfies Diamond<&'mapping i32, &'mapping i32> {
-    Reading::read = read;
+    machine read(value: &'mapping i32) -> i32 { read_realization(value) }
 }
-machine read<'source>(value: &'source i32) -> i32 { value as i32 }
+machine read_realization<'source>(value: &'source i32) -> i32 { value as i32 }
 machine invoke<'caller, Reader satisfies Diamond<&'caller i32, &'caller i32>>(
     value: &'caller i32
 ) -> i32 { Reader::read(value) }

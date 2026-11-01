@@ -1344,7 +1344,7 @@ pass/data/property_carry_declared checked 1651ms @a92f16431042
 pass/data/qualified_record_pattern_exit built 1748ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/data/record_pattern_let_exit built 5693ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/data/record_snapshot_finish checked 1672ms @a92f16431042
-pass/data/runtime_case_payload_call_result_window_exit built 5985ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/data/runtime_case_payload_call_result_window_exit built 32276ms exit:0 interpreter-exit:0 interpreter:agrees @a91a8de86514+wt
 pass/data/runtime_case_reassignment_exit built 5481ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/data/runtime_constructor_observation_exit built 5247ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/data/runtime_data_properties_exit built 5833ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -2148,6 +2148,7 @@ pass/facts/captured_window_slot_retirement_through_target_body_exit built 1509ms
 pass/facts/case_const_equal_literals_with_predicate checked 1556ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1537ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 1546ms @a92f16431042
+pass/facts/case_dependent_default_domain_through_const_name_exit built 58595ms exit:0 interpreter-exit:0 interpreter:agrees @a91a8de86514+wt
 pass/facts/case_equality_through_call_result_compile checked 1530ms @a92f16431042
 pass/facts/case_equality_through_const_name_compile checked 1533ms @a92f16431042
 pass/facts/case_equality_through_field_compile checked 1537ms @a92f16431042
@@ -2202,6 +2203,7 @@ pass/facts/case_payload_transport_through_other_machine_exit built 2431ms exit:0
 pass/facts/case_payload_transport_through_other_state_exit built 2343ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/case_payload_transport_through_parameter_exit built 1994ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/case_payload_transport_through_target_body_exit built 2168ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/case_predicate_guard_effects_exit built 50107ms exit:0 interpreter-exit:0 interpreter:agrees @a91a8de86514+wt
 pass/facts/case_tag_discriminant_layout_through_call_result_exit built 1979ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/case_tag_discriminant_layout_through_const_name_exit built 1975ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/case_tag_discriminant_layout_through_field_exit built 2584ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

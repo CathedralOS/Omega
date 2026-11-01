@@ -7,13 +7,13 @@ public boundary trait Parent<Value> {
 }
 public boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
-    Parent::echo = echo;
-    Parent::spare = spare;
-    Child::choose = choose;
+    machine echo<const Count: u64>(value: i32) -> i32 where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine spare() -> i32 { spare_realization() }
+    machine choose() -> i32 { choose_realization() }
 }
-machine echo<const Count: u64>(value: i32) -> i32 { value }
-machine spare() -> i32 { 33 }
-machine choose() -> i32 { 19 }
+machine echo_realization<const Count: u64>(value: i32) -> i32 { value }
+machine spare_realization() -> i32 { 33 }
+machine choose_realization() -> i32 { 19 }
 
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {

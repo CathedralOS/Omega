@@ -8,6 +8,7 @@
 use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use numerics::float_semantics_catalog::FloatSemanticKernel;
@@ -24,7 +25,7 @@ pub(crate) enum CarrierFit {
     Proven,
     Refuted,
     Unknown,
-    Pending { low: BigInt, high: BigInt },
+    Pending { interval: BigIntInterval },
 }
 
 impl CarrierFit {
@@ -33,15 +34,8 @@ impl CarrierFit {
             (Self::Refuted, _) | (_, Self::Refuted) => Self::Refuted,
             (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
             (Self::Proven, other) | (other, Self::Proven) => other,
-            (
-                Self::Pending { low, high },
-                Self::Pending {
-                    low: other_low,
-                    high: other_high,
-                },
-            ) => Self::Pending {
-                low: low.min(other_low),
-                high: high.max(other_high),
+            (Self::Pending { interval }, Self::Pending { interval: other }) => Self::Pending {
+                interval: interval.union(&other),
             },
         }
     }
@@ -55,10 +49,13 @@ impl CarrierFit {
     ) -> bool {
         match self {
             Self::Proven => true,
-            Self::Pending { low, high } => {
+            Self::Pending { interval } => {
                 if !owner.is_valid() || !expression.is_valid() {
                     return false;
                 }
+                let (Some(low), Some(high)) = (interval.low, interval.high) else {
+                    return false;
+                };
                 let obligation = checked_trees::IntegerRangeObligation::retain_address_fit(
                     expression,
                     owner,
@@ -551,9 +548,9 @@ fn populate_machine_operand_fits(
             else {
                 continue;
             };
-            let Some(statement_index) = super::completed_values::expression_statement_index(
-                program, state, expression,
-            ) else {
+            let Some(statement_index) =
+                super::completed_values::expression_statement_index(program, state, expression)
+            else {
                 continue;
             };
             if super::structural_prefix::expression_is_transition_target(
@@ -666,10 +663,8 @@ fn observe_operand_fits_batch(
             members.as_mut_slice(),
             false,
         );
-        for (((group_index, index), verdict), member) in member_indices
-            .iter()
-            .zip(verdicts)
-            .zip(members.iter())
+        for (((group_index, index), verdict), member) in
+            member_indices.iter().zip(verdicts).zip(members.iter())
         {
             if verdict == Some(true) && member.seen {
                 accepted[*group_index][*index] = true;
@@ -725,7 +720,8 @@ fn observe_operand_fit_at_occurrence(
                 .and_then(|outcomes| outcomes.get(&key).cloned());
         }
         if let Some(outcome) = cached {
-            return outcome.and_then(|outcome| replay_operand_fit(program, state, request, outcome));
+            return outcome
+                .and_then(|outcome| replay_operand_fit(program, state, request, outcome));
         }
     }
     let statement_index =

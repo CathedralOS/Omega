@@ -13,9 +13,9 @@ ensures result <= 90
         _ -> 90
     }
 }
-Conservative satisfies Threshold<Upper> { Threshold::limit = cap; }
+Conservative satisfies Threshold<Upper> { machine limit(value: u32) -> u32 requires value <= Upper ensures result <= Upper { cap(value) } }
 trait Inherited: Threshold<Upper> {}
-InheritedConservative satisfies Inherited { Threshold::limit = cap; }
+InheritedConservative satisfies Inherited { machine limit(value: u32) -> u32 requires value <= Upper ensures result <= Upper { cap(value) } }
 machine selected<Implementation satisfies Inherited>(value: u32) -> u32
 requires value <= 100
 ensures result <= 100

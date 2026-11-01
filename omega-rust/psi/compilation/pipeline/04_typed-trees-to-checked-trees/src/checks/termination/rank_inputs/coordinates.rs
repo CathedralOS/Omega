@@ -30,8 +30,10 @@ impl Coordinate {
         let (minimum, maximum) = self.primitive.integer_bounds()?;
         Some(ScopedArithmeticValue::BoundedInteger {
             value: Box::new(value),
-            minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-            maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+            interval: validation::BigIntInterval {
+                low: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                high: Some(numerics::bignum::BigInt::from_i128(maximum)),
+            },
         })
     }
 

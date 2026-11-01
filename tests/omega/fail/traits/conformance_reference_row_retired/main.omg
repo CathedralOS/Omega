@@ -1,0 +1,20 @@
+// A named implementation declares each requirement as an inline `machine`
+// member. The requirement-to-machine assignment row is retired; sharing an
+// existing machine is an ordinary call from the member's body.
+trait Sink<S, T> {
+    machine put(sink: &mut S, value: T);
+}
+
+data Counter {
+    value: i32;
+}
+
+machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, i32>::put {
+    counter.value = value;
+}
+
+CounterSink satisfies Sink<Counter, i32> {
+    Sink::put = Counter::put;
+}
+
+machine main() {}

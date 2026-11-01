@@ -101,11 +101,15 @@ pub struct ConformanceRow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ConformanceRowSource {
     Inline,
+    /// An inline member whose whole body calls a machine that already
+    /// satisfies this exact requirement. That machine is the realization, so
+    /// the row owns none. This is not a source form: no authored
+    /// requirement-to-machine assignment produces it.
     Reference,
     TraitDefault,
     /// A sealed core-trait row the compiler emitted as an ordinary checked
-    /// member body (structural `Equatable<T>::equals`). An authored member or
-    /// reference row suppresses it, so a block holds at most one per slot.
+    /// member body (structural `Equatable<T>::equals`). An authored member
+    /// suppresses it, so a block holds at most one per slot.
     Synthesized,
 }
 

@@ -5,7 +5,7 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::flow::indexed_statements;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-use validation::ScopedArithmeticValue;
+use validation::{BigIntInterval, ScopedArithmeticValue};
 
 pub(super) struct Edge<'program> {
     pub(super) source: usize,
@@ -165,8 +165,10 @@ pub(super) fn compare(
                 let (minimum, maximum) = source.subject.scalar()?.primitive.integer_bounds()?;
                 let value = ScopedArithmeticValue::BoundedInteger {
                     value: Box::new(value.clone()),
-                    minimum: Some(BigInt::from_i128(minimum)),
-                    maximum: Some(BigInt::from_i128(maximum)),
+                    interval: BigIntInterval {
+                        low: Some(BigInt::from_i128(minimum)),
+                        high: Some(BigInt::from_i128(maximum)),
+                    },
                 };
                 Some(ScopedArithmeticValue::IntegerOperation {
                     operator: BinaryOperator::Subtract,

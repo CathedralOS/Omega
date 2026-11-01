@@ -5,8 +5,8 @@ public boundary trait Parent {
     machine reset(counter: &mut Counter) reaches ensures counter.count <= 7u64;
 }
 public boundary trait Child: Parent {}
-Good satisfies Child { Parent::reset = reset; }
-machine reset(counter: &mut Counter)
+Good satisfies Child { machine reset(counter: &mut Counter) ensures counter.count <= 7u64 { reset_realization(counter) } }
+machine reset_realization(counter: &mut Counter)
 ensures counter.count <= 7u64, counter.count <= 3u64
 { counter.count = 3u64; }
 

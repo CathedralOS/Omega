@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Registrar + Console invokes Registra
 }
 
 ProviderRegistrarImplementation satisfies Registrar {
-    Registrar::exchange = Provider::exchange;
+    machine exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome { Provider::exchange(capacity, accept) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

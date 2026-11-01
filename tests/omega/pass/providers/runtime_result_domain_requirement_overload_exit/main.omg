@@ -36,8 +36,8 @@ reaches Console, Convert
 }
 
 ConvertProviderConvertImplementation satisfies Convert {
-    Convert::convert = ConvertProvider::ordinary;
-    Convert::convert = ConvertProvider::saturating;
+    machine convert(value: i32) -> i32 { ConvertProvider::ordinary(value) }
+    machine convert(value: i32) -> i32 in Saturating { ConvertProvider::saturating(value) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

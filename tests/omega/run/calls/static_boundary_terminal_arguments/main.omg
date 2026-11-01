@@ -5,14 +5,14 @@ public boundary trait Character {
     machine store(output: &mut i32, value: i32, observed: i32) reaches;
 }
 CharacterImplementation satisfies Character {
-    Character::echo = echo;
-    Character::store = store;
+    machine echo(value: i32, observed: i32) -> i32 { echo_realization(value, observed) }
+    machine store(output: &mut i32, value: i32, observed: i32) { store_realization(output, value, observed) }
 }
-machine echo(value: i32, observed: i32) -> i32 {
+machine echo_realization(value: i32, observed: i32) -> i32 {
     transition observed == 1 { true -> value false -> 0 }
 }
-machine store(output: &mut i32, value: i32, observed: i32) {
-    output = echo(value, observed);
+machine store_realization(output: &mut i32, value: i32, observed: i32) {
+    output = echo_realization(value, observed);
 }
 data Main { value: i32; phase: u32 in Wrapping; }
 machine first(phase: &mut u32 in Wrapping) -> i32 {

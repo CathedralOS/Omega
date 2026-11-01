@@ -37,6 +37,13 @@ the materializer; do not copy them into another source of truth.
 
 ## Consumer obligations
 
+Native callback argument/binder correspondence is reconstructed by
+[TerminalCallingTelescope](src/boundary_application/terminal_telescope.rs) from
+the exact reached Terminal boundary declaration. Its ordinary argument shape
+roots still belong to the proposed value-layout graph; native-only pointer
+shape, parameter identities/order, and callback binder contracts do not.
+The proposed application's telescope must agree before its plan is consumed.
+
 Outbound imports, syscalls, vtables, service tables, and callbacks must retain
 their exact plans rather than rederive target defaults. Composite adapters retain
 each native subcall plan. Discarding a native status/count result removes no

@@ -23,8 +23,8 @@ macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
 macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
 CleanupConsole satisfies Console {
-    Console::write_byte = ConsoleNativeProvider::write_byte;
-    Console::exit_process = ConsoleNativeProvider::exit_process;
+    machine write_byte(byte: i32) reaches Console terminates { ConsoleNativeProvider::write_byte(byte) }
+    machine exit_process(return_code: i32) reaches Console { ConsoleNativeProvider::exit_process(return_code) }
 }
 
 data Unit {}

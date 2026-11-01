@@ -54,6 +54,30 @@ fn record(
     }
 }
 
+/// The eight-byte `entry` function every case places at the start of `.text`.
+fn text_entry(object: &mut ObjectPlan) -> ObjectSymbolHandle {
+    object_symbol(
+        object,
+        "entry",
+        SymbolSection::Section(SectionKind::Text),
+        0,
+        8,
+        SymbolKind::Function,
+    )
+}
+
+/// The eight-byte `cell` object every case places at the start of `.data`.
+fn data_cell(object: &mut ObjectPlan) -> ObjectSymbolHandle {
+    object_symbol(
+        object,
+        "cell",
+        SymbolSection::Section(SectionKind::Data),
+        0,
+        8,
+        SymbolKind::Object,
+    )
+}
+
 fn object_symbol(
     object: &mut ObjectPlan,
     name: &str,
@@ -104,14 +128,7 @@ fn x86_64_rel32_rejects_symbols_without_a_materialized_address() {
     // call <rel32>; ret; pad
     let encoded: Vec<u8> = [0xe8, 0, 0, 0, 0, 0xc3, 0x90, 0x90].into();
     let mut object = object_with_text(target, encoded.len());
-    let entry = object_symbol(
-        &mut object,
-        "entry",
-        SymbolSection::Section(SectionKind::Text),
-        0,
-        8,
-        SymbolKind::Function,
-    );
+    let entry = text_entry(&mut object);
     // A declared extern that was never bound: the symbol row exists, but
     // with no section there is no address to subtract the field end from.
     let external = object_symbol(
@@ -177,22 +194,8 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
         size: 8,
         alignment: 8,
     });
-    let entry = object_symbol(
-        &mut object,
-        "entry",
-        SymbolSection::Section(SectionKind::Text),
-        0,
-        8,
-        SymbolKind::Function,
-    );
-    let cell = object_symbol(
-        &mut object,
-        "cell",
-        SymbolSection::Section(SectionKind::Data),
-        0,
-        8,
-        SymbolKind::Object,
-    );
+    let entry = text_entry(&mut object);
+    let cell = data_cell(&mut object);
     object.layout.entry_symbol = entry;
 
     let mut relocations = RelocationPlan::with_target(target);
@@ -284,14 +287,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
 fn x86_64_rejects_addend_targets_that_overflow_the_address_space() {
     let target = NativeTarget::linux_x64();
     let mut object = object_with_text(target, 8);
-    let entry = object_symbol(
-        &mut object,
-        "entry",
-        SymbolSection::Section(SectionKind::Text),
-        0,
-        8,
-        SymbolKind::Function,
-    );
+    let entry = text_entry(&mut object);
     object.layout.entry_symbol = entry;
 
     // Pushing a symbol near the top of the address space further with a
@@ -336,14 +332,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
     let target = NativeTarget::linux_x64();
     let encoded: Vec<u8> = [0xe8, 0, 0, 0, 0, 0xc3, 0x90, 0x90].into();
     let mut object = object_with_text(target, encoded.len());
-    let entry = object_symbol(
-        &mut object,
-        "entry",
-        SymbolSection::Section(SectionKind::Text),
-        0,
-        8,
-        SymbolKind::Function,
-    );
+    let entry = text_entry(&mut object);
     object.layout.entry_symbol = entry;
 
     // `.bss` occupies layout but has no materialized bytes to write into;
@@ -515,14 +504,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         16,
         SymbolKind::Function,
     );
-    let cell = object_symbol(
-        &mut object,
-        "cell",
-        SymbolSection::Section(SectionKind::Data),
-        0,
-        8,
-        SymbolKind::Object,
-    );
+    let cell = data_cell(&mut object);
     object.layout.entry_symbol = entry;
 
     // An x86-64 record routed to the AArch64 patcher names the mismatch.
@@ -633,14 +615,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         16,
         SymbolKind::Function,
     );
-    let cell = object_symbol(
-        &mut object,
-        "cell",
-        SymbolSection::Section(SectionKind::Data),
-        0,
-        8,
-        SymbolKind::Object,
-    );
+    let cell = data_cell(&mut object);
     object.layout.entry_symbol = entry;
 
     // ADRP admits a signed 21-bit page count: |delta| < 2^20 pages. The

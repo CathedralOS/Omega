@@ -6,9 +6,9 @@ public boundary trait Character {
     machine echo(value: i32) -> i32 reaches terminates;
 }
 CharacterImplementation satisfies Character {
-    Character::echo = echo;
+    machine echo(value: i32) -> i32 terminates { echo_realization(value) }
 }
-machine echo(value: i32) -> i32 { value }
+machine echo_realization(value: i32) -> i32 { value }
 
 data Holder { offset: i32; }
 machine shared_field(holder: &Holder) -> i32 reaches Character {

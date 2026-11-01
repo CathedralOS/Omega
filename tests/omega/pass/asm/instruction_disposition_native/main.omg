@@ -6,9 +6,9 @@ data Token [linear] { identity: u64; }
 boundary trait Finish {
     machine finish(token: Token) reaches MachineControl;
 }
-Finisher satisfies Finish { Finish::finish = finish; }
+Finisher satisfies Finish { machine finish(token: Token) reaches MachineControl { finish_realization(token) } }
 proposition finished(token: Token) = model_specific_written(2059, 0);
-machine finish(token: Token)
+machine finish_realization(token: Token)
 satisfies Finish::finish
 reaches MachineControl
 ensures finished(token)
@@ -78,7 +78,7 @@ reaches MachineControl
 boundary trait PairFinish {
     machine finish(first: Token, second: Token) reaches MachineControl;
 }
-PairFinisher satisfies PairFinish { PairFinish::finish = finish_pair; }
+PairFinisher satisfies PairFinish { machine finish(first: Token, second: Token) reaches MachineControl { finish_pair(first, second) } }
 machine finish_pair(first: Token, second: Token)
 satisfies PairFinish::finish
 reaches MachineControl
@@ -109,7 +109,7 @@ data Envelope { token: Token; }
 boundary trait FinishEnvelope {
     machine finish(envelope: Envelope) reaches MachineControl;
 }
-EnvelopeFinisher satisfies FinishEnvelope { FinishEnvelope::finish = finish_envelope; }
+EnvelopeFinisher satisfies FinishEnvelope { machine finish(envelope: Envelope) reaches MachineControl { finish_envelope(envelope) } }
 machine finish_envelope(envelope: Envelope)
 satisfies FinishEnvelope::finish
 reaches MachineControl
@@ -129,7 +129,7 @@ ensures model_specific_written(2059, 0)
 boundary trait FinishByChoice {
     machine finish(token: Token, enabled: bool) reaches MachineControl;
 }
-ChoiceFinisher satisfies FinishByChoice { FinishByChoice::finish = finish_by_choice; }
+ChoiceFinisher satisfies FinishByChoice { machine finish(token: Token, enabled: bool) reaches MachineControl { finish_by_choice(token, enabled) } }
 machine finish_by_choice(token: Token, enabled: bool)
 satisfies FinishByChoice::finish
 reaches MachineControl

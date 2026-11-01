@@ -36,6 +36,12 @@ pub(crate) fn validate_forwarded_argument(
                 .iter()
                 .flat_map(|machine| machine.conformance_bounds.iter()),
         )
+        .chain(
+            program
+                .data_definitions()
+                .iter()
+                .flat_map(|definition| definition.conformance_bounds.iter()),
+        )
         .find(|actual| actual.binder == selected.symbol)
         .ok_or_else(|| "forwarded implementation binder has no declared contract".to_owned())?;
     let demanded = crate::refinement_fit::resolve_bound_carrier(program, required.trait_symbol);

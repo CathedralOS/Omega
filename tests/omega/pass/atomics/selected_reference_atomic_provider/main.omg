@@ -11,5 +11,5 @@ data Confirmation {}
 machine Confirmation::finish(ack: Ack) satisfies Completion::complete
 ensures acknowledged(ack)
 { let nonce: u64 = 1; ack.holder.word.value.store(nonce, Publish); }
-CompletionProvider satisfies Completion { Completion::complete = Confirmation::finish; }
+CompletionProvider satisfies Completion { machine complete(ack: Ack) { Confirmation::finish(ack) } }
 machine main() {}

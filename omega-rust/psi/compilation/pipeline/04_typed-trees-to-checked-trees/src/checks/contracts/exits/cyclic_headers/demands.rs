@@ -82,8 +82,7 @@ fn value(
         | ScopedArithmeticValue::Integer(_) => source.clone(),
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
-            minimum,
-            maximum,
+            interval,
         } => ScopedArithmeticValue::BoundedInteger {
             value: Box::new(value(
                 inner,
@@ -91,8 +90,7 @@ fn value(
                 remaining,
                 depth.checked_sub(1)?,
             )?),
-            minimum: minimum.clone(),
-            maximum: maximum.clone(),
+            interval: interval.clone(),
         },
         ScopedArithmeticValue::IntegerOperation {
             operator,

@@ -1,0 +1,33 @@
+// A forwarded implementation argument keeps its environment region and constant index independently of the caller's storage region.
+// Expected exit: 0
+
+trait Tag {}
+Choice<'held, const Index: u64> satisfies Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine forward<'storage, const N: u64>(value: Holder<Choice<'storage, N>>) -> Holder<Choice<'storage, N>> { value }
+machine observed<'environment, 'storage, const N: u64>(value: Holder<Choice<'environment, N>>) -> Holder<Choice<'environment, N>> { forward<N>(value) }
+
+// Place: match_join. The complete selected carrier crosses a match join; both arms execute.
+machine exercise<'environment, 'storage>(environment: &'environment u64, storage: &'storage u64) -> u64 {
+    let first: bool = storage == 23u64;
+    let value: Holder<Choice<'environment, 7u64> > = match first {
+        true -> Holder { value: 42u64 }
+        false -> Holder { value: 42u64 }
+    };
+    let result: Holder<Choice<'environment, 7u64> > = observed<7u64>(value);
+    result.value
+}
+
+machine main() crashes Trap {
+    let environment: u64 = 17u64;
+    let storage: u64 = 23u64;
+    let result: u64 = exercise(&environment, &storage);
+    let alternate_storage: u64 = 29u64;
+    let alternate: u64 = exercise(&environment, &alternate_storage);
+    transition result == 42u64 && alternate == 42u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

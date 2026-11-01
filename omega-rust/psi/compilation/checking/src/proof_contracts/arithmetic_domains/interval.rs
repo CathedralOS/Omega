@@ -3,7 +3,7 @@
 /// An integer value range with optional (= unbounded) ends; all arithmetic is
 /// checked, so an overflowing corner becomes `None` (unbounded) -- which fails
 /// the containment test and so is reported as a possible overflow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Interval {
     pub low: Option<i64>,
     pub high: Option<i64>,

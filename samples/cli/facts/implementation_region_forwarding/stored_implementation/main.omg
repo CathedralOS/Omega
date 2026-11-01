@@ -1,0 +1,4 @@
+trait Tag {}
+Selected satisfies Tag {}
+data Holder<Implementation satisfies Tag> { value: Implementation; }
+machine main() {}

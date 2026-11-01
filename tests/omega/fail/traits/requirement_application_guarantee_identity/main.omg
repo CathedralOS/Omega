@@ -5,5 +5,5 @@ trait Bound<const Limit: u32> {
 }
 machine wide() -> u32 satisfies Bound<Upper>::produce { 75 }
 // Owing Bound<100> does not establish the same declaration at Bound<50>.
-Narrow satisfies Bound<Lower> { Bound::produce = wide; }
+Narrow satisfies Bound<Lower> { machine produce() -> u32 ensures result <= Lower { wide() } }
 machine main() {}

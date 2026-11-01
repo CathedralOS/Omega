@@ -23,7 +23,7 @@ machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     )
 }
 
-machine initialize(storage: Extent in Granted & Vacant, value: Word)
+machine initialize_realization(storage: Extent in Granted & Vacant, value: Word)
     -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
         AccessReturn<Extent in Granted & Vacant, Word>,
@@ -35,12 +35,12 @@ machine initialize(storage: Extent in Granted & Vacant, value: Word)
         reason: AccessInitializationFailure::IncompatibleSupply,
     }
 }
-boundary machine move_out(storage: Extent in Granted & Resident<WordPlacement, Word>)
+boundary machine move_out_realization(storage: Extent in Granted & Resident<WordPlacement, Word>)
     -> AccessExtraction<Extent in Granted & Vacant, Word>;
 
 Selected satisfies AccessLifecycle<WordPlacement, Word> {
-    AccessLifecycle::initialize = initialize;
-    AccessLifecycle::move_out = move_out;
+    machine initialize( storage: Extent in Granted & Vacant, value: Word ) -> AccessOutcome< Extent in Granted & Resident<WordPlacement, Word>, AccessReturn<Extent in Granted & Vacant, Word>, AccessInitializationFailure > reaches ResourceProfileSupply { initialize_realization(storage, value) }
+    machine move_out(storage: Extent in Granted & Resident<WordPlacement, Word>) -> AccessExtraction<Extent in Granted & Vacant, Word> reaches ResourceProfileSupply { move_out_realization(storage) }
 }
 
 machine exercise(storage: Extent in Granted & Vacant, value: Word)

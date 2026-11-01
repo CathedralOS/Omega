@@ -17,7 +17,7 @@ ensures result <= 90
 }
 
 Conservative satisfies Threshold {
-    Threshold::limit = clamp_low;
+    machine limit(value: u32) -> u32 requires value <= 100 ensures result <= 100 { clamp_low(value) }
 }
 
 machine selected_limit<Implementation satisfies Threshold>(value: u32) -> u32

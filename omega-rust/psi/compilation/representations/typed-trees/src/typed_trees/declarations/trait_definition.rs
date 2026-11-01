@@ -122,8 +122,8 @@ pub enum ConformanceRowSource {
     Reference,
     TraitDefault,
     /// A sealed core-trait row the compiler emitted as an ordinary checked
-    /// member body (structural `Equatable<T>::equals`). An authored member or
-    /// reference row suppresses it, so a block holds at most one per slot.
+    /// member body (structural `Equatable<T>::equals`). An authored member
+    /// suppresses it, so a block holds at most one per slot.
     Synthesized,
 }
 

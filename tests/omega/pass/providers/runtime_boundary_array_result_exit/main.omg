@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console, ArrayFactory {
 }
 
 ArrayFactoryProviderArrayFactoryImplementation satisfies ArrayFactory {
-    ArrayFactory::produce = ArrayFactoryProvider::produce;
+    machine produce() -> [u8; 2] { ArrayFactoryProvider::produce() }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
