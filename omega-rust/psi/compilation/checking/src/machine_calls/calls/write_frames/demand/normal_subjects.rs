@@ -11,6 +11,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 
+#[derive(Debug)]
 pub(crate) struct InvocationEntrySubject {
     pub parameter: SymbolHandle,
     pub argument: ExpressionHandle,
@@ -31,19 +32,25 @@ impl<'program> CallFrameResolver<'program> {
         machine: &'program Machine,
         site: crate::CallSite<'program>,
         parameters: &[StateParameter],
+        writes: &facts::NormalizedWriteFrame,
     ) -> Option<Vec<InvocationReferenceSubject>> {
-        let (writes, entries) = match site {
-            crate::CallSite::Expression { expression, .. } => (
-                self.operation_write_frame(machine, expression),
-                self.expression_entry_reference_subjects(machine, expression, parameters)?,
-            ),
-            crate::CallSite::Statement(call) => (
-                self.may_write_frame(machine, call),
-                self.statement_entry_reference_subjects(machine, call, parameters)?,
-            ),
+        let entries = match site {
+            crate::CallSite::Expression { expression, .. } => {
+                self.expression_entry_reference_subjects(machine, expression, parameters)
+            }
+            crate::CallSite::Statement(call) => {
+                self.statement_entry_reference_subjects(machine, call, parameters)
+            }
             _ => return None,
         };
-        let writes = writes.into_complete_paths()?;
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT invocation-entry-subjects caller={:?} entries={entries:?}",
+                machine.symbol
+            );
+        }
+        let entries = entries?;
+        let writes = writes.complete_paths();
         entries
             .into_iter()
             .map(|entry| {
@@ -51,13 +58,19 @@ impl<'program> CallFrameResolver<'program> {
                     .iter()
                     .find(|parameter| parameter.symbol == entry.parameter)?;
                 let shell = crate::reference_shell(self.program, parameter.type_reference)?;
-                let stable_on_return = !parameter.is_mutable || shell.access.is_exclusive();
+                // Entry origins were captured before invocation. An unknown
+                // future frame withholds return correspondence, not those
+                // independently established incoming subjects.
+                let stable_on_return =
+                    writes.is_some() && (!parameter.is_mutable || shell.access.is_exclusive());
                 let preserved_on_return = stable_on_return
-                    && !writes.iter().any(|written| {
-                        entry
-                            .sources
-                            .iter()
-                            .any(|source| super::frame_paths_overlap(written, &source.path))
+                    && writes.as_ref().is_some_and(|writes| {
+                        !writes.iter().any(|written| {
+                            entry
+                                .sources
+                                .iter()
+                                .any(|source| super::frame_paths_overlap(written, &source.path))
+                        })
                     });
                 Some(InvocationReferenceSubject {
                     entry,

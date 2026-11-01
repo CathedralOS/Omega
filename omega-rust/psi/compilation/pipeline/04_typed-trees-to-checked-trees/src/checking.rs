@@ -395,7 +395,11 @@ fn check_program(
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
     let mut facts = phase_profile::scope("05.d.8_10.a.finalize_execution", || {
-        crate::execution::finalize_execution::finalize_execution(&program, facts)
+        crate::execution::finalize_execution::finalize_execution(
+            &program,
+            facts,
+            typed_program.boundary_signatures(),
+        )
     })?;
     phase_profile::checkpoint(
         "after execution finalization",

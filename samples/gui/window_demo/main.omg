@@ -6,6 +6,7 @@
 // Expected output contains: PASS: 60 frames blitted (exit 0)
 use omega_language_std::console;
 use omega_language_std::macos_gui;
+use omega_language_std::macos_image;
 use omega_language_std::clock;
 use omega_language_std::windows_gui_host;
 use providers;
@@ -60,7 +61,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
+        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost invokes MacosImageData invokes MacosImageObjects;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
@@ -69,12 +70,12 @@ public boundary trait Gui {
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
 DemoGuiProvider satisfies Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_window_create(class_name, title, style, x, y, width, height) }
+    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window requires title[10] == 0 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_window_create(class_name, title, style, x, y, width, height) }
     machine window_destroy(window: Window, device: u64) -> bool reaches GlobalInputObservation + NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_window_destroy(window, device) }
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes WindowsGuiHost { demo_get_dc(window_state, window) }
     machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost { demo_pump_message(window_state, message, close_requested) }
     machine is_window(window_state: &Window, window: u64) -> u32 reaches NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + GlobalInputObservation + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost { demo_is_window(window_state, window) }
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 reaches GlobalInputObservation + NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost { demo_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info) }
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 reaches GlobalInputObservation + NativeCodeExecution + WindowManagement + SurfacePresentation + WindowEventObservation + WindowEventDispatch + ClockObservation + ExecutionDelay + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput + ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost invokes MacosImageData invokes MacosImageObjects { demo_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info) }
 }
 
 data Main

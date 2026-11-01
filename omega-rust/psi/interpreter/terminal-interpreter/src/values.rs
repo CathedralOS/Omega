@@ -181,6 +181,7 @@ mod scalar_aggregate_tests {
             shape: StructuralTypeShape::Record {
                 fields: (1..=2)
                     .map(|id| StructuralFieldDeclaration {
+                        inline_carrier: None,
                         id: StructuralFieldId::new(id).unwrap(),
                         identity: TerminalIdentityIndex(id as u32),
                         relevance: BindingRelevance::Relevant,

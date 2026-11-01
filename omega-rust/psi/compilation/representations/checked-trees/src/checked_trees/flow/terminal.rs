@@ -19,6 +19,12 @@
 mod affine_cleanup_plans;
 mod atomic_plans;
 mod boundary_machine_plans;
+mod calling_signatures;
+mod opaque_representations;
+pub use calling_signatures::{
+    CheckedCallingParameter, CheckedCallingSignaturePlan, CheckedCallingSignatureStorage,
+};
+pub use opaque_representations::CheckedOpaqueRepresentation;
 mod composed_unit_control_plans;
 mod dynamic_slot_plans;
 mod place_loan_plans;

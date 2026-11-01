@@ -39,8 +39,10 @@ pub use native_layouts::{
 mod unoptimized_behavior;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{
-    CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal,
-    CallingSignatureDeclaration, CallingSignatureTelescope,
+    CallingAbiDeclaration, CallingAbiParameter, CallingAbiStorage, CallingCallbackBinder,
+    CallingDirectCallback, CallingPolicyInstance, CallingPolicyRequest, CallingRuntimeFormal,
+    CallingSignatureDeclaration, CallingSignatureTelescope, CallingStaticOperand,
+    TerminalOpaqueRepresentation,
 };
 pub use unoptimized_behavior::{UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 mod callback_declarations;
@@ -62,8 +64,9 @@ pub use terminal_module::*;
 mod target_layouts;
 pub use target_layouts::{
     LayoutApplicationId, StructuralRecordStorage, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutInput, TargetLayoutRealization,
-    TargetLayoutSchemaArgument, TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
+    TargetLayoutFieldLayoutSource, TargetLayoutFieldStorage, TargetLayoutInput,
+    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
+    TargetLayoutSchemaFieldKind,
 };
 
 pub use terminal_module::quotients::{

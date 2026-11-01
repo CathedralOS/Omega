@@ -60,6 +60,18 @@ fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
                     payload: Vec::new(),
                 },
             ),
+            (
+                "layout_source".to_owned(),
+                BuildTimeValue::Case {
+                    variant: match field.map(|field| field.layout_source).unwrap_or_default() {
+                        typed_trees::PlanLaidFieldLayoutSource::Default => "Default",
+                        typed_trees::PlanLaidFieldLayoutSource::Scalar => "Scalar",
+                        typed_trees::PlanLaidFieldLayoutSource::Explicit => "Explicit",
+                    }
+                    .to_owned(),
+                    payload: Vec::new(),
+                },
+            ),
         ],
     }
 }
@@ -187,6 +199,7 @@ pub(crate) fn build_selected_schema_value(
                         source_bits,
                         primitive,
                         kind,
+                        layout_source: typed.field_layout_source(field.type_reference),
                         declared_range,
                         repeated,
                         scalar_leaf_width_bits: super::scalar_leaf_width_bits(

@@ -8,44 +8,14 @@
 //! directly; replay recomputes the commitment from the retained fields rather
 //! than trusting the producer.
 
+pub use language_semantics::opaque_representations::{
+    OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
+    OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
+    selected_application_commitment,
+};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 use typed_trees::typed_trees::ClosedConformanceApplication;
-
-/// Current target-independent opaque-representation application schema.
-///
-/// Target movement remains part of the boundary-plan application. This
-/// version covers the selected conformance, its origin, inert lifecycle, and
-/// the semantic-copy disposition derived from the complete carrier graph.
-pub const OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION: u16 = 1;
-
-/// Compiler-derived lifecycle role for one selected opaque representation.
-///
-/// V1 has exactly one role: the carrier contributes storage only and owns no
-/// independently invoked lifecycle semantics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum OpaqueRepresentationLifecycleDisposition {
-    Inert,
-}
-
-/// Compiler-derived relationship between semantic duplication and physical
-/// carrier copying.
-///
-/// `PlacementOnly` means backend byte copies may only relocate one affine or
-/// linear semantic occurrence. `CheckedSemanticCopy` means the opaque datum is
-/// unrestricted and the complete inert carrier graph is structurally
-/// unrestricted, so a checked semantic copy may create another occurrence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum OpaqueRepresentationCopyDisposition {
-    PlacementOnly,
-    CheckedSemanticCopy,
-}
-
-/// Closed source of one selected v1 opaque-representation application.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum OpaqueRepresentationApplicationOrigin {
-    NamedConformance,
-}
 
 /// One exact, build-selected `Name satisfies OpaqueRepresentation<Opaque, Carrier>`
 /// application. The concrete carrier, the implementation's second trait
@@ -157,30 +127,6 @@ impl OpaqueRepresentationSelection {
     pub fn source_span(&self) -> SourceSpan {
         self.source_span
     }
-}
-
-pub fn selected_application_commitment(
-    conformance_application_commitment: [u8; 32],
-    lifecycle: OpaqueRepresentationLifecycleDisposition,
-    copy_disposition: OpaqueRepresentationCopyDisposition,
-    origin: OpaqueRepresentationApplicationOrigin,
-) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.opaque-representation-application.v1",
-    );
-    digest.u16(OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION);
-    digest.byte(match origin {
-        OpaqueRepresentationApplicationOrigin::NamedConformance => 1,
-    });
-    digest.byte(match lifecycle {
-        OpaqueRepresentationLifecycleDisposition::Inert => 1,
-    });
-    digest.byte(match copy_disposition {
-        OpaqueRepresentationCopyDisposition::PlacementOnly => 1,
-        OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
-    });
-    digest.raw(&conformance_application_commitment);
-    digest.finish().into()
 }
 
 pub fn selection_for_opaque(

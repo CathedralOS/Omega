@@ -1074,6 +1074,7 @@ impl TerminalExecution<'_> {
             argument.place,
             &argument.path,
             argument.access,
+            None,
             terminal_psi::StructuralFieldType::canonical_leaf_type,
         )?;
         Ok((projected.value, projected.placed))
@@ -1108,7 +1109,8 @@ impl TerminalExecution<'_> {
             place,
             path,
             access,
-            self.borrowed_projection_leaf(expected, access),
+            Some(expected),
+            self.borrowed_projection_leaf(expected, access)?,
         )?;
         // A fixed-array formal's loan has no descriptor crossing in its typed
         // path. Retain that frame home for primitive leaves, just as a dynamic
@@ -1138,7 +1140,8 @@ impl TerminalExecution<'_> {
             argument.place,
             &argument.path,
             argument.access,
-            self.borrowed_projection_leaf(expected, argument.access),
+            Some(expected),
+            self.borrowed_projection_leaf(expected, argument.access)?,
         )?;
         let (mut value, tip) = (projected.value, projected.view_tip);
         let region = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
@@ -1241,18 +1244,20 @@ impl TerminalExecution<'_> {
         &self,
         expected: StructuralTypeId,
         access: StructuralAccess,
-    ) -> fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType> {
-        let preserve_restriction = self
-            .structural_types()
-            .get(&expected)
-            .is_some_and(|declaration| declaration.scalar_restriction.is_some());
-        if preserve_restriction || access == StructuralAccess::Owned {
-            terminal_psi::StructuralFieldType::canonical_leaf_type
-        } else if access == StructuralAccess::SharedBorrow {
-            |field| field.borrowed_presentation_type(StructuralAccess::SharedBorrow, None)
-        } else {
-            |field| field.borrowed_presentation_type(StructuralAccess::MutableBorrow, None)
-        }
+    ) -> Result<
+        impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
+        + Copy
+        + use<'_>,
+        TerminalInterpretError,
+    > {
+        let expected = self.structural_declaration(expected)?;
+        Ok(move |field: &terminal_psi::StructuralFieldType| {
+            if access == StructuralAccess::Owned {
+                field.canonical_leaf_type()
+            } else {
+                field.borrowed_presentation_type(access, Some(expected))
+            }
+        })
     }
 
     /// Resolve a live projection and, when its final run crosses into an
@@ -1277,6 +1282,7 @@ impl TerminalExecution<'_> {
             place,
             path,
             access,
+            None,
             if access == StructuralAccess::SharedBorrow {
                 terminal_psi::StructuralFieldType::shared_observation_type
             } else {
@@ -1305,6 +1311,7 @@ impl TerminalExecution<'_> {
             place,
             path,
             StructuralAccess::SharedBorrow,
+            Some(expected.id),
             |field| field.leaf_copy_type(Some(expected)),
         )
         .map(|projection| (projection.value, projection.endpoint_field))
@@ -1315,13 +1322,16 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
+        expected: Option<StructuralTypeId>,
         leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>
         + Copy,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         let owner = self.structural_value(place)?;
-        self.resolve_storage_projection_with_leaf_type(place, owner, path, access, leaf_type)
+        self.resolve_storage_projection_with_leaf_type(
+            place, owner, path, access, expected, leaf_type,
+        )
     }
 
     /// Project an already selected storage home. A packed array transaction
@@ -1334,6 +1344,7 @@ impl TerminalExecution<'_> {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
+        expected: Option<StructuralTypeId>,
         leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>
@@ -1353,6 +1364,7 @@ impl TerminalExecution<'_> {
             backing,
             path,
             Some(access),
+            expected,
             leaf_type,
             view,
             placed,
@@ -1392,6 +1404,7 @@ impl TerminalExecution<'_> {
             owner,
             path,
             Some(access),
+            None,
             if access == StructuralAccess::SharedBorrow {
                 terminal_psi::StructuralFieldType::shared_observation_type
             } else {
@@ -1421,6 +1434,7 @@ impl TerminalExecution<'_> {
             backing,
             path,
             None,
+            None,
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
             placed,
@@ -1438,6 +1452,7 @@ impl TerminalExecution<'_> {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: Option<StructuralAccess>,
+        expected: Option<StructuralTypeId>,
         leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>
@@ -1565,23 +1580,13 @@ impl TerminalExecution<'_> {
                 primitive_storage = Some(storage);
                 // This is a logical loan descriptor, not a relabelled cell.
                 // The actual endpoint and codec above still name the source.
-                let structural_type = if let Some(field) = crate::custody::inline_structural_field(
+                let structural_type = crate::custody::resolve_structural_path_type_with_leaf(
                     &types,
                     view.structural_type,
                     logical_prefix,
-                ) {
-                    leaf_type(&field.field_type)
-                        .and_then(|leaf| leaf.leaf_declaration(types.values()))
-                        .map(|declaration| declaration.id)
-                } else {
-                    terminal_semantics::runtime_structural_path_tip(
-                        types.values(),
-                        view.structural_type,
-                        logical_prefix,
-                    )
-                    .map(|declaration| declaration.id)
-                }
-                .ok_or_else(malformed)?;
+                    if boundary.is_none() { expected } else { None },
+                    leaf_type,
+                )?;
                 (value.qualifications, value.projected_qualifications) =
                     terminal_psi::StructuralPathQualification::select(
                         &value.qualifications,
@@ -1595,7 +1600,7 @@ impl TerminalExecution<'_> {
                 value
             } else if boundary.is_none() {
                 crate::custody::project_structural_value_with_leaf(
-                    &types, &value, prefix, leaf_type,
+                    &types, &value, prefix, expected, leaf_type,
                 )?
             } else if access == Some(StructuralAccess::SharedBorrow) {
                 crate::custody::project_shared_structural_observation(&types, &value, prefix)?
@@ -1925,6 +1930,7 @@ impl TerminalExecution<'_> {
                         backing,
                         path,
                         Some(source.access),
+                        None,
                         terminal_psi::StructuralFieldType::canonical_leaf_type,
                         view,
                         placed.or_else(|| {

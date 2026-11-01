@@ -38,9 +38,9 @@ pub struct TargetLayoutApplication {
     pub realizations: Vec<TargetLayoutRealization>,
 }
 
-/// Version 3 retains canonical numbered record Schema order independently
+/// Version 4 retains canonical numbered record Schema order independently
 /// of semantic declaration order: active fields,
-/// retired field identities and fixed unused-row padding. Case-bearing
+/// retired field identities, field geometry sources and fixed unused-row padding. Case-bearing
 /// schemas require a separate placement vocabulary and cannot enter this ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutSchemaArgument {
@@ -56,6 +56,13 @@ pub enum TargetLayoutSchemaFieldKind {
     Repeated,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetLayoutFieldLayoutSource {
+    Default,
+    Scalar,
+    Explicit,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutSchemaField {
     pub record_field: StructuralFieldId,
@@ -65,6 +72,7 @@ pub struct TargetLayoutSchemaField {
     pub byte_size: u64,
     pub byte_alignment: u64,
     pub kind: TargetLayoutSchemaFieldKind,
+    pub layout_source: TargetLayoutFieldLayoutSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

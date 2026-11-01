@@ -119,6 +119,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                         storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![
                             StructuralFieldDeclaration {
+                                inline_carrier: None,
                                 storage: None,
                                 id: id::<StructuralFieldId>(1),
                                 identity: terminal_psi::TerminalIdentityIndex(2),
@@ -130,6 +131,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 ),
                             },
                             StructuralFieldDeclaration {
+                                inline_carrier: None,
                                 storage: None,
                                 id: id::<StructuralFieldId>(2),
                                 identity: terminal_psi::TerminalIdentityIndex(3),

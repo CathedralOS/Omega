@@ -195,6 +195,23 @@ retired-syntax deletions to completion.
     predicate handback with current storage versions, including `window_demo`'s
     guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
     60-frame bounds; preserve that sample's existing guards and operation.
+    [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
+    establishes the nine-place captured-read prerequisite after disjoint writes;
+    full GUI qualification remains open. Mixed-predicate restoration windows
+    must still withhold temporarily false bounds from scalar snapshots:
+    `start = -1; let saved = start;` followed by restoring `start >= 0 && start <= end`
+    must not justify `require_nonnegative(saved)`. Both the fixed `225551dd818`
+    baseline and the captured-read repair currently accept that invalid control;
+    the ordinary arithmetic read query remains to repair.
+    [Guarded call entry](samples/cli/facts/guarded_call_entry/README.md) establishes
+    fresh referent guards and immutable scalar facts at opaque invocations across
+    the nine places, with nine fact-sensitive rejects and stale-storage controls.
+    It repairs the integrated `6c8950d4825` producer's refusal of the unchanged
+    `frame_fields` / `parse` guards after opaque callbacks in
+    [CompactBinary](source/library/std/wire.omg), without changing those callers
+    or callback contracts. WindowDemo now clears source checking and Terminal
+    production; ordinary package-policy review and native GUI execution remain
+    open, alongside the mixed-predicate restoration-window issue above.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -337,12 +354,11 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 69 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 10 facts spell it in all nine places
-    (`foreign_{nested_record_backing,retained_mutable_borrow}`,
-    `generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    Frontier: 64 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 6 facts spell it in all nine places
+    (`generic_calling_policy`,
     `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
-    `selected_provider_issuance`, `target_family_contract_operand`,
+    `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
@@ -846,9 +862,8 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete other-host execution for the
-    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md) and
-    remaining schema composition support; migrate complete platform ABI records;
+  - Complete remaining schema/case composition support;
+    migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.

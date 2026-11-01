@@ -356,6 +356,21 @@ pub(super) fn lower_unit_structural_types<'checked>(
     LoweringError,
 > {
     let mut roots = additional_roots.to_vec();
+    for signature in plans.calling_signatures() {
+        if let Ok(storage) = &signature.storage {
+            for parameter in &storage.parameters {
+                roots.push(parameter.type_identity);
+                projection_types::collect_boundary_backing(
+                    plans,
+                    parameter.type_identity,
+                    &mut roots,
+                )?;
+            }
+            // Returned references retain pointer geometry, not an independent
+            // demand to expand firmware- or provider-owned pointee storage.
+            roots.extend(storage.result);
+        }
+    }
     let mut literal_view = false;
     let sources = plans.source_machines(checked, closure)?;
     // Fused dispatch identities do not replace the declaration owners of
@@ -673,6 +688,13 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             error => error,
         })?;
         active.push(identity);
+        if let Some(representation) = plans
+            .opaque_representations()
+            .iter()
+            .find(|row| row.opaque == identity)
+        {
+            collect(checked, plans, representation.carrier, active, selected)?;
+        }
         match &plan.shape {
             CheckedUnitStructuralTypeShape::BindingCarrier => {}
             // Pointer transport names a closed referent, not its storage.
@@ -900,6 +922,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                     field_type => (field.relevance, lower_field_type(identities, checked, field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
+                    inline_carrier: crate::structural_types::lower_inline_carrier(field, &type_ids)?,
                     storage: field.storage.clone(),
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: identities.intern(&field.identity.spelling()),
@@ -981,6 +1004,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                                         }
                                         let field_type = lower_field_type(identities, checked, &field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
+                                            inline_carrier: crate::structural_types::lower_inline_carrier(field, &type_ids)?,
                                             storage: field.storage.clone(),
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,

@@ -57,6 +57,8 @@ pub struct CheckedUnitEffectPlans {
     pub layout_observations: Vec<CheckedLayoutObservation>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
+    pub calling_signatures: Vec<super::CheckedCallingSignaturePlan>,
+    pub opaque_representations: Vec<super::CheckedOpaqueRepresentation>,
     /// The call shape of every instantiated selector-call slot.
     pub dynamic_slots: Vec<crate::CheckedDynamicSlotPlan>,
     pub machines: Vec<CheckedUnitEffectMachinePlan>,

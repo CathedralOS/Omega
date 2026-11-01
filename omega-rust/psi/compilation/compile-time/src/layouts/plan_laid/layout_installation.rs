@@ -378,6 +378,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             let retained = super::super::schema_reflection::canonical_schema_fields(&fields).into_iter().map(|field| Ok(PlanLaidSchemaField {
             schema_field: field.schema_field, key: field.key, identity: field.identity,
             byte_size: field.size, byte_alignment: field.align,
+            layout_source: field.layout_source,
             kind: match field.kind { "Scalar" => PlanLaidSchemaFieldKind::Scalar,
                 "Nested" => PlanLaidSchemaFieldKind::Nested,
                 "Repeated" => PlanLaidSchemaFieldKind::Repeated,
@@ -386,7 +387,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             let mut retired_identities = semantic.retired_identities.clone();
             retired_identities.sort_unstable();
             let schema_argument = Some(PlanLaidSchemaArgument {
-                abi_version: 3,
+                abi_version: 4,
                 fields: typed.plan_laid_schema_fields.insert_many(retained),
                 retired_field_identities: typed.plan_laid_retired_field_identities.insert_many(
                     retired_identities.iter().map(|identity| {

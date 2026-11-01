@@ -850,10 +850,17 @@ pub(super) fn with_caller_origin_context<T>(
     collections: &Mutex<
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
-    resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
+    resolve: impl FnOnce(&mut FrameInference, Option<&CallOriginContext<'_>>) -> Option<T>,
 ) -> Option<T> {
     let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
-    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    let Some(prefix) =
+        collected_prefix_at(collections, program, machine, state, symbols, index, true)
+    else {
+        // An unavailable descriptor history cannot erase independently formed
+        // owned addresses. Consumers keep unknown loaded origins explicit;
+        // footprint consumers still require the complete prefix below.
+        return resolve(&mut FrameInference::default(), None);
+    };
     // These consumers capture invocation inputs, before this invocation's
     // writes. Each rejects effects preceding/during its operand through the
     // chronological capture owner. The whole-statement exposure fence would
@@ -865,7 +872,9 @@ pub(super) fn with_caller_origin_context<T>(
         divergent: prefix.divergent,
         stored: prefix.stored,
     };
-    with_retained_origin_context(program, machine, site, evidence, resolve)
+    with_retained_origin_context(program, machine, site, evidence, |inference, prefix| {
+        resolve(inference, Some(prefix))
+    })
 }
 
 fn with_retained_origin_context<T>(

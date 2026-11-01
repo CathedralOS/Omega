@@ -564,8 +564,12 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
             return None;
         }
+        // Public recipes keep every operand's formation obligation. Synthetic
+        // call descriptions must not expand nested saved actuals before the
+        // integer resolver authenticates their completed supplier identities.
+        // Its current refinements and whole-context admission remain unchanged.
         let value = self
-            .resolve(self.completed_value_identity(value.clone()))
+            .integer_projection_value(self.completed_integer_call_description(value))
             .into_semantic_value();
         match value {
             StructuralTerm::Integer(value) => {

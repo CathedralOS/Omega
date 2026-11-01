@@ -1,10 +1,9 @@
 # Inline member helper
 
-Owning task: **STATIC-MACHINE-MIGRATION** in
+Owning tasks: **STATIC-MACHINE-MIGRATION** and **BUILD-OWNED-TARGET-SELECTION** in
 [TASKS.md](../../../../TASKS.md). The requirement exercised here is an inline
-member that calls a shared helper. The helper does not satisfy the requirement,
-so the member remains that call. A member whose only body calls a machine that
-already satisfies the same requirement is that machine instead.
+member that calls a shared helper. The member and helper retain separate
+callable identities; reuse is an ordinary checked call inside the member.
 
 **Fact: Selected satisfies Sum and its inline combine calls shared helper add, preserving result == left + right.**
 
@@ -26,8 +25,10 @@ Every positive place declares `Expected exit: 0` and binds `ProgramEntry` for
 | Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
 `omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
-Each twin removes only the right operand bound and rejects because `apply`
-cannot prove `combine`'s requires. `main` checks both `20 + 22 = 42` and
+Each twin changes only its place's operand-bound declaration, ceiling constant,
+or produced value. It rejects at the call that needs the missing bound (`step`
+in the nested-machine place, `apply` elsewhere); the call-result twin also
+disproves its supplier's range promise. `main` checks both `20 + 22 = 42` and
 `10 + 12 = 22`. The match-join place takes the true arm for 42 and the false
 arm for 22.
 
@@ -39,14 +40,25 @@ arm for 22.
   and does not satisfy `Sum::combine`.
 - Composition: `apply` substitutes `Selected` and returns `Operations::combine`.
   Joins and transports copy that call.
-- Soundness: the reject twin drops the right bound only. The helper call is
-  not rewritten into a reference row.
+- Soundness: each twin changes one bound, constant or produced value, retaining
+  both runtime calls and all other contracts. Call-result suppliers expose
+  their result ranges independently; returning 51 disproves the right range
+  and the consuming call. Auxiliary sum equalities use `i64` so a missing
+  operand bound is diagnosed at its call rather than as an overflowing `i32`
+  expression in the postcondition. The helper remains an ordinary checked call.
 - Checked lowering: the generic `<=` and `+` in `Sum` are schematic over
   `Value`. The concrete member uses `i32`.
 - Calling plans: each positive binds `ProgramEntry` for the four hosted targets.
 - Instruction and image: `omega run --both` on this Linux x86_64 host.
 - Runtime falsifier: both sums are checked. A constant 42 fails the second call.
   Match join exercises both arms.
+
+The target-body place declares ordinary `X86Probe` and `ArmProbe`
+implementations. Its Build records explicit `TargetProbe` and `BodyTag`
+provider rows for all four hosted targets. The entry checks its architecture's
+tag, and the selected probe checks the same tag before calling the shared
+`probe`. Selecting either mismatched implementation traps, independently of
+the two sum checks. No source machine has a target prefix.
 
 Open under STATIC-MACHINE-MIGRATION: reference-row retirement in the Omega-written producer,
 `dropped by`, and source-visible `Binding<R>`.

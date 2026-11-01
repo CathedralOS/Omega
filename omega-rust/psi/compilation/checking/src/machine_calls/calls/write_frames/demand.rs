@@ -1488,6 +1488,7 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Expression(expression),
             &self.caches.state_write_collections,
             |inference, prefix| {
+                let prefix = prefix?;
                 let mut written = Vec::new();
                 let collected = collect_operation_written_paths(
                     self.program,

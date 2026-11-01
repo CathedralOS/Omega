@@ -73,6 +73,7 @@ impl Types {
             .iter()
             .enumerate()
             .map(|(position, field_type)| StructuralFieldDeclaration {
+                inline_carrier: None,
                 id: StructuralFieldId::new((position + 1).try_into().unwrap()).unwrap(),
                 identity: TerminalIdentityIndex((position + 1).try_into().unwrap()),
                 relevance: BindingRelevance::Relevant,

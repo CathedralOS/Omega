@@ -18,6 +18,7 @@ fn type_id(value: u64) -> StructuralTypeId {
 
 fn field(identity: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        inline_carrier: None,
         id: StructuralFieldId::new(u64::from(identity)).unwrap(),
         identity: TerminalIdentityIndex(identity),
         relevance: BindingRelevance::Relevant,

@@ -1,48 +1,67 @@
-// Target-family member preconditions retain their operand identities, and a call with 42 satisfies the joined contract.
+// Fact: Generic callback operands retain exact declaration identities through explicit requirements and selected implementations; a call with 42 satisfies the common <=64 contract and preserves Item callback behavior.
 // Expected exit: 0
+
+boundary trait Choosing {
+    machine choose<Value, machine Callback>(value: &Value, number: u64) -> bool reaches
+    requires machine Callback(argument: &Value, count: u64) -> bool requires count <= 512;
+    requires number <= 64;
+}
+
+ArmChoice satisfies Choosing {
+    machine choose<Value, machine Selected>(value: &Value, number: u64) -> bool
+requires machine Selected(argument: &Value, count: u64) -> bool requires count <= 64;
+requires number <= 64
+{ Selected(value, number) }
+}
+X64Choice satisfies Choosing {
+    machine choose<Element, machine Callback>(element: &Element, amount: u64) -> bool
+requires machine Callback(argument: &Element, count: u64) -> bool requires count <= 128;
+requires amount <= 128
+{ Callback(element, amount) }
+}
+DarwinChoice satisfies Choosing {
+    machine choose<Payload, machine Operation>(payload: &Payload, quantity: u64) -> bool
+requires machine Operation(argument: &Payload, count: u64) -> bool requires count <= 256;
+requires quantity <= 256
+{ Operation(payload, quantity) }
+}
+WindowsChoice satisfies Choosing {
+    machine choose<Datum, machine Action>(datum: &Datum, input: u64) -> bool
+requires machine Action(argument: &Datum, count: u64) -> bool requires count <= 512;
+requires input <= 41
+{ Action(datum, input) }
+}
+
 data Item { code: u64; }
 machine matches(item: &Item, number: u64) -> bool {
     item.code == 42 && number == 42
 }
 
-linux_arm64 machine choose<Value, machine Selected>(value: &Value, number: u64) -> bool
-requires machine Selected(argument: &Value, count: u64) -> bool requires count <= 64;
-requires number <= 64
-{ Selected(value, number) }
-
-linux_x86_64 machine choose<Element, machine Callback>(element: &Element, amount: u64) -> bool
-requires machine Callback(argument: &Element, count: u64) -> bool requires count <= 128;
-requires amount <= 128
-{ Callback(element, amount) }
-
-macos_arm64 machine choose<Payload, machine Operation>(payload: &Payload, quantity: u64) -> bool
-requires machine Operation(argument: &Payload, count: u64) -> bool requires count <= 256;
-requires quantity <= 256
-{ Operation(payload, quantity) }
-
-windows_x86_64 machine choose<Datum, machine Action>(datum: &Datum, input: u64) -> bool
-requires machine Action(argument: &Datum, count: u64) -> bool requires count <= 512;
-requires input <= 41
-{ Action(datum, input) }
-
 // The forwarded contract is total. Every member checks it using its own
 // generic symbols, not the first declaration's spelling or inference row.
 machine forward<Value, machine Callback>(value: &Value) -> bool
+reaches Choosing
 requires machine Callback(argument: &Value, count: u64) -> bool;
-{ choose<Value, Callback>(value, 42) }
+{ Choosing::choose<Value, Callback>(value, 42) }
 
-windows_x86_64 machine direct(item: &Item) -> bool { choose<Item, matches>(item, 42) }
-linux_x86_64 machine direct(item: &Item) -> bool { choose<Item, matches>(item, 42) }
-macos_arm64 machine direct(item: &Item) -> bool { choose<Item, matches>(item, 42) }
-linux_arm64 machine direct(item: &Item) -> bool { choose<Item, matches>(item, 42) }
-machine main() crashes Trap {
-    let item: Item = Item { code: 42 };
-    let direct: bool = direct(&item);
+machine run_case(item_code: u64, expected: bool) reaches Choosing, DirectRouting crashes Trap {
+    let item: Item = Item { code: item_code };
+    let direct: bool = DirectRouting::direct(&item);
     let forwarded: bool = forward<Item, matches>(&item);
-    transition direct && forwarded {
+    transition direct == expected && forwarded == expected {
         true -> done()
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
+}
+
+boundary trait DirectRouting { machine direct(item: &Item) -> bool reaches Choosing; }
+DirectCode satisfies DirectRouting {
+    machine direct(item: &Item) -> bool reaches Choosing { Choosing::choose<Item, matches>(item, 42) }
+}
+
+machine main() reaches Choosing, DirectRouting crashes Trap {
+    run_case(42, true);
+    run_case(43, false);
 }

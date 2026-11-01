@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 226 even when every table
+order below. This layout uses semantic format marker 227 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -876,33 +876,90 @@ Older markers are rejected before their payload is read.
 | 15 | access-view inputs | counted access-view input rows |
 | 16 | reborrow restored call uses | counted restored-use rows |
 | 17 | boundary machines | counted boundary machine declarations |
-| 18 | calling signatures | counted exact boundary calling telescopes |
-| 19 | unoptimized behavior | counted pre-optimization behavior rows |
-| 20 | external providers | counted external provider conformances |
-| 21 | provider candidates | counted provider candidate rows |
-| 22 | dynamic dispatch | counted interfaces and implementation tables |
-| 23 | float-meaning projections | counted projection rows |
-| 24 | float-meaning equalities | counted equality rows |
-| 25 | proposition declarations | counted proposition declaration rows |
-| 26 | proposition applications | counted proposition application rows |
-| 27 | evidence terms | counted evidence term rows |
-| 28 | evidence contract lanes | counted evidence lane rows |
-| 29 | proof-output invocations | counted proof-output call rows |
-| 30 | proof recursive components | counted recursive component rows |
-| 31 | closed conformance applications | counted conformance application rows |
-| 32 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 33 | scalar block invariants | the counted invariant rows above |
-| 34 | operation crash contracts | counted operation crash contract rows |
-| 35 | machines | counted machine rows |
-| 36 | legacy target-machine families | counted family rows; removal pending |
-| 37 | target layout applications | counted complete checked policy alternatives |
-| 38 | native layout catalog | counted nominal records and complete native reports, below |
-| 39 | boundary application demands | counted exact requirement/application rows |
-| 40 | callback applications | counted checked registrar occurrences |
-| 41 | boundary application candidates | counted checked bodies for closed applications |
-| 42 | task activation demands | counted task activation demand rows |
+| 18 | calling signatures | counted boundary-to-declaration ABI associations |
+| 19 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
+| 20 | calling policy requests | counted ordered explicit policy applications, below |
+| 21 | opaque representations | counted exact selected carrier applications, below |
+| 22 | unoptimized behavior | counted pre-optimization behavior rows |
+| 23 | external providers | counted external provider conformances |
+| 24 | provider candidates | counted provider candidate rows |
+| 25 | dynamic dispatch | counted interfaces and implementation tables |
+| 26 | float-meaning projections | counted projection rows |
+| 27 | float-meaning equalities | counted equality rows |
+| 28 | proposition declarations | counted proposition declaration rows |
+| 29 | proposition applications | counted proposition application rows |
+| 30 | evidence terms | counted evidence term rows |
+| 31 | evidence contract lanes | counted evidence lane rows |
+| 32 | proof-output invocations | counted proof-output call rows |
+| 33 | proof recursive components | counted recursive component rows |
+| 34 | closed conformance applications | counted conformance application rows |
+| 35 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 36 | scalar block invariants | the counted invariant rows above |
+| 37 | operation crash contracts | counted operation crash contract rows |
+| 38 | machines | counted machine rows |
+| 39 | legacy target-machine families | counted family rows; removal pending |
+| 40 | target layout applications | counted complete checked policy alternatives |
+| 41 | native layout catalog | counted nominal records and complete native reports, below |
+| 42 | boundary application demands | counted exact requirement/application rows |
+| 43 | callback applications | counted checked registrar occurrences |
+| 44 | boundary application candidates | counted checked bodies for closed applications |
+| 45 | task activation demands | counted task activation demand rows |
 
-Marker 226 retains the native-layout catalog alongside semantic storage. Its ordered
+Marker 227 separates declaration ABIs from boundary invocation contracts. An
+ABI row retains its nonzero `u64` application id, exact requirement and complete
+declaring-application identity-table indices, ordered non-callback static
+operands (`u32` declared ordinal, `u8` kind, identity-table index), ordered
+generic formals, Product-default eligibility, and a storage result. Operand
+kinds are type, const, value, machine, implementation and proposition (tags
+`0` through `5`). A generic formal retains its declared ordinal, kind and
+optional nominal callback-binder id. Only those callback actuals are excluded
+from the ABI key; phantom operands and other machine operands remain exact.
+The compact application id is checked against the complete retained key.
+
+A result begins with a success Boolean. Successful ABI storage contains counted
+structural-type/access parameter pairs, an optional structural result type and
+the complete native telescope. A refusal contains its diagnostic string and
+remains dormant until consumed. Boundary associations retain the exact ABI id
+or their deferred refusal; selected callback implementations and invocation
+admission remain on their own boundary/callback application records.
+
+Explicit policy requests preserve checked-input order and all checked purposes.
+Each retains its declaration identity result, diagnostic display label and
+instance-list result. Each instance names its complete declaring application,
+exact machine-or-boundary policy callable result and ordered ABI-id-list result.
+Instance-list refusals retain a counted nonempty diagnostic-string list; other
+refusals retain one nonempty string. A missing selection never decodes as an
+empty successful policy request. These records describe checked declarations,
+not execution or provider authority.
+
+Marker 227 also retains a counted selected-opaque roster. Each row names its
+opaque and carrier structural ids, their exact portable storage identity-table
+indices, and the existing target-independent selected
+application: portable opaque/carrier/conformance identity strings, `u64` report
+fingerprint, 32-byte Source-v4 commitment, counted identity-preimage bytes,
+`u16` schema version, origin/lifecycle/copy tags, and 32-byte selected-application
+commitment. V1 origin and lifecycle tags are both `1` (named conformance and
+inert storage); copy is `1` for placement-only and `2` for checked semantic
+copy. Ingress checks both existing commitments against the retained fields.
+Ingress also checks those exact storage joins, complete field/case contracts
+and retained native-layout provenance, ignoring only freshly allocated member
+ids and intentionally distinct nominal custody. These consistency checks do not
+grant Build selection authority. The relation is selected once; its carrier
+retains all target-layout alternatives.
+Native boundary materialization records exact occurrence roots rather than
+inferring selected-carrier custody from equal physical shapes.
+
+Every structural field encodes its field id, identity-table index and relevance
+tag, then an optional declared inline-carrier type id, followed by its field
+kind. The optional id uses tag `0` for absence and `1` followed by the type id.
+It is a declaration dependency, not another owned payload. Scalar/byte field
+projections use this exact association, never a unique equal-shape search.
+The field retains its full inline predicate; it must imply the declared
+carrier's restriction, and read, store and handback obligations still use the
+full field predicate. Erased, atomic and structural-child fields cannot use
+this association to acquire an ordinary standalone scalar presentation.
+
+Marker 226 introduced the native-layout catalog alongside semantic storage. Its ordered
 record roster equals the complete structural record inventory. Each row encodes
 the structural type id, nominal data, selected policy and semantic-argument identity-table indices
 (`u32`, zero denotes absence), then counted nominal fields and realizations.

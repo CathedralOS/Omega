@@ -1,0 +1,33 @@
+// Expected exit: 0
+// Diagnostic: a generic Plan may mutate Ctx; fresh guards and immutable fuel admit private parse.
+public data CompactBinary {}
+public data Ctx { slots: &mut [u64]; count: u64; valid: bool; }
+public machine CompactBinary::read_record<machine Plan>(slots: &mut [u64], fuel: u64) -> u64
+requires machine Plan(context: &mut Ctx);
+requires fuel > 0u64
+{
+    let mut context: Ctx = Ctx { slots: slots, count: 0u64, valid: true };
+    Plan(&mut context);
+    parse(&mut context, fuel)
+    machine parse(context: &mut Ctx, fuel: u64) -> u64
+    requires context.count <= context.slots.len && fuel > 0u64
+    { context.slots.len - context.count }
+}
+machine PlanGood(context: &mut Ctx) { context.count = context.slots.len; }
+machine PlanFalse(context: &mut Ctx) { context.valid = false; }
+machine main() crashes Trap {
+    let mut first: [u64; 4] = [0x13579BDFu64, 7u64, 11u64, 0x2468ACE0u64];
+    let good: u64 = CompactBinary::read_record<PlanGood>(&mut first[1u64..3u64], 1u64);
+    let mut second: [u64; 4] = [0x13579BDFu64, 7u64, 11u64, 0x2468ACE0u64];
+    let invalid: u64 = CompactBinary::read_record<PlanFalse>(&mut second[1u64..3u64], 1u64);
+    transition good == 0u64 && invalid == 99u64
+        && first[0] == 0x13579BDFu64 && first[3] == 0x2468ACE0u64
+        && first[1] == 7u64 && first[2] == 11u64
+        && second[0] == 0x13579BDFu64 && second[3] == 0x2468ACE0u64
+        && second[1] == 7u64 && second[2] == 11u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

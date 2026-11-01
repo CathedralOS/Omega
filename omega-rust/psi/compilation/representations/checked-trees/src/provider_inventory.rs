@@ -29,8 +29,9 @@ impl PreparedProviderInventory {
     pub fn new(checked: Arc<CheckedTrees>) -> Self {
         // The Product projection has reached its final immutable Arc before
         // source-owned service formation. No target can extend this census.
-        let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-            ProviderPlanningContext::new(&checked.typed, Product),
+        let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare_frozen(
+            &checked.typed,
+            Product,
         );
         Self {
             checked,

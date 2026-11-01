@@ -1,6 +1,6 @@
 //! Batch checking shares only successful signature formation in one owned arena.
 
-use super::{MathematicalCertificate, run_on_verification_stack};
+use super::MathematicalCertificate;
 use crate::mathematical_core::term::MAX_SUBTERMS;
 use crate::mathematical_core::{
     Budget, Context, CoreError, Declaration, Signature, Term, TermArena, TermHandle,
@@ -23,43 +23,41 @@ pub fn verify_mathematical_certificates(
     certificates: &[(&TermArena, &MathematicalCertificate)],
     budget: &mut Budget,
 ) -> Result<(), MathematicalCertificateBatchError> {
-    run_on_verification_stack(|| {
-        let mut imported = ImportedTerms::default();
-        let mut signatures: Vec<(Vec<Declaration>, Signature)> = Vec::new();
-        for (ordinal, (source, certificate)) in certificates.iter().enumerate() {
-            let certificate = imported
-                .certificate(source, certificate)
-                .map_err(|error| MathematicalCertificateBatchError { ordinal, error })?;
-            let result = (|| {
-                let signature = if let Some((_, signature)) = signatures
-                    .iter()
-                    .find(|(declarations, _)| *declarations == certificate.signature)
-                {
-                    signature.clone()
-                } else {
-                    let signature =
-                        check_signature(&mut imported.arena, &certificate.signature, budget)?;
-                    signatures.push((certificate.signature.clone(), signature.clone()));
-                    signature
-                };
-                let mut context =
-                    Context::with_level_arity(certificate.level_arity).with_signature(signature);
-                for binding in certificate.context {
-                    infer_sort(&mut imported.arena, &context, binding, budget)?;
-                    context = context.extend(binding);
-                }
-                check_type(
-                    &mut imported.arena,
-                    &context,
-                    certificate.term,
-                    certificate.expected,
-                    budget,
-                )
-            })();
-            result.map_err(|error| MathematicalCertificateBatchError { ordinal, error })?;
-        }
-        Ok(())
-    })
+    let mut imported = ImportedTerms::default();
+    let mut signatures: Vec<(Vec<Declaration>, Signature)> = Vec::new();
+    for (ordinal, (source, certificate)) in certificates.iter().enumerate() {
+        let certificate = imported
+            .certificate(source, certificate)
+            .map_err(|error| MathematicalCertificateBatchError { ordinal, error })?;
+        let result = (|| {
+            let signature = if let Some((_, signature)) = signatures
+                .iter()
+                .find(|(declarations, _)| *declarations == certificate.signature)
+            {
+                signature.clone()
+            } else {
+                let signature =
+                    check_signature(&mut imported.arena, &certificate.signature, budget)?;
+                signatures.push((certificate.signature.clone(), signature.clone()));
+                signature
+            };
+            let mut context =
+                Context::with_level_arity(certificate.level_arity).with_signature(signature);
+            for binding in certificate.context {
+                infer_sort(&mut imported.arena, &context, binding, budget)?;
+                context = context.extend(binding);
+            }
+            check_type(
+                &mut imported.arena,
+                &context,
+                certificate.term,
+                certificate.expected,
+                budget,
+            )
+        })();
+        result.map_err(|error| MathematicalCertificateBatchError { ordinal, error })?;
+    }
+    Ok(())
 }
 
 struct ImportedTerms {
@@ -114,28 +112,50 @@ impl ImportedTerms {
         handle: TermHandle,
         local: &mut HashMap<TermHandle, Option<TermHandle>>,
     ) -> Result<TermHandle, CoreError> {
-        if let Some(&term) = local.get(&handle) {
-            // A cycle is not a finite core term. Fail before kernel checking.
-            return term.ok_or(CoreError::DummyTerm);
+        enum Pending {
+            Enter(TermHandle),
+            Finish { original: TermHandle, node: Term },
         }
-        local.insert(handle, None);
-        // The node layout comes from `Term::subterms` / `Term::with_children`,
-        // so importing a term graph never re-lists the variants: every slot
-        // lands in the owned arena first, then the node is rebuilt from them
-        // and interned by syntax.
-        let node = source.get(handle);
-        let slots = node.subterms();
-        let mut children = [handle; MAX_SUBTERMS];
-        for (index, (child, _binders)) in slots.iter().enumerate() {
-            children[index] = self.term(source, child, local)?;
+        let mut pending = vec![Pending::Enter(handle)];
+        while let Some(work) = pending.pop() {
+            match work {
+                Pending::Enter(original) => {
+                    if let Some(term) = local.get(&original) {
+                        term.ok_or(CoreError::DummyTerm)?;
+                        continue;
+                    }
+                    local.insert(original, None);
+                    let node = source.get(original);
+                    let slots = node.subterms();
+                    pending.push(Pending::Finish { original, node });
+                    for (child, _) in slots.iter().rev() {
+                        pending.push(Pending::Enter(child));
+                    }
+                }
+                Pending::Finish { original, node } => {
+                    let slots = node.subterms();
+                    let mut children = [original; MAX_SUBTERMS];
+                    for (index, (child, _)) in slots.iter().enumerate() {
+                        children[index] = local
+                            .get(&child)
+                            .copied()
+                            .flatten()
+                            .expect("each preceding child import completed");
+                    }
+                    let term = node.with_children(&children[..slots.len()]);
+                    let term = *self
+                        .by_syntax
+                        .entry(term.clone())
+                        .or_insert_with(|| self.arena.insert(term));
+                    local.insert(original, Some(term));
+                }
+            }
         }
-        let term = node.with_children(&children[..slots.len()]);
-        let term = *self
-            .by_syntax
-            .entry(term.clone())
-            .or_insert_with(|| self.arena.insert(term));
-        local.insert(handle, Some(term));
-        Ok(term)
+        Ok(local
+            .get(&handle)
+            .copied()
+            .flatten()
+            .expect("the finite root import completed"))
     }
 }
 
@@ -315,5 +335,97 @@ mod tests {
             failure.error,
             CoreError::UnboundLevelParameter { .. }
         ));
+    }
+    #[test]
+    fn deep_certificate_import_preserves_judgment_on_default_stack() {
+        std::thread::spawn(|| {
+            let mut source = TermArena::new();
+            let two = source.insert(Term::Two);
+            let mut term = source.insert(Term::TwoZero);
+            let mut expected = two;
+            for _ in 0..8192 {
+                term = source.insert(Term::Lambda {
+                    domain: two,
+                    body: term,
+                });
+                expected = source.insert(Term::Pi {
+                    domain: two,
+                    codomain: expected,
+                });
+            }
+            let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
+            let inferred = crate::mathematical_core::infer_type(
+                &mut source,
+                &Context::empty(),
+                term,
+                &mut Budget::new(0),
+            )
+            .expect("the source term independently has its complete type");
+            assert!(source.structurally_equal(inferred, expected));
+            eprintln!(
+                "independent source inference admitted the complete 8192-binder type; begin import"
+            );
+            let mut imported = ImportedTerms::default();
+            let copied = imported
+                .certificate(&source, &certificate)
+                .expect("all finite source terms import");
+            let inferred = crate::mathematical_core::infer_type(
+                &mut imported.arena,
+                &Context::empty(),
+                copied.term,
+                &mut Budget::new(0),
+            )
+            .expect("the imported term has its complete type");
+            assert!(imported.arena.structurally_equal(inferred, copied.expected));
+        })
+        .join()
+        .expect("term import uses default-stack handle worklists");
+    }
+    #[test]
+    fn public_mathematical_verification_keeps_its_callers_default_stack() {
+        std::thread::spawn(|| {
+            let mut arena = TermArena::new();
+            let two = arena.insert(Term::Two);
+            let zero = arena.insert(Term::TwoZero);
+            let mut term = zero;
+            let mut expected = two;
+            for _ in 0..512 {
+                term = arena.insert(Term::Lambda {
+                    domain: two,
+                    body: term,
+                });
+                expected = arena.insert(Term::Pi {
+                    domain: two,
+                    codomain: expected,
+                });
+            }
+            let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
+            let before = super::super::verification_workers_started();
+            verify_mathematical_certificate(&mut arena, &certificate, &mut Budget::new(0))
+                .expect("single verification uses complete handle judgments");
+            let source_nodes = arena.len();
+            verify_mathematical_certificates(&[(&arena, &certificate)], &mut Budget::new(0))
+                .expect("batch verification imports and checks the same complete judgment");
+            assert_eq!(
+                arena.len(),
+                source_nodes,
+                "batch import owns its destination arena"
+            );
+            let invalid = MathematicalCertificate {
+                context: vec![zero],
+                ..certificate
+            };
+            assert!(matches!(
+                verify_mathematical_certificate(&mut arena, &invalid, &mut Budget::new(0)),
+                Err(CoreError::NotASort { .. })
+            ));
+            assert_eq!(
+                super::super::verification_workers_started(),
+                before,
+                "raw mathematical entries never allocate a wider verification worker"
+            );
+        })
+        .join()
+        .expect("public mathematical verification stays on the caller's default stack");
     }
 }

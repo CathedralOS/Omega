@@ -35,21 +35,24 @@ ensures result == left + right
     block Operations::combine(left, right)
 }
 
-// Place: field. The record omits the right operand bound, so apply cannot prove combine's requires.
-data Operands where 0 <= left && left <= 50 {
+// Place: field. Bounded record fields carry both operands into combine, which calls add.
+// Expected exit: 0
+data Operands where 0 <= left && left <= 50 && 0 <= right {
     left: i32;
     right: i32;
 }
 
 machine probe(operands: Operands) -> i32
 blocks
+ensures (result as i64) == (operands.left as i64) + (operands.right as i64)
 {
     block apply<Selected>(operands.left, operands.right)
 }
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(Operands { left: 20, right: 22 });
-    transition result == 42 { true -> done() _ -> bad() }
+    let wide: i32 = block probe(Operands { left: 20, right: 22 });
+    let narrow: i32 = block probe(Operands { left: 10, right: 12 });
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

@@ -1,1 +1,2 @@
-cannot prove requires contract for call apply
+machine `supply_right` ensures contract proof fact `0 <= result && result <= 50`
+value call to `apply` violates required fact `0 <= right && right <= 50`

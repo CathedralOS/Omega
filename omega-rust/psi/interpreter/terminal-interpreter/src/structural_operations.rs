@@ -1410,6 +1410,7 @@ impl TerminalExecution<'_> {
                 storage,
                 path,
                 required_access,
+                None,
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
             )?
             .value

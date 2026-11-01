@@ -1829,42 +1829,55 @@ impl Denotation {
         &mut self,
         conjuncts: &[Proposition],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if conjuncts.len() < 2 {
-            // `Proposition::validate` rejects non-canonical arity before
-            // denotation; this stays a refusal, never a judgment.
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::RuleConclusionMismatch("conjunction arity"),
-            ));
+        let (mut members, mut tail) = self.connective_members(
+            conjuncts,
+            ProofError::RuleConclusionMismatch("conjunction arity"),
+        )?;
+        while let Some(domain) = members.pop() {
+            tail = self.arena.insert(Term::Sigma {
+                domain,
+                codomain: tail,
+            });
         }
-        let domain = self.denote(&conjuncts[0])?;
-        let codomain = if conjuncts.len() == 2 {
-            self.denote(&conjuncts[1])?
-        } else {
-            self.conjunction(&conjuncts[1..])?
-        };
-        Ok(self.arena.insert(Term::Sigma { domain, codomain }))
+        Ok(tail)
     }
 
-    /// `⟦d₀ ∨ … ∨ dₙ₋₁⟧` — the tagged sum `Σ(t : Two). caseTwo(M, d₀,
-    /// rest, t)` with `rest` the nested disjunction, so a disjunction
-    /// introduction is a `⟨zero, …⟩`/`⟨one, …⟩` pair and an elimination a
-    /// dependent `caseTwo`.
+    /// The tagged sum `Σ(t : Two). caseTwo(M, d₀, rest, t)` nests the
+    /// remaining disjuncts in exactly their original order.
     pub(super) fn disjunction(
         &mut self,
         disjuncts: &[Proposition],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if disjuncts.len() < 2 {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::RuleConclusionMismatch("disjunction arity"),
-            ));
+        let (mut members, mut tail) = self.connective_members(
+            disjuncts,
+            ProofError::RuleConclusionMismatch("disjunction arity"),
+        )?;
+        while let Some(first) = members.pop() {
+            tail = self.tagged_sum(first, tail);
         }
-        let zero_case = self.denote(&disjuncts[0])?;
-        let one_case = if disjuncts.len() == 2 {
-            self.denote(&disjuncts[1])?
-        } else {
-            self.disjunction(&disjuncts[1..])?
-        };
-        Ok(self.tagged_sum(zero_case, one_case))
+        Ok(tail)
+    }
+
+    /// Admit arity before any member, then denote members left to right before
+    /// constructing the right-nested connective. Both declaration side effects
+    /// and failures keep their original order; pending member handles live on
+    /// the heap rather than one Rust call frame per member.
+    fn connective_members(
+        &mut self,
+        members: &[Proposition],
+        arity_error: ProofError,
+    ) -> Result<(Vec<TermHandle>, TermHandle), BoundedDenotationError> {
+        if members.len() < 2 {
+            return Err(BoundedDenotationError::Certificate(arity_error));
+        }
+        let mut terms = Vec::with_capacity(members.len());
+        for member in members {
+            terms.push(self.denote(member)?);
+        }
+        let tail = terms
+            .pop()
+            .expect("canonical connective has at least two members");
+        Ok((terms, tail))
     }
 
     /// `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, zero_case, one_case, t)`

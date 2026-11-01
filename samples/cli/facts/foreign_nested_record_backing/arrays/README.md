@@ -1,6 +1,7 @@
 # Retained array fields in original nested backing
 
-Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md); continuation of
+Parents: **BUILD-OWNED-TARGET-SELECTION**, **BUILD-OWNED-NATIVE-BINDINGS**,
+and [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md); continuation of
 [the nested record fact](../README.md).
 
 Completion consumes Pending and returns the original nested array Buffer with its declared ResidentValue and MarkerValue predicates restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
@@ -72,3 +73,37 @@ The local nine-place row is qualified on macOS; new-predicate execution on the
 other hosts remains pending. This row does not establish borrowed views,
 tagged/dynamic carriers, routed independently qualified descendants,
 pointer graphs or owned aggregate result publication.
+
+## Build-owned source migration
+
+Direct target-keyed `Build::bind<Writer::member>` rows now supply the unchanged
+native imports with inferred locator lengths. The selected-body place uses an
+ordinary private `PendingTransferCode` implementation returning its exact
+incoming Pending with the complete lifetime and Retained obligation. No new
+issuer or snapshot is introduced. The four hosted entry bindings, original
+37/41/73 observations, both restored declaration predicates, exact subtractions,
+marker 91 and neighboring cells remain unchanged. Computed completions keep their
+original strict nested argument graph; match join keeps both observed routes
+66051 and 513.
+
+At optimized producer `4e45c0b749ed` and its matching SDK, the unchanged baseline
+passes 20 Source pins (10 checked / 10 intended rejects) and 10 native/Terminal
+zero-exit pairs. The migrated 20 public projects preserve that split: all nine
+places and the computed-completion control agree at native 0 / Terminal 0, while
+all nine live-loan twins and the invalid ResidentValue constant still refuse for
+their intended obligations. All 20 Source pins and 10 native/Terminal pins also pass. In Terminal, the
+unchanged match positive exits 0; changing only 66051 to 66052 or 513 to 514
+produces a typed Trap. Selected-body Source preparation/checking passes all four
+authored targets. Those selections are Source evidence, not off-host execution. The same C-source/library digests authenticate the
+retained self-test 0 and nine lifecycle traps, without another trap wave. Native
+geometry corroborates that registration and postcompletion observations use
+the same original 32-byte Buffer home; constructor temporaries and the later
+cleanup argument are distinct from that retained backing.
+
+This completes only the owned-array Source migration. Fresh matching-host
+execution is macOS ARM64; earlier host observations above retain their original
+source/producer identities and limitations. The producer's six-file difference
+from main is the mathematical judgment-worklist change, with unchanged SDK and
+ordinary finite Content/scalar contracts recorded for consumer-applicability
+review rather than relabeling these runs. The parent Build migrations and wider
+foreign-storage acceptance remain open.

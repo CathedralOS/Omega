@@ -1,0 +1,21 @@
+// Invalid: a constant-true condition supplies no bound for the saved converted value.
+data Marker { calls: u32 in Wrapping; }
+machine echo(marker: &mut Marker, value: u64) -> u64 {
+    marker.calls = marker.calls + 1;
+    value
+}
+machine invoke(marker: &mut Marker, value: u32) -> u64 {
+    let saved: u64 = value as u64;
+    match true {
+        true -> echo(marker, saved) - 7,
+        _ -> 0
+    }
+}
+machine main() crashes Trap {
+    let mut marker: Marker = Marker { calls: 0 };
+    let first: u64 = invoke(&mut marker, 7);
+    let fallback: u64 = invoke(&mut marker, 2);
+    transition first == 0 && fallback == 0 && marker.calls == 1 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
