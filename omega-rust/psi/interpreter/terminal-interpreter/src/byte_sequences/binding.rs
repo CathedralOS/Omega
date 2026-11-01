@@ -18,6 +18,8 @@ use terminal_semantics::{borrowed_storage_parameter, borrowed_storage_reference_
 #[derive(Clone)]
 pub(crate) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),
+    /// Shared octets observed through the original typed collection and layout.
+    Representation(std::sync::Arc<crate::element_views::ElementView>),
     MutableArray {
         array: ArrayStorage,
         array_type: StructuralTypeId,
@@ -62,7 +64,7 @@ impl ByteSequenceBinding {
     /// home's ownership or later placement in another structural value.
     pub(crate) fn access(&self) -> StructuralAccess {
         match self {
-            Self::Immutable(_) => StructuralAccess::SharedBorrow,
+            Self::Immutable(_) | Self::Representation(_) => StructuralAccess::SharedBorrow,
             Self::MutableArray { .. } | Self::MutableField { .. } | Self::MutableOwner { .. } => {
                 StructuralAccess::MutableBorrow
             }
@@ -72,6 +74,7 @@ impl ByteSequenceBinding {
     pub(crate) fn descriptor_home(&self) -> Option<&TerminalStructuralValue> {
         match self {
             Self::Immutable(_) => None,
+            Self::Representation(view) => view.descriptor_home(),
             Self::MutableArray {
                 descriptor_home,
                 referent,
@@ -104,6 +107,9 @@ impl ByteSequenceBinding {
     pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
         match &mut self {
             Self::Immutable(view) => *view = view.clone().with_descriptor_home(home),
+            Self::Representation(view) => {
+                *view = std::sync::Arc::new(view.as_ref().clone().with_descriptor_home(home))
+            }
             Self::MutableArray {
                 descriptor_home, ..
             }
@@ -140,9 +146,50 @@ impl ByteSequenceBinding {
     pub(crate) fn immutable(&self) -> Result<&ByteSequenceView, TerminalInterpretError> {
         match self {
             Self::Immutable(view) => Ok(view),
-            Self::MutableField { .. } | Self::MutableArray { .. } | Self::MutableOwner { .. } => {
-                Err(malformed())
-            }
+            Self::Representation(_)
+            | Self::MutableField { .. }
+            | Self::MutableArray { .. }
+            | Self::MutableOwner { .. } => Err(malformed()),
+        }
+    }
+
+    /// Content snapshots are explicit observations, never replacement backing
+    /// for a representation descriptor or a claim of original native storage.
+    pub(crate) fn snapshot(
+        &self,
+        execution: &TerminalExecution,
+    ) -> Result<ByteSequenceView, TerminalInterpretError> {
+        if let Self::Immutable(bytes) = self {
+            return Ok(bytes.clone());
+        }
+        let read = self.read_view(execution)?;
+        Ok(ByteSequenceView::new(
+            super::storage::ByteSequenceStorage::from_values(
+                read.len(),
+                (0..read.len()).map(|index| read.read(index)),
+                execution.account.as_ref(),
+            )?,
+        ))
+    }
+
+    pub(crate) fn read_view<'storage>(
+        &'storage self,
+        execution: &'storage TerminalExecution<'_>,
+    ) -> Result<super::read::TerminalByteRead<'storage>, TerminalInterpretError> {
+        match self {
+            Self::Immutable(bytes) => Ok(super::read::TerminalByteRead::contiguous(bytes.bytes())),
+            Self::Representation(view) => Ok(super::read::TerminalByteRead::representation(
+                execution, view,
+            )),
+            _ => Err(malformed()),
+        }
+    }
+
+    pub(crate) fn matches_shared_home(&self, value: &TerminalStructuralValue) -> bool {
+        match self {
+            Self::Immutable(view) => view.matches_descriptor_home(value),
+            Self::Representation(view) => view.matches_descriptor_home(value),
+            _ => false,
         }
     }
 
@@ -152,7 +199,7 @@ impl ByteSequenceBinding {
             Self::MutableField { referent, .. } | Self::MutableOwner { referent, .. } => {
                 Some(referent)
             }
-            Self::Immutable(_) | Self::MutableArray { .. } => None,
+            Self::Immutable(_) | Self::Representation(_) | Self::MutableArray { .. } => None,
         }
     }
 
@@ -307,6 +354,26 @@ impl ByteSequenceBinding {
 }
 
 impl TerminalExecution<'_> {
+    /// Preserve the complete predicate check for content-qualified formals.
+    /// An unqualified descriptor needs no payload snapshot.
+    pub(crate) fn byte_binding_qualifications_hold(
+        &self,
+        binding: &ByteSequenceBinding,
+        structural_type: StructuralTypeId,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<bool, TerminalInterpretError> {
+        if qualifications.is_empty() {
+            return Ok(true);
+        }
+        let bytes = binding.snapshot(self)?;
+        Ok(terminal_semantics::byte_literal_qualifications_hold_in(
+            self.program.catalogs.structural_domains.iter(),
+            structural_type,
+            qualifications,
+            bytes.bytes(),
+        ))
+    }
+
     /// Observe an authenticated field without copying its payload or retaining
     /// a second backing owner. Exclusive descriptors keep their original
     /// referent checks before exposing a shared host borrow.
@@ -318,6 +385,9 @@ impl TerminalExecution<'_> {
         let binding = self.structural_byte_sequence_fields.require(field)?;
         if let ByteSequenceBinding::Immutable(bytes) = binding {
             return Ok(TerminalByteRead::contiguous(bytes.bytes()));
+        }
+        if let ByteSequenceBinding::Representation(_) = binding {
+            return binding.read_view(self);
         }
         binding.validate_presented_referent(self)?;
         match binding {
@@ -342,7 +412,9 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableOwner { home, .. } => Ok(TerminalByteRead::contiguous(
                 self.byte_owner_bytes(home)?.bytes(),
             )),
-            ByteSequenceBinding::Immutable(_) => Err(malformed()),
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                Err(malformed())
+            }
         }
     }
 
@@ -378,8 +450,7 @@ impl TerminalExecution<'_> {
             binding.descriptor_home().ok_or_else(malformed)?,
             StructuralAccess::SharedBorrow,
         )?
-        .immutable()
-        .cloned()
+        .snapshot(self)
     }
 
     /// Select a declared byte owner at its live home. Inline fields have no
@@ -431,12 +502,18 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::Immutable(bytes) => {
                 ByteSequenceBinding::Immutable(bytes.clone().with_descriptor_home(selected.clone()))
             }
+            ByteSequenceBinding::Representation(view) => ByteSequenceBinding::Representation(
+                std::sync::Arc::new(view.as_ref().clone().with_descriptor_home(selected.clone())),
+            ),
             binding => binding.clone(),
         };
         let matches = |binding: &ByteSequenceBinding, home: &TerminalStructuralValue| match binding
         {
             ByteSequenceBinding::Immutable(bytes) => {
                 bytes.matches_bound_descriptor_home(home, selected)
+            }
+            ByteSequenceBinding::Representation(view) => {
+                view.matches_bound_descriptor_home(home, selected)
             }
             _ => {
                 home.opaque_identity == selected.opaque_identity
@@ -564,6 +641,12 @@ impl TerminalExecution<'_> {
         selected: &TerminalStructuralValue,
     ) -> Result<u64, TerminalInterpretError> {
         let length = match binding {
+            ByteSequenceBinding::Representation(view) => {
+                if !view.matches_descriptor_home(selected) {
+                    return Err(malformed());
+                }
+                return u64::try_from(view.len()).map_err(|_| malformed());
+            }
             ByteSequenceBinding::Immutable(bytes) => {
                 if !bytes.matches_descriptor_home(selected) {
                     return Err(malformed());
@@ -597,11 +680,11 @@ impl TerminalExecution<'_> {
     /// Observe a shared descriptor at its exact current home, whether frame-local
     /// or relocated into an aggregate. The map supplies contents only; exact
     /// carrier type, immutable access and home correspondence remain mandatory.
-    pub(crate) fn shared_byte_descriptor(
+    pub(crate) fn shared_byte_descriptor_binding(
         &self,
         argument: &StructuralArgument,
         value: &TerminalStructuralValue,
-    ) -> Result<ByteSequenceView, TerminalInterpretError> {
+    ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
         if !matches!(
             argument.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
@@ -622,11 +705,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let binding = self.byte_descriptor_binding(argument, &selected)?;
-        let bytes = binding.immutable()?;
-        bytes
-            .matches_descriptor_home(&selected)
-            .then(|| bytes.clone())
-            .ok_or_else(malformed)
+        if !binding.matches_shared_home(&selected) {
+            return Err(malformed());
+        }
+        self.reborrow_byte_sequence_binding(&binding, &selected, StructuralAccess::SharedBorrow)
     }
 
     /// Transfer a view's descriptor with its exact producer custody.
@@ -688,6 +770,16 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let permission_matches = match &binding {
+            ByteSequenceBinding::Representation(_) => {
+                self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
+                parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && matches!(access, None | Some(StructuralAccess::SharedBorrow))
+                    && self.byte_binding_qualifications_hold(
+                        &binding,
+                        parameter.structural_type,
+                        &parameter.qualifications,
+                    )?
+            }
             ByteSequenceBinding::Immutable(bytes) => {
                 // Copying an unrestricted shared descriptor neither owns nor
                 // copies its referent. Authenticate readable carrier custody
@@ -824,12 +916,11 @@ impl TerminalExecution<'_> {
             if !parameter.qualifications.is_empty() || !value.qualifications.is_empty() {
                 return Err(malformed());
             }
-        } else if !terminal_semantics::byte_literal_qualifications_hold_in(
-            self.program.catalogs.structural_domains.iter(),
+        } else if !self.byte_binding_qualifications_hold(
+            &binding,
             parameter.structural_type,
             &parameter.qualifications,
-            binding.immutable()?.bytes(),
-        ) {
+        )? {
             return Err(malformed());
         }
         let mut value = value;
@@ -850,9 +941,11 @@ impl TerminalExecution<'_> {
         if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
             return Err(malformed());
         }
-        if let ByteSequenceBinding::Immutable(view) = binding {
-            return if access == StructuralAccess::SharedBorrow
-                && view.matches_descriptor_home(value)
+        if matches!(
+            binding,
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
+        ) {
+            return if access == StructuralAccess::SharedBorrow && binding.matches_shared_home(value)
             {
                 Ok(binding.clone())
             } else {
@@ -889,7 +982,9 @@ impl TerminalExecution<'_> {
                 .immutable()?
                 .clone(),
             ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(home)?.clone(),
-            ByteSequenceBinding::Immutable(_) => unreachable!(),
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                unreachable!()
+            }
         };
         Ok(ByteSequenceBinding::Immutable(
             snapshot.with_descriptor_home(value.clone()),
@@ -914,7 +1009,9 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableOwner { home, capacity, .. } => {
                 (self.byte_owner_bytes(home)?, *capacity)
             }
-            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
+            ByteSequenceBinding::Immutable(_)
+            | ByteSequenceBinding::Representation(_)
+            | ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
             }
         };

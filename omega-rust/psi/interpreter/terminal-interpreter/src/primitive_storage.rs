@@ -110,6 +110,8 @@ impl PrimitiveStorageHome {
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum PrimitiveStorageEndpoint {
+    /// Shared observation of a byte in a retained typed representation view.
+    RepresentationByte(RepresentationByte),
     Projection {
         fragments: Vec<PrimitiveStorageFragment>,
         logical: ScalarType,
@@ -136,6 +138,19 @@ pub(crate) enum PrimitiveStorageEndpoint {
         index: usize,
     },
 }
+
+#[derive(Clone)]
+pub(crate) struct RepresentationByte {
+    pub(crate) view: std::sync::Arc<crate::element_views::ElementView>,
+    pub(crate) index: usize,
+}
+
+impl PartialEq for RepresentationByte {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.view, &other.view) && self.index == other.index
+    }
+}
+impl Eq for RepresentationByte {}
 
 /// A physical bit slice of one retained original scalar endpoint.
 #[derive(Clone, PartialEq, Eq)]
@@ -334,7 +349,8 @@ impl PrimitiveStorageWrites {
                     return Err(malformed());
                 }
             }
-            PrimitiveStorageEndpoint::ViewByte { .. }
+            PrimitiveStorageEndpoint::RepresentationByte(_)
+            | PrimitiveStorageEndpoint::ViewByte { .. }
             | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         let write = PreparedPrimitiveWrite {
@@ -495,7 +511,8 @@ impl TerminalExecution<'_> {
                 Some(selected)
             }
             PrimitiveStorageEndpoint::OwnedArrayElement { .. } => None,
-            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+            PrimitiveStorageEndpoint::RepresentationByte(_)
+            | PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
         };
         let physical = match self.array_cell(storage)? {
             Some(ArrayCell::Frame { home, index }) => {
@@ -782,6 +799,14 @@ impl TerminalExecution<'_> {
         referent.projected_qualifications.clear();
         referent.path.push(StructuralPathSegment::FixedIndex(index));
         let endpoint = match binding {
+            ByteSequenceBinding::Representation(view)
+                if access == StructuralAccess::SharedBorrow =>
+            {
+                PrimitiveStorageEndpoint::RepresentationByte(RepresentationByte {
+                    view: std::sync::Arc::clone(view),
+                    index: usize::try_from(index).map_err(|_| malformed())?,
+                })
+            }
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
                 PrimitiveStorageEndpoint::ViewByte {
                     bytes: bytes.clone(),
@@ -2270,6 +2295,15 @@ impl TerminalExecution<'_> {
             );
         }
         let scalar = match storage.endpoint {
+            PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+                use crate::byte_sequences::read::RepresentationByteReader;
+                let value = self.read_representation_byte(&byte.view, byte.index)?;
+                Ok(TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                        .map_err(|_| malformed())?,
+                    value: IntegerValue::Unsigned(u128::from(value)),
+                })
+            }
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                 self.owned_array_home(&home)?;
                 let arrays = if home.depth == self.call_stack.len() {
@@ -2555,7 +2589,8 @@ impl TerminalExecution<'_> {
                 let byte = u8::try_from(value).map_err(|_| malformed())?;
                 self.stored_byte_array_write(&array, index, byte)?;
             }
-            PrimitiveStorageEndpoint::ViewByte { .. }
+            PrimitiveStorageEndpoint::RepresentationByte(_)
+            | PrimitiveStorageEndpoint::ViewByte { .. }
             | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         Ok(())

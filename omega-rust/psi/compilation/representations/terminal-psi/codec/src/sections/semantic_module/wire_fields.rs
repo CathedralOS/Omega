@@ -264,6 +264,14 @@ impl Field<ElementViewRegion> for Region {
     fn write(writer: &mut Writer, value: &ElementViewRegion) -> Result<(), CodecError> {
         match value {
             ElementViewRegion::WholeCollection => writer.u8(0),
+            ElementViewRegion::WholeRepresentation {
+                source_length,
+                obligation,
+            } => {
+                writer.u8(2);
+                writer.id(*source_length);
+                writer.id(*obligation);
+            }
             ElementViewRegion::RepresentationBytes {
                 start,
                 end,
@@ -280,6 +288,10 @@ impl Field<ElementViewRegion> for Region {
     fn read(reader: &mut Reader<'_>) -> Result<ElementViewRegion, CodecError> {
         match reader.u8()? {
             0 => Ok(ElementViewRegion::WholeCollection),
+            2 => Ok(ElementViewRegion::WholeRepresentation {
+                source_length: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            }),
             1 => Ok(ElementViewRegion::RepresentationBytes {
                 start: reader.id("ValueId")?,
                 end: reader.id("ValueId")?,

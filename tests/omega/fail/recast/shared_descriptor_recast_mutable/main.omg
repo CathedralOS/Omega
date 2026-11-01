@@ -1,0 +1,8 @@
+// A shared descriptor cannot grant exclusive byte access.
+machine inspect(pixels: &[i32]) {
+    let bytes: &mut [u8] = pixels as &mut [u8];
+}
+machine main() {
+    let pixels: [i32; 6];
+    inspect(&pixels[..]);
+}

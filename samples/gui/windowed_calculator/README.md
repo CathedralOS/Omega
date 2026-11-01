@@ -1,6 +1,6 @@
 # Windowed calculator
 
-A persistent software-rendered macOS calculator: a native window, per-frame
+A persistent software-rendered desktop calculator: a native window, per-frame
 message pumping, keyboard input, a 64x64 software framebuffer stretched into
 the client area, calculator state with memory recall, and explicit
 state-machine dispatch for every interaction. Digits, `+ - * /`, Enter or
@@ -18,17 +18,21 @@ omega run --keep samples/gui/windowed_calculator/main.omg
 ```
 
 The GUI subsystem keeps the console surface to exit plus a status line.
-Build declares Windows too, but this sample currently supplies macOS
-implementations through ordinary SDK machines selected by Build.
+Build selects explicit Windows and macOS providers backed by ordinary SDK
+machines. The observations below cover macOS ARM64.
 
-## Status (macOS ARM64, 2026-10-31)
+## Status (macOS ARM64, 2026-11-01)
 
 Normal package review, source checking and native application publication pass
 with the calculator's scalar predicates restored. The SDK uses whole-array
 string contracts and Build-owned native bindings; its window helpers are
-ordinary machines, with target selection retained in Build.
+ordinary machines, with target selection retained in Build. Framebuffer
+presentation copies the complete shared pixel view into native-owned image
+storage. The offscreen native regression checks all pixel bytes after the
+original storage is overwritten and its activation ends, alongside the C
+calling convention and neighboring canaries.
 
-Terminal comparison currently refuses at runtime admission:
+The last Terminal comparison refused at runtime admission:
 `native-provider-adapter: private native sponsor supplies no additional service capability`.
 The AppKit and Objective-C requirements declare additional service reach that
 the private native sponsor does not supply. This is an unavailable comparison,

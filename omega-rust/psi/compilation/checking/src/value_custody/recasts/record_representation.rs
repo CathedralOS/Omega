@@ -37,7 +37,7 @@ impl RepresentationBudget {
 #[derive(Debug, Clone)]
 pub(super) struct MutableRecordRepresentation {
     pub(super) size: usize,
-    align: usize,
+    pub(super) align: usize,
     leaves: Vec<MutableRecordLeaf>,
 }
 

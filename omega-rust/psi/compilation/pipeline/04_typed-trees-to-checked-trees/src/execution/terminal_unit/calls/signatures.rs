@@ -131,6 +131,12 @@ fn structural_signature_for_partial_affine(
                     None,
                 )
             };
+        // Ingress lends the access-neutral view, but evaluating this formal as
+        // a descriptor demands its exact stored shell. Declare both here;
+        // operation roots decide whether the stored row survives pruning.
+        if validation::slice_view_shell(program, parameter.type_reference, &[]).is_some() {
+            shapes.add_stored_type(parameter.type_reference, binders, &[])?;
+        }
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
@@ -395,6 +401,12 @@ pub(crate) fn parameter_signatures(
                     None,
                 )
             };
+        // Descriptor operands retain the formal's stored shell independently
+        // of its access-neutral ingress identity and of the caller's carrier.
+        // Only actual operation demands keep this declaration through pruning.
+        if validation::slice_view_shell(program, parameter_type, substitutions).is_some() {
+            shapes.add_stored_type(parameter_type, binders, substitutions)?;
+        }
         trace.phase("state graph: state signature: parameter signature: parameter qualifications");
         let qualifications = parameter_qualifications(program, shapes, parameter_type, binders)?;
         trace.phase("state graph: state signature: parameter signature: parameter access");

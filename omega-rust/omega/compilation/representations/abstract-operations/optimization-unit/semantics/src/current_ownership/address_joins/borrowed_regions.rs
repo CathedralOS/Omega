@@ -352,6 +352,7 @@ impl BorrowedRegions {
                         if matches!(
                             region,
                             terminal_psi::ElementViewRegion::RepresentationBytes { .. }
+                                | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
                         ) {
                             projection.forget_address();
                         }

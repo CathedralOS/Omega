@@ -4,18 +4,63 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::scalar_storage::ScalarCell;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 enum ByteStorage<'storage> {
     Contiguous(&'storage [u8]),
     Cells(&'storage [ScalarCell]),
+    Representation {
+        reader: &'storage dyn RepresentationByteReader,
+        view: &'storage crate::element_views::ElementView,
+    },
+}
+
+/// The adapter borrows execution and the captured typed descriptor together.
+/// It cannot fabricate a contiguous allocation or grant native pointer custody.
+pub(crate) trait RepresentationByteReader {
+    fn read_representation_byte(
+        &self,
+        view: &crate::element_views::ElementView,
+        index: usize,
+    ) -> Result<u8, TerminalInterpretError>;
+}
+
+impl RepresentationByteReader for crate::execution::TerminalExecution<'_> {
+    fn read_representation_byte(
+        &self,
+        view: &crate::element_views::ElementView,
+        index: usize,
+    ) -> Result<u8, TerminalInterpretError> {
+        let scalar = self.read_element_view_scalar(
+            view,
+            index,
+            &[],
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .map_err(|_| malformed())?,
+            ),
+        )?;
+        crate::structural_inputs::byte_arrays::storage::scalar_byte(&scalar)
+    }
 }
 
 /// Read-only bytes borrowed from an invocation. No backing, qualification or
 /// guest storage authority transfers to the observer. The borrow prevents
 /// mutation or closing the instance while the observation is in use.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct TerminalByteRead<'storage> {
     storage: ByteStorage<'storage>,
+}
+
+impl std::fmt::Debug for TerminalByteRead<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalByteRead")
+            .field("length", &self.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl PartialEq for TerminalByteRead<'_> {
@@ -38,6 +83,15 @@ impl PartialEq for TerminalByteRead<'_> {
 impl Eq for TerminalByteRead<'_> {}
 
 impl<'storage> TerminalByteRead<'storage> {
+    pub(crate) fn representation(
+        reader: &'storage dyn RepresentationByteReader,
+        view: &'storage crate::element_views::ElementView,
+    ) -> Self {
+        Self {
+            storage: ByteStorage::Representation { reader, view },
+        }
+    }
+
     pub(crate) fn contiguous(bytes: &'storage [u8]) -> Self {
         Self {
             storage: ByteStorage::Contiguous(bytes),
@@ -59,6 +113,7 @@ impl<'storage> TerminalByteRead<'storage> {
         match self.storage {
             ByteStorage::Contiguous(bytes) => bytes.len(),
             ByteStorage::Cells(values) => values.len(),
+            ByteStorage::Representation { view, .. } => view.len(),
         }
     }
 
@@ -71,6 +126,9 @@ impl<'storage> TerminalByteRead<'storage> {
     pub fn read(&self, byte_index: usize) -> Result<u8, TerminalInterpretError> {
         match self.storage {
             ByteStorage::Contiguous(bytes) => bytes.get(byte_index).copied().ok_or_else(malformed),
+            ByteStorage::Representation { reader, view } => {
+                reader.read_representation_byte(view, byte_index)
+            }
             ByteStorage::Cells(values) => {
                 let value = values.get(byte_index).ok_or_else(malformed)?.read()?;
                 crate::structural_inputs::byte_arrays::storage::scalar_byte(&value)
@@ -88,7 +146,7 @@ impl<'storage> TerminalByteRead<'storage> {
         }
         match self.storage {
             ByteStorage::Contiguous(bytes) => destination.copy_from_slice(bytes),
-            ByteStorage::Cells(_) => {
+            ByteStorage::Cells(_) | ByteStorage::Representation { .. } => {
                 for (byte_index, byte) in destination.iter_mut().enumerate() {
                     *byte = self.read(byte_index)?;
                 }

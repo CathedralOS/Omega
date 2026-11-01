@@ -179,6 +179,11 @@ impl TerminalExecution<'_> {
         endpoint: PrimitiveStorageEndpoint,
     ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
         let selected = match endpoint {
+            PrimitiveStorageEndpoint::RepresentationByte(_) => {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "representation byte address requires its original scalar byte placement",
+                ));
+            }
             PrimitiveStorageEndpoint::Projection {
                 fragments, stored, ..
             } => {

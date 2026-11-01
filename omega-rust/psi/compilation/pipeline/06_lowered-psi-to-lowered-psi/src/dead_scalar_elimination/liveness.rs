@@ -246,6 +246,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             // later scalar observes them outside the structural descriptor.
             if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } = region {
                 values.extend([*start, *end]);
+            } else if let terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. } = region {
+                values.push(*source_length);
             }
         }
         O::EstablishScalarCase { fields, .. } => {

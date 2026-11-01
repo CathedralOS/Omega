@@ -167,7 +167,20 @@ impl StructuralFieldBindings {
         };
         match candidates.as_slice() {
             [home] => Ok(home.clone()),
-            _ => unsupported("field observation lost its unique established root"),
+            _ => Err(LoweringError::ObservationHomeCountMismatch {
+                root,
+                matching_homes: candidates.len(),
+                parameter_positions: self
+                    .parameter_homes
+                    .iter()
+                    .map(|home| home.source_position)
+                    .collect(),
+                local_symbols: structural_locals
+                    .iter()
+                    .filter_map(|home| home.root.as_symbol())
+                    .collect(),
+                view_symbols: view_locals.iter().map(|home| home.symbol).collect(),
+            }),
         }
     }
 

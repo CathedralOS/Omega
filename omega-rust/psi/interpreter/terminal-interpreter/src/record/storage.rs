@@ -869,9 +869,7 @@ impl ConstructorStorage {
                 return Err(malformed());
             }
             let binding = if shared {
-                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                    execution.shared_byte_descriptor(argument, child)?,
-                )
+                execution.shared_byte_descriptor_binding(argument, child)?
             } else {
                 execution.byte_descriptor_binding(argument, child)?
             };
@@ -1027,6 +1025,9 @@ impl ConstructorStorage {
                     && !matches!(
                         binding,
                         crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
+                            | crate::byte_sequences::binding::ByteSequenceBinding::Representation(
+                                _
+                            )
                     )
                 {
                     return Err(malformed());
@@ -1094,6 +1095,9 @@ impl ConstructorStorage {
                     && !matches!(
                         bytes,
                         crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
+                            | crate::byte_sequences::binding::ByteSequenceBinding::Representation(
+                                _
+                            )
                     )
                 {
                     return Err(malformed());

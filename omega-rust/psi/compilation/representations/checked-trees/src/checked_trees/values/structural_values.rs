@@ -86,6 +86,7 @@ pub struct CheckedStructuralValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedElementViewRegion {
     WholeCollection,
+    WholeRepresentation,
     RepresentationBytes {
         start: CheckedScalarComputationHandle,
         end: u64,

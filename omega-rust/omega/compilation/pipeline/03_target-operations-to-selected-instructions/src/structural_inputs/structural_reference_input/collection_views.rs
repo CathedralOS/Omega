@@ -44,6 +44,8 @@ pub(crate) struct CollectionViewGeometry {
     pub pointer_slots: Vec<PointerSlot>,
     pub extent: terminal_semantics::CollectionExtent,
     pub stride: u32,
+    /// Target elements per captured source element; extent stays in source units.
+    pub length_scale: u64,
     pub storage: terminal_semantics::CollectionStorage,
 }
 
@@ -167,8 +169,35 @@ pub(crate) fn collection_view_region_geometry(
     {
         return None;
     }
+    let mut representation_source_stride = None;
+    let mut length_scale = 1;
     let (backing, representation) = match geometry {
         terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => (backing, None),
+        terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+            backing,
+            source: source_layout,
+            target: target_layout,
+        } => {
+            if byte_window.is_some() || argument.access != StructuralAccess::SharedBorrow {
+                return None;
+            }
+            length_scale = whole_representation_length_scale(
+                &collection_shape,
+                &source_layout,
+                element,
+                &target_layout,
+                declarations,
+            )?;
+            match backing.extent {
+                terminal_semantics::CollectionExtent::Fixed(count) => {
+                    count.checked_mul(length_scale)?;
+                }
+                terminal_semantics::CollectionExtent::StoredLength => {}
+                terminal_semantics::CollectionExtent::LiveLength { .. } => return None,
+            }
+            representation_source_stride = Some(source_layout.size);
+            (backing, Some(target_layout))
+        }
         terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
             byte_extent,
             element: layout,
@@ -257,7 +286,9 @@ pub(crate) fn collection_view_region_geometry(
     let offset = offset.checked_add(window_offset)?;
     let storage_size = match backing.storage {
         terminal_semantics::CollectionStorage::Inline => {
-            if representation.is_some() {
+            if let Some(source_stride) = representation_source_stride {
+                element_count.checked_mul(source_stride)?
+            } else if representation.is_some() {
                 element_count
             } else {
                 element_count.checked_mul(u64::from(element_stride))?
@@ -285,6 +316,43 @@ pub(crate) fn collection_view_region_geometry(
         pointer_slots: collection.pointer_slots,
         extent,
         stride: element_stride,
+        length_scale,
         storage: backing.storage,
     })
+}
+
+/// Rejoin both portable element layouts to realized storage before scaling a
+/// captured count. Source descriptor words remain source-element coordinates.
+pub(crate) fn whole_representation_length_scale(
+    collection: &StructuralTypeShape,
+    source_layout: &terminal_semantics::RepresentationElementLayout,
+    target: StructuralTypeId,
+    target_layout: &terminal_semantics::RepresentationElementLayout,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<u64> {
+    let source = match collection {
+        StructuralTypeShape::FixedArray { element, .. }
+        | StructuralTypeShape::ElementView { element, .. } => *element,
+        _ => return None,
+    };
+    if source_layout.size == 0
+        || target_layout.size == 0
+        || source_layout.size % target_layout.size != 0
+        || source_layout.alignment < target_layout.alignment
+    {
+        return None;
+    }
+    for (element, layout) in [(source, source_layout), (target, target_layout)] {
+        let realized = shape(element, declarations)?;
+        if u64::from(realized.byte_size) != layout.size
+            || u64::from(realized.alignment) != layout.alignment
+            || layout.leaves.iter().any(|leaf| {
+                element_leaf_geometry(element, &leaf.path, leaf.scalar_type, declarations)
+                    .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
+            })
+        {
+            return None;
+        }
+    }
+    Some(source_layout.size / target_layout.size)
 }

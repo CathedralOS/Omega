@@ -221,6 +221,12 @@ impl OperationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ElementViewRegion {
     WholeCollection,
+    /// Re-view the captured collection window under an independently checked
+    /// total representation. Extents count source elements before regrouping.
+    WholeRepresentation {
+        source_length: ValueId,
+        obligation: ObligationId,
+    },
     RepresentationBytes {
         start: ValueId,
         end: ValueId,
@@ -1325,6 +1331,9 @@ impl OperationKind {
                 if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
                     *start = map(*start);
                     *end = map(*end);
+                } else if let ElementViewRegion::WholeRepresentation { source_length, .. } = region
+                {
+                    *source_length = map(*source_length);
                 }
             }
             Self::ByteSequenceSubslice {

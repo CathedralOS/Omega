@@ -1,0 +1,56 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "macos_image_snapshot");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind<ImageReadback::provider>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetDataProvider"
+        }
+    });
+    Build::bind<ImageReadback::copy_data>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGDataProviderCopyData"
+        }
+    });
+    Build::bind<ImageReadback::length>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", symbol: "_CFDataGetLength"
+        }
+    });
+    Build::bind<ImageReadback::read>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", symbol: "_CFDataGetBytes"
+        }
+    });
+    Build::bind<ImageReadback::release>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", symbol: "_CFRelease"
+        }
+    });
+    Build::bind<ImageReadback::width>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetWidth"
+        }
+    });
+    Build::bind<ImageReadback::height>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetHeight"
+        }
+    });
+    Build::bind<ImageReadback::overwrite>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset"
+        }
+    });
+    Build::bind<ImageReadback::interpolates>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetShouldInterpolate"
+        }
+    });
+    Build::bind<ImageReadback::intent>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetRenderingIntent"
+        }
+    });
+}
