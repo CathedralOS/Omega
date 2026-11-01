@@ -93,10 +93,13 @@ impl<'program> Encoder<'program> {
     fn unconstrained(&self, mut operand: Operand<'program>) -> Result<Operand<'program>, String> {
         loop {
             operand = self.resolve(operand)?;
-            let TypeReference::Constrained(constraint) = operand.reference else {
-                return Ok(operand);
+            operand.reference = match operand.reference {
+                TypeReference::Constrained(constraint) => {
+                    self.program.child_type_reference(constraint.base_type)
+                }
+                TypeReference::AliasUse { expansion, .. } => expansion,
+                _ => return Ok(operand),
             };
-            operand.reference = self.program.child_type_reference(constraint.base_type);
         }
     }
 

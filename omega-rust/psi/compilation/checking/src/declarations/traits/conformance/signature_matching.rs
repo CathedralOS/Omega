@@ -340,42 +340,6 @@ pub(crate) fn validate_applied_trait_signature(
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
         .collect::<Vec<_>>();
-    crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
-        program,
-        &format!(
-            "provider machine `{}` for trait requirement `{}::{}`",
-            machine.name, trait_definition.name, requirement.name
-        ),
-        requirement.symbol,
-        callable_machine.symbol,
-        applied_type_parameters,
-        &actual_type_parameters[..requirement_type_parameters.len()],
-        &applied_generic_types,
-        diagnostics,
-    );
-    let mut actual_offset = requirement_type_parameters.len();
-    for (representative, carrier_telescope) in indexed_law_telescope_groups.iter().enumerate() {
-        let actual_end = actual_offset + carrier_telescope.len();
-        let actual_group = &actual_type_parameters[actual_offset..actual_end];
-        let carrier_generic_parameters = carrier_telescope.iter().collect::<Vec<_>>();
-        crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
-            program,
-            &format!(
-                "provider machine `{}` indexed representative {} for proposition-law requirement `{}::{}`",
-                machine.name,
-                representative + 1,
-                trait_definition.name,
-                requirement.name
-            ),
-            requirement.symbol,
-            callable_machine.symbol,
-            carrier_telescope,
-            actual_group,
-            &carrier_generic_parameters,
-            diagnostics,
-        );
-        actual_offset = actual_end;
-    }
     let mut type_bindings = application
         .substitutions
         .iter()
@@ -493,7 +457,7 @@ pub(crate) fn validate_applied_trait_signature(
             type_reference_label(program, callable_state.return_type)
         )));
     }
-    if let Err(message) = borrow_refinement::validate(
+    if let Err(message) = borrow_refinement::with_contracts(
         program,
         application,
         requirement,
@@ -501,6 +465,49 @@ pub(crate) fn validate_applied_trait_signature(
         callable_state,
         actual_parameters,
         &actual_type_parameters,
+        |required, actual| {
+            let prepared = crate::borrow_contracts::PreparedCallableBorrowRefinement::prepare(
+                program, &required, &actual,
+            )?;
+            let frame = prepared.lifetime_frame(program, &required, &actual)?;
+            crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
+                program,
+                &format!(
+                    "provider machine `{}` for trait requirement `{}::{}`",
+                    machine.name, trait_definition.name, requirement.name
+                ),
+                &frame,
+                applied_type_parameters,
+                &actual_type_parameters[..requirement_type_parameters.len()],
+                &applied_generic_types,
+                diagnostics,
+            );
+            let mut actual_offset = requirement_type_parameters.len();
+            for (representative, carrier_telescope) in
+                indexed_law_telescope_groups.iter().enumerate()
+            {
+                let actual_end = actual_offset + carrier_telescope.len();
+                let actual_group = &actual_type_parameters[actual_offset..actual_end];
+                let carrier_generic_parameters = carrier_telescope.iter().collect::<Vec<_>>();
+                crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
+                    program,
+                    &format!(
+                        "provider machine `{}` indexed representative {} for proposition-law requirement `{}::{}`",
+                        machine.name,
+                        representative + 1,
+                        trait_definition.name,
+                        requirement.name
+                    ),
+                    &frame,
+                    carrier_telescope,
+                    actual_group,
+                    &carrier_generic_parameters,
+                    diagnostics,
+                );
+                actual_offset = actual_end;
+            }
+            prepared.validate(program, required, actual)
+        },
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: conformance borrow contract: {message}",

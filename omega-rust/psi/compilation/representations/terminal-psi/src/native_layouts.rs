@@ -23,6 +23,7 @@ pub struct NativeRecordLayout {
     pub record: StructuralTypeId,
     pub data_identity: TerminalIdentityIndex,
     pub policy_identity: TerminalIdentityIndex,
+    pub semantic_identity: TerminalIdentityIndex,
     fields: HandleSpan<NativeLayoutFieldIdentity>,
     realizations: HandleSpan<NativeLayoutRealization>,
 }
@@ -39,6 +40,7 @@ impl Default for NativeRecordLayout {
             record: StructuralTypeId::new(1).expect("arena sentinel"),
             data_identity: Default::default(),
             policy_identity: Default::default(),
+            semantic_identity: Default::default(),
             fields: HandleSpan::empty(),
             realizations: HandleSpan::empty(),
         }
@@ -111,6 +113,7 @@ impl NativeLayoutCatalog {
         record: StructuralTypeId,
         data_identity: TerminalIdentityIndex,
         policy_identity: TerminalIdentityIndex,
+        semantic_identity: TerminalIdentityIndex,
         fields: impl IntoIterator<Item = NativeLayoutFieldIdentity>,
         realizations: impl IntoIterator<Item = NativeLayoutRealization>,
     ) {
@@ -120,6 +123,7 @@ impl NativeLayoutCatalog {
             record,
             data_identity,
             policy_identity,
+            semantic_identity,
             fields,
             realizations,
         });

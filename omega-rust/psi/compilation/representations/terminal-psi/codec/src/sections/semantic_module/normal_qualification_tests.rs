@@ -64,6 +64,7 @@ fn module() -> TerminalModule {
                 type_id(position as u64 + 1),
                 TerminalIdentityIndex(position as u32 + 4),
                 TerminalIdentityIndex::ABSENT,
+                TerminalIdentityIndex::ABSENT,
                 fields
                     .iter()
                     .map(|field| terminal_psi::NativeLayoutFieldIdentity {

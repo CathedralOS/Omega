@@ -898,11 +898,10 @@ fn validate_callable_effects(
 /// Compare nested machine contracts under an exact positional binder mapping.
 /// This is callable telescope formation, not trait supply or implementation
 /// selection; callers separately establish roster shape and binder categories.
-pub fn validate_trait_callable_parameter_refinement(
+pub(crate) fn validate_trait_callable_parameter_refinement(
     program: &dyn crate::CheckingInput,
     label: &str,
-    required_declaration: SymbolHandle,
-    actual_declaration: SymbolHandle,
+    enclosing_lifetimes: &crate::borrow_contracts::CallableLifetimeFrame,
     requirement_parameters: &[TypeParameter],
     actual_parameters: &[TypeParameter],
     generic_types: &[&TypeParameter],
@@ -917,16 +916,10 @@ pub fn validate_trait_callable_parameter_refinement(
             actual: provider.symbol,
         })
         .collect::<Vec<_>>();
-    let mut binder_bindings = CallableBinderScope {
+    let binder_bindings = CallableBinderScope {
         static_bindings,
-        ..Default::default()
+        lifetime_frames: vec![enclosing_lifetimes.clone()],
     };
-    if let Err(reason) =
-        binder_bindings.push_declarations(program, required_declaration, actual_declaration)
-    {
-        diagnostics.push(Diagnostic::error(format!("{label}: {reason}")));
-        return;
-    }
 
     for (required, actual) in requirement_parameters.iter().zip(actual_parameters) {
         let (

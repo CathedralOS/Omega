@@ -31,7 +31,6 @@ pub use declarations::traits::{
     provider_region_correspondence,
 };
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
-pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
@@ -401,6 +400,7 @@ pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
+    scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,

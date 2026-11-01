@@ -16,6 +16,7 @@ pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
     pub integer_assignments: Arena<crate::CheckedIntegerAssignmentDecision>,
     pub contract_facts: Arena<ContractProofFact>,
+    pub nominal_argument_roots: Arena<crate::OutcomeOccurrenceRoot>,
     /// Conformance-edge provenance for contract facts inherited from trait
     /// requirements. Rows are referenced from `ContractProofFact::inherited_scope`
     /// and carry the exact trait arguments used to instantiate the schema.

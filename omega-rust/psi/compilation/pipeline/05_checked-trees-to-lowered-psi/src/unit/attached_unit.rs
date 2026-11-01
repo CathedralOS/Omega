@@ -284,7 +284,7 @@ pub(crate) fn lower_unit_closure(
 
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
-    let (mut structural_types, type_ids, structural_referents) =
+    let (mut structural_types, type_ids, structural_referents, native_records) =
         phase_profile::scope("05.01.c_lower_structural_types", || {
             catalog::lower_unit_structural_types(
                 identities,
@@ -607,8 +607,7 @@ pub(crate) fn lower_unit_closure(
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
     let target_layout_applications =
         target_layouts::lower(checked, plans, &structural_types, &type_ids, identities)?;
-    let native_layouts =
-        native_layouts::lower(checked, plans, &structural_types, &type_ids, identities)?;
+    let native_layouts = native_layouts::lower(checked, &native_records, identities)?;
     let mut scalar_qualifications = qualifications.catalog().clone();
     crate::expression_preparation::qualifications::retain_returns(
         identities,

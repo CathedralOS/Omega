@@ -1153,7 +1153,7 @@ pass/calls/call_local_reassign checked 9561ms @5041ef1af684+wt
 pass/calls/callback_borrowed_record_entry built 5541ms exit:0 @588499422fe3+wt
 pass/calls/callback_borrowed_scalar_entry built 5937ms exit:0 @09084c02ea24
 pass/calls/callback_future_registration_cycle built 5800ms exit:0 @12953abbc60f+wt
-pass/calls/callback_mixed_formal_entry built 323066ms exit:0 callback-telescope-controls:match terminal-inspections:match @95750e8d2f8d
+pass/calls/callback_mixed_formal_entry built 61950ms exit:0 callback-telescope-controls:match terminal-inspections:match @a01b36edf8b7
 pass/calls/callback_owned_float_record built 78977ms exit:0 @759f6dbf1dfa
 pass/calls/callback_owned_float_record_packing built 78974ms exit:0 @759f6dbf1dfa
 pass/calls/callback_owned_indirect_float_record built 80220ms exit:0 @2afb09bae86c

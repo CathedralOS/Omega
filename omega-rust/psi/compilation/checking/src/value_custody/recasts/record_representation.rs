@@ -489,6 +489,9 @@ pub struct RecastRecordSourceLeaf {
     /// Equal geometry alone does not preserve a scalar observation: a bit
     /// recipe or another stored interpretation can decode different values.
     pub preserves_scalar_value: bool,
+    /// Both leaves expose the complete native primitive bit pattern. This
+    /// permits an explicit representation interpretation, never numeric identity.
+    pub preserves_primitive_bits: bool,
 }
 
 /// Rejoin a typed record view's direct scalar field to the source leaf it
@@ -564,6 +567,8 @@ pub fn recast_scalar_source_leaf(
             .collect(),
         primitive: source_leaf.primitive,
         view_primitive: target_leaf.primitive,
+        preserves_primitive_bits: primitive_bit_representation(source_leaf)
+            && primitive_bit_representation(target_leaf),
         preserves_scalar_value: source_leaf.primitive == target_leaf.primitive
             && source_leaf.byte_projection
             && target_leaf.byte_projection
@@ -575,20 +580,36 @@ pub fn recast_scalar_source_leaf(
 fn stored_integer_interpretation(
     leaf: &MutableRecordLeaf,
 ) -> Option<(u16, layout_plans::IntegerInterpretation)> {
-    leaf.stored_integer.or_else(|| {
-        let (sign, width) = leaf.primitive.integer_sign_bits()?;
-        Some((
-            width,
-            match sign {
-                semantic_vocabulary::IntegerSign::Signed => {
-                    layout_plans::IntegerInterpretation::Signed
-                }
-                semantic_vocabulary::IntegerSign::Unsigned => {
-                    layout_plans::IntegerInterpretation::Unsigned
-                }
-            },
-        ))
-    })
+    leaf.stored_integer
+        .or_else(|| primitive_integer_interpretation(leaf.primitive))
+}
+
+fn primitive_integer_interpretation(
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<(u16, layout_plans::IntegerInterpretation)> {
+    let (sign, width) = primitive.integer_sign_bits()?;
+    Some((
+        width,
+        match sign {
+            semantic_vocabulary::IntegerSign::Signed => layout_plans::IntegerInterpretation::Signed,
+            semantic_vocabulary::IntegerSign::Unsigned => {
+                layout_plans::IntegerInterpretation::Unsigned
+            }
+        },
+    ))
+}
+
+fn primitive_bit_representation(leaf: &MutableRecordLeaf) -> bool {
+    leaf.byte_projection
+        && leaf.primitive.scalar_byte_size() == Some(leaf.size)
+        && if leaf.primitive.is_fixed_integer() {
+            stored_integer_interpretation(leaf) == primitive_integer_interpretation(leaf.primitive)
+        } else {
+            matches!(
+                leaf.primitive,
+                typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
+            ) && leaf.stored_integer.is_none()
+        }
 }
 
 /// Normalize physical representation sets, independent of logical carrier width.

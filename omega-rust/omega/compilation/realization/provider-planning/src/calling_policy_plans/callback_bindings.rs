@@ -16,8 +16,6 @@ use calling_conventions::{
     callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
-use diagnostics::Diagnostic;
-use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
 /// Omega-owned realization state for one canonical source boundary contract.
@@ -49,8 +47,6 @@ pub struct BoundaryCallingPlanRealization {
     pub native_parameters: Vec<BoundaryNativeParameter>,
     pub(crate) materialized_signature: MaterializedBoundarySignature,
     pub policy_machine: String,
-    /// Exact target member retained when callback layout closes its signature.
-    pub(crate) policy_symbol: symbols::SymbolHandle,
     pub relationship_span: source::SourceSpan,
 }
 
@@ -246,184 +242,76 @@ pub(crate) fn validate_callback_requirement_report_collision(
     Ok(())
 }
 
-/// Close outbound registrar policies over the target's native layout catalog
-/// before provider schemas and provenance capture the calling commitment.
-/// Layout consumes typed structure; the checked owner binds it to the policy
-/// catalog, without rechecking source. This produces ABI geometry only;
-/// checked callback authority is bound separately after Psi.
-pub fn close_outbound_callback_materializations(
-    checked: &checked_trees::CheckedTrees,
-    realizations: &mut [BoundaryCallingPlanRealization],
-    target_profile: target::TargetProfile,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
-    code: Option<&super::CallingPolicyCode>,
-) -> Result<(), Vec<Diagnostic>> {
-    if realizations.is_empty() {
-        return Ok(());
-    }
-    let typed = &checked.typed;
-    let code = code.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "callback geometry has no published calling-policy code",
-        )]
-    })?;
-    code.require_owner(checked)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let layout_target = layout::LayoutTarget::for_profile(target_profile)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let native_target = layout_target.native_target();
-    let layout_plan = layout::build_layout_plan_for_roots(
-        typed,
-        layout_target,
-        opaque_representation_selections,
-        realizations.iter().flat_map(|realization| {
-            realization
-                .materialized_signature
-                .native_parameters
-                .iter()
-                .map(|parameter| parameter.layout_data_symbol)
-        }),
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-
-    for realization in realizations {
-        let mut signature = realization.materialized_signature.clone();
-        let direct_demands = close_direct_callback_parameters(&mut signature, native_target)
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-            })?;
-        // Keep each named catalog entry paired with its exact native demand
-        // through sorting. Equal compact IDs must never select a different row.
-        let mut demands = direct_demands
-            .into_iter()
-            .map(|demand| (demand, None))
-            .collect::<Vec<_>>();
-        let binder_requirement_catalog = exact_callback_requirement_catalog(
-            &realization.callback_binders,
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-        })?;
-        let mut demand_requirement_catalog = Vec::new();
-        for parameter in &signature.native_parameters {
-            for layout in layout_plan
-                .private_callback_layouts
-                .iter()
-                .filter(|layout| layout.root_layout().data_symbol == parameter.layout_data_symbol)
-            {
-                let terminal = layout.terminal_slot();
+/// Close a signature's native telescope and private destinations before its
+/// policy is invoked. Geometry cannot depend on an earlier accepted plan:
+/// the policy must see the complete declared demand on its only invocation.
+/// This creates placement input, not checked callback authority.
+pub(super) fn close_callback_materializations(
+    signature: &mut MaterializedBoundarySignature,
+    layout_plan: &layout::LayoutPlan,
+    target: NativeTarget,
+) -> Result<bool, String> {
+    let direct_demands = close_direct_callback_parameters(signature, target)?;
+    // Keep each named catalog entry paired with its exact native demand
+    // through sorting. Equal compact IDs must never select a different row.
+    let mut demands = direct_demands
+        .into_iter()
+        .map(|demand| (demand, None))
+        .collect::<Vec<_>>();
+    let binder_requirement_catalog =
+        exact_callback_requirement_catalog(&signature.callback_binders)?;
+    let mut demand_requirement_catalog = Vec::new();
+    for parameter in &signature.native_parameters {
+        for layout in layout_plan
+            .private_callback_layouts
+            .iter()
+            .filter(|layout| layout.root_layout().data_symbol == parameter.layout_data_symbol)
+        {
+            let terminal = layout.terminal_slot();
+            validate_callback_requirement_report_collision(
+                &binder_requirement_catalog,
+                terminal.requirement,
+                &terminal.callback_requirement_identity,
+            )
+            .and_then(|()| {
                 validate_callback_requirement_report_collision(
-                    &binder_requirement_catalog,
+                    &demand_requirement_catalog,
                     terminal.requirement,
                     &terminal.callback_requirement_identity,
                 )
-                .and_then(|()| {
-                    validate_callback_requirement_report_collision(
-                        &demand_requirement_catalog,
-                        terminal.requirement,
-                        &terminal.callback_requirement_identity,
-                    )
-                })
-                .map_err(|reason| {
-                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                })?;
-                demand_requirement_catalog.push((
-                    terminal.requirement,
-                    terminal.callback_requirement_identity.to_string(),
-                ));
-                let entry = BoundaryCallbackLayoutEntry::from_layout(parameter, layout).map_err(
-                    |reason| {
-                        vec![
-                            Diagnostic::error(reason)
-                                .with_source_span(realization.relationship_span),
-                        ]
-                    },
-                )?;
-                demands.push((
-                    layout.native_demand(parameter.identity).map_err(|reason| {
-                        vec![
-                            Diagnostic::error(reason)
-                                .with_source_span(realization.relationship_span),
-                        ]
-                    })?,
-                    Some(entry),
-                ));
-            }
-        }
-        if demands.is_empty() && realization.callback_binders.is_empty() {
-            continue;
-        }
-        if demands.len() > CALLBACK_MATERIALIZATION_CAPACITY {
-            return Err(vec![Diagnostic::error(format!(
-                "boundary registrar has {} target-closed private callback demands; calling policies currently support at most {CALLBACK_MATERIALIZATION_CAPACITY}",
-                demands.len()
-            ))
-            .with_source_span(realization.relationship_span)]);
-        }
-        demands.sort_unstable_by(|left, right| left.0.destination.cmp(&right.0.destination));
-        if demands
-            .windows(2)
-            .any(|pair| pair[0].0.destination == pair[1].0.destination)
-        {
-            return Err(vec![
-                Diagnostic::error(
-                    "boundary registrar target closure repeats one exact private callback demand",
-                )
-                .with_source_span(realization.relationship_span),
-            ]);
-        }
-
-        let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
-        signature.callback_demands = demands.clone();
-        signature.callback_layout_catalog = entries.into_iter().flatten().collect();
-        let validated = code
-            .evaluate(realization.policy_symbol, target_profile, &signature)
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
             })?;
-        let classified = CallSignature {
-            parameters: validated
-                .plan()
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect(),
-            result: validated
-                .plan()
-                .call
-                .result
-                .as_ref()
-                .map(|placement| placement.shape),
-        };
-        let context = callback_materialization_context(&signature);
-        let validated = validate_boundary_entry_plan_with_callback_materializations(
-            validated.plan().clone(),
-            &classified,
-            &context,
-        )
-        .map_err(|diagnostic| {
-            vec![
-                Diagnostic::error(format!(
-                    "target-closed outbound callback materialization is invalid: {diagnostic}"
-                ))
-                .with_source_span(realization.relationship_span),
-            ]
-        })?;
-        let (new_fingerprint, new_commitment) =
-            boundary_plan_application_identity(&signature, &validated)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        realization.report_fingerprint = new_fingerprint;
-        realization.commitment =
-            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(new_commitment);
-        realization.boundary_entry_plan = validated.plan().clone();
-        realization.validated_boundary_entry_plan = validated;
-        realization.callback_demands = demands;
-        realization.native_parameters = signature.native_parameters.clone();
-        realization.callback_context_closed = true;
-        realization.materialized_signature = signature;
+            demand_requirement_catalog.push((
+                terminal.requirement,
+                terminal.callback_requirement_identity.to_string(),
+            ));
+            let entry = BoundaryCallbackLayoutEntry::from_layout(parameter, layout)?;
+            demands.push((layout.native_demand(parameter.identity)?, Some(entry)));
+        }
     }
-    Ok(())
+    if demands.is_empty() && signature.callback_binders.is_empty() {
+        return Ok(false);
+    }
+    if demands.len() > CALLBACK_MATERIALIZATION_CAPACITY {
+        return Err(format!(
+            "boundary registrar has {} target-closed private callback demands; calling policies currently support at most {CALLBACK_MATERIALIZATION_CAPACITY}",
+            demands.len()
+        ));
+    }
+    demands.sort_unstable_by(|left, right| left.0.destination.cmp(&right.0.destination));
+    if demands
+        .windows(2)
+        .any(|pair| pair[0].0.destination == pair[1].0.destination)
+    {
+        return Err(
+            "boundary registrar target closure repeats one exact private callback demand"
+                .to_owned(),
+        );
+    }
+
+    let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
+    signature.callback_demands = demands;
+    signature.callback_layout_catalog = entries.into_iter().flatten().collect();
+    Ok(true)
 }
 
 fn close_direct_callback_parameters(
@@ -502,8 +390,8 @@ pub(crate) fn callback_materialization_context(
     }
 }
 
-/// Canonical source-free projection shared by initial policy evaluation and
-/// callback closure. Admission recomputes this payload against an independently
+/// Canonical source-free projection shared by policy evaluation and
+/// application publication. Admission recomputes this payload against an independently
 /// selected method commitment; this constructor grants no receiving authority.
 pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,

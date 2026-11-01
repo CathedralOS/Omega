@@ -32,6 +32,12 @@ pub fn build_verified_psi_optimization_unit(
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
 
+/// The canonical Terminal product carries executable obligations and relies
+/// on the source checker for logical discharge. Reconstruct every primitive
+/// obligation from its exact operation or successor owner here, including
+/// nested runtime paths and aggregate receiving sites. A private stage-05
+/// marker roster is neither a portable input nor a second admission channel.
+/// Source checking establishes safety; this projection preserves its owner.
 fn source_checked_obligation_facts(
     unit: &PsiOptimizationUnit,
 ) -> Result<Vec<AcceptedObligationFact>, VerifiedPsiOptimizationUnitBuildError> {

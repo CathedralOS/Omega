@@ -780,7 +780,7 @@ impl PreCheckEvaluation {
         self
     }
 
-    pub fn evaluate_selected_operators(
+    pub(crate) fn evaluate_selected_operators(
         mut self,
         typed: &mut TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,

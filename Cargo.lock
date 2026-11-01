@@ -1087,6 +1087,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]
@@ -1826,6 +1827,7 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

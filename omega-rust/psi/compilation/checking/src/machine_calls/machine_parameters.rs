@@ -30,7 +30,6 @@ use crate::frozen_program::expression_table;
 use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
-pub use callable_shape::validate_trait_callable_parameter_refinement as validate_callable_parameter_refinement;
 pub(crate) use contract_facts::validate_callable_contract_refinement;
 use nominal_admission::validate_nominal_machine_selection;
 use type_refinement::TypeBinding;

@@ -1,0 +1,4 @@
+use omega::language::core::numeric_conversion;
+public data Choice requires (self in Choice::Eof) || ((self in Choice::Byte) && self.value >= 0 && self.value <= 255) { case Eof; case Byte(value: i32); }
+public machine make(value: i32) -> Choice { let byte: u8 = narrow_i32_to_u8_wrapping(value); Choice::Byte { value: byte as i32 } }
+machine main() crashes Trap { let result: Choice = make(42); transition result { Choice::Byte { value } -> inspect(value) Choice::Eof -> bad() } machine inspect(value: i32) { transition value == 42 { true -> done() false -> bad() } } machine done() {} machine bad() { crash Trap; } }

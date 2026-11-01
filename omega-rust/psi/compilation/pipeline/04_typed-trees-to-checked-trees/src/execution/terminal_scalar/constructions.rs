@@ -478,6 +478,7 @@ fn differing_plan_fields(existing: &TypePlan, incoming: &TypePlan) -> String {
     differences!(
         identity,
         native_identity,
+        native_semantic_identity,
         native_policy_identity,
         owns_linear_claim,
         copyable,

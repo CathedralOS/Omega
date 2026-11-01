@@ -60,6 +60,8 @@ pub struct ContractProofFact {
     /// The arena handle is term identity; proposition identity and eventual
     /// producer provenance remain separate records.
     pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
+    /// Formal argument subjects frozen for the exact machine contract owner.
+    pub nominal_argument_roots: Option<arena::HandleSpan<OutcomeOccurrenceRoot>>,
     /// Present only for an exact `ensures result in Domain` fact published by
     /// a boundary requirement whose result carrier matches the domain target.
     pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
@@ -184,7 +186,7 @@ pub struct OutcomeReferencedOccurrence {
     pub root: OutcomeOccurrenceRoot,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum OutcomeOccurrenceRoot {
     /// The callee's reserved `result`, which the caller's call result
     /// replaces under contract import.
@@ -201,6 +203,7 @@ pub enum OutcomeOccurrenceRoot {
     /// Authenticated closed value, independent of caller storage and formals.
     ClosedValue,
     /// A computed value or another root with no retained substitution lane.
+    #[default]
     Other,
 }
 

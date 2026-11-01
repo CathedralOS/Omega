@@ -54,25 +54,11 @@ pub(super) fn project(
         }
         let mut realizations = Vec::new();
         for alternative in alternatives {
-            if alternative.machine != plan.policy_plan_machine_symbol
-                || alternative.target_facts.profile != alternative.target.as_str()
-            {
-                return Err(failure(
-                    "task layout changed its exact target input custody",
-                ));
-            }
             let geometry = &alternative.geometry;
             let byte_size = geometry
                 .validated_layout
                 .size
                 .ok_or_else(|| failure("task layout alternative has no fixed extent"))?;
-            if usize::try_from(byte_size).ok() != Some(geometry.size)
-                || usize::try_from(geometry.validated_layout.align).ok() != Some(geometry.align)
-            {
-                return Err(failure(
-                    "task layout extent differs from its validated geometry",
-                ));
-            }
             realizations.push(TerminalTaskLayoutRealization {
                 target: alternative.target.as_str().to_owned(),
                 storage: semantic_vocabulary::AuthoredRecordStorage {

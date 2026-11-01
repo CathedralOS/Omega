@@ -57,6 +57,7 @@ pub struct CheckedUnitStructuralTypePlan {
     /// not impersonate a portable declaration identity.
     pub native_identity: Option<String>,
     pub native_policy_identity: Option<String>,
+    pub native_semantic_identity: Option<String>,
     /// The normalized nominal carrier owns one whole linear obligation.
     /// Transparent arrays/aggregates do not inherit this bit from children;
     /// each child keeps its own obligation even beneath a whole-linear parent.

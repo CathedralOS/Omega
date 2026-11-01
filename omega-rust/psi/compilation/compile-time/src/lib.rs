@@ -64,7 +64,6 @@ pub use const_evaluation::const_lengths::{
 };
 pub use const_evaluation::data_layout_queries::{
     LayoutApplicationTargetInput, LayoutQueryMeasurements, LayoutQueryProvider,
-    fold_data_layout_queries,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;

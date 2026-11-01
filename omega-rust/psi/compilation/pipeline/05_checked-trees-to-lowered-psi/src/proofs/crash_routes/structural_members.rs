@@ -111,7 +111,27 @@ pub(crate) fn lower_sequence_extent_term(
         path,
         structural_types,
     )?;
-    let carrier = selected.field_type()?;
+    require_readable_sequence_extent(selected.field_type()?, structural_types)?;
+    let integer = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?
+        .as_integer()
+        .ok_or(LoweringError::Unsupported(
+            "sequence extent is not an integer",
+        ))?;
+    if let Some(path) = selected.canonical {
+        return Ok(ScalarTerm::view_extent(parameter.place, path, integer));
+    }
+    let mut path = selected.observation.ok_or(LoweringError::Unsupported(
+        "sequence extent has no exact descriptor observation path",
+    ))?;
+    path.push(semantic_vocabulary::ScalarReadProjection::Extent);
+    ScalarTerm::structural_read(parameter.place, path, ScalarType::Integer(integer))
+        .map_err(LoweringError::InvalidCrashPredicate)
+}
+
+fn require_readable_sequence_extent(
+    carrier: StructuralFieldType,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
     let carrier = match carrier {
         terminal_psi::StructuralFieldType::Structural(identity) => {
             let declaration = terminal_psi::find_structural_type(structural_types, identity)
@@ -144,19 +164,49 @@ pub(crate) fn lower_sequence_extent_term(
     ) {
         return unsupported("closed sequence extent requires readable access");
     }
-    let integer = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?
-        .as_integer()
-        .ok_or(LoweringError::Unsupported(
-            "sequence extent is not an integer",
-        ))?;
-    if let Some(path) = selected.canonical {
-        return Ok(ScalarTerm::view_extent(parameter.place, path, integer));
+    Ok(())
+}
+
+/// Entry requirements observe the exact selected descriptor, including each
+/// member-separated runtime index retained by source checking.
+pub(crate) fn lower_sequence_extent_projection_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    parameter_position: u32,
+    path: &[checked_trees::CheckedScalarReadProjection],
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<ScalarTerm, LoweringError> {
+    if let Some(path) = checked_trees::CheckedScalarReadProjection::static_path(path) {
+        return lower_sequence_extent_term(
+            identities,
+            parameter_position,
+            &path,
+            parameters,
+            structural_types,
+        );
     }
-    let mut path = selected.observation.ok_or(LoweringError::Unsupported(
-        "sequence extent has no exact descriptor observation path",
-    ))?;
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == parameter_position)
+        .ok_or(LoweringError::Unsupported(
+            "closed sequence extent names a non-structural parameter",
+        ))?;
+    let (mut path, carrier) = lower_checked_read_projections(
+        identities,
+        parameter.structural_type,
+        parameter.access,
+        path,
+        structural_types,
+        lower_selector,
+    )?;
+    require_readable_sequence_extent(carrier, structural_types)?;
     path.push(semantic_vocabulary::ScalarReadProjection::Extent);
-    ScalarTerm::structural_read(parameter.place, path, ScalarType::Integer(integer))
+    let scalar_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
+    ScalarTerm::structural_read(parameter.place, path, scalar_type)
         .map_err(LoweringError::InvalidCrashPredicate)
 }
 
@@ -256,6 +306,75 @@ fn lower_structural_indexed_place(
         .collect::<Vec<_>>();
     projections.push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
     projections.extend_from_slice(element_path);
+    let (terminal_path, _) = lower_checked_read_projections(
+        identities,
+        root_type,
+        access,
+        &projections,
+        structural_types,
+        lower_selector,
+    )?;
+    let actual = terminal_semantics::structural_read_scalar_type(
+        structural_types.iter(),
+        root_type,
+        &terminal_path,
+    );
+    let expected = terminal_scalar_type(*primitive_type)?;
+    if actual != Some(expected) {
+        return unsupported("indexed contract path does not select its retained scalar type");
+    }
+    // A closed selection is the same declared observation as a member path,
+    // not a dynamic-read-shaped term that makes its pure domain opaque.
+    let fixed = terminal_path
+        .iter()
+        .map(|step| match step {
+            ScalarReadProjection::Static(step) => Some(step.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    let term = match (fixed, expected) {
+        (Some(path), ScalarType::Integer(integer)) => {
+            ScalarTerm::integer_field_path(root, path, integer)
+        }
+        (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(root, path),
+        (Some(path), ScalarType::IeeeFloat(format)) => {
+            ScalarTerm::ieee_float_field_path(root, path, format)
+        }
+        (None, _) => ScalarTerm::StructuralRead {
+            root,
+            path: terminal_path,
+            scalar_type: expected,
+        },
+    };
+    term.validate()
+        .map_err(LoweringError::InvalidCrashPredicate)?;
+    Ok(term)
+}
+
+/// Project the checked occurrence path without dropping its evaluated selectors.
+/// The same declaration walk supplies scalar reads and descriptor extents.
+fn lower_checked_read_projections(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    root_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    projections: &[checked_trees::CheckedScalarReadProjection],
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<
+    (
+        Vec<semantic_vocabulary::ScalarReadProjection>,
+        StructuralFieldType,
+    ),
+    LoweringError,
+> {
+    use checked_trees::CheckedScalarReadProjection;
+    use semantic_vocabulary::ScalarReadProjection;
+    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("indexed contract observation requires readable access");
+    }
     let mut terminal_path = Vec::new();
     let mut selected = StructuralFieldType::Structural(root_type);
     let mut cursor = 0;
@@ -349,41 +468,7 @@ fn lower_structural_indexed_place(
         });
         cursor += 1;
     }
-    let actual = terminal_semantics::structural_read_scalar_type(
-        structural_types.iter(),
-        root_type,
-        &terminal_path,
-    );
-    let expected = terminal_scalar_type(*primitive_type)?;
-    if actual != Some(expected) {
-        return unsupported("indexed contract path does not select its retained scalar type");
-    }
-    // A closed selection is the same declared observation as a member path,
-    // not a dynamic-read-shaped term that makes its pure domain opaque.
-    let fixed = terminal_path
-        .iter()
-        .map(|step| match step {
-            ScalarReadProjection::Static(step) => Some(step.clone()),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>();
-    let term = match (fixed, expected) {
-        (Some(path), ScalarType::Integer(integer)) => {
-            ScalarTerm::integer_field_path(root, path, integer)
-        }
-        (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(root, path),
-        (Some(path), ScalarType::IeeeFloat(format)) => {
-            ScalarTerm::ieee_float_field_path(root, path, format)
-        }
-        (None, _) => ScalarTerm::StructuralRead {
-            root,
-            path: terminal_path,
-            scalar_type: expected,
-        },
-    };
-    term.validate()
-        .map_err(LoweringError::InvalidCrashPredicate)?;
-    Ok(term)
+    Ok((terminal_path, selected))
 }
 
 pub(crate) fn lower_structural_member_term(

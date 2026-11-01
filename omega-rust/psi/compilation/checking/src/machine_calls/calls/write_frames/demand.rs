@@ -748,6 +748,26 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Exact reference sources at the same statement prefix, retaining every
+    /// recast and representation boundary. Backing equality alone is not a
+    /// scalar-value interpretation; value consumers must inspect these rows.
+    pub fn reference_expression_sources_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+        super::reference_subjects::expression_sources_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )
+        .map(|origins| origins.into_iter().map(Into::into).collect())
+    }
+
     /// Complete exact storage sources for an already selected coordinate.
     /// Matched frozen loads authenticate each supported reference boundary;
     /// declaration geometry alone cannot. Consumers compare typed namespaces

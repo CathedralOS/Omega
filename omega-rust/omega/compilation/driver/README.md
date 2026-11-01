@@ -617,6 +617,9 @@ There is no policy-only compilation. Named inspection retains its distinct
 explicit root through the same Psi operation, without replacing Product code.
 Preparation still reads source for ordinary/opaque layouts and inline callback
 slots; moving those owners after Terminal publication remains unfinished.
+It completes the native telescope and all callback destinations before the
+single policy activation. Provider schemas capture that final application;
+there is no accepted partial plan to replace after callback closure.
 
 Native boundary packing retains no opaque source-selection record. It emits
 the recipe's exact selection ordinal and native shape root; provider planning

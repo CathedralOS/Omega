@@ -533,6 +533,13 @@ profiles bound to the actual binary digests. See
     same way earlier prove nothing.
   - Stored outcomes are history. A row that disagrees with today's run is
     attributed with `--compare <base>` on that fixture, not chased.
+  - A fixture the change edits, adds or deletes is the change's own witness,
+    however many there are: re-record its row in
+    `tests/omega/corpus_outcomes.txt`, or delete the row when the change does
+    not run it. `tools/check_rules.py` fails admission on a row left
+    describing source the change replaced. #958 rewrote 738 variant-payload
+    fixtures without re-recording them, and their rows went on saying
+    `checked` for programs that no longer checked.
   - If a single fixture takes minutes to check or a build takes most of an
     hour, that is a workflow defect to measure and report, not a reason to
     wait longer.
@@ -708,7 +715,9 @@ The rules that touch every edit:
   types, so a violation stops compiling. An order or count rule belongs in a
   test that runs the code and observes it. In the week to 2026-11-01, 261
   such reads were added; PR #1139 replaced the ones it could and deleted
-  165 spelling-only asserts.
+  165 spelling-only asserts, and three PRs added 14 more within an hour of
+  this rule. `tools/check_rules.py` now fails admission when a file's reads
+  exceed its count in `tools/source_text_reads.txt`.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
@@ -951,7 +960,9 @@ change-type prefix such as `feat:` or `fix:`. Fact-row and fixture commits
 follow the same rule: they take the lane of the behavior they pin, or
 `samples` when they add only sample content. `facts(...)`, `tests(facts):`,
 `docs(workflow):` and a bare `Pin ...` or `Complete ...` subject are not lanes;
-496 of 1,736 commits from Oct 15 to Oct 21 had no lane.
+496 of 1,736 commits from Oct 15 to Oct 21 had no lane, and 178 of 1,017 from
+Oct 25 to Nov 1. A squash merge takes the pull request title as its subject,
+so `compiler-check` checks the title against this table.
 
 The body is prose paragraphs after a blank line, with numbers in place of
 adjectives. Cover what applies: what the previous behavior was and why it

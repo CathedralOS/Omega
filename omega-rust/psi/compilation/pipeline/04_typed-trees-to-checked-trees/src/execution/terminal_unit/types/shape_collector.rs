@@ -418,6 +418,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             native_identity: None,
             native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: data.properties.multiplicity == Multiplicity::Linear,
             no_code_affine_cleanup: false,
@@ -547,6 +548,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             native_identity: None,
             native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -794,6 +796,7 @@ impl<'program> ShapeCollector<'program> {
             let plan = CheckedUnitStructuralTypePlan {
                 native_identity: None,
                 native_policy_identity: None,
+                native_semantic_identity: None,
                 scalar_restriction: None,
                 // A borrowed byte carrier owns only its descriptor. As with
                 // Reference shapes, replacement may retire that descriptor,
@@ -825,6 +828,7 @@ impl<'program> ShapeCollector<'program> {
             let plan = CheckedUnitStructuralTypePlan {
                 native_identity: None,
                 native_policy_identity: None,
+                native_semantic_identity: None,
                 scalar_restriction: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -879,6 +883,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     native_identity: None,
                     native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
@@ -965,6 +970,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     native_identity: None,
                     native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
@@ -1122,6 +1128,7 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypePlan {
                         native_identity: None,
                         native_policy_identity: None,
+                        native_semantic_identity: None,
                         scalar_restriction: None,
                         owns_linear_claim: true,
                         no_code_affine_cleanup: false,
@@ -1256,6 +1263,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     native_identity: None,
                     native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction: None,
                     owns_linear_claim,
                     no_code_affine_cleanup,
@@ -1370,6 +1378,8 @@ impl<'program> ShapeCollector<'program> {
             identity,
             CheckedUnitStructuralTypePlan {
                 native_policy_identity: native_policy_identity.clone(),
+                native_semantic_identity: authored_layout
+                    .and_then(|plan| plan.native_semantic_identity(program.typed_program()).ok()),
                 native_identity: match authored_layout {
                     Some(plan) => native_policy_identity.as_deref().and_then(|policy| {
                         plan.native_data_identity(program.typed_program(), &data, policy)
@@ -1577,6 +1587,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             native_identity: None,
             native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: self.program.type_multiplicity(type_reference)
                 == Multiplicity::Linear,

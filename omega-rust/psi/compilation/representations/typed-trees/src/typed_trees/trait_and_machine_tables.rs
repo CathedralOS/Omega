@@ -522,6 +522,20 @@ impl TypedTrees {
         machine: &machine::Machine,
         symbol: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
+        self.machine_parameter_signature_in_with_scope_parents(machine, symbol, |owner| {
+            self.declaration_scope_parent(owner)
+        })
+    }
+
+    // Both the ordinary query and an invocation-owned query batch use this
+    // exact walk. Parent caching may avoid work; it cannot change the selected
+    // contract, lexical shadowing, first owner, or cycle refusal.
+    pub(super) fn machine_parameter_signature_in_with_scope_parents<'program>(
+        &'program self,
+        machine: &machine::Machine,
+        symbol: SymbolHandle,
+        mut scope_parent: impl FnMut(SymbolHandle) -> SymbolHandle,
+    ) -> Option<&'program signature::StateSignature> {
         let own = self.machine_type_parameters(machine);
         let mut parameters = own;
         let mut enclosing = machine.symbol;
@@ -538,7 +552,7 @@ impl TypedTrees {
                     _ => None,
                 };
             }
-            enclosing = self.declaration_scope_parent(enclosing);
+            enclosing = scope_parent(enclosing);
             if !enclosing.is_valid() || visited.contains(&enclosing) {
                 return None;
             }

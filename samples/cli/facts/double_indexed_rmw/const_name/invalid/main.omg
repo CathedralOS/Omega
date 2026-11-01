@@ -5,7 +5,7 @@ const GRID_CELL: i32 = 41;
 const ROW_CELL: i32 = 41;
 const TAG: i32 = 7;
 const I: u64 = 1;
-const J: u64 = 2;
+const J: u64 = 4;
 const RI: u64 = 2;
 const RJ: u64 = 1;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
@@ -14,7 +14,7 @@ machine main() crashes Trap {
     let mut rows: [Row; 3];
     transition { _ -> rmw(&mut grid, &mut rows) }
     machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3]) {
-        grid[I][J] = 40;
+        grid[I][J] = 41;
         grid[I][J] = grid[I][J] + 1;
         let grid_got: i32 in Wrapping = grid[I][J];
         rows[RI].data[RJ] = ROW_CELL;

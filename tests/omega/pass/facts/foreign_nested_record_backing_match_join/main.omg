@@ -134,20 +134,30 @@ satisfies Writer::register via windows_x86_64_register_binding();
 windows_x86_64 machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
 satisfies Writer::complete via windows_x86_64_complete_binding();
 windows_x86_64 machine release(capacity: Capacity in Capacity::Available) satisfies Writer::release via windows_x86_64_release_binding();
+machine record_route<'a>(pending: Pending<'a> in Pending::Retained, route: &mut u64, marker: u64) -> Pending<'a> in Pending::Retained
+ensures result in Pending::Retained {
+    route = marker;
+    pending
+}
 data Main {}
-machine run_main(main: &mut Main) reaches Writer crashes Trap {
+machine run_main(main: &mut Main, flag: bool, expected_route: u64) reaches Writer crashes Trap {
     let capacity: Capacity in Capacity::Available = Writer::acquire();
     let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cell: Cell { value: 37 } };
     let original: u64 = buffer.cell.value;
     let pending: Pending in Pending::Retained = Writer::register(capacity, &mut buffer);
-    let routed: Pending in Pending::Retained = match true { true -> pending, false -> pending };
+    let mut route: u64 = 0;
+    let routed: Pending in Pending::Retained = match flag {
+        true -> record_route(pending, &mut route, 17),
+        false -> record_route(pending, &mut route, 23),
+    };
+    let taken_route: u64 = route;
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);
     Writer::release(returned);
     let value: u64 = buffer.cell.value;
     let marker: u64 = buffer.marker;
     drop(buffer);
-    transition observed == 73 && value == 73 && original == 37 && marker == 91 { true -> done() _ -> bad() }
+    transition observed == 73 && value == 73 && original == 37 && marker == 91 && taken_route == expected_route { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
@@ -155,5 +165,6 @@ machine run_main(main: &mut Main) reaches Writer crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Writer crashes Trap {
     let mut entry_storage: Main;
-    run_main(&mut entry_storage);
+    run_main(&mut entry_storage, true, 17);
+    run_main(&mut entry_storage, false, 23);
 }
