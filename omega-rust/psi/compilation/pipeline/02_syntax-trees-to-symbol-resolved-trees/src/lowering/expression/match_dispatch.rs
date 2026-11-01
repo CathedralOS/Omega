@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern,
     TableBinaryExpression, TableDestructurePattern, TableMatchArm, TableMatchExpression,
-    TableMatchField, TableMemberExpression, TableSavedSubject,
+    TableMatchField, TableSavedSubject,
 };
 use symbol_resolved_trees::statement::OutcomeProofSelector;
 use syntax_trees::{SyntaxTrees, expression as syntax};
