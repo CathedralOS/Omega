@@ -1,0 +1,181 @@
+// Fact: Selected representation agreement preserves every semantic field through its exact fallible maps and rejects malformed frames.
+// Expected exit: 0
+use omega::language::core::conversion;
+
+data Pair [copy] { first: u8; last: u8; }
+data FirstFrame [copy] { tag: u8; first: u8; last: u8; }
+data SecondFrame [copy] { tag: u8; first: u8; last: u8; }
+data Failure [copy] { case InvalidTag; }
+
+// This refinement describes only the selected value maps used in this law.
+// Base TryFrom remains available to resource-backed and effectful conversions.
+trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
+    machine * reaches suspends false blocks false terminates;
+}
+trait FrameValidity<Frame> {
+    machine valid(frame: Frame) -> bool reaches terminates;
+}
+trait PairAgreement<Frame,
+    Encode satisfies ValueConversion<Pair, Frame, Failure>,
+    Decode satisfies ValueConversion<Frame, Pair, Failure>,
+    Validity satisfies FrameValidity<Frame>>
+{
+    machine encode_covers(value: Pair)
+    ensures Encode::try_from(value) in Result::Ok;
+    machine encode_valid(value: Pair, frame: Frame)
+    requires Encode::try_from(value) == Result::Ok { value: frame }
+    ensures Validity::valid(frame);
+    machine decode_covers(frame: Frame)
+    requires Validity::valid(frame)
+    ensures Decode::try_from(frame) in Result::Ok;
+    machine decode_rejects(frame: Frame)
+    requires !Validity::valid(frame)
+    ensures Decode::try_from(frame) == Result::Err { error: Failure::InvalidTag };
+    machine round_trip(value: Pair, frame: Frame)
+    requires Encode::try_from(value) == Result::Ok { value: frame }
+    ensures Decode::try_from(frame) == Result::Ok { value: value };
+}
+
+WriteFirst satisfies TryFrom<Pair, FirstFrame, Failure> {
+    machine try_from(source: Pair) -> Result<FirstFrame, Failure> reaches terminates {
+        Result::Ok { value: FirstFrame { tag: 165u8, first: source.first, last: source.last } }
+    }
+}
+ReadFirst satisfies TryFrom<FirstFrame, Pair, Failure> {
+    machine try_from(source: FirstFrame) -> Result<Pair, Failure> reaches terminates {
+        transition source.tag == 165u8 {
+            true -> Result::Ok { value: Pair { first: source.first, last: source.last } }
+            false -> Result::Err { error: Failure::InvalidTag }
+        }
+    }
+}
+FirstValidity satisfies FrameValidity<FirstFrame> {
+    machine valid(frame: FirstFrame) -> bool reaches terminates { frame.tag == 165u8 }
+}
+WriteSecond satisfies TryFrom<Pair, SecondFrame, Failure> {
+    machine try_from(source: Pair) -> Result<SecondFrame, Failure> reaches terminates {
+        Result::Ok { value: SecondFrame { tag: 90u8, first: source.last, last: source.first } }
+    }
+}
+ReadSecond satisfies TryFrom<SecondFrame, Pair, Failure> {
+    machine try_from(source: SecondFrame) -> Result<Pair, Failure> reaches terminates {
+        transition source.tag == 90u8 {
+            true -> Result::Ok { value: Pair { first: source.last, last: source.first } }
+            false -> Result::Err { error: Failure::InvalidTag }
+        }
+    }
+}
+SecondValidity satisfies FrameValidity<SecondFrame> {
+    machine valid(frame: SecondFrame) -> bool reaches terminates { frame.tag == 90u8 }
+}
+
+FirstAgreement satisfies PairAgreement<FirstFrame, WriteFirst, ReadFirst, FirstValidity> {
+    machine encode_covers(value: Pair)
+    ensures WriteFirst::try_from(value) in Result::Ok { }
+    machine encode_valid(value: Pair, frame: FirstFrame)
+    requires WriteFirst::try_from(value) == Result::Ok { value: frame }
+    ensures FirstValidity::valid(frame) { }
+    machine decode_covers(frame: FirstFrame)
+    requires FirstValidity::valid(frame)
+    ensures ReadFirst::try_from(frame) in Result::Ok { }
+    machine decode_rejects(frame: FirstFrame)
+    requires !FirstValidity::valid(frame)
+    ensures ReadFirst::try_from(frame) == Result::Err { error: Failure::InvalidTag } { }
+    machine round_trip(value: Pair, frame: FirstFrame)
+    requires WriteFirst::try_from(value) == Result::Ok { value: frame }
+    ensures ReadFirst::try_from(frame) == Result::Ok { value: value } { }
+}
+SecondAgreement satisfies PairAgreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity> {
+    machine encode_covers(value: Pair)
+    ensures WriteSecond::try_from(value) in Result::Ok { }
+    machine encode_valid(value: Pair, frame: SecondFrame)
+    requires WriteSecond::try_from(value) == Result::Ok { value: frame }
+    ensures SecondValidity::valid(frame) { }
+    machine decode_covers(frame: SecondFrame)
+    requires SecondValidity::valid(frame)
+    ensures ReadSecond::try_from(frame) in Result::Ok { }
+    machine decode_rejects(frame: SecondFrame)
+    requires !SecondValidity::valid(frame)
+    ensures ReadSecond::try_from(frame) == Result::Err { error: Failure::InvalidTag } { }
+    machine round_trip(value: Pair, frame: SecondFrame)
+    requires WriteSecond::try_from(value) == Result::Ok { value: frame }
+    ensures ReadSecond::try_from(frame) == Result::Ok { value: value } { }
+}
+
+machine require_round_trip<Frame,
+    Encode satisfies ValueConversion<Pair, Frame, Failure>,
+    Decode satisfies ValueConversion<Frame, Pair, Failure>>
+    (value: Pair, frame: Frame)
+requires Decode::try_from(frame) == Result::Ok { value: value }
+{ }
+
+machine use_agreement<Frame,
+    Encode satisfies ValueConversion<Pair, Frame, Failure>,
+    Decode satisfies ValueConversion<Frame, Pair, Failure>,
+    Validity satisfies FrameValidity<Frame>,
+    Agreement satisfies PairAgreement<Frame, Encode, Decode, Validity>>
+    (value: Pair, frame: Frame, malformed: Frame)
+requires Encode::try_from(value) == Result::Ok { value: frame }
+requires !Validity::valid(malformed)
+{
+    Agreement::encode_covers(value);
+    Agreement::encode_valid(value, frame);
+    Agreement::decode_covers(frame);
+    Agreement::decode_rejects(malformed);
+    Agreement::round_trip(value, frame);
+    require_round_trip<Frame, Encode, Decode>(value, frame);
+}
+
+// Runtime observation deliberately receives only the ordinary fallible maps,
+// so the agreement theorem is not a premise of its executable verdict.
+machine observe<Frame,
+    Encode satisfies TryFrom<Pair, Frame, Failure>,
+    Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, malformed: Frame) -> bool
+{
+    let encoded: Result<Frame, Failure> = convert<Pair, Frame, Failure, Encode>(value);
+    transition encoded {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as frame } -> inspect<Frame, Decode>(value, frame, malformed)
+    }
+}
+machine inspect<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, frame: Frame, malformed: Frame) -> bool
+{
+    let decoded: Result<Pair, Failure> = convert<Frame, Pair, Failure, Decode>(frame);
+    transition decoded {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as restored } -> reject_malformed<Frame, Decode>(value, restored, malformed)
+    }
+}
+machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
+    (value: Pair, restored: Pair, malformed: Frame) -> bool
+{
+    let refused: Result<Pair, Failure> = convert<Frame, Pair, Failure, Decode>(malformed);
+    transition refused {
+        Result::Err { error as failure } -> restored.first == value.first && restored.last == value.last
+        Result::Ok { value as unexpected } -> false
+    }
+}
+
+machine consume(value: Pair) -> bool {
+    let first: FirstFrame = FirstFrame { tag: 165u8, first: value.first, last: value.last };
+    let second: SecondFrame = SecondFrame { tag: 90u8, first: value.last, last: value.first };
+    let malformed_first: FirstFrame = FirstFrame { tag: 0u8, first: value.first, last: value.last };
+    let malformed_second: SecondFrame = SecondFrame { tag: 0u8, first: value.last, last: value.first };
+    use_agreement<FirstFrame, WriteFirst, ReadFirst, FirstValidity, FirstAgreement>(value, first, malformed_first);
+    use_agreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity, SecondAgreement>(value, second, malformed_second);
+    let first_ok: bool = observe<FirstFrame, WriteFirst, ReadFirst>(value, malformed_first);
+    let second_ok: bool = observe<SecondFrame, WriteSecond, ReadSecond>(value, malformed_second);
+    first_ok && second_ok
+}
+
+machine main() crashes Trap {
+    let saved: Pair = Pair { first: 17u8, last: 42u8 };
+    let edge: Pair = Pair { first: 0u8, last: 255u8 };
+    let observed: bool = consume(saved);
+    let endpoint: bool = consume(edge);
+    transition observed && endpoint { true -> done() false -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
