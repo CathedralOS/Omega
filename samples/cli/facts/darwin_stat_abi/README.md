@@ -31,13 +31,21 @@ calls so any wrong offset, signed carrier, omitted timestamp half, wrong branch
 or lost array element traps in native/Terminal execution. The source metadata
 does not grant storage or field access rights.
 
-The exact `1a31aa120cdd` Mac producer passed all eight checking controls and all
-four corpus native/Terminal programs at exit 0 against the actual SDK fixture.
-The [focused run](https://github.com/CathedralOS/Omega/actions/runs/41335219379)
-remained red because ordinary public package review exceeded its 180-second
-budget; the public projects and filesystem runtime control are still being
-qualified separately. The other six transports and other-host observations
-remain open; the complete parent also retains conversions and Product parity.
+The exact `1a31aa120cdd` optimized Mac producer passed all eight checking
+controls and all four corpus native/Terminal programs at exit 0 against SDK 15.5.
+The corpus stages of the [focused run](https://github.com/CathedralOS/Omega/actions/runs/41335219379)
+passed; its ordinary public reviews exceeded the former 180-second allowance.
+The same retained compiler then completed all four ordinary public package
+reviews and `omega run --both` executions at exit 0, including canonical Terminal
+inspection, with a measured 600-second allowance for each review phase.
+
+The existing portable metadata/set-times control also checks and exits 0
+natively. Its Terminal `_futimens` adapter gap predates this migration and remains
+under FILESYSTEM-PLATFORM-SERVICES in [TASKS.md](../../../../TASKS.md); the
+private native sponsor does not grant extra filesystem capability.
+
+The other six stat transports and other-host observations remain open; the
+complete parent also retains conversions and Product parity.
 
 `file_times` checks the same shared two-element C timestamp array
 through the C ABI with UTIME_OMIT/NOW values -2/-1. Its twin
