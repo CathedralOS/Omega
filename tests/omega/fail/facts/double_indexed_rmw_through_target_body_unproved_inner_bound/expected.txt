@@ -1,2 +1,2 @@
-violates required fact `j <= 3`
-the instantiated fact is structurally false (`4 <= 3`)
+cannot prove requires contract for call rmw from main: 4 <= 3
+needs fact `j <= 3` here
