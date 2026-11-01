@@ -124,3 +124,47 @@ fn extent_static_operands_visit_nested_type_and_selection_owners() {
         Err(TypeIdentityVisitError::MalformedIdentity)
     );
 }
+
+#[test]
+fn generic_arguments_visit_type_and_const_owners_without_widening_type_roots() {
+    let nominal = format!("nominal(package-owner(32:{}),path(count))", "ab".repeat(32));
+    let escaped = nominal
+        .replace('\\', "\\\\")
+        .replace('(', "\\(")
+        .replace(')', "\\)")
+        .replace(',', "\\,");
+    for application in ["generic", "dynamic-trait"] {
+        let identity = format!(
+            "{application}(name(Container),compiler-type(atom(u8)),integer(7),call(target({escaped}),integer(3)))"
+        );
+        let mut owners = Owners {
+            allowed: Some([0xab; 32]),
+            ..Default::default()
+        };
+        assert_eq!(
+            visit_type_identity_package_owners(&identity, &mut owners),
+            Ok(())
+        );
+        assert_eq!(owners.seen, vec![[0xab; 32]]);
+        assert_eq!(owners.depth, 0);
+        let mut unknown = Owners::default();
+        assert_eq!(
+            visit_type_identity_package_owners(&identity, &mut unknown),
+            Err(TypeIdentityVisitError::UnknownPackage)
+        );
+        assert_eq!(unknown.depth, 0);
+        assert_eq!(
+            visit_type_identity_package_owners(
+                &identity.replace("integer(7)", "hidden-owner(7)"),
+                &mut owners,
+            ),
+            Err(TypeIdentityVisitError::MalformedIdentity)
+        );
+        assert_eq!(owners.depth, 0);
+        assert_eq!(
+            visit_type_identity_package_owners("integer(7)", &mut owners),
+            Err(TypeIdentityVisitError::MalformedIdentity)
+        );
+        assert_eq!(owners.depth, 0);
+    }
+}

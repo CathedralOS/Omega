@@ -259,8 +259,10 @@ pub fn resolve_named_result_overloads(
     // both expression arms and transition targets. Publish them only after
     // independent prefix queries. Do not elide again: a refuted body can
     // still have an effectful reached guard before its final rejecting test.
-    let conditional =
-        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(program);
+    let conditional = {
+        let context = crate::CheckingContext::new(program);
+        crate::proof_contracts::contract_entailment::predicate_case_type_contexts(&context)
+    };
     program.prepare_static_type_contexts(
         &boolean_equalities,
         case_memberships.into_iter().chain(conditional).collect(),
@@ -269,8 +271,13 @@ pub fn resolve_named_result_overloads(
     // and dispatch needs the same admitted subject's possible cases. Compute
     // the whole batch against the preexisting contexts, then publish it once;
     // a goal or receiving annotation cannot become its own premise.
-    let predicate_contexts =
-        crate::proof_contracts::contract_entailment::predicate_type_contexts(program);
+    // Prefix observations share program-wide effect and callable indexes for
+    // this immutable input epoch. Drop the context before publishing new facts;
+    // those facts must not be read by a query that is establishing them.
+    let predicate_contexts = {
+        let context = crate::CheckingContext::new(program);
+        crate::proof_contracts::contract_entailment::predicate_type_contexts(&context)
+    };
     program.retain_proven_type_contexts(predicate_contexts);
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
