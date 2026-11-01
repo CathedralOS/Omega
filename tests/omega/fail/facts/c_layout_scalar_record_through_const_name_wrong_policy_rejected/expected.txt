@@ -1,2 +1,1 @@
-LayoutStorage<Record, OtherPolicy>
-LayoutStorage<Record, CAbiPolicy<Record>>
+constant initializer result does not match its declared carrier
