@@ -8245,15 +8245,15 @@ pass/facts/nested_nine_level_record_field_bound_through_other_machine_exit check
 pass/facts/nested_nine_level_record_field_bound_through_other_state_exit checked 3562ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_nine_level_record_field_bound_through_parameter_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_nine_level_record_field_bound_through_target_body_exit checked 3530ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_record_field_borrow_bound_through_call_result_exit checked 6416ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_const_name_exit checked 8558ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_field_exit checked 6337ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_local_exit checked 6416ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_match_join_exit checked 6440ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_other_machine_exit checked 6450ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_other_state_exit checked 7536ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_parameter_exit checked 6480ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_record_field_borrow_bound_through_target_body_exit checked 6313ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/nested_record_field_borrow_bound_through_call_result_exit checked 7704ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_const_name_exit checked 6374ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_field_exit checked 6371ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_local_exit checked 6396ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_match_join_exit checked 6372ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_other_machine_exit checked 7589ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_other_state_exit checked 6365ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_parameter_exit checked 6389ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/nested_record_field_borrow_bound_through_target_body_exit checked 7494ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/nested_record_layout_geometry_through_call_result_exit checked 3987ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_layout_geometry_through_const_name_exit checked 3878ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_layout_geometry_through_field_exit checked 4118ms check-target:macos_arm64 @ccdb99ca2214
@@ -9163,15 +9163,15 @@ pass/facts/selected_value_application_through_other_machine_exit checked 3825ms 
 pass/facts/selected_value_application_through_other_state_exit checked 3611ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_value_application_through_parameter_exit checked 3689ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_value_application_through_target_body_exit checked 4134ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_borrow_field_projection_through_call_result_exit checked 6360ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_const_name_exit checked 6290ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_field_exit checked 6205ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_local_exit checked 6166ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_match_join_exit checked 7630ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_other_machine_exit checked 6032ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_other_state_exit checked 5801ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_parameter_exit checked 5708ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/shared_borrow_field_projection_through_target_body_exit checked 7470ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/shared_borrow_field_projection_through_call_result_exit checked 7883ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_const_name_exit checked 6389ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_field_exit checked 6387ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_local_exit checked 7209ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_match_join_exit checked 8410ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_other_machine_exit checked 7263ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_other_state_exit checked 7119ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_parameter_exit checked 7234ms check-target:macos_arm64 @13fd04e63afe+wt
+pass/facts/shared_borrow_field_projection_through_target_body_exit checked 7286ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/shared_byte_view_rebinding_through_call_result_exit checked 3533ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/shared_byte_view_rebinding_through_const_name_exit checked 3348ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/shared_byte_view_rebinding_through_field_exit checked 3318ms check-target:macos_arm64 @ccdb99ca2214
@@ -26019,21 +26019,23 @@ fail/facts/nested_nine_level_record_field_bound_through_target_body_rejected rej
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_call_result_rejected checked 11911ms @911f6617ba9e
-fail/facts/nested_record_field_borrow_bound_through_const_name_rejected rejected 1173ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_call_result_rejected rejected 1579ms expected regressed-from:checked @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_field_rejected rejected 1233ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_const_name_rejected rejected 1574ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_local_rejected rejected 1238ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_field_rejected rejected 3009ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_match_join_rejected rejected 1281ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_local_rejected rejected 3078ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_other_machine_rejected rejected 1388ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_match_join_rejected rejected 2877ms expected @13fd04e63afe+wt
+	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_record_field_borrow_bound_through_other_machine_rejected rejected 2794ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `target_machine` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_other_state_rejected checked 9738ms @911f6617ba9e
-fail/facts/nested_record_field_borrow_bound_through_parameter_rejected rejected 1424ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_other_state_rejected rejected 2712ms expected regressed-from:checked @13fd04e63afe+wt
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_target_body_rejected rejected 2420ms expected @911f6617ba9e
+fail/facts/nested_record_field_borrow_bound_through_parameter_rejected rejected 2698ms expected @13fd04e63afe+wt
+	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_record_field_borrow_bound_through_target_body_rejected rejected 1359ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -27881,21 +27883,23 @@ fail/facts/selected_value_application_through_parameter_rejected rejected 3177ms
 	cannot prove requires contract for call exercise from main: 11 <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/selected_value_application_through_target_body_rejected rejected 1646ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_call_result_rejected checked 10217ms @911f6617ba9e
-fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 2014ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 1633ms expected regressed-from:checked @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_field_rejected rejected 1878ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 1544ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_local_rejected rejected 2453ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_field_rejected rejected 1545ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_match_join_rejected rejected 2437ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_local_rejected rejected 1533ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_other_machine_rejected rejected 2429ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_match_join_rejected rejected 1524ms expected @13fd04e63afe+wt
+	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/shared_borrow_field_projection_through_other_machine_rejected rejected 1507ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `target_machine` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_other_state_rejected checked 10251ms @911f6617ba9e
-fail/facts/shared_borrow_field_projection_through_parameter_rejected rejected 1788ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_other_state_rejected rejected 1394ms expected regressed-from:checked @13fd04e63afe+wt
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 1616ms expected @911f6617ba9e
+fail/facts/shared_borrow_field_projection_through_parameter_rejected rejected 1387ms expected @13fd04e63afe+wt
+	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 1388ms expected @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
