@@ -1,0 +1,20 @@
+// The operator result borrows the right operand, so writing that operand while the
+// result is still live is refused. The positive twin differs only by the write.
+data Pair { first: u64; second: u64; }
+
+machine + Pair::select<'a, 'b>(left: &'a Pair, right: &'b Pair) -> &'b u64 {
+    &right.second
+}
+
+machine main() crashes Trap {
+    let left: Pair = Pair { first: 1, second: 2 };
+    let mut right: Pair = Pair { first: 3, second: 4 };
+    let chosen: &u64 = &left + &right;
+    right.second = 9;
+    transition chosen == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

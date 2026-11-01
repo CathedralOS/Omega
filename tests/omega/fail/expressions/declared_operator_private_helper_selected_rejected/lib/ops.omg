@@ -1,0 +1,14 @@
+module ops;
+
+public data Wrapped { value: u8; }
+
+// Private helper: the public body reaches it, a consumer cannot select it.
+machine widen(value: u8) -> u64
+ensures result <= 255
+{
+    value as u64
+}
+
+public machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
+    widen(left.value) + widen(right.value)
+}

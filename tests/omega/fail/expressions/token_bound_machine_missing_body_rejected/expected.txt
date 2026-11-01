@@ -1,0 +1,1 @@
+a nonboundary direct machine must own a checked body

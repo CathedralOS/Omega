@@ -1,0 +1,34 @@
+// A token-bound body may be stateful: a transition selects one of two nested machines
+// and the selected one decides the result. The left-larger arm returns the left value;
+// the other arm returns the right value plus 100, so a mis-lowered arm choice changes
+// the observed result. Operands are borrowed and the declaration stays callable by name.
+data Counter { value: u8; }
+
+machine + Counter::larger(left: &Counter, right: &Counter) -> u64 {
+    transition left.value > right.value {
+        true -> take_left(left)
+        _ -> take_right(right)
+    }
+    machine take_left(chosen: &Counter) -> u64 { chosen.value as u64 }
+    machine take_right(chosen: &Counter) -> u64 { (chosen.value as u64) + 100 }
+}
+
+machine combine(left: &Counter, right: &Counter) -> u64 {
+    left + right
+}
+
+machine main() crashes Trap {
+    let low: Counter = Counter { value: 3 };
+    let high: Counter = Counter { value: 9 };
+    let equal: Counter = Counter { value: 9 };
+    let ascending: u64 = combine(&low, &high);
+    let descending: u64 = combine(&high, &low);
+    let tie: u64 = combine(&high, &equal);
+    let named: u64 = Counter::larger(&low, &high);
+    transition ascending == 109 && descending == 9 && tie == 109 && named == 109 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
