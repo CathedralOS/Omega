@@ -22,14 +22,23 @@ impl OriginKey for DescriptorContentsQuery {
     }
 }
 
+// Page only the directory of immutable root rows. A snapshot write copies
+// at most one 64-root directory page instead of every root in a large body.
+// Numeric pages preserve PlaceId order; they carry no provenance meaning.
+const ROOT_PAGE_SHIFT: u32 = 6;
+type RootRows<Key> = BTreeMap<PlaceId, Arc<BTreeMap<Key, Value>>>;
+fn page(root: PlaceId) -> u64 {
+    root.get() >> ROOT_PAGE_SHIFT
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct OriginMap<Key: OriginKey> {
-    roots: BTreeMap<PlaceId, Arc<BTreeMap<Key, Value>>>,
+    pages: BTreeMap<u64, Arc<RootRows<Key>>>,
 }
 impl<Key: OriginKey> Default for OriginMap<Key> {
     fn default() -> Self {
         Self {
-            roots: BTreeMap::new(),
+            pages: BTreeMap::new(),
         }
     }
 }
@@ -38,41 +47,61 @@ impl<Key: OriginKey> OriginMap<Key> {
         Self::default()
     }
     pub(super) fn get(&self, key: &Key) -> Option<&Value> {
-        self.roots.get(&key.root())?.get(key)
+        self.pages
+            .get(&page(key.root()))?
+            .get(&key.root())?
+            .get(key)
     }
     pub(super) fn contains_key(&self, key: &Key) -> bool {
         self.get(key).is_some()
     }
     pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
-        let rows = self.roots.get_mut(&key.root())?;
-        if !rows.contains_key(key) {
-            return None;
-        }
-        Arc::make_mut(rows).get_mut(key)
+        self.get(key)?;
+        let roots = Arc::make_mut(self.pages.get_mut(&page(key.root()))?);
+        Arc::make_mut(roots.get_mut(&key.root())?).get_mut(key)
     }
     pub(super) fn insert(&mut self, key: Key, value: Value) -> Option<Value> {
-        let rows = self.roots.entry(key.root()).or_default();
+        let roots = Arc::make_mut(self.pages.entry(page(key.root())).or_default());
+        let rows = roots.entry(key.root()).or_default();
         Arc::make_mut(rows).insert(key, value)
     }
     pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Value)> {
-        self.roots.values().flat_map(|rows| rows.iter())
+        self.pages
+            .values()
+            .flat_map(|roots| roots.values())
+            .flat_map(|rows| rows.iter())
     }
     pub(super) fn keys(&self) -> impl DoubleEndedIterator<Item = &Key> {
-        self.roots.values().flat_map(|rows| rows.keys())
+        self.pages
+            .values()
+            .flat_map(|roots| roots.values())
+            .flat_map(|rows| rows.keys())
     }
     pub(super) fn retain(&mut self, mut keep: impl FnMut(&Key, &Value) -> bool) {
-        self.roots.retain(|_, rows| {
-            let removed: Vec<_> = rows
+        self.pages.retain(|_, roots| {
+            let changes: Vec<_> = roots
                 .iter()
-                .filter_map(|(key, value)| (!keep(key, value)).then(|| key.clone()))
+                .filter_map(|(root, rows)| {
+                    let removed: Vec<_> = rows
+                        .iter()
+                        .filter_map(|(key, value)| (!keep(key, value)).then(|| key.clone()))
+                        .collect();
+                    (!removed.is_empty()).then_some((*root, removed))
+                })
                 .collect();
-            if !removed.is_empty() {
-                let rows = Arc::make_mut(rows);
-                for key in removed {
-                    rows.remove(&key);
+            if !changes.is_empty() {
+                let roots = Arc::make_mut(roots);
+                for (root, removed) in changes {
+                    let rows = Arc::make_mut(roots.get_mut(&root).expect("retained root exists"));
+                    for key in removed {
+                        rows.remove(&key);
+                    }
+                    if rows.is_empty() {
+                        roots.remove(&root);
+                    }
                 }
             }
-            !rows.is_empty()
+            !roots.is_empty()
         });
     }
 }
@@ -92,7 +121,8 @@ impl<Key: OriginKey> FromIterator<(Key, Value)> for OriginMap<Key> {
 }
 
 pub(super) struct IntoIter<Key: OriginKey> {
-    roots: std::collections::btree_map::IntoValues<PlaceId, Arc<BTreeMap<Key, Value>>>,
+    pages: std::collections::btree_map::IntoValues<u64, Arc<RootRows<Key>>>,
+    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<BTreeMap<Key, Value>>>>,
     current: Option<std::collections::btree_map::IntoIter<Key, Value>>,
 }
 impl<Key: OriginKey> Iterator for IntoIter<Key> {
@@ -102,9 +132,14 @@ impl<Key: OriginKey> Iterator for IntoIter<Key> {
             if let Some(next) = self.current.as_mut().and_then(Iterator::next) {
                 return Some(next);
             }
-            let rows = self.roots.next()?;
-            let rows = Arc::try_unwrap(rows).unwrap_or_else(|shared| shared.as_ref().clone());
-            self.current = Some(rows.into_iter());
+            if let Some(rows) = self.roots.as_mut().and_then(Iterator::next) {
+                let rows = Arc::try_unwrap(rows).unwrap_or_else(|shared| shared.as_ref().clone());
+                self.current = Some(rows.into_iter());
+                continue;
+            }
+            let roots = self.pages.next()?;
+            let roots = Arc::try_unwrap(roots).unwrap_or_else(|shared| shared.as_ref().clone());
+            self.roots = Some(roots.into_values());
         }
     }
 }
@@ -113,7 +148,8 @@ impl<Key: OriginKey> IntoIterator for OriginMap<Key> {
     type IntoIter = IntoIter<Key>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            roots: self.roots.into_values(),
+            pages: self.pages.into_values(),
+            roots: None,
             current: None,
         }
     }
@@ -153,11 +189,19 @@ mod tests {
         assert_eq!(map.get(&location(2049)), None);
         assert_eq!(before.get(&location(1)), Some(&None));
         let detached = map
-            .roots
-            .iter()
-            .filter(|(root, rows)| !Arc::ptr_eq(rows, &before.roots[root]))
+            .pages
+            .values()
+            .flat_map(|roots| roots.iter())
+            .filter(|(root, rows)| !Arc::ptr_eq(rows, &before.pages[&page(**root)][root]))
             .count();
         assert_eq!(detached, 1);
+        let detached_pages = map
+            .pages
+            .iter()
+            .filter(|(key, roots)| !Arc::ptr_eq(roots, &before.pages[key]))
+            .count();
+        assert_eq!(detached_pages, 1);
+        assert!(map.pages.values().all(|roots| roots.len() <= 64));
         assert_eq!(
             map.iter().collect::<Vec<_>>(),
             reference.iter().collect::<Vec<_>>()
