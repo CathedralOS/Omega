@@ -147,7 +147,7 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
             if shared.is_empty() && edge_predicate.is_none() {
                 Cow::Borrowed(contract.scalar_requirements.as_slice())
             } else {
-                let mut premises = contract.scalar_requirements.clone();
+                let mut premises = contract.scalar_requirements.as_ref().clone();
                 super::payload_history::extend_canonical_premises(&mut premises, shared);
                 // Preserve the pre-normalization proof input of predicate edges:
                 // ordered local/shared union, then the whole predicate if new.
