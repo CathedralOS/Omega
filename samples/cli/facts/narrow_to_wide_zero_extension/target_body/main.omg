@@ -2,40 +2,69 @@
 // Place: another target body. Each hosted target body computes and verifies the zero-extended value.
 // Expected exit: 0
 
-linux_x86_64 machine evaluate() -> i32 {
-    let narrow: u8 = 100u8;
-    let extended: u64 = ((narrow as u16) as u32) as u64;
-    let sub: u64 = extended - 100u64;
-    sub as i32
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine evaluate() -> i32 {
-    let narrow: u8 = 100u8;
-    let extended: u64 = ((narrow as u16) as u32) as u64;
-    let sub: u64 = extended - 100u64;
-    sub as i32
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine evaluate() -> i32 {
-    let narrow: u8 = 100u8;
-    let extended: u64 = ((narrow as u16) as u32) as u64;
-    let sub: u64 = extended - 100u64;
-    sub as i32
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine evaluate() -> i32 {
-    let narrow: u8 = 100u8;
-    let extended: u64 = ((narrow as u16) as u32) as u64;
-    let sub: u64 = extended - 100u64;
-    sub as i32
+boundary trait SelectedEvaluate {
+    machine evaluate() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Evaluate satisfies SelectedEvaluate {
+    machine evaluate() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let narrow: u8 = 100u8;
+        let extended: u64 = ((narrow as u16) as u32) as u64;
+        let sub: u64 = extended - 100u64;
+        sub as i32
+    }
+}
+
+ArmEvaluate satisfies SelectedEvaluate {
+    machine evaluate() -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let narrow: u8 = 100u8;
+        let extended: u64 = ((narrow as u16) as u32) as u64;
+        let sub: u64 = extended - 100u64;
+        sub as i32
+    }
 }
 
 machine main() crashes Trap {
-    let res: i32 = evaluate();
+    let res: i32 = SelectedEvaluate::evaluate();
     transition res == 0 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

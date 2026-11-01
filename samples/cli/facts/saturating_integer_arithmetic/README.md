@@ -70,3 +70,15 @@ Check a twin with `omega --check samples/cli/facts/saturating_integer_arithmetic
 - Discrimination: corrupting the sum expectation (`transition total == 90u64` to `transition total == 91u64`) triggers the `bad()` state and traps with `crash Trap`, proving the exit 0 oracle actively discriminates computation errors.
 - Remaining open: saturating operations across variable non-constant dynamic bounds, and cross-carrier signed/unsigned saturating reduction proofs under `CONSERVATION-CONTRACT`.
 
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

@@ -3,47 +3,75 @@
 data Note { value: u64; tag: u64; }
 machine same(left: u64, right: u64) -> u64
 requires left == right ensures result == left { left }
-windows_x86_64 machine probe(value: u64, select: bool) -> Note {
-    transition select {
-        true -> forward(value, value, 11)
-        false -> forward(value, 3, 13)
-    }
-    machine forward(left: u64, right: u64, tag: u64) -> Note {
-        Note { value: same(left, right), tag: tag }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_x86_64 machine probe(value: u64, select: bool) -> Note {
-    transition select {
-        true -> forward(value, value, 11)
-        false -> forward(value, 3, 13)
-    }
-    machine forward(left: u64, right: u64, tag: u64) -> Note {
-        Note { value: same(left, right), tag: tag }
-    }
-}
-macos_arm64 machine probe(value: u64, select: bool) -> Note {
-    transition select {
-        true -> forward(value, value, 11)
-        false -> forward(value, 3, 13)
-    }
-    machine forward(left: u64, right: u64, tag: u64) -> Note {
-        Note { value: same(left, right), tag: tag }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_arm64 machine probe(value: u64, select: bool) -> Note {
-    transition select {
-        true -> forward(value, value, 11)
-        false -> forward(value, 3, 13)
-    }
-    machine forward(left: u64, right: u64, tag: u64) -> Note {
-        Note { value: same(left, right), tag: tag }
+
+boundary trait SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        transition select {
+            true -> forward(value, value, 11)
+            false -> forward(value, 3, 13)
+        }
+        machine forward(left: u64, right: u64, tag: u64) -> Note {
+            Note { value: same(left, right), tag: tag }
+        }
     }
 }
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(value: u64, select: bool) -> Note
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        transition select {
+            true -> forward(value, value, 11)
+            false -> forward(value, 3, 13)
+        }
+        machine forward(left: u64, right: u64, tag: u64) -> Note {
+            Note { value: same(left, right), tag: tag }
+        }
+    }
+}
+
+
 machine main() crashes Trap {
-    let first: Note = probe(7, true);
-    let second: Note = probe(9, false);
+    let first: Note = SelectedProbe::probe(7, true);
+    let second: Note = SelectedProbe::probe(9, false);
     transition first.value == 7 && first.tag == 11 && second.value == 9 && second.tag == 13 {
         true -> done() false -> bad()
     }
     machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

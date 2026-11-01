@@ -4,15 +4,61 @@
 
 machine store(r: &write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
 
-linux_x86_64 machine expected() -> f64 { 0.75 }
-linux_arm64 machine expected() -> f64 { 0.75 }
-macos_arm64 machine expected() -> f64 { 0.75 }
-windows_x86_64 machine expected() -> f64 { 0.75 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedExpected {
+    machine expected() -> f64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Expected satisfies SelectedExpected {
+    machine expected() -> f64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     0.75 
+    }
+}
+
+ArmExpected satisfies SelectedExpected {
+    machine expected() -> f64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     0.75 
+    }
+}
 
 machine main() crashes Trap {
     let mut slot: f64;
     store(&write slot);
     let v: f64 = slot;
-    transition v == expected() { true -> done() _ -> bad() }
+    transition v == SelectedExpected::expected() { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

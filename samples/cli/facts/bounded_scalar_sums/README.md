@@ -89,3 +89,15 @@ Restoring the operand bounds restores clean compilation and zero exit.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Scalar types (`u64`) validate standard 8-byte layout geometry and alignment. ABI calling plans assign integer arguments and returns to standard machine registers (`rcx`/`rdx`/`rax` on Windows x86_64, `rdi`/`rsi`/`rax` on Linux x86_64, `x0`/`x1` on ARM64).
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects native integer addition (`add`) and subtraction (`sub`) instructions matching target width, maps bounded scalar values to registers or activation stack-frame slots, accounts for frame size in worst-case stack usage (WCSU), and inserts standard machine entry prologues and epilogues.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to target addressing modes, basic blocks and branch targets relax with offset reflow, machine-state footprint evidence validates transitive resource usage, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across host targets (`windows_x86_64` and `macos_arm64`).
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

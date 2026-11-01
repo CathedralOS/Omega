@@ -92,3 +92,15 @@ The compiler strictly fails closed at compile time:
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 - **Recorded evidence (macOS arm64, producer revision `9b001b8f6afa`, generation `gen-9b001b8f6af`)**: `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for the root and all nine places (10/10), and each of the nine `<place>/invalid` twins exits 1 at checking carrying its authored fragment (`cannot prove requires contract ...`; `call_result` reads `cannot prove ensures contract for exit from extract_payload at statement 41: result >= 40 && result <= 80`). `git diff` positive vs twin changes only the header oracle lines and the widened `V21` bound (`v >= 40u64` to `v >= 39u64`). Pinned record at `9b001b8f6afa+wt` with the generation runner at `OMEGA_CORPUS_JOBS=3`: nine `checked` rows with `check-target:macos_arm64` and nine `rejected ... expected` rows carrying their own diagnostic continuation lines in `corpus_outcomes.txt` (+60 lines, 0 deleted); nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail fixtures that did not reject.
 - **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

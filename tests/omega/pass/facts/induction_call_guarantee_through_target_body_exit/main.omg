@@ -31,46 +31,68 @@ requires direct == true
     direct
 }
 
-linux_x86_64 machine run_body() -> bool {
-    let n: u64 in Wrapping = 4;
-    let total: u64 in Wrapping = use(n);
-    let direct: bool = observe(total, n);
-    hold(direct)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine run_body() -> bool {
-    let n: u64 in Wrapping = 4;
-    let total: u64 in Wrapping = use(n);
-    let direct: bool = observe(total, n);
-    hold(direct)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine run_body() -> bool {
-    let n: u64 in Wrapping = 4;
-    let total: u64 in Wrapping = use(n);
-    let direct: bool = observe(total, n);
-    hold(direct)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_x86_64 machine run_body() -> bool {
-    let n: u64 in Wrapping = 4;
-    let total: u64 in Wrapping = use(n);
-    let direct: bool = observe(total, n);
-    hold(direct)
+boundary trait SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
-windows_x86_64 machine run_body() -> bool {
-    let n: u64 in Wrapping = 4;
-    let total: u64 in Wrapping = use(n);
-    let direct: bool = observe(total, n);
-    hold(direct)
+X86RunBody satisfies SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let n: u64 in Wrapping = 4;
+        let total: u64 in Wrapping = use(n);
+        let direct: bool = observe(total, n);
+        hold(direct)
+    }
+}
+
+ArmRunBody satisfies SelectedRunBody {
+    machine run_body() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let n: u64 in Wrapping = 4;
+        let total: u64 in Wrapping = use(n);
+        let direct: bool = observe(total, n);
+        hold(direct)
+    }
 }
 
 machine main() crashes Trap {
-    transition run_body() {
+    transition SelectedRunBody::run_body() {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

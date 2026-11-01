@@ -66,8 +66,10 @@ def project_at(directory: Path, repository: Path = ROOT) -> Project:
     directory = directory.resolve()
     metadata_file = directory / "sample.json"
     metadata = json.loads(metadata_file.read_text(encoding="utf-8")) if metadata_file.exists() else {}
-    if not isinstance(metadata, dict) or set(metadata) - {"role", "entry", "rejection_contains", "rejection_any_contains", "rejection_casefold"}:
+    if not isinstance(metadata, dict) or set(metadata) - {"role", "entry", "rejection_contains", "rejection_any_contains", "rejection_casefold", "notes"}:
         raise ValueError(f"{metadata_file}: unsupported project metadata")
+    if not isinstance(metadata.get("notes", ""), str):
+        raise ValueError(f"{metadata_file}: notes must be text")
     entry_name = metadata.get("entry")
     if entry_name is None:
         if (directory / "main.omg").is_file():

@@ -8,48 +8,59 @@ machine verify_prod(value: i8) -> i8 requires value >= 40i8 && value <= 96i8 {
     headroom + margin
 }
 
-linux_x86_64 machine sat_target(lhs: i8, rhs: i8) -> i8
-requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Saturating = lhs as i8 in Saturating;
-    let b: i8 in Saturating = rhs as i8 in Saturating;
-    let sat_prod: i8 in Saturating = a * b;
-    let prod: i8 = sat_prod as i8;
-    verify_prod(prod)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine sat_target(lhs: i8, rhs: i8) -> i8
-requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Saturating = lhs as i8 in Saturating;
-    let b: i8 in Saturating = rhs as i8 in Saturating;
-    let sat_prod: i8 in Saturating = a * b;
-    let prod: i8 = sat_prod as i8;
-    verify_prod(prod)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine sat_target(lhs: i8, rhs: i8) -> i8
-requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Saturating = lhs as i8 in Saturating;
-    let b: i8 in Saturating = rhs as i8 in Saturating;
-    let sat_prod: i8 in Saturating = a * b;
-    let prod: i8 = sat_prod as i8;
-    verify_prod(prod)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine sat_target(lhs: i8, rhs: i8) -> i8
-requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Saturating = lhs as i8 in Saturating;
-    let b: i8 in Saturating = rhs as i8 in Saturating;
-    let sat_prod: i8 in Saturating = a * b;
-    let prod: i8 = sat_prod as i8;
-    verify_prod(prod)
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8;
+}
+
+X86SatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: i8 in Saturating = lhs as i8 in Saturating;
+        let b: i8 in Saturating = rhs as i8 in Saturating;
+        let sat_prod: i8 in Saturating = a * b;
+        let prod: i8 = sat_prod as i8;
+        verify_prod(prod)
+    }
+}
+
+ArmSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: i8 in Saturating = lhs as i8 in Saturating;
+        let b: i8 in Saturating = rhs as i8 in Saturating;
+        let sat_prod: i8 in Saturating = a * b;
+        let prod: i8 = sat_prod as i8;
+        verify_prod(prod)
+    }
 }
 
 machine probe() -> i8 {
-    sat_target(10i8, 7i8)
+    SelectedSatTarget::sat_target(10i8, 7i8)
 }
 
 machine main() crashes Trap {
@@ -59,4 +70,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -1299,119 +1299,7 @@ impl StructuralJudge<'_> {
         &self,
         reference: TypeReferenceHandle,
     ) -> Vec<(StateParameter, StructuralTerm)> {
-        use typed_trees::types::TypeReferenceNode;
-        let program = self.program;
-        let Some(definition) =
-            crate::field_domains::readable_nominal_definition(program, reference)
-        else {
-            return Vec::new();
-        };
-        let carrier = program
-            .type_reference_table
-            .peeled_type_reference(reference);
-        let application = if matches!(
-            program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Generic { .. }
-        ) {
-            carrier
-        } else if let Some(application) = definition.generic_instance {
-            application
-        } else {
-            return Vec::new();
-        };
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } = program.type_reference_table.type_reference(application)
-        else {
-            return Vec::new();
-        };
-        let Some(template) = program.unique_data_definition_by_symbol(*base_symbol) else {
-            return Vec::new();
-        };
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(*arguments);
-        let parameters = program.data_type_parameters(template);
-        if parameters.len() != arguments.len() {
-            return Vec::new();
-        }
-        parameters
-            .iter()
-            .zip(arguments)
-            .filter_map(|(parameter, argument)| {
-                let (typed_trees::data::TypeParameterKind::Const { type_reference }
-                | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
-                else {
-                    return None;
-                };
-                if !program
-                    .primitive_type_reference(type_reference)
-                    .is_some_and(|primitive| primitive.is_fixed_integer())
-                {
-                    return None;
-                }
-                let value = if let Some(literal) = program
-                    .typed_program()
-                    .static_const_literal_from_type_reference(*argument)
-                {
-                    StructuralTerm::Integer(literal.value_bignum()?)
-                } else {
-                    match program.type_reference_table.type_reference(*argument) {
-                        TypeReferenceNode::Named { symbol, .. } => {
-                            if !symbol.is_valid()
-                                || program.symbols.get(*symbol).kind
-                                    != symbols::SymbolKind::TypeParameter
-                            {
-                                return None;
-                            }
-                            StructuralTerm::BoundValue(*symbol)
-                        }
-                        TypeReferenceNode::ConstExpression(expression) => {
-                            if let Some(path) = expression_table(program)
-                                .name_path_node(*expression)
-                                .filter(|path| {
-                                    path.symbol.is_valid()
-                                        && program.symbols.get(path.symbol).kind
-                                            == symbols::SymbolKind::TypeParameter
-                                })
-                            {
-                                StructuralTerm::BoundValue(path.symbol)
-                            } else if matches!(
-                                parameter.kind,
-                                typed_trees::data::TypeParameterKind::Const { .. }
-                            ) {
-                                super::super::structural_terms::structural_term(
-                                    program,
-                                    None,
-                                    None,
-                                    *expression,
-                                    None,
-                                )?
-                            } else {
-                                // A runtime Value recipe belongs to its
-                                // completed index/descriptor observation. This
-                                // static intake has no supplying frame and
-                                // cannot replay the former source expression.
-                                return None;
-                            }
-                        }
-                        _ => return None,
-                    }
-                };
-                Some((
-                    StateParameter {
-                        symbol: parameter.symbol,
-                        name: parameter.name.clone(),
-                        type_reference,
-                        is_const: true,
-                        ..Default::default()
-                    },
-                    value,
-                ))
-            })
-            .collect()
+        data_application_static_bindings(self.program, reference)
     }
 
     fn intake_domain_predicates(
@@ -1794,4 +1682,127 @@ impl StructuralJudge<'_> {
                 value: Box::new(value),
             })
     }
+}
+
+/// The static actuals one data application supplies to its declaration's own
+/// const and value parameters, as the exact retained tuple. A default-domain
+/// predicate such as `Number == 0` is judged over these terms, never over the
+/// template's unbound binder: explicit construction and the zero image read the
+/// same tuple. Open arguments stay bound values, so an open application proves
+/// nothing it did not already.
+pub(in crate::proof_contracts::contract_entailment) fn data_application_static_bindings(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<(StateParameter, StructuralTerm)> {
+    use typed_trees::types::TypeReferenceNode;
+    let Some(definition) = crate::field_domains::readable_nominal_definition(program, reference)
+    else {
+        return Vec::new();
+    };
+    let carrier = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let application = if matches!(
+        program.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::Generic { .. }
+    ) {
+        carrier
+    } else if let Some(application) = definition.generic_instance {
+        application
+    } else {
+        return Vec::new();
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(application)
+    else {
+        return Vec::new();
+    };
+    let Some(template) = program.unique_data_definition_by_symbol(*base_symbol) else {
+        return Vec::new();
+    };
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let parameters = program.data_type_parameters(template);
+    if parameters.len() != arguments.len() {
+        return Vec::new();
+    }
+    parameters
+        .iter()
+        .zip(arguments)
+        .filter_map(|(parameter, argument)| {
+            let (typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                return None;
+            };
+            if !program
+                .primitive_type_reference(type_reference)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+            {
+                return None;
+            }
+            let value = if let Some(literal) = program
+                .typed_program()
+                .static_const_literal_from_type_reference(*argument)
+            {
+                StructuralTerm::Integer(literal.value_bignum()?)
+            } else {
+                match program.type_reference_table.type_reference(*argument) {
+                    TypeReferenceNode::Named { symbol, .. } => {
+                        if !symbol.is_valid()
+                            || program.symbols.get(*symbol).kind
+                                != symbols::SymbolKind::TypeParameter
+                        {
+                            return None;
+                        }
+                        StructuralTerm::BoundValue(*symbol)
+                    }
+                    TypeReferenceNode::ConstExpression(expression) => {
+                        if let Some(path) = expression_table(program)
+                            .name_path_node(*expression)
+                            .filter(|path| {
+                                path.symbol.is_valid()
+                                    && program.symbols.get(path.symbol).kind
+                                        == symbols::SymbolKind::TypeParameter
+                            })
+                        {
+                            StructuralTerm::BoundValue(path.symbol)
+                        } else if matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Const { .. }
+                        ) {
+                            super::super::structural_terms::structural_term(
+                                program,
+                                None,
+                                None,
+                                *expression,
+                                None,
+                            )?
+                        } else {
+                            // A runtime Value recipe belongs to its
+                            // completed index/descriptor observation. This
+                            // static intake has no supplying frame and
+                            // cannot replay the former source expression.
+                            return None;
+                        }
+                    }
+                    _ => return None,
+                }
+            };
+            Some((
+                StateParameter {
+                    symbol: parameter.symbol,
+                    name: parameter.name.clone(),
+                    type_reference,
+                    is_const: true,
+                    ..Default::default()
+                },
+                value,
+            ))
+        })
+        .collect()
 }

@@ -1,44 +1,59 @@
 // Expected exit: 0.
 // Checked fence sequences retain their catalog target, ordering and exact empty clobber set while carrying input 37 to a result requiring 37.
 
-linux_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
-    entry requires input == 37 ensures input == 37:
-        lfence;
-        sfence;
-        mfence
-    }
-    input
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-windows_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
-    entry requires input == 37 ensures input == 37:
-        lfence;
-        sfence;
-        mfence
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    input
 }
 
-linux_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
-    entry requires input == 37 ensures input == 37:
-        dmb ld;
-        dmb st;
-        dmb sy
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    input
 }
 
-macos_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
-    entry requires input == 37 ensures input == 37:
-        dmb ld;
-        dmb st;
-        dmb sy
+boundary trait SelectedOrdered {
+    machine ordered(input: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37;
+}
+
+X86Ordered satisfies SelectedOrdered {
+    machine ordered(input: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        asm where clobbers none {
+        entry requires input == 37 ensures input == 37:
+            lfence;
+            sfence;
+            mfence
+        }
+        input
     }
-    input
+}
+
+ArmOrdered satisfies SelectedOrdered {
+    machine ordered(input: u32) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        asm where clobbers none {
+        entry requires input == 37 ensures input == 37:
+            dmb ld;
+            dmb st;
+            dmb sy
+        }
+        input
+    }
 }
 
 machine finished() {}
@@ -46,4 +61,12 @@ machine failed() crashes Trap { crash Trap; }
 machine consume(value: u32) requires value == 37 crashes Trap {
     transition value == 37 { true -> finished() false -> failed() }
 }
-machine main() crashes Trap { consume(ordered(37)); }
+machine main() crashes Trap { consume(SelectedOrdered::ordered(37)); }
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

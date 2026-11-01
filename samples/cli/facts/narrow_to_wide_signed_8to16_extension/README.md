@@ -105,3 +105,15 @@ All 18 positive and reject places are pinned in the compiler corpus:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend code generation selects signed widening `SignExtendI8`, which writes the full 64-bit normalized carrier (`movsx r64, r/m8`, REX.W, AT&T `movsbq`, on x86_64; `sxtb xN, wN` on ARM64) rather than a 16-bit or 32-bit destination. Exact subtraction also runs on the 64-bit carrier (`subq` / `sub xN`), not a 16-bit `sub`. Register allocation assigns disjoint stack frame spill slots conforming to WCSU bounds.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** 16-bit arithmetic and widening instructions encode into valid PE/ELF/Mach-O binaries that natively execute and agree with Terminal Psi (`omega run --both` exit 0) across all hosted targets.
 - **What remains open:** Negative range bounds sign extension interval arithmetic, vector SIMD sign-extension instructions, and saturating integer conversions.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

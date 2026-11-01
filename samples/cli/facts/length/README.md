@@ -77,3 +77,15 @@ The row is pinned by `tests/omega/{pass,fail}/facts/length_through_*` fixtures; 
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`, `CompilerBuiltinExecution`, `BoundaryExecutionBinding`) across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Slice views `&[u8]` (pointer + length pair) and backing array `[u8; 4]` evaluate target layout geometry (`size_of` and `align_of` with target-specific pointer widths). `CallPlan` and `StatePlan` lower slice arguments and return values across ABI registers and stack slots.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for slice pointer/length unpacking, integer subtraction (`sub`), and indexed memory byte loads (`movzx` / `ldrb`). Register allocator assigns register homes and disjoint activation frame spill slots, verifying bounded worst-case stack usage (WCSU) and emitting platform-standard entry prologues and epilogues conforming to `StatePlan` ceilings.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Final encoding resolves symbolic displacements, lays out basic blocks with short/near branch relaxation, validates transitive machine-state footprints, and emits direct PE/ELF/Mach-O images. Direct native emission produces executables that execute natively with exit code 0 and agree with Terminal Psi (`omega run --both` exit 0) across platforms.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

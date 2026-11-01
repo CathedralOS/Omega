@@ -10,14 +10,62 @@ Factory satisfies Issuer {
 machine issue<I satisfies Issuer>(value: u64) -> Token in Issued { Issuer::issue<I>(value) }
 machine forward(token: Token in Issued) -> Token in Issued { token }
 machine consume(token: Token in Issued) -> u64 { token.value }
-windows_x86_64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
-linux_x86_64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
-macos_arm64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
-linux_arm64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedRelay {
+    machine relay(token: Token in Issued) -> Token in Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Relay satisfies SelectedRelay {
+    machine relay(token: Token in Issued) -> Token in Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     forward(token) 
+    }
+}
+
+ArmRelay satisfies SelectedRelay {
+    machine relay(token: Token in Issued) -> Token in Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     forward(token) 
+    }
+}
+
+
 machine main() crashes Trap {
     let token: Token in Issued = issue<Factory>(17);
-    let value: u64 = consume(relay(token));
+    let value: u64 = consume(SelectedRelay::relay(token));
     transition value == 17 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

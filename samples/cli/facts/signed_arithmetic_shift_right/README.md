@@ -73,3 +73,15 @@ The row is pinned by `tests/omega/{pass,fail}/facts/signed_arithmetic_shift_righ
 - The eighteen pinned fixtures reproduce that behavior under the corpus gate (check leg `checked` with `check-target:macos_arm64`, native leg `built` with `exit:0`, both leg `built` with `exit:0 interpreter-exit:0 interpreter:agrees`).
 - Remaining open: signed arithmetic right shift interval reductions over non-constant dynamic bounds, and cross-carrier signed shift reduction proofs under `CONSERVATION-CONTRACT`.
 
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

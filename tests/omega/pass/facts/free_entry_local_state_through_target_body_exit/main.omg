@@ -7,34 +7,68 @@ machine Mark::drop(mark: &mut Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
 machine settle(mark: &Mark) {}
-linux_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
-    settle(&Mark { slot: tally, code: code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
-    settle(&Mark { slot: tally, code: code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
-    settle(&Mark { slot: tally, code: code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
-    settle(&Mark { slot: tally, code: code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+boundary trait SelectedFinish {
+    machine finish(tally: &mut Tally, code: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7;
 }
+
+X86Finish satisfies SelectedFinish {
+    machine finish(tally: &mut Tally, code: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        settle(&Mark { slot: tally, code: code });
+        transition tally.total == 7 { true -> done() _ -> bad() }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+ArmFinish satisfies SelectedFinish {
+    machine finish(tally: &mut Tally, code: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        settle(&Mark { slot: tally, code: code });
+        transition tally.total == 7 { true -> done() _ -> bad() }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+
 machine start() crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
-    finish(&mut tally, 7);
+    SelectedFinish::finish(&mut tally, 7);
 }
 
 // A hosted shape alone cannot establish this ordinary mutable argument.
 data Unprovided { byte: u8; }
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    start();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    start();
+}

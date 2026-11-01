@@ -2,56 +2,62 @@
 // Place: another target body (invalid twin).
 // Expected diagnostic: exact subtraction underflow
 
-linux_x86_64 machine weighted_ten_sum(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
-    a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
-) -> u64
-requires
-    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 &&
-    a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
-{
-    let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
-    total - 100
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine weighted_ten_sum(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
-    a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
-) -> u64
-requires
-    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 &&
-    a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
-{
-    let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
-    total - 100
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine weighted_ten_sum(
-    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
-    a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
-) -> u64
-requires
-    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 &&
-    a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
-{
-    let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
-    total - 100
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine weighted_ten_sum(
+boundary trait SelectedWeightedTenSum {
+    machine weighted_ten_sum(
     a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
     a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
 ) -> u64
-requires
-    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 &&
-    a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
-{
-    let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
-    total - 100
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64;
+}
+
+X86WeightedTenSum satisfies SelectedWeightedTenSum {
+    machine weighted_ten_sum(
+    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
+    a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
+) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
+        total - 100
+    }
+}
+
+ArmWeightedTenSum satisfies SelectedWeightedTenSum {
+    machine weighted_ten_sum(
+    a1: u64, a2: u64, a3: u64, a4: u64, a5: u64,
+    a6: u64, a7: u64, a8: u64, a9: u64, a10: u64
+) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 && a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 && a9 == 24u64 && a10 == 39u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let total: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10;
+        total - 100
+    }
 }
 
 machine probe() -> u64 {
-    weighted_ten_sum(1, 2, 3, 4, 5, 6, 7, 8, 24, 39)
+    SelectedWeightedTenSum::weighted_ten_sum(1, 2, 3, 4, 5, 6, 7, 8, 24, 39)
 }
 
 machine main() crashes Trap {
@@ -61,4 +67,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

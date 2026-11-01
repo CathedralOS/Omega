@@ -97,28 +97,53 @@ machine extract(choice: ThirtyNineChoice) -> u64 {
     }
 }
 
-linux_x86_64 machine target_probe(choice: ThirtyNineChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(choice: ThirtyNineChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(choice: ThirtyNineChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(choice: ThirtyNineChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
+boundary trait SelectedTargetProbe {
+    machine target_probe(choice: ThirtyNineChoice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86TargetProbe satisfies SelectedTargetProbe {
+    machine target_probe(choice: ThirtyNineChoice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let res: u64 = extract(choice);
+        verify_payload(res)
+    }
+}
+
+ArmTargetProbe satisfies SelectedTargetProbe {
+    machine target_probe(choice: ThirtyNineChoice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let res: u64 = extract(choice);
+        verify_payload(res)
+    }
 }
 
 machine probe(choice: ThirtyNineChoice) -> u64 {
-    target_probe(choice)
+    SelectedTargetProbe::target_probe(choice)
 }
 
 machine main() crashes Trap {
@@ -130,4 +155,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

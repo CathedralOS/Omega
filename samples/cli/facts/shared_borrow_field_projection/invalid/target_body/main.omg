@@ -5,44 +5,71 @@ data Window where used <= 91, {
     used: u64;
 }
 
-linux_x86_64 machine evaluate() -> u64 {
-    let window: Window = Window { used: 40 };
-    let view: &Window = &window;
-    let used: u64 = view.used;
-    let diff: u64 = 90u64 - used;
-    diff
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine evaluate() -> u64 {
-    let window: Window = Window { used: 40 };
-    let view: &Window = &window;
-    let used: u64 = view.used;
-    let diff: u64 = 90u64 - used;
-    diff
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine evaluate() -> u64 {
-    let window: Window = Window { used: 40 };
-    let view: &Window = &window;
-    let used: u64 = view.used;
-    let diff: u64 = 90u64 - used;
-    diff
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine evaluate() -> u64 {
-    let window: Window = Window { used: 40 };
-    let view: &Window = &window;
-    let used: u64 = view.used;
-    let diff: u64 = 90u64 - used;
-    diff
+boundary trait SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Evaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let window: Window = Window { used: 40 };
+        let view: &Window = &window;
+        let used: u64 = view.used;
+        let diff: u64 = 90u64 - used;
+        diff
+    }
+}
+
+ArmEvaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let window: Window = Window { used: 40 };
+        let view: &Window = &window;
+        let used: u64 = view.used;
+        let diff: u64 = 90u64 - used;
+        diff
+    }
 }
 
 machine main() crashes Trap {
-    let diff: u64 = evaluate();
+    let diff: u64 = SelectedEvaluate::evaluate();
     transition diff == 50 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

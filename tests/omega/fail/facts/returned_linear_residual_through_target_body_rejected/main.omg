@@ -20,34 +20,66 @@ ensures result == 7
 {
     receipt.code
 }
-windows_x86_64 machine across() crashes Trap {
-    let seed: Seed = Seed { code: SEED_CODE };
-    let difference: u64 = consume(issue(seed.code).first) - 7;
-    transition difference == 0 { true -> done() false -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine across() crashes Trap {
-    let seed: Seed = Seed { code: SEED_CODE };
-    let difference: u64 = consume(issue(seed.code).first) - 7;
-    transition difference == 0 { true -> done() false -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine across() crashes Trap {
-    let seed: Seed = Seed { code: SEED_CODE };
-    let difference: u64 = consume(issue(seed.code).first) - 7;
-    transition difference == 0 { true -> done() false -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine across() crashes Trap {
-    let seed: Seed = Seed { code: SEED_CODE };
-    let difference: u64 = consume(issue(seed.code).first) - 7;
-    transition difference == 0 { true -> done() false -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
+
+boundary trait SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Across satisfies SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let seed: Seed = Seed { code: SEED_CODE };
+        let difference: u64 = consume(issue(seed.code).first) - 7;
+        transition difference == 0 { true -> done() false -> bad() }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+ArmAcross satisfies SelectedAcross {
+    machine across()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let seed: Seed = Seed { code: SEED_CODE };
+        let difference: u64 = consume(issue(seed.code).first) - 7;
+        transition difference == 0 { true -> done() false -> bad() }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+
 machine main() crashes Trap {
-    across();
+    SelectedAcross::across();
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

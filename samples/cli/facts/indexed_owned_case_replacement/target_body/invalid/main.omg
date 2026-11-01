@@ -22,24 +22,62 @@ machine run(payload: u64 in PositiveSmall) -> u64 {
     let mut frames: [Frame; 4096];
     replace(&mut frames, 3, payload)
 }
-windows_x86_64 machine witness() -> u64 {
-    let payload: u64 in PositiveSmall = 0;
-    run(payload)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine witness() -> u64 {
-    let payload: u64 in PositiveSmall = 0;
-    run(payload)
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine witness() -> u64 {
-    let payload: u64 in PositiveSmall = 0;
-    run(payload)
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine witness() -> u64 {
-    let payload: u64 in PositiveSmall = 0;
-    run(payload)
+
+boundary trait SelectedWitness {
+    machine witness() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Witness satisfies SelectedWitness {
+    machine witness() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let payload: u64 in PositiveSmall = 0;
+        run(payload)
+    }
+}
+
+ArmWitness satisfies SelectedWitness {
+    machine witness() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let payload: u64 in PositiveSmall = 0;
+        run(payload)
+    }
+}
+
+
 machine main() crashes Trap {
-    transition witness() == 2 { true -> done() false -> bad() }
+    transition SelectedWitness::witness() == 2 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

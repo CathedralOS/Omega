@@ -16,42 +16,61 @@ requires place.kept == 17
     place.kept
 }
 
-linux_x86_64 machine apply(chosen: &Pair, spare: &Pair) -> i64 {
-    let joined: &Pair = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_field(joined)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine apply(chosen: &Pair, spare: &Pair) -> i64 {
-    let joined: &Pair = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_field(joined)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine apply(chosen: &Pair, spare: &Pair) -> i64 {
-    let joined: &Pair = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_field(joined)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine apply(chosen: &Pair, spare: &Pair) -> i64 {
-    let joined: &Pair = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_field(joined)
+boundary trait SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Apply satisfies SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let joined: &Pair = match choose() {
+            true -> chosen
+            false -> spare
+        };
+        read_field(joined)
+    }
+}
+
+ArmApply satisfies SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let joined: &Pair = match choose() {
+            true -> chosen
+            false -> spare
+        };
+        read_field(joined)
+    }
 }
 
 machine main() crashes Trap {
     let chosen: Pair = Pair { kept: 17, other: 5 };
     let spare: Pair = Pair { kept: 0, other: 8 };
-    let observed: i64 = apply(&chosen, &spare);
+    let observed: i64 = SelectedApply::apply(&chosen, &spare);
     transition observed == 17 {
         true -> done()
         false -> wrong()
@@ -59,4 +78,12 @@ machine main() crashes Trap {
 
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

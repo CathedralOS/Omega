@@ -77,3 +77,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Record `Main` (containing `arr: [i32; 5]`, `k: u64`, `r: i32`, `hits: i32`) evaluates target layout geometry (`size_of` and `align_of` respecting field alignments and padding). `CallPlan` and `StatePlan` assign record reference parameters (`&Main`, `&mut Main`) and return values to standard ABI calling convention registers and stack slots.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for record field offset loads, integer addition (`k + 1`), and scaled array indexing (`base + index * 4`). Lowering assigns register homes and disjoint activation stack-frame slots for `Main` storage and caller/callee frames, inserting standard function prologues and epilogues honoring `StatePlan` ceilings.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements to record fields and array elements resolve in final instruction encodings, basic blocks relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native PE/ELF/Mach-O emission produces native executables agreeing with Terminal Psi (`omega run --both` exit 0) across platforms.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

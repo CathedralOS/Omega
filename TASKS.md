@@ -328,23 +328,33 @@ retired-syntax deletions to completion.
     Migrate layout-policy applications that currently name family callables to
     ordinary implementation identities and Build rows, retaining target-dependent
     geometry and changing format identity instead of reinterpreting legacy bytes.
-  - Migrate the bundled library, product compiler, samples, and corpus fixtures
-    together to ordinary named implementations and explicit requirements with
-    target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
-    sine, square, and melody consumers through unchanged playback oracles;
-    shared binding-value producers and helpers remain ordinary machines.
-    Frontier: 410 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 17 facts spell it in all nine places
-    (`checked_asm_{arm_load,compare_preserves,fence_contracts,register_contract_bound}`,
-    `foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
-    `generic_calling_policy`, `opaque_closed_carrier_exchange`,
-    `scalar_boundary_parameter`, `selected_provider_issuance`,
-    `target_family_contract_operand`, `target_layout_derived_constant`,
-    `target_recursive_bound`, `target_scoped_constant_realization`).
+  - Migrate the remaining target-prefixed sources to ordinary named
+    implementations and explicit requirements with target-keyed Build rows: the
+    bundled library's `core/targets` and `std/targets` bodies, the product
+    compiler, fact places whose per-OS bodies differ or that use `dyn`, boundary
+    traits, qualified names or family recursion, and the target-family fixtures
+    under `tests/omega/{pass,fail}/{targets,providers,host,asm}`. Carry
+    `samples/cli/audio/audio_playback` and its sine, square, and melody
+    consumers through unchanged playback oracles; shared binding-value producers
+    and helpers remain ordinary machines.
+    Frontier: 73 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 14 facts spell it in all nine places
+    (`foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    `generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
+    `selected_provider_issuance`, `target_family_contract_operand`,
+    `target_layout_derived_constant`, `target_recursive_bound`,
+    `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
+  - Carry the facts that still refuse behind a selected implementation: `&write`
+    and exclusive-loan arguments (an opaque selected implementation requires an
+    admitted write-only boundary claim), evidence binders in requirement
+    generics, the invocation ceiling of boundary traits a body calls, and
+    effectful performed writes (`IntegerAt`). Their `target_body` places keep
+    the retired prefix until then.
   - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped

@@ -26,49 +26,63 @@ ensures result.rest.length == whole.length - length,
         rest: Tail { length: whole.length - length },
     }
 }
-macos_arm64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
-requires length <= strategy.remaining
-{
-    let parts: Parts = split(strategy.tail, length);
-    check_length(&parts.taken, length);
-    Issued {
-        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
-        allocation: parts.taken,
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_x86_64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
-requires length <= strategy.remaining
-{
-    let parts: Parts = split(strategy.tail, length);
-    check_length(&parts.taken, length);
-    Issued {
-        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
-        allocation: parts.taken,
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
-linux_arm64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
-requires length <= strategy.remaining
-{
-    let parts: Parts = split(strategy.tail, length);
-    check_length(&parts.taken, length);
-    Issued {
-        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
-        allocation: parts.taken,
+
+boundary trait SelectedAllocate {
+    machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= strategy.remaining;
+}
+
+X86Allocate satisfies SelectedAllocate {
+    machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= strategy.remaining
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let parts: Parts = split(strategy.tail, length);
+        check_length(&parts.taken, length);
+        Issued {
+            strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
+            allocation: parts.taken,
+        }
     }
 }
-windows_x86_64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
-requires length <= strategy.remaining
-{
-    let parts: Parts = split(strategy.tail, length);
-    check_length(&parts.taken, length);
-    Issued {
-        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
-        allocation: parts.taken,
+
+ArmAllocate satisfies SelectedAllocate {
+    machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= strategy.remaining
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let parts: Parts = split(strategy.tail, length);
+        check_length(&parts.taken, length);
+        Issued {
+            strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
+            allocation: parts.taken,
+        }
     }
 }
+
+
 machine main() crashes Trap {
-    let first: Issued = allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, true);
-    let second: Issued = allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, false);
+    let first: Issued = SelectedAllocate::allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, true);
+    let second: Issued = SelectedAllocate::allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, false);
     transition first.strategy.remaining == 32 && first.strategy.tail.length == 32
         && first.allocation.length == 16 && second.strategy.remaining == 32
         && second.strategy.tail.length == 32 && second.allocation.length == 16 {
@@ -77,4 +91,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

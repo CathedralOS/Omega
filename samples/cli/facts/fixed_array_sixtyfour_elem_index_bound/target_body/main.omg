@@ -2,34 +2,53 @@
 // Place: another target body. Each of four target bodies reads the array element using the bounded index.
 // Expected exit: 0
 
-linux_x86_64 machine read_element(arr: [u64; 64], idx: u64) -> u64
-    requires idx < 64
-{
-    arr[idx]
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine read_element(arr: [u64; 64], idx: u64) -> u64
-    requires idx < 64
-{
-    arr[idx]
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine read_element(arr: [u64; 64], idx: u64) -> u64
-    requires idx < 64
-{
-    arr[idx]
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine read_element(arr: [u64; 64], idx: u64) -> u64
-    requires idx < 64
-{
-    arr[idx]
+boundary trait SelectedReadElement {
+    machine read_element(arr: [u64; 64], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx < 64;
+}
+
+X86ReadElement satisfies SelectedReadElement {
+    machine read_element(arr: [u64; 64], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx < 64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        arr[idx]
+    }
+}
+
+ArmReadElement satisfies SelectedReadElement {
+    machine read_element(arr: [u64; 64], idx: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires idx < 64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        arr[idx]
+    }
 }
 
 machine probe(arr: [u64; 64], idx: u64) -> u64
     requires idx < 64
 {
-    read_element(arr, idx)
+    SelectedReadElement::read_element(arr, idx)
 }
 
 machine main() crashes Trap {
@@ -46,4 +65,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
