@@ -315,7 +315,7 @@ pass/facts/foreign_nested_record_backing_other_machine built 3976ms exit:0 inter
 pass/facts/foreign_nested_record_backing_other_state built 3946ms exit:0 interpreter-exit:0 interpreter:agrees @73a022717bd8
 pass/facts/foreign_nested_record_backing_parameter built 3995ms exit:0 interpreter-exit:0 interpreter:agrees @73a022717bd8
 pass/facts/foreign_nested_record_backing_target_body built 3258ms exit:0 interpreter-exit:0 interpreter:agrees @73a022717bd8
-pass/facts/foreign_retained_shared_borrow_target_body built 4039ms exit:0 interpreter-exit:0 interpreter:agrees @dadce3a3cb48
+pass/facts/foreign_retained_shared_borrow_target_body built 4175ms exit:0 interpreter-exit:0 interpreter:agrees @65452511bb0e
 pass/facts/four_variant_enum_payload_bound_through_call_result_exit built 2440ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/four_variant_enum_payload_bound_through_const_name_exit built 2060ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/four_variant_enum_payload_bound_through_field_exit built 1850ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
