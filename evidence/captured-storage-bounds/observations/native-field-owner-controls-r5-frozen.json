@@ -1,0 +1,64 @@
+{
+  "schema": "native-field-owner-controls-r5-v1",
+  "producer_receipt": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-producer.json",
+    "sha256": "190fac332fb890db38f56779259d00563f21d7de10b68ec936d3c278f8310abd"
+  },
+  "profile": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega.compiler-profile.json",
+    "sha256": "09c4c1928d7e2f684866568a88b71340d657e14bb7d8e86eece53a5762b1786a"
+  },
+  "source_inputs_verified_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "positive": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit",
+  "negative": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/generics/extraction_foreign_case",
+  "files": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/build.omg",
+      "sha256": "793a073e3072b91501b601862fbdd3884159e287a5624ceab9aa4ec6f4a60e41",
+      "bytes": 413
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/expected_interpreter_exit.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/expected_native_exit.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/main.omg",
+      "sha256": "5e485b07080d273ac201946ddc0fa8fc3e171c5b1babacfc46e908facc1d7e33",
+      "bytes": 1564
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/generics/extraction_foreign_case/expected.txt",
+      "sha256": "9c5b9fe3e952a0dfe754ba7963b7ad9855aa37b04eb7f124d99f1648fc0cfc73",
+      "bytes": 67
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/generics/extraction_foreign_case/main.omg",
+      "sha256": "5cab2fa0ed78296c0b7c2f5472a65bff332917e2b3410cad44d22e1e01f28654",
+      "bytes": 306
+    }
+  ],
+  "initial_lock": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/omega.lock",
+    "sha256": "06df8e0c343165ef763a63147403dd42205a78710ec1e3fe8d18522cd45b49bf",
+    "retained_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained-before/omega.lock"
+  },
+  "positive_oracle": {
+    "native_exit": 0,
+    "terminal_exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  "negative_oracle": {
+    "must_reject": true,
+    "diagnostic_fragment": "case membership must test a value of the exact declaring data type"
+  },
+  "restrictions": "No authored fixture rewrites; ordinary policy setup only. One hold. On positive failure, baseline attribution and stop.",
+  "source_inputs_verified_revision": "6c8950d4825fde942fde2b421f26b6192635114a",
+  "live_library_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

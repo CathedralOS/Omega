@@ -1,0 +1,208 @@
+{
+  "schema": "native-field-owner-consumer-observations-r5-v1",
+  "passed": true,
+  "producer_source": "6c8950d4825fde942fde2b421f26b6192635114a",
+  "producer_sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+  "frozen_inputs": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-frozen.json",
+    "sha256": "7aa6539ed5dfd422b5abd586217f92178bf3d430a6ebb3f8765e24c25efd11ce"
+  },
+  "stages": [
+    {
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-update.json",
+      "sha256": "6095b76df16e6fcc52aa5d384f988937f91015a1d5b88acd1706f0f8ef8864ad",
+      "observation": {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+          "update",
+          "--project",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit",
+          "--target",
+          "macos_arm64",
+          "--offline"
+        ],
+        "exit": 0,
+        "seconds": 3.528732333,
+        "workspace_head": "6c8950d4825fde942fde2b421f26b6192635114a",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "channels": [
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-update.stdout",
+          "sha256": "a57a3f72c890f296474e638a00d5de48f77f5ac92d294c764c245b564663c476"
+        },
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-update.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-both.json",
+      "sha256": "1107514eebaa75ddadd60e9f94a7400b4c8e2d0a4ac680ba3b453f01bb356f72",
+      "observation": {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+          "run",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/main.omg",
+          "--both",
+          "--keep"
+        ],
+        "exit": 0,
+        "seconds": 3.234497541,
+        "workspace_head": "6c8950d4825fde942fde2b421f26b6192635114a",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "channels": [
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-both.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-positive-r5-both.stderr",
+          "sha256": "872920db43d46c8e493063fac38def72d060dfb367c200a5a5a7a72a8d26c39c"
+        }
+      ]
+    },
+    {
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-negative-r5-check.json",
+      "sha256": "557d957c47f1db89add8064f1af9ba267c56b050e8b673c924f538f3d711bb4f",
+      "observation": {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+          "--check",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/generics/extraction_foreign_case/main.omg"
+        ],
+        "exit": 1,
+        "seconds": 0.57868325,
+        "workspace_head": "6c8950d4825fde942fde2b421f26b6192635114a",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "channels": [
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-negative-r5-check.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-negative-r5-check.stderr",
+          "sha256": "ad087ff3983ef386131f0b0286edee9ac4cf83189cf7fcec250b90aa5e2e7c20"
+        }
+      ]
+    }
+  ],
+  "positive": {
+    "normal_update_exit": 0,
+    "pending_decisions": 0,
+    "native_exit": 0,
+    "terminal_exit": 0,
+    "stdout_hex": "",
+    "terminal_stderr_hex": "",
+    "oracle": "Pair<u64>: lo42 at offset8, hi9 at offset0; authored plan16 bytes/alignment8; Delivered subtraction0 and byte observations checked by program.",
+    "consumed_lock": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit/omega.lock",
+      "sha256": "20cbcc13f17b149e3aa58bc1dfbc21eae8172da61801c52be884cc94c75a08fe",
+      "retained_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/omega.lock"
+    },
+    "original_products": "/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-24115-0"
+  },
+  "negative": {
+    "check_exit": 1,
+    "intended_diagnostic": "case membership must test a value of the exact declaring data type",
+    "intended_diagnostic_present": true,
+    "additional_payload_construction_diagnostics_retained": true
+  },
+  "retained_files": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/negative/expected.txt",
+      "sha256": "9c5b9fe3e952a0dfe754ba7963b7ad9855aa37b04eb7f124d99f1648fc0cfc73",
+      "bytes": 67
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/negative/main.omg",
+      "sha256": "5cab2fa0ed78296c0b7c2f5472a65bff332917e2b3410cad44d22e1e01f28654",
+      "bytes": 306
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/build.omg",
+      "sha256": "793a073e3072b91501b601862fbdd3884159e287a5624ceab9aa4ec6f4a60e41",
+      "bytes": 413
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/expected_interpreter_exit.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/expected_native_exit.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/main.omg",
+      "sha256": "5e485b07080d273ac201946ddc0fa8fc3e171c5b1babacfc46e908facc1d7e33",
+      "bytes": 1564
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/omega.lock",
+      "sha256": "20cbcc13f17b149e3aa58bc1dfbc21eae8172da61801c52be884cc94c75a08fe",
+      "bytes": 2000
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/.omega-owner",
+      "sha256": "cd04c8e1fb0521b8b2635d9720ee3d23e5f50206a5f86e8a135a238653b69aee",
+      "bytes": 188
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/native.identity.txt",
+      "sha256": "3b7023fea87f7f5d9f7ef46de41dfb2b282735cdf46817be8019af7b4a375e13",
+      "bytes": 65
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/omega-components.tsv",
+      "sha256": "ac39fe7770c833316e3802a76ba1d44b0538df6e8608b4fea2cff8884775e02f",
+      "bytes": 27
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/omega-program",
+      "sha256": "66f11652430e722d82e94c3d4887aef1e06f0d2176216bda309eb0c66e37037a",
+      "bytes": 16640
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/program.oterm",
+      "sha256": "c6a1f9c69cab813c422e1c1dd0bc69c33f4b17193470222f026074a73b89ad9e",
+      "bytes": 1344246
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/terminal.effects",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/terminal.fuel.tsv",
+      "sha256": "45ae71b35d85e45d02d6e7484a2f84f046087611619d17567347fcdddffd34f0",
+      "bytes": 60
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/terminal.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/products/terminal.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/native-field-owner-controls-r5-retained/positive/review-macos_arm64.txt",
+      "sha256": "3b276805c5604902e20332728fe1086b95add54f770a2dcc0d8123002fc6dac5",
+      "bytes": 1302
+    }
+  ],
+  "authored_sources_unchanged": true,
+  "scope_limits": [
+    "Fresh R5 observations, R4 historical evidence unchanged.",
+    "One hold, two selected controls, normal producer refresh only; no builds or baseline fallback.",
+    "No authored fixture edits, manual lock edits, pending policy decisions, or qualification-state mutation.",
+    "This validates the selected consumer controls, not full candidate/GUI acceptance."
+  ]
+}

@@ -1,0 +1,452 @@
+{
+  "canonical_requires_refresh": true,
+  "status": "complete",
+  "producer": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-producer.json",
+  "verified_profile": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+    "sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "target": "macos_arm64",
+  "host": {
+    "platform": "darwin",
+    "machine": "arm64"
+  },
+  "runtime_target_selection": "Implicit host target: explicit run --target is artifact-only in this CLI. Updates explicitly use macos_arm64.",
+  "environment": {
+    "OMEGA_LIBRARY_ROOT": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/source/library",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "planned_positive_count": 9,
+  "planned_reject_count": 9,
+  "positive_results": [
+    {
+      "place": "local",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-local-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.8734437909999997,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/local/omega.lock",
+        "sha256": "7f4037e4f4a8f745c9c3f07d9a11bef5e38d9f7f8c0054a04665e18fde09036a",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-local-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-local-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.5945718749999997,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "field",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-field-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.8829650829999998,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/field/omega.lock",
+        "sha256": "d214eaa4517d68b1f5f3d4d6bdc38c7e811d674f835b084f2eeb79cc4b2ecd70",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-field-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-field-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.5401217920000003,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "parameter",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-parameter-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.768774375,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/parameter/omega.lock",
+        "sha256": "5baadaddb0c1b7316913ff521fc901f9e9b5d009b401116fe9c989201f7976b5",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-parameter-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-parameter-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.6468350000000003,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "call_result",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-call_result-update.json",
+      "update_exit": 0,
+      "update_seconds": 3.146559625,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/call_result/omega.lock",
+        "sha256": "bcfcad8e1b24540c86a9d2be1ba468759e5fb33e7e50f35119ca742616770e57",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-call_result-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-call_result-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.996401167,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "match_join",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-match_join-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.792752417,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/match_join/omega.lock",
+        "sha256": "ba2f5c4387f332fba54310d46f81aacdda46e55fdb2bfe9621fc089c7b03374e",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-match_join-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-match_join-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.502205625,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "const_name",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-const_name-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.579133291,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/const_name/omega.lock",
+        "sha256": "5710bece255584a950910f4776ddf48870cd14338ac0e86ff9d7aaf319af8fb2",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-const_name-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-const_name-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.730995041,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "other_state",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_state-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.620425083,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/other_state/omega.lock",
+        "sha256": "4a8c08b5dbc844ce8c3a474873ee9819bd6e634d26d72aaf9a904675565ba3bc",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_state-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_state-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.582863375,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "other_machine",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_machine-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.60936525,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/other_machine/omega.lock",
+        "sha256": "0df3865bddfce087fa6e7c2508ffd92c0f57dda5360359f3c93ab5e8272aaaf7",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_machine-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_machine-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.7662235,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    },
+    {
+      "place": "target_body",
+      "update_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-target_body-update.json",
+      "update_exit": 0,
+      "update_seconds": 2.4256045829999997,
+      "consumed_lock": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/target_body/omega.lock",
+        "sha256": "c12d4a32ffff29309dbb00dd2a652d597d64f99821d8d9a6e3662974d2c8d112",
+        "exact_bytes": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-target_body-consumed-omega.lock"
+      },
+      "run_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-target_body-both.json",
+      "run_exit": 0,
+      "run_seconds": 2.4365960830000004,
+      "native_exit_0": true,
+      "terminal_exit_0": true,
+      "lock_unchanged_after_run": true
+    }
+  ],
+  "reject_results": [
+    {
+      "place": "local",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-local-reject-update.json",
+      "exit": 1,
+      "seconds": 0.5531111249999999,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "field",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-field-reject-update.json",
+      "exit": 1,
+      "seconds": 0.80326275,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "parameter",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-parameter-reject-update.json",
+      "exit": 1,
+      "seconds": 0.587893958,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "call_result",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-call_result-reject-update.json",
+      "exit": 1,
+      "seconds": 0.551551833,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "match_join",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-match_join-reject-update.json",
+      "exit": 1,
+      "seconds": 0.54773275,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "const_name",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-const_name-reject-update.json",
+      "exit": 1,
+      "seconds": 0.61423125,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "other_state",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_state-reject-update.json",
+      "exit": 1,
+      "seconds": 0.567687959,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "other_machine",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-other_machine-reject-update.json",
+      "exit": 1,
+      "seconds": 0.5602619999999999,
+      "intended_where_pump_next": true
+    },
+    {
+      "place": "target_body",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-target_body-reject-update.json",
+      "exit": 1,
+      "seconds": 0.557230375,
+      "intended_where_pump_next": true
+    }
+  ],
+  "source_snapshots": [
+    {
+      "phase": "before setup",
+      "place": null,
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "local",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "local",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "field",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "field",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "parameter",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "parameter",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "call_result",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "call_result",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "match_join",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "match_join",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "const_name",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "const_name",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "other_state",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "other_state",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "other_machine",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "other_machine",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after setup",
+      "place": "target_body",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after execution",
+      "place": "target_body",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "local",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "field",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "parameter",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "call_result",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "match_join",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "const_name",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "other_state",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "other_machine",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "after reject setup",
+      "place": "target_body",
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    },
+    {
+      "phase": "final",
+      "place": null,
+      "all_91_authored_hashes_match": true,
+      "aggregate_sha256": "5cdb77af089553534cdb4c39411ce96662244aeb5d24e85ec37210f19d94cddf",
+      "changed": []
+    }
+  ],
+  "native_terminal_0_0_count": 9,
+  "intended_reject_count": 9
+}

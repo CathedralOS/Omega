@@ -1,0 +1,4 @@
+error: case membership must test a value of the exact declaring data type (machine `unpack`, state `entry`)
+error: case `Foreign::Moved` has a payload; construct it with a case literal
+error: case membership must test a value of the exact declaring data type (machine `unpack$specialized$969b19dd495faa28$0`, state `entry`)
+error: case `Foreign::Moved` has a payload; construct it with a case literal

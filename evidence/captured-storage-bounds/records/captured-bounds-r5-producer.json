@@ -1,0 +1,27 @@
+{
+  "source": "6c8950d4825fde942fde2b421f26b6192635114a",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 206.911305333,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+    "sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

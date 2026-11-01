@@ -1,0 +1,274 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "9150cfa6fe030e4e01f901ad4315c89407eac45b",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18903
+  },
+  "subset": true,
+  "filter": "captured_storage_bounds",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 18,
+    "by_status": {
+      "checked": 9,
+      "rejected": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5687,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6463,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5682,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7585,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8944,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8944,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6650,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9175,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "pass/facts/captured_storage_bounds_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7686,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2559,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 938,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 825,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1093,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1625,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1360,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1348,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1434,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    },
+    {
+      "fixture": "fail/facts/captured_storage_bounds_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1187,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "9150cfa6fe03"
+    }
+  ],
+  "fixtures": []
+}

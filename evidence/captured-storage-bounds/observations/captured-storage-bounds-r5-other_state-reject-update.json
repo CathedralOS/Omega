@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+    "update",
+    "--project",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/other_state/invalid",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "exit": 1,
+  "seconds": 0.567687959,
+  "workspace_head": "6c8950d4825fde942fde2b421f26b6192635114a",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

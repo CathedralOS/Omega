@@ -1,0 +1,3 @@
+package candidate checking failed: checked compilation failed for package `captured_storage_bounds_through_other_state` with 1 diagnostic(s)
+  error: machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+    in package `captured_storage_bounds_through_other_state`, /Users/zcanann/Library/Caches/CathedralOS/Omega/source/v1/external-local-sources/local-snapshots/source-v2-06fd8df9b231345de9427e910e89199b899cc50b8637294d4c74243f3de27492/source/main.omg:31:41

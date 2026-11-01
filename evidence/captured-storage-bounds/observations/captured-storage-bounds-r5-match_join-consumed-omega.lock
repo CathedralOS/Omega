@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1116
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/match_join" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "captured_storage_bounds_through_match_join"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/match_join"
+resolution external-local "282034ee330ba1cb248a61af0d06fa6ce15901a5bbdea5a36dd05b60fa675a41"
+packages 1
+package
+source
+name "captured_storage_bounds_through_match_join"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/captured_storage_bounds/match_join"
+resolution external-local "282034ee330ba1cb248a61af0d06fa6ce15901a5bbdea5a36dd05b60fa675a41"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 279
+compiler dbe025bb5f0b249ae69fc84322b1890e7e679e937d734fc941fd8bb4b418574f
+package ede8862cc5a5ea54dff0776c847b488a01b27c76a7cfa35e0120cd9ef8699683
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 263
+omega-policy-decisions 2
+source 5ac2b33269522124d008ec1014331f95508a9195ec153f31cf72f621e7ee08d3
+baseline 5ac2b33269522124d008ec1014331f95508a9195ec153f31cf72f621e7ee08d3
+comparison 27b3b743eab8dc4daa9631c0afb301dea6a9c5ed9b4c1efa39a17bbfe8aaa611
+decisions 0
+end
+end_target
+end

@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1172
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "const_replay_generic_semantic_payload"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit"
+resolution external-local "f70141adda6a6805a631e666683ef9d4e809a8383aa50491268151936fee3674"
+packages 1
+package
+source
+name "const_replay_generic_semantic_payload"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/fixed_layout_constant_generic_semantic_value_exit"
+resolution external-local "f70141adda6a6805a631e666683ef9d4e809a8383aa50491268151936fee3674"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 279
+compiler dbe025bb5f0b249ae69fc84322b1890e7e679e937d734fc941fd8bb4b418574f
+package 6a621a2021cd766ff0fcf79a6e9154009de5245b8d9418f0bf05b288e44041a7
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 263
+omega-policy-decisions 2
+source c0e882a10ba9d30fda42938ffdf2ea2be0984a11fe41102053a7fb41f90c1b28
+baseline c0e882a10ba9d30fda42938ffdf2ea2be0984a11fe41102053a7fb41f90c1b28
+comparison c3f631f794ef0ef0087ed37af207fa1093adefab8aa7a963814ad1d7304c16e7
+decisions 0
+end
+end_target
+end

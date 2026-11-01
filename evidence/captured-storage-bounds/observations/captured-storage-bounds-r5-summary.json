@@ -1,0 +1,15 @@
+{
+  "status": "final R5 scoped qualification complete",
+  "producer_sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+  "source": "6c8950d4825fde942fde2b421f26b6192635114a",
+  "native_terminal_0_0_count": 9,
+  "intended_reject_count": 9,
+  "consumed_locks_captured_and_unchanged": 9,
+  "all_91_source_hashes_unchanged": true,
+  "source_fixture_identity": "verified at every phase",
+  "cli_seconds": 53.838800956,
+  "raw_results": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-storage-bounds-r5-chain-results.json",
+  "W_edits": 0,
+  "compiler_or_harness_builds": 0,
+  "extra_checks": 0
+}
