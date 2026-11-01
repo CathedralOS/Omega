@@ -14,29 +14,45 @@ geometry and independent initialized backing. Idle reports its distinct case
 and common field without a payload. The source fact, values and oracles match
 [the direct-application composition](../selected_layout/README.md).
 
-## Failure and current scope
+## Measured outcome
 
-The frozen alias positive and twin both reject on retained optimized producer
+On Linux x86-64, [pilot 41334207036](https://github.com/CathedralOS/Omega/actions/runs/41334207036)
+passes the frozen positive with native/Terminal exit 0 and both intended
+rejections: the distinct-policy callback twin and the lexical proof control.
+Actual source is `791b37f7dbe0b4f064dfd51f7964aa5eddba256a`; optimized CLI SHA-256
+is `8fbc8837d4919a57c4b87f23bf1907e3b754475852b5d306289e0d383ef19e51`
+(`opt_level=1`). Preparation took 189.596 s, authentication 1.190 s and the three
+project observations 22.101 s. This samples-only run prepared no corpus runner.
+
+The frozen pair originally rejects on retained Mac producer
 `3d5c5150f08151ca111b2e6b31545d1646085611`, CLI
 `090ee60d87c91f8e13b23f0bd14c8f323ed4e3946f524ae7833557cfae419bee`, at
 `static type equality cannot mix a type operand with a runtime value`.
-This is a historical producer observation, not execution of the repair.
+Source normalization now expands genuinely selected alias operands through the
+ordinary application path before comparison classification. Application and
+formation metadata, declaration selection, privacy/cycles and lexical binder
+precedence remain; aliases gain no nominal Data identity.
 
-Source normalization now routes selected alias operands through ordinary alias
-application expansion before comparison classification. It retains declaration
-selection, argument/formation obligations and caller lexical binders; an alias
-is never classified as nominal Data. Contracts and body comparisons use the same
-operation. Checked ordinary field loans and exact callback coverage continue
-through Terminal production, ABI transport, native selection and image execution.
-
-The canonical positive and reject mirrors are
+The canonical positive/reject mirrors are
 `tests/omega/{pass,fail}/facts/typed_reflection_active_case_selected_layout_alias_{exit,rejected}`.
-Actual corrected producer `9d8ac725f3d8` passes both canonical checking rows in
+Their actual source-checking records retain producer `9d8ac725f3d8` from
 [pilot 41327251072](https://github.com/CathedralOS/Omega/actions/runs/41327251072).
-The positive exits 0 natively, but Terminal declines reference formation;
-that failed run is preserved. Runtime acceptance of the changed producer is pending. This is one composition
-inside the existing nine-place row, not completion of the full parent alias,
-representation, retained Product or other-host requirements.
+That run's native exit 0 and Terminal formation failure remain recorded as a
+failed runtime result. Later failed runs exposed separate nested-case storage
+namespace and captured-array-home losses; their raw reports remain retained.
+No historical outcome is relabeled as the passing producer.
+
+The affected stored-loan positive/twin and existing private-alias rejection
+passed on source `da95ec8984754ba08eba1aa71c585144ed36562b` in
+[pilot 41332673310](https://github.com/CathedralOS/Omega/actions/runs/41332673310).
+Those observations keep that source identity: the final change only preserves
+the captured collection home in primitive field reads, while the loan's Cell
+has no array view and the rejection inputs are unchanged.
+
+Raw reports and exact source bundles are retained outside scratch at
+`/Users/zcanann/Omega-build/alias-static-equality-20261101/`.
+This is one composition inside the existing active-case row; full parent alias,
+representation and other-host completion remain open.
 
 The focused [shadowed-proof control](controls/shadowed_proof/main.omg) keeps a
 global type alias and a same-named erased callable proof binding. The comparison

@@ -10,4 +10,6 @@ Its exact application control shares geometry with the rejected application.
 
 [Alias-selected payloads](compositions/selected_layout_alias/README.md) retain the
 same active-case operation through transparent alias operands in static type
-comparisons; its changed-producer runtime observation is pending.
+comparisons. The frozen composition and its distinct-policy control now have
+Linux native/Terminal observations; the linked composition records exact
+producer and rejection scope.
