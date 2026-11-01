@@ -193,6 +193,8 @@ fn alias_subjects_use_exact_headers_roles_and_lexical_frontiers() {
                 prior_statements: if has_prior { &prior } else { &[] },
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
+                conformances: &program.roots.conformances,
+                operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &program.tables.declarations.data_members,
                 data_type_parameters: &program.tables.declarations.data_type_parameters,
                 data_payload_fields: &program.tables.declarations.data_payload_fields,

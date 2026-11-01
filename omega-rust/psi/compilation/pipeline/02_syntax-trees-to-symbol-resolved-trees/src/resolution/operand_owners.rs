@@ -35,29 +35,47 @@ pub(crate) fn retain(lowerer: &mut Lowerer, input: ItemHandle) -> OperandLifetim
     owner
 }
 
-pub(crate) fn bind(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
-    for (input, owner) in &lowerer.supplied_operand_owners {
-        let Some((_, ordinal)) = lowerer
-            .conformance_inputs
-            .iter()
-            .find(|(known, _)| known == input)
-        else {
-            return Err(vec![Diagnostic::error(
-                "supplied operand lost its exact declaration input",
-            )]);
-        };
-        let declaration = lowerer.symbol_resolved_trees.conformances[*ordinal].symbol;
+/// The allocation bridge is exact input custody, prepared before name walks.
+/// It carries no inferred owner or checked admission.
+pub(crate) fn bindings(
+    lowerer: &Lowerer,
+) -> Result<Vec<(OperandLifetimeOwnerHandle, usize)>, Vec<Diagnostic>> {
+    lowerer
+        .supplied_operand_owners
+        .iter()
+        .map(|(input, owner)| {
+            let (_, ordinal) = lowerer
+                .conformance_inputs
+                .iter()
+                .find(|(known, _)| known == input)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "supplied operand lost its exact declaration input",
+                    )]
+                })?;
+            Ok((*owner, *ordinal))
+        })
+        .collect()
+}
+
+/// Declaration allocators already own these symbols. Publish that existing
+/// input-to-declaration bridge before resolving any copied value expression.
+pub(crate) fn bind_program(
+    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    bindings: &[(OperandLifetimeOwnerHandle, usize)],
+) -> Result<(), Vec<Diagnostic>> {
+    for &(owner, ordinal) in bindings {
+        let declaration = program.conformances[ordinal].symbol;
         if !declaration.is_valid() {
             return Err(vec![Diagnostic::error(
                 "supplied operand has an unbound declaration owner",
             )]);
         }
-        lowerer
-            .symbol_resolved_trees
+        program
             .tables
             .types
             .operand_lifetime_owners
-            .get_mut(*owner)
+            .get_mut(owner)
             .declaration = declaration;
     }
     Ok(())

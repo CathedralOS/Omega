@@ -57,6 +57,8 @@ pub(super) fn assign_contract_reference_symbols(
         resolution_indexes: &program.resolution_indexes,
         data_definitions,
         type_aliases: &roots.type_aliases,
+        conformances: &roots.conformances,
+        operand_owners: &tables.types.operand_lifetime_owners,
         data_members,
         data_type_parameters,
         data_payload_fields: &tables.declarations.data_payload_fields,

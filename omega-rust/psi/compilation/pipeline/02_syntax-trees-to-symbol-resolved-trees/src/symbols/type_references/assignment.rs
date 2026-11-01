@@ -771,7 +771,7 @@ fn assign_type_reference_symbol_with_context(
     );
 }
 
-fn assign_type_reference_with_definitions(
+pub(super) fn assign_type_reference_with_definitions(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
     type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,

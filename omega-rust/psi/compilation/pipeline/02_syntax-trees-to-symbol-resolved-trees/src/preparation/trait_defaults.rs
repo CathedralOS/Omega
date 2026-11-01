@@ -683,6 +683,19 @@ fn instantiate_default_signature(
         // copied requirement's invocation telescope. Deep copying keeps nested
         // operand custody while leaving fresh surrounding wrappers untouched.
         let supplied = syntax.copy_type_reference_handle(&snapshot, *argument);
+        let applications = syntax
+            .type_references
+            .type_alias_applications(supplied)
+            .map(|alias| alias.application)
+            .collect::<Vec<_>>();
+        for application in applications {
+            if matches!(syntax.type_references.supplied_operand_owner(application), Ok(owner) if !owner.is_valid())
+            {
+                syntax
+                    .type_references
+                    .retain_supplied_operand_owner(application, supplying_declaration);
+            }
+        }
         // The parameter can itself be an alias expansion. Keep its authored
         // obligations around the substituted operand, just as SyntaxCopy's
         // ordinary type-substitution path does, while replacing every prepared
