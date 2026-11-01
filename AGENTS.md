@@ -836,9 +836,10 @@ To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
 On that first push, open the pull request as a draft and return its URL in the
 same turn. Later pushes update that same draft. A request to "push" includes
-this step; no separate confirmation is needed. Mark the draft ready only when
-it is mergeable and `compiler-check` is green, then enqueue it. A draft cannot
-enter the queue, and it is not a place to leave the work.
+this step; no separate confirmation is needed. Right after that push, run
+`python tools/landing.py land <number> --expected-head <sha>` in the background:
+it waits for `compiler-check`, marks the draft ready, enqueues and waits for
+MERGED. A draft cannot enter the queue, and it is not a place to leave the work.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -1010,9 +1011,10 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 - **Every delivery push must have a draft until it can merge.** A user request
   to "push" means push the committed work and open or update its pull request
   in the same turn. The first push opens a draft (`gh pr create --draft`).
-  Later pushes update that same draft. Mark it ready (`gh pr ready`) only when
-  it is mergeable and `compiler-check` is green, then enqueue it
-  ([tools/landing.md](tools/landing.md)). A draft cannot enter the queue. Reuse
+  Later pushes update that same draft. Right after the push, run
+  `python tools/landing.py land <number> --expected-head <sha>` in the background
+  ([tools/landing.md](tools/landing.md)); it waits for `compiler-check`, marks the
+  draft ready, enqueues and waits for MERGED. A draft cannot enter the queue. Reuse
   the existing pull request, verify its head matches the pushed commit, and
   return the PR URL. A draft is not a place to leave the work: the session
   still lands it and does not leave the draft across unrelated landings. Do
