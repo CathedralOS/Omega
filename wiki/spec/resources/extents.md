@@ -6,8 +6,9 @@ Hardware operations require checked authority, complete compiler-understood
 operation contracts, or explicitly admitted provider commitments with receipts.
 Wrappers preserve reach, authority, clobbers, trust, and installed-root obligations.
 
-An [access view](access.md) interprets existing authority: `Access<P, T>` retains
-the exact backing, policy, loan or owned claim, and provider evidence. A boundary
+An [access-qualified view](access.md) interprets existing authority: a domain-qualified
+value/view retains the exact backing, policy, independent layout, loan or owned
+claim, and provider evidence. A boundary
 may supply that established view or qualified backing for its establishment.
 The access plan describes demand, not supply; matching numeric geometry or
 constructing the plan never manufactures `Granted` or device correspondence.

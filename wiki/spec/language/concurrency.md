@@ -49,7 +49,7 @@ payload-custody protocol.
 [Domain access policy](domains.md#domain-owned-read-and-write-authority) also
 applies to atomic events: observation requires the applicable read grant,
 mutation the write grant, and a read-modify-write event both. Shared atomic
-access is not an exemption from `written by`; authorized machines may lend the
+access is not an exemption from the domain's writer list; authorized machines may lend the
 exact access to an atomic helper without making that helper a new establishment
 route. Policy and custody survive representation casts. None of these grants
 alone proves that a mutex holds exclusive access to its separate payload.

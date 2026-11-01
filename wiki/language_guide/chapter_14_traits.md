@@ -242,13 +242,21 @@ cannot supply a whole-trait bound or a dynamic value.
 
 ### Domain establishment requirements
 
-A domain may name an exact trait requirement in `established by`. This does not make
+A domain's access policy may name an exact trait requirement as an issuer. This does not make
 the trait special globally; it records that requirement as one authorized
 origin for that domain:
 
 ```omega
 domain Reservation::Issued
-established by Issues::issue;
+    access ReservationAccess;
+
+ReservationAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Issues::issue)]);
+        plan
+    }
+}
 ```
 
 A machine satisfying `Issues::issue` may establish `Reservation::Issued` at

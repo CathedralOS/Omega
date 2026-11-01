@@ -536,7 +536,15 @@ data Folder {
 }
 
 domain Folder::Writable
-established by Desktop::choose_folder;
+    access FolderAccess;
+
+FolderAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Desktop::choose_folder)]);
+        plan
+    }
+}
 
 boundary trait Desktop {
     machine choose_folder(prompt: &[u8]::Utf8) -> Folder::Writable;

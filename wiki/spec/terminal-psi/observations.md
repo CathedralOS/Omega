@@ -109,6 +109,15 @@ profile. No default-pure or unknown classification is accepted.
 
 ## Values and correspondence
 
+Domain-qualified access retains its normalized policy and exact governed subject
+through erasure and lowering. An observed field event joins a semantic member/path
+to an independently validated layout, backing receipt, operation and lifetime;
+an access plan no longer contains that layout. Default-unrestricted caller lists
+never classify an otherwise unsupported operation as pure or permitted.
+External/destructive/atomic behavior and reach keep their existing event meaning
+under [domain access](../resources/access.md), including when source qualification
+is not displayed. No runtime permission table is implied by this retained identity.
+
 Static rows carry semantic types and comparison rules. Runtime traces carry
 actual arguments, results, and return values in execution order. Machine,
 block, operation, and edge coordinates establish proof correspondence; they
