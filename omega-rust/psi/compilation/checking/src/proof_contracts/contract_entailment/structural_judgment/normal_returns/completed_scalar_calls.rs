@@ -16,6 +16,16 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
 }
 
 impl CapturedResultEquation {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retains_completed_identity(
+        &self,
+        captured: &StructuralTerm,
+        description: &StructuralTerm,
+    ) -> bool {
+        self.completed_call_identity
+            && self.left.same_resolution_payload(captured)
+            && self.right.same_resolution_payload(description)
+    }
+
     pub(super) fn public((left, right): (StructuralTerm, StructuralTerm)) -> Self {
         Self {
             left,
@@ -48,15 +58,11 @@ impl StructuralJudge<'_> {
         captured: StructuralTerm,
         description: StructuralTerm,
     ) {
-        let established = self
-            .rewrites
-            .find(&captured)
-            .filter(|(pattern, _)| pattern.same_resolution_payload(&captured))
-            .map(|(_, replacement)| replacement.clone());
-        self.intake_equation_fact(captured, description.clone(), 0);
-        if let Some(established) = established {
-            self.intake_equation_fact(description, established, 0);
-        }
+        let established = [
+            self.exact_capture_rewrite(&captured),
+            self.exact_capture_rewrite(&description),
+        ];
+        self.register_completed_value_equation(captured, description, established, 0);
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_integer_call(

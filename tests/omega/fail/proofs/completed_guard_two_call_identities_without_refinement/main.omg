@@ -1,0 +1,31 @@
+// Expected exit: 0. Two completed scalar captures retain a branch equality before later literal refinement.
+public data Marker { calls: u32 in Wrapping; }
+machine first(value: u64) -> u64 { value }
+machine second(value: u64) -> u64 { value }
+machine echo(marker: &mut Marker, value: u64) -> u64 {
+    marker.calls = marker.calls + 1;
+    value
+}
+public machine invoke(marker: &mut Marker, x: u64, y: u64) -> u64 {
+    let a: u64 = first(x);
+    let b: u64 = second(y);
+    match a == b {
+        true -> match true {
+            true -> echo(marker, a) - 7,
+            _ -> 2
+        },
+        _ -> 1
+    }
+}
+machine main() crashes Trap {
+    let mut marker: Marker = Marker { calls: 0 };
+    let refined: u64 = invoke(&mut marker, 7, 7);
+    let unequal: u64 = invoke(&mut marker, 7, 6);
+    let unrefined: u64 = invoke(&mut marker, 2, 2);
+    transition refined == 0 && unequal == 1 && unrefined == 2 && marker.calls == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
