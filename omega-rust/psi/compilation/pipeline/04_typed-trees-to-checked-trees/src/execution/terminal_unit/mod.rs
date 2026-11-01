@@ -168,6 +168,7 @@ pub(crate) mod state_graph;
 mod storage_transfers;
 mod structural_scalar_store;
 mod structural_value_calls;
+mod value_types;
 pub(crate) use structural_value_calls::retain as retain_structural_value_calls;
 pub(crate) mod types;
 
@@ -590,43 +591,6 @@ pub(crate) fn build_checked_unit_effect_plans(
     // Retained values own the declarations of every evaluated producer, not
     // only their receiving leaf. A projected copy can keep an anonymous array
     // alive for its checked exit even though no local declares that array.
-    let computations = &facts.values.scalar_computations;
-    let mut structural_roots_by_expr: symbols::SymbolKeyMap<
-        typed_trees::expression::ExpressionHandle,
-        Vec<checked_trees::CheckedStructuralValueHandle>,
-    > = symbols::SymbolKeyMap::default();
-    for (_, root) in facts.values.structural_values.roots.iter() {
-        structural_roots_by_expr
-            .entry(root.expression)
-            .or_default()
-            .push(root.root);
-    }
-    let scalar_value_roots = computations
-        .nodes
-        .iter()
-        .filter_map(|(_, node)| match &node.kind {
-            checked_trees::CheckedScalarComputationKind::Call {
-                structural_arguments,
-                ..
-            } => computations
-                .structural_arguments
-                .span(*structural_arguments),
-            _ => None,
-        })
-        .flatten()
-        .filter_map(|argument| match argument.as_place()?.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                Some(expression)
-            }
-            _ => None,
-        })
-        .flat_map(|expression| {
-            structural_roots_by_expr
-                .get(&expression)
-                .map_or(&[][..], Vec::as_slice)
-                .iter()
-                .copied()
-        });
     let value_roots = candidates
         .iter()
         .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
@@ -637,15 +601,15 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .flat_map(|plan| plan.states.iter())
                 .flat_map(|state| state.operation_dependencies()),
         )
+        .chain(prepared_calls.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         .filter_map(|operation| {
             operation
                 .structural_value_evaluation()
                 .map(|(value, _)| value)
         })
-        .chain(scalar_value_roots)
         .collect::<Vec<_>>();
-    let value_type_identities = retain_value_types(program, facts, &mut shapes, value_roots);
+    let value_type_identities = value_types::retain(program, facts, &mut shapes, value_roots);
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
@@ -1388,86 +1352,4 @@ pub(super) fn scalar_case_value_shapes(
         return None;
     }
     Some(shapes.types.into_values().collect())
-}
-
-/// Register the declarations of retained value producers and their operands.
-/// Projection leaves and their evaluated owners survive catalog pruning
-/// independently; retaining a shape grants no construction or cleanup custody.
-fn retain_value_types(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    shapes: &mut types::ShapeCollector<'_>,
-    mut pending: Vec<checked_trees::CheckedStructuralValueHandle>,
-) -> Vec<typed_trees::type_identity::TypeIdentityId> {
-    let plans = &facts.values.structural_values;
-    let mut identities = Vec::new();
-    let mut visited = Vec::new();
-    while let Some(node) = pending.pop() {
-        if visited.contains(&node) {
-            continue;
-        }
-        visited.push(node);
-        let node = plans.nodes.get(node);
-        let binders = program
-            .machine_by_symbol(node.machine)
-            .map(|machine| types::machine_binders(program, machine))
-            .unwrap_or_default();
-        if node.type_reference.is_valid()
-            && let Some(identity) = shapes.add_stored_type(node.type_reference, &binders, &[])
-        {
-            identities.push(identity);
-        }
-        match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Place(source) => {
-                identities.push(source.type_identity);
-            }
-            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
-            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
-            | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
-                identities.push(source.type_identity);
-            }
-            checked_trees::CheckedStructuralValueKind::Reference {
-                source,
-                source_value,
-                ..
-            } => {
-                identities.push(source.type_identity);
-                if source_value.is_valid() {
-                    pending.push(*source_value);
-                }
-            }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. }
-            | checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. }
-            | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
-                pending.push(*source);
-            }
-            checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
-                pending.extend(arguments.iter().copied());
-            }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
-                for field in plans.record_fields.span_or_empty(*fields) {
-                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
-                        field.value
-                    {
-                        pending.push(nested);
-                    }
-                }
-            }
-            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                pending.extend(elements.iter().copied());
-            }
-            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
-                pending.extend(
-                    plans
-                        .dispatch_arms
-                        .span_or_empty(*arms)
-                        .iter()
-                        .map(|arm| arm.value),
-                );
-            }
-            _ => {}
-        }
-    }
-    identities
 }

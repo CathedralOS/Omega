@@ -9,6 +9,9 @@ use terminal_psi::{
 };
 
 pub struct PreparedExternalProviderDeclarations {
+    // Pin allocation identity without keeping source trees alive. Weak also
+    // prevents Arc::get_mut from replacing live projected custody; every
+    // policy input is owned by declarations and review below.
     checked: Weak<CheckedTrees>,
     sources: Arc<[(source::SourceId, [u8; 32])]>,
     declarations: ExternalProviderDeclarations,
