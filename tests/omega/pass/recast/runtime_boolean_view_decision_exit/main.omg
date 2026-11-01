@@ -1,4 +1,4 @@
-data Byte where value >= 0 && value <= 1 { value: u8; }
+data Byte requires value >= 0 && value <= 1 { value: u8; }
 
 machine read(byte: &Byte) -> bool {
     let flag: &bool = &byte.value as &bool;

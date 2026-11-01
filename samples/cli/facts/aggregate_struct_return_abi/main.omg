@@ -1,7 +1,7 @@
 // Fact: a four-word structural aggregate returned and passed by value preserves field refinement bounds summing to 100u64 across indirect return homes when subtracting 100u64.
 // Expected exit: 0
 
-data Quartet [copy] where
+data Quartet [copy] requires
     first >= 10u64 && first <= 10u64,
     second >= 20u64 && second <= 20u64,
     third >= 30u64 && third <= 30u64,

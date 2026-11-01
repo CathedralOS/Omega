@@ -2,7 +2,7 @@
 
 First sample with prover-backed construction: the machine's
 `requires 1 <= strength, strength <= 100` interval decides
-the gated `data Player where health >= 1` construction
+the gated `data Player requires health >= 1` construction
 `Player { health: strength }` — no spelled proof needed at
 the literal.
 

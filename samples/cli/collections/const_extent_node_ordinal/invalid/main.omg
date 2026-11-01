@@ -1,7 +1,7 @@
 // Complete intended-invalid control: a plain ordinal is not a proof that it
 // lies inside a six-node const-extent table.
 
-data Nodes<const N: u64> where N >= 1 && N <= 8 {
+data Nodes<const N: u64> requires N >= 1 && N <= 8 {
     x: [i64 in Wrapping; N];
 }
 

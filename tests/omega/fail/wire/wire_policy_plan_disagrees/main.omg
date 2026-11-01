@@ -13,7 +13,7 @@ data Message {
 
 data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
 data WireSchemaField [copy] { number: i64; kind: FieldKind; }
-data WireSchema [copy] where field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
+data WireSchema [copy] requires field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);

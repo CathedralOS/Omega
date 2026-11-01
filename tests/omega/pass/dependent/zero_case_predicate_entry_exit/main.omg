@@ -11,7 +11,7 @@ data Command<const Maximum: i32>
     case Dim(amount: i32);
     case Off;
 }
-data Main where brightness >= 0 && brightness <= 100 {
+data Main requires brightness >= 0 && brightness <= 100 {
     brightness: i32;
     command: Command<100>;
 }

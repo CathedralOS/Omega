@@ -12,14 +12,14 @@
 use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, 1 <= align, align <= 16 {
+data SchemaField requires size <= 4096, 1 <= align, align <= 16 {
     key: u64;
     size: u64;
     align: u64;
     number: i64;
     kind: FieldKind;
 }
-data Schema where field_count <= 32 {
+data Schema requires field_count <= 32 {
     fields: [SchemaField; 32];
     field_count: u64;
 }

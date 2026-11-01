@@ -1,7 +1,7 @@
 // Fact: projecting a bounded field through a shared borrow preserves its exact static upper bound without moving the backing record, discharging exact subtraction 90u64 - used across all nine places.
 // Expected exit: 0
 
-data Window where used <= 90, {
+data Window requires used <= 90, {
     used: u64;
 }
 

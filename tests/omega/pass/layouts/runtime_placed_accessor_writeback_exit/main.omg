@@ -1,7 +1,7 @@
 // Expected exit: 0. Placed accessor writes affect their original RAM backing.
 use omega::language::core::layout;
 
-public data Registers where transmit <= 10 {
+public data Registers requires transmit <= 10 {
     status: u32;
     transmit: u8;
 }

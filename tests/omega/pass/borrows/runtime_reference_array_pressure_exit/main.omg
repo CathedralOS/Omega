@@ -3,8 +3,8 @@
 // the physical frame must retain an honest unwind continuation.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
-data Main where index <= 1 {
+data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
+data Main requires index <= 1 {
     first: Cell;
     second: Cell;
     index: u64;

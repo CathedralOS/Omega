@@ -2,7 +2,7 @@
 // Place: parameter (invalid twin).
 // Expected diagnostic: exact subtraction underflow
 
-data Quartet [copy] where
+data Quartet [copy] requires
     first >= 10u64 && first <= 10u64,
     second >= 20u64 && second <= 20u64,
     third >= 30u64 && third <= 30u64,

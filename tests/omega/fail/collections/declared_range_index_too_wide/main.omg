@@ -3,7 +3,7 @@
 // the upper bound when high < length.
 use omega_language_std::console;
 
-data Main where i <= 5 {
+data Main requires i <= 5 {
     arr: [i32; 5];
     i: u64;
 }

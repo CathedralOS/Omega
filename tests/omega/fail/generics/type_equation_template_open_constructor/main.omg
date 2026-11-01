@@ -1,7 +1,7 @@
 data Container<Element [copy]> [copy] { value: Element; }
 
 data Template<Payload [copy]> [copy]
-where Payload == Container
+requires Payload == Container
 { value: Payload; }
 
 data Main { value: u64; }

@@ -1,7 +1,7 @@
 // Fact: a static index bound idx < 8u64 carried through the place proves safe fixed-size array indexing arr[idx] on [u64; 8].
 // Place: field. A record field carries the bounded index alongside the fixed-extent array.
 // Expected exit: 0
-data Container where index < 8 {
+data Container requires index < 8 {
     values: [u64; 8];
     index: u64;
 }

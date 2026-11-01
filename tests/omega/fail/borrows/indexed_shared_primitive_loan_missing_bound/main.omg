@@ -1,4 +1,4 @@
-data Byte where value >= 0 && value <= 1 { prefix: u64; value: u8; suffix: u32; }
+data Byte requires value >= 0 && value <= 1 { prefix: u64; value: u8; suffix: u32; }
 data Row { cells: [Byte; 3]; tag: u64; }
 data Main { rows: [Row; 2]; }
 machine take(value: &u8) -> u8 { value }

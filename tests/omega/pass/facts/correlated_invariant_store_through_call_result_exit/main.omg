@@ -1,7 +1,7 @@
 // amount <= 320 - counter.total makes exact counter.total + amount preserve counter.total <= 320.
 // Place: call_result.
 // Expected exit: 0
-data Counter where total <= 320 { total: u64; }
+data Counter requires total <= 320 { total: u64; }
 machine deliver(amount: u64) -> u64 ensures result == amount { amount }
 machine advance(counter: &mut Counter, amount: u64)
 requires amount <= 320 - counter.total

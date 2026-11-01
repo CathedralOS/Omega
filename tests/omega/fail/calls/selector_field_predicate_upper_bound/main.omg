@@ -1,6 +1,6 @@
 // A call may supply a one-past selector. An inclusive arrival premise must
 // not satisfy the data's exclusive index bound at the write.
-data Cursor where row < 2, position < 4 {
+data Cursor requires row < 2, position < 4 {
     row: u64;
     position: u64;
 }

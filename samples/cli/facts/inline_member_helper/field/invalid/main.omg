@@ -37,7 +37,7 @@ ensures result == left + right
 
 // Place: field. Bounded record fields carry both operands into combine, which calls add.
 // Expected exit: 0
-data Operands where 0 <= left && left <= 50 && 0 <= right {
+data Operands requires 0 <= left && left <= 50 && 0 <= right {
     left: i32;
     right: i32;
 }

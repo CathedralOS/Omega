@@ -38,7 +38,7 @@ machine step_two(y: u64) -> u64
     sum
 }
 
-data SavedHolder where saved <= 71u64 {
+data SavedHolder requires saved <= 71u64 {
     saved: u64;
 }
 

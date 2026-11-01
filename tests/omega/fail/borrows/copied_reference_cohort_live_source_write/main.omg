@@ -1,5 +1,5 @@
 // Ending the original descriptor cannot end a still-observed shared copy.
-data Cell where value >= 0 && value <= 100 { value: i32; }
+data Cell requires value >= 0 && value <= 100 { value: i32; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &Cell; stamp: i32; }
 

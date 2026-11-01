@@ -2,7 +2,7 @@
 // count invalidates it: forwarding i must establish the deeper state's
 // precondition against the new count, not replay the previous arrival fact.
 use omega_language_std::console;
-data Main where count <= 11 { items: [u8; 12]; count: u32; j: u32; out: i32; }
+data Main requires count <= 11 { items: [u8; 12]; count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 8;
     main.j = 6;

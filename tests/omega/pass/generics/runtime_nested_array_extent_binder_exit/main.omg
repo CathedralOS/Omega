@@ -4,7 +4,7 @@ data Counts {}
 const Counts::FOUR: u64 = 4;
 data Holder<Value [copy]> [copy] { value: Value; }
 data Sized<Payload [copy], Element [copy], const Count: u64> [copy]
-where Payload == [Element; Count] {
+requires Payload == [Element; Count] {
     nested: Holder<[u64; Count]>;
     fixed: Holder<[u64; Counts::FOUR]>;
     payload: Payload;

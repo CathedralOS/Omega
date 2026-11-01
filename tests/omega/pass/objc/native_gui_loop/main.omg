@@ -101,7 +101,7 @@ public boundary trait CoreGraphics {
     machine bitmap_context_image(ctx: u64) -> u64 reaches;
 }
 
-data Main where 0 <= frame, frame <= 8 {
+data Main requires 0 <= frame, frame <= 8 {
     pixels: [i32; 16];
     fx: f64;
     fy: f64;

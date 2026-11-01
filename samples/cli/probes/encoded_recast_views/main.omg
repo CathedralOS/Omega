@@ -18,7 +18,7 @@
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 
 data SchemaField
-where
+requires
     size <= 4096,
     1 <= align,
     align <= 16,
@@ -31,7 +31,7 @@ where
 }
 
 data Schema
-where
+requires
     field_count <= 32,
 {
     fields: [SchemaField; 32];

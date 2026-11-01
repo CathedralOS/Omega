@@ -2,7 +2,7 @@
 // Expected exit: 0
 machine extent() -> u64 { 3 }
 data IndexedPacket<Value [copy], const Capacity: u64> [copy]
-where Value == [u8; Capacity]
+requires Value == [u8; Capacity]
 { items: Value; }
 data Packet { items: IndexedPacket<[u8; 2], extent()>; }
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64

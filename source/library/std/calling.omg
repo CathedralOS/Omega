@@ -112,7 +112,7 @@ public data NativeParameterIdentity [copy] {
     shape: NativeParameterShape;
 }
 
-public data BoundarySignature [copy] where shape_count <= 256, field_count <= 256,
+public data BoundarySignature [copy] requires shape_count <= 256, field_count <= 256,
     parameter_count <= 32, native_parameter_count <= 32,
     callback_binder_count <= 32, callback_demand_count <= 32 {
     shapes: [ValueShape; 256];
@@ -181,7 +181,7 @@ public data ValueLocation {
     );
 }
 
-public data ValuePlacement where location_count <= 16 {
+public data ValuePlacement requires location_count <= 16 {
     shape: AbiValueShape;
     locations: [ValueLocation; 16];
     location_count: u64;
@@ -195,7 +195,7 @@ public data CallingConvention {
     case LinuxSyscallAarch64;
 }
 
-public data RegisterSet where register_count <= 64 {
+public data RegisterSet requires register_count <= 64 {
     registers: [MachineRegister; 64];
     register_count: u64;
 }
@@ -214,7 +214,7 @@ public data CallbackMaterialization {
     destination: NativePlace;
 }
 
-public data CallPlan where parameter_count <= 32, callback_materialization_count <= 32 {
+public data CallPlan requires parameter_count <= 32, callback_materialization_count <= 32 {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
     parameter_count: u64;

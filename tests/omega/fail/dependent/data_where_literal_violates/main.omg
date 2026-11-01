@@ -3,7 +3,7 @@
 // Player (ch12: construction is the gate).
 use omega_language_std::console;
 data Player
-where
+requires
     health >= 1,
 {
     health: i32;

@@ -1,6 +1,6 @@
 // Naming FixedBuffer<0> is legal; constructing its value must establish N > 0.
 data FixedBuffer<const N: u64>
-where
+requires
     N > 0,
 {
     values: [u8; N];

@@ -8,7 +8,7 @@ public data PacketBatch { packets: [Packet; 2]; }
 public domain Packet::Tagged
 requires self.bytes[0] == 42 && self.bytes[7] == 7;
 
-public data TaggedPacket where bytes[0] == 42 {
+public data TaggedPacket requires bytes[0] == 42 {
     bytes: [u8; 8];
 }
 

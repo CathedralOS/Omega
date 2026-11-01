@@ -1,4 +1,4 @@
-data Bounded [copy] where value <= 7 { value: u64; }
+data Bounded [copy] requires value <= 7 { value: u64; }
 data Packet [copy] { values: [Bounded; 2]; }
 const INVALID: Packet = Packet { values: [Bounded { value: 7 }, Bounded { value: 8 }] };
 machine main() -> u64 { 0 }

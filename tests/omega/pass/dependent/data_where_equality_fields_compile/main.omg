@@ -2,7 +2,7 @@
 // only while `left == right`. Equal literals prove the bound at
 // construction; the invariant holds the pair in lockstep.
 data Mirror
-where
+requires
     left == right,
 {
     left: u64;

@@ -2,7 +2,7 @@
 // while `raw != 0` — a zero handle is the absence state and cannot be
 // constructed as a live value. Nonzero literals prove the bound.
 data Handle
-where
+requires
     raw != 0,
 {
     raw: u64;

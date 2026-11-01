@@ -2,7 +2,7 @@
 // Expected exit: 0
 domain i32::Nonnegative requires self >= 0;
 machine bounded(value: i32 in Nonnegative) -> bool { value <= 60 }
-data Counter [copy] where bounded(self.value) == true {
+data Counter [copy] requires bounded(self.value) == true {
     before: i32;
     value: i32;
     after: i32;

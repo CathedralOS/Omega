@@ -3,7 +3,7 @@
 // Bounded runtime-index `&mut` — index proof discharges, then same wall.
 use omega_language_std::console;
 
-data Main where off <= 47 {
+data Main requires off <= 47 {
     buf: [u8; 48];
     off: u32;
 }

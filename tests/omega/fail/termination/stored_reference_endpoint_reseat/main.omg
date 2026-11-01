@@ -1,4 +1,4 @@
-data Wrap where 4 <= remaining, remaining <= 500 { remaining: u64; }
+data Wrap requires 4 <= remaining, remaining <= 500 { remaining: u64; }
 data Indirect { target: &Wrap; }
 
 machine walk(remaining: u64, indirect: Indirect, other: Indirect) -> u64

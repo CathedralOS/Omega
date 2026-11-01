@@ -1,7 +1,7 @@
 data Box<Value [copy]> [copy] { value: Value; }
 data Holder<Value> { value: Value; }
 data Nested<Payload [copy], Element [copy], Box>
-where Payload == [Element; 4] {
+requires Payload == [Element; 4] {
     nested: Holder<Box<u64>>;
     payload: Payload;
 }

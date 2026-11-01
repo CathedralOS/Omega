@@ -3,7 +3,7 @@
 // relates that exact path to an invocation-fixed ceiling, and every
 // self edge rebuilds the literal chain down to the ranked field while
 // the ceiling and the step stay pinned.
-data Inner where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Inner requires 0 <= remaining, remaining <= 5 { remaining: u64; }
 data Countdown { label: u64; inner: Inner; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.inner.remaining }

@@ -2,7 +2,7 @@
 // reads like a record field on every case, while a payload field is
 // observed through its case step.
 data Kind [copy] { case A; case B; }
-data Token [copy] where start <= 100, end <= 100 {
+data Token [copy] requires start <= 100, end <= 100 {
     start: u64;
     end: u64;
     case Word;

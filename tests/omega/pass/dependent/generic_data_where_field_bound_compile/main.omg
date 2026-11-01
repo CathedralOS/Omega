@@ -2,7 +2,7 @@
 // scalar `size` independent of the member type — `Box<u64>` and
 // `Box<bool>` instantiate under the same `size <= 4` invariant.
 data Box<T>
-where
+requires
     size <= 4,
 {
     size: u64;

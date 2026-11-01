@@ -1,5 +1,5 @@
 // Expected exit: 0
-data Index<Limit: u32> [copy] where value < Limit { value: u32; }
+data Index<Limit: u32> [copy] requires value < Limit { value: u32; }
 machine make<Count: u32>(value: u32) -> Index<Count>
 requires value < Count
 { Index { value: value } }

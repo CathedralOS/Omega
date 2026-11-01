@@ -2,7 +2,7 @@ data Box<Value [copy]> [copy] { value: Value; }
 data Holder<Value [copy]> [copy] { value: Value; }
 
 data Nested<Payload [copy], Element [copy], const Count: u64> [copy]
-where Payload == [Element; Count] {
+requires Payload == [Element; Count] {
     nested: Holder<Box<[Element; Count]>>;
     direct: Box<Payload>;
 }

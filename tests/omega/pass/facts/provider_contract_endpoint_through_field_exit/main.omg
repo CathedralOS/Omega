@@ -13,7 +13,7 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-data Holder where self.value <= limit() { value: u64; }
+data Holder requires self.value <= limit() { value: u64; }
 public machine main() crashes Trap {
     let produced: u64 = bounded(7);
     let holder: Holder = Holder { value: produced };
