@@ -94,6 +94,8 @@ can falsify a wrong result. The existing owned-input record call also agrees at
 exit 0. These are Linux observations, not other-host qualification.
 
 This production covers shared calls borrowing reusable owned entry inputs.
-Outer reference-bearing/noncopy inputs, exclusive/affine transfers, nonscalar
+Noncopy inputs, exclusive/affine transfers, nonscalar
 measures, broader physical storage acceptance, the Omega-written producer and
 application migration remain parent work.
+
+The [shared-descriptor production](../../../../../local/declared_measure/computed_record/call/borrowed_input/reference_bearing/README.md) extends the same fact through all nine places when a source-Copy record contains a shared reference. It retains the short call loan and checks the original backing after completion; selected owned children retain their separate carrier-disposal checks.
