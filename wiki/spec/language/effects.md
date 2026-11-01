@@ -67,10 +67,8 @@ wider than its checked body; review retains the declared ceiling and derived
 reach separately. Manifest admission and `Build::audit_service` policy consume
 those checked records independently of whether the author annotated the body.
 
-Existing mandatory direct-call annotations and additive checked-body rows are
-superseded implementation behavior, not an alternate language mode. Migration
-and end-to-end acceptance are tracked by `OPTIONAL-REACH-CEILINGS` in
-[the execution board](../../../TASKS.md).
+Mandatory direct-call annotations and additive checked-body rows are
+superseded behavior, not an alternate language mode.
 
 ### Implementation boundaries and capability identities
 

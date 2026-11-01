@@ -10,12 +10,12 @@ layout, coordinate spaces, diagnostic phases, scalar-resource table, the
 subject/invocation field/tag tables except the package-origin encoding below,
 the assigned `Reject` inventory
 below — including the syntax distinction granularity and the checking codes —
-and the named `Incomplete` coverage provisions are settled. The semantic
-phases over the decoded fields still need implementation, and producers still
-need to record the assigned codes before those refusals can publish frames,
-under OMEGA-D/OMEGA-C in the
-[bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting).
-Neither implementation may claim a complete interoperable V1 boundary yet.
+and the named `Incomplete` coverage provisions are settled. Refusals publish
+frames only once producers record the assigned codes. Neither implementation may
+claim a complete interoperable V1 boundary before it implements the semantic
+phases over the decoded fields; OMEGA-D/OMEGA-C in the
+[bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting)
+own that work.
 
 ## Logical inputs
 
@@ -42,7 +42,7 @@ authored build declaration. Default configuration cannot add ambient dependencie
 authority or executable-entry discovery.
 
 The physical OCREQ v1 package rows below encode only named name/lineage owners;
-they do not yet encode the anonymous-owner record and default-build provenance.
+they do not encode the anonymous-owner record and default-build provenance.
 Supporting that logical input requires an explicit request extension shared by
 D and C, not fake names, host-path lineages, or reinterpreting existing tags.
 This wire limitation does not revoke anonymous compilation or require an authored
@@ -599,7 +599,7 @@ entry implementation provision, not a contract limit — the contract's
 declared sections.
 
 Resource names, limits, and coordinate rules in this table are the same for
-both implementations; a private capacity not yet represented here is added by
+both implementations; a private capacity not represented here is added by
 extending the table, never by reusing another resource's code.
 
 Both compilers use the same diagnostic selection under the same profile.

@@ -144,7 +144,7 @@ impl TerminalExecution<'_> {
         ];
         let destination = StructuralRuntimePlace {
             opaque_identity: value.opaque_identity,
-            path: vec![StructuralPathSegment::Field(field.identity)],
+            path: destination_path.clone(),
         };
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
@@ -323,15 +323,11 @@ impl TerminalExecution<'_> {
                 StructuralPathSegment::Field(returned_field.identity),
                 StructuralPathSegment::Field(field.identity),
             ];
-            // Storage omits Case selectors; ownership and qualifications keep
-            // them, exactly as ordinary mixed/case construction does.
+            // Child storage keeps the same declaration namespace as ordinary
+            // mixed/case construction, including colliding common field IDs.
             let destination = StructuralRuntimePlace {
                 opaque_identity: value.opaque_identity,
-                path: destination_path
-                    .iter()
-                    .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
-                    .cloned()
-                    .collect(),
+                path: destination_path.clone(),
             };
             let transfers = self.stage_constructor_operand(source, &mut frontier, &mut consumed)?;
             if parameter.multiplicity != StructuralMultiplicity::Unrestricted && !transfers {
@@ -386,6 +382,7 @@ impl TerminalExecution<'_> {
             failures,
             reason_field,
             value.opaque_identity,
+            rejected.id,
         )?;
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();

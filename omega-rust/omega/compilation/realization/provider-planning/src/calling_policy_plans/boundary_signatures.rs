@@ -7,7 +7,6 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use crate::provider_planning::type_reference_node;
 use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
@@ -16,17 +15,14 @@ use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
     NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
 };
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::boundary_values::{
-    BoundaryTypeBinding, BoundaryValuePreparation, substitute_boundary_type_reference,
-};
-use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
 use layout::BoundaryValueLayout;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedBoundarySignature {
+    pub(crate) abi: semantic_vocabulary::CallingAbiIdentity,
     pub(crate) owner_requirement_identity: String,
     pub(crate) native_target: NativeTarget,
     pub(crate) opaque_representations: Vec<BoundaryOpaqueRepresentationUse>,
@@ -42,6 +38,9 @@ pub struct MaterializedBoundarySignature {
 }
 
 impl MaterializedBoundarySignature {
+    pub fn abi(&self) -> &semantic_vocabulary::CallingAbiIdentity {
+        &self.abi
+    }
     /// Named layout-owned destinations in native-demand order. Direct callback
     /// parameters have no layout field and therefore contribute no entry here.
     /// Typed slot applications survive without retaining a complete LayoutPlan.
@@ -259,7 +258,6 @@ pub struct BoundaryNativeParameter {
     pub(crate) native_ordinal: u32,
     pub(crate) shape: BoundaryNativeParameterShape,
     pub(crate) origin: BoundaryNativeParameterOrigin,
-    pub(crate) layout_data_symbol: symbols::SymbolHandle,
 }
 
 pub use calling_conventions::BoundaryNativeParameterShape;
@@ -343,11 +341,35 @@ pub(crate) fn compatibility_call_signature(
 pub(crate) fn materialize_prepared_signature(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
+    declaration_abi: Option<semantic_vocabulary::CallingSignatureId>,
     bindings: &[BoundaryTypeBinding],
     layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
     let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
+    let census = services.signatures();
+    let coordinate = match declaration_abi {
+        Some(coordinate) => coordinate,
+        None => *census
+            .abi_for_boundary(declaration.symbol)
+            .ok_or("boundary signature lost its exact declaration ABI association")?
+            .as_ref()
+            .map_err(Clone::clone)?,
+    };
+    let declaration_abi = census
+        .abi_signatures()
+        .iter()
+        .find(|row| row.id == coordinate)
+        .ok_or("boundary signature lost its complete declaration ABI key")?;
+    let abi = semantic_vocabulary::CallingAbiIdentity {
+        requirement_identity: declaration_abi.requirement_identity.clone(),
+        declaring_application: declaration_abi.declaring_application.clone(),
+        operands: declaration_abi.operands.clone(),
+    };
+    abi.validate()?;
+    if abi.id() != coordinate {
+        return Err("boundary declaration ABI key differs from its coordinate".into());
+    }
     let typed = services.context().typed;
     let telescope = &prepared.telescope;
     let callback_binders = telescope
@@ -382,8 +404,6 @@ pub(crate) fn materialize_prepared_signature(
         let recipe = preparation.value_type(type_reference);
         let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         parameters.push(root);
-        let applied_type = substitute_boundary_type_reference(typed, type_reference, bindings);
-        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
         validate_fresh_native_parameter_identity(
@@ -396,7 +416,6 @@ pub(crate) fn materialize_prepared_signature(
             native_ordinal: formal.native_ordinal,
             shape: BoundaryNativeParameterShape::Semantic(root),
             origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
-            layout_data_symbol,
         });
     }
     let result = if prepared.return_type.is_valid() {
@@ -411,6 +430,7 @@ pub(crate) fn materialize_prepared_signature(
         &occurrences,
     )?;
     Ok(MaterializedBoundarySignature {
+        abi,
         owner_requirement_identity: declaration.requirement_identity.clone(),
         native_target: layout_target.native_target(),
         opaque_representations,
@@ -424,23 +444,4 @@ pub(crate) fn materialize_prepared_signature(
         direct_callback_parameters: telescope.direct_callbacks.clone(),
         result,
     })
-}
-
-pub(crate) fn exact_boundary_layout_root_symbol(
-    typed: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-) -> symbols::SymbolHandle {
-    loop {
-        match type_reference_node(typed, type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Named { symbol, .. } => return *symbol,
-            TypeReferenceNode::Generic { base_symbol, .. } => return *base_symbol,
-            TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::Unit => return symbols::SymbolHandle::invalid(),
-        }
-    }
 }

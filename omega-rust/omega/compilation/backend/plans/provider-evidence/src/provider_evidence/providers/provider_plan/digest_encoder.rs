@@ -51,7 +51,7 @@ pub(crate) trait DigestFeed {
     }
 }
 
-pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v5\0";
+pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v6\0";
 
 pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
@@ -83,7 +83,7 @@ impl ProviderPlanDigestEncoder {
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v5\0");
+        digest.update(b"omega.service-schema.sha256.v6\0");
         Self(digest, None)
     }
 
@@ -151,7 +151,7 @@ impl ProviderPlanDigestEncoder {
         &mut self,
         method: &ServiceMethod,
         identities: &ProviderIdentityTable,
-        calling: Option<&super::ServiceCallingPlan>,
+        calling: Vec<&super::ServiceCallingApplication>,
     ) {
         self.string(&method.name);
         self.string(&method.requirement_owner);
@@ -247,19 +247,18 @@ impl ProviderPlanDigestEncoder {
             }
         }
 
-        match calling.map(|plan| plan.report_fingerprint) {
-            Some(fingerprint) => {
-                self.byte(1);
-                self.u64(fingerprint);
+        self.len(calling.len());
+        for application in calling {
+            self.string(&application.abi.requirement_identity);
+            self.string(&application.abi.declaring_application);
+            self.len(application.abi.operands.len());
+            for operand in &application.abi.operands {
+                self.u64(u64::from(operand.ordinal));
+                self.byte(operand.kind as u8);
+                self.string(&operand.identity);
             }
-            None => self.byte(0),
-        }
-        match calling.map(|plan| plan.commitment) {
-            Some(commitment) => {
-                self.byte(1);
-                self.bytes(&commitment.as_bytes());
-            }
-            None => self.byte(0),
+            self.u64(application.plan.report_fingerprint);
+            self.bytes(&application.plan.commitment.as_bytes());
         }
     }
 

@@ -6,8 +6,9 @@ corpus golden says 12 s) and timed out at the pilot's 120 s cap on hosted
 runners. Two repairs by other sessions removed most of that while this was
 being measured: #1170 and #1161. Main `0f75ac52152` checks the pilot's
 target fixture, `tests/omega/pass/expressions/declared_operator_match_result`,
-in 44 s locally. This change brings it to 34 s and records how to measure
-the regime that hid the defect.
+in 44 s locally. The first change brings it to 34 s and records how to measure
+the regime that hid the defect. The [second round](#second-round-integer-bound-rows-by-root)
+brings it to 29 s.
 
 Local host: Windows x86-64, optimized dev producers (opt-level 1), 32
 logical CPUs shared with other sessions' builds.
@@ -175,7 +176,7 @@ longer. Run alone, it timed out on main (run 41311732191) and was `checked` in
 
 ## Not retained
 
-Four experiments were measured and dropped.
+Five experiments were measured and dropped.
 
 - Reading `OMEGA_STRUCT_TRACE` and `OMEGA_COMPILER_CHECK_SITES` at 57 sites
   costs a lock and an environment scan per pass; the stack sample put 38 of
@@ -192,6 +193,9 @@ Four experiments were measured and dropped.
   runner leg's samples). A cheaper insert needs the roster known to be
   normalized, and an in-place rewrite in `continuation_identities.rs` breaks
   that; it needs a flag on the roster type.
+- A linear-time `arena::unique_handles_in_order` (one hash-set pass instead of
+  two sorts) left the `windows_removal_walk` group at 5.5 s with and without it,
+  so the sorts are not what that group spends.
 
 ## Remaining time
 
@@ -227,8 +231,9 @@ did not reproduce the cost (N of 256, 1,024 and 4,096 checked in the same
 time). Candidate levers are a per-root index over a context's facts, so that a
 query about `depth` skips the array's rows, and a memo for the repeated
 `retained` keys. Collapsing the per-element rows of a large array changes what
-a write to one element retires, which makes it a design question. None of
-these is part of this change.
+a write to one element retires, which makes it a design question. The first
+round takes none of these; the second round below skips building the rows of
+other roots, and leaves the scan and the memo open.
 
 The corpus runner's check leg realizes the fixture for its check target
 (`macos_arm64` here) and runs a second production for the host target, as its
@@ -236,6 +241,106 @@ source and a stack sample of its four compile threads show. The pilot leg runs
 6.6 to 11.5 s above a direct check on Linux and 1.7 to 8.6 s on Windows. Each
 std-importing fixture in the runner also checks std cold: the 54 fixtures took
 1,219 s on main at two jobs.
+
+## Second round: integer-bound rows by root
+
+Fixed base: main `74462fcd188`, the first round merged. It checks the target
+fixture cold in 31.3 s on the development host.
+
+### Cause
+
+`CurrentIntegerBounds::new` called `retained` eagerly. `retained` scans every
+fact of the active contexts and builds a `BoundPredicate` (an expression clone
+and a canonical place per binding) for each domain-membership fact, then the
+object answered queries about a handful of scalars. A fixed array declares one
+membership fact per element and context, so `windows_removal_walk` rebuilt
+about 23,000 rows per call to answer queries about `depth`, `restart` and
+`handle`. A domain predicate binds its subject and the places below it, so for
+a place under another root its consequence is the carrier and changes no bound.
+`payloads_at_place` converted the place of every `Assigned*` fact, an
+allocation, before testing that its root equals the subject's.
+
+### Change
+
+- `retained_at_root` returns the rows `retained` returns, less the
+  domain-membership rows whose subject has another root.
+- `CurrentIntegerBounds` builds the rows for a root on the first query about
+  that root and keeps them for the object's life. The query methods take
+  `&mut self`; an object that is never asked builds none.
+- `payloads_at_place` compares roots before converting the fact's place.
+
+### Results
+
+Local, cold, unprofiled, four alternating pairs; wall and CPU seconds.
+
+| Producer | Wall runs | Mean wall | Mean CPU |
+| --- | --- | ---: | ---: |
+| main `74462fcd188` | 31.2, 31.6, 31.7, 30.6 | 31.3 | 68.2 |
+| head | 28.7, 29.4, 29.7, 29.0 | 29.2 | 64.1 |
+
+The same code with the cache in a `RefCell` measured 29.2 s against 31.0 s
+(four pairs). Per flow group, from a build with a temporary timing guard around
+each group (not part of the change), milliseconds, three runs each:
+
+| Group | main | head |
+| --- | --- | --- |
+| `windows_removal_walk` | 7805, 7544, 7146 | 5644, 5456, 5475 |
+| `windows_removal_unwind` | about 1,100 | about 750 |
+| `configure_windows_filesystem` | about 620 | about 400 |
+
+Hosted, same job, as in the first round, with main `74462fcd188`'s retained
+producer (run 41318768464 Linux, 41318773113 Windows) as the baseline. These
+heads keep the cache in a `RefCell`; the committed form differs only in that
+container.
+
+| Run | Runner CPU | Main, direct | Head, direct | Head / main | Pilot check leg, head |
+| --- | --- | --- | --- | ---: | ---: |
+| Linux 41323813697 | EPYC 7763 | 47.7, 47.7, 47.7 | 45.3, 44.1, 44.0 | 0.93 | 56.0 |
+| Linux 41323821572 | EPYC 7763 | 48.1, 47.1, 46.6 | 43.6, 43.6, 43.7 | 0.92 | 55.9 |
+| Linux 41323828897 | EPYC 7763 | 48.2, 48.0, 47.4 | 45.2, 44.1, 44.3 | 0.93 | 56.1 |
+| Windows 41323817564 | EPYC 7763 | 50.4, 50.0, 49.9 | 46.5, 46.6, 48.0 | 0.94 | 57.7 |
+| Windows 41323825400 | EPYC 7763 | 50.0, 48.7, 49.3 | 45.8, 45.3, 45.2 | 0.92 | 57.4 |
+| Windows 41323832889 | Xeon Platinum 8573C | 45.3, 43.7, 43.7 | 41.5, 40.1, 40.7 | 0.92 | 50.6 |
+
+On the same machine the head's direct check takes 92 to 94% of main's wall
+time. The pilot's check leg is 56.0, 55.9 and 56.1 s on Linux (median 56.0 s;
+58.8 and 59.4 s on this CPU after the first round) and 57.7, 57.4 and 50.6 s on
+Windows (median 57.4 s; 62.6 and 60.2 s on the EPYC 7763 after the first round).
+The target is met on every measured runner: 2.3 s of margin on the Windows
+EPYC 7763, 4.0 s on the Linux one. The Xeon 8370C that gave the slowest
+Windows leg after the first round (62.6 s) did not appear in this round, so
+its leg is not measured. The pilot's second leg (native and Terminal
+execution) for the same fixture took 55.6, 55.3 and 56.0 s on Linux and 58.7,
+56.5 and 50.1 s on Windows.
+
+### Output equivalence
+
+`omega --check` output (exit code and every diagnostic) is byte-identical
+between main `74462fcd188` and the head on 190 witnesses chosen for integer
+bounds, indexing, domains and predicates (49 exit 0, 141 exit 1) and on 64
+std-importing fixtures (all exit 1 on both sides). Unit tests of
+`typed-trees-to-checked-trees`: 28 run, 28 pass.
+
+Hosted pilot, 54 std-importing fixtures (33 pass, 21 fail), Linux, main
+`74462fcd188` (run 41328253795) against the head (run 41328249104): 53 of 54
+have the same status, and both runs report the same four structural moves from
+the stored golden with identical diagnostics. The 54th,
+`pass/providers/checked_boundary_operator_physical_custody`, took 100.3 s of
+the pilot's 120 s fixture cap on main and timed out in the head's run. The
+head's run was on a slower machine: the 39 fixtures that both runs report a
+time for took 1.08 to 1.67 times as long (mean 1.44), which puts main's 100 s
+over the cap. Cold on the development host, alternating, the fixture took
+25.2, 26.2 and 25.9 s on the head against 27.3, 27.2 and 28.9 s on main. It
+timed out in the first round's 54-fixture comparison on the head as well, and
+in its single-fixture runs main timed out while the head was `checked` in 92 s.
+The fixture sits at the cap on a loaded 4-vCPU runner whichever producer runs it.
+
+### What remains
+
+The 60 s target is met on the six measured runners. The `windows_removal_walk`
+group still takes 5.5 s as one task and was not re-sampled after this change.
+The levers named under "Remaining time" stay open; none is needed for the
+target.
 
 ## Hosted timing depends on the runner CPU
 

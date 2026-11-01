@@ -30,6 +30,12 @@ pub struct CheckedCallingSignatureStorage {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallingParameter {
     pub type_identity: TypeIdentityId,
+    /// Complete formal backing when it has a declared representation. An
+    /// abstract pointer may transport without inventing pointee storage.
+    pub callback_backing: Option<TypeIdentityId>,
+    /// Retains an abstract referent's pointer/descriptor judgment through
+    /// shape pruning, without demanding the referent's own storage.
+    pub reference_custody: Option<TypeIdentityId>,
     pub access: super::CheckedStructuralAccess,
 }
 
@@ -37,7 +43,14 @@ impl CheckedCallingSignatureStorage {
     pub fn type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
         self.parameters
             .iter()
-            .map(|parameter| parameter.type_identity)
+            .flat_map(|parameter| {
+                std::iter::once(
+                    parameter
+                        .reference_custody
+                        .unwrap_or(parameter.type_identity),
+                )
+                .chain(parameter.callback_backing)
+            })
             .chain(self.result)
     }
 }

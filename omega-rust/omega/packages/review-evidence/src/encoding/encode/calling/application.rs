@@ -22,6 +22,7 @@ pub(crate) fn encode_application(
     encoder: &mut Encoder,
     application: &PackagePolicyCallingPlan,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.field_by("declaration_abi", &application.abi, encode_declaration_abi)?;
     encoder.field_by(
         "boundary_trait",
         &application.boundary_trait,
@@ -119,4 +120,18 @@ pub(crate) fn encode_application(
     encoder.field_by("callbacks", &application.callbacks, callbacks::encode)?;
     encoder.sequence_field("opaque_uses", &application.opaque_uses, opaque::encode)?;
     encoder.field_by("physical", &application.physical, encode_physical)
+}
+
+pub(crate) fn encode_declaration_abi(
+    encoder: &mut Encoder,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u64_field("coordinate", abi.id().get())?;
+    encoder.string_field("requirement", &abi.requirement_identity)?;
+    encoder.string_field("declaring_application", &abi.declaring_application)?;
+    encoder.sequence_field("operands", &abi.operands, |encoder, operand| {
+        encoder.u32_field("ordinal", operand.ordinal)?;
+        encoder.byte_field("kind", operand.kind as u8)?;
+        encoder.string_field("identity", &operand.identity)
+    })
 }

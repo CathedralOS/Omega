@@ -42,8 +42,7 @@ consumer-accepted package/schema on a package-aware route. An unrelated
 same-leaf declaration neither shadows that selection nor creates a second
 candidate. The caller's package and a declaration's leaf spelling cannot
 choose the schema. Selecting an alternate package contract requires the
-existing explicit accepted binding; loading it is not selection. The remaining
-lookup and canary repair is `ENTRY-SLOT-EXACT-SCHEMA-SELECTION` in `TASKS.md`.
+existing explicit accepted binding; loading it is not selection.
 
 ## Source selection is not invocation
 
@@ -173,9 +172,8 @@ a source context field.
 
 Calling the same machine ordinarily supplies every argument explicitly and gains
 no provisioning authority. Provider demands follow its checked call closure,
-not a constructor attached to a data type. Remaining automatic entry-context
-code and examples are migration debt under `EXPLICIT-ENTRY-STORAGE` in
-[the execution board](../../../TASKS.md), not supported source semantics.
+not a constructor attached to a data type. Automatic entry-context code is
+not supported source semantics.
 
 ## Authority, identity, and resources
 

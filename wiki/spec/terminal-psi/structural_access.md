@@ -150,9 +150,6 @@ word before applying referent-relative field offsets. The home contains the
 pointer, never a copy of the referent, and the origin set is custody evidence,
 not a list from which code generation may choose an address. Native lowering,
 receiving validation, instruction replay and publication retain this distinction.
-`borrows/branch_selected_record_receiver_exit` selects each of two records in
-turn, writes before and after a method call, and checks the untouched neighbor;
-it executes with its authored exit 70 on macOS ARM64.
 
 An ordinary, nonescaping call may borrow a static child through stored
 references, independently of whether the carrier came from a local or a call.
@@ -172,9 +169,6 @@ substitutes a static origin for a runtime address. Independent replay checks
 the pointer geometry, placement and memory operations against admitted input.
 This does not admit a new escaping reference result or reference establishment
 from the projected child. Existing release boundaries remain in force.
-`omega run --both tests/omega/pass/borrows/nested_reference_crossings_exit/main.omg`
-exercises two stored references with nonzero descriptor offsets and exits 70
-in both engines on macOS ARM64.
 
 Scalar field observations through returned shared or mutable record carriers
 require live readable permission with no outstanding child loan. They read the
@@ -200,18 +194,13 @@ keep their independent membership and restoration obligations. A `Referent`
 crossing starts a new storage root; only a field or element selected below it
 makes the window a child projection. `field: None` alone does not distinguish
 a whole root from a complete indexed-element path.
-`borrows/returned_record_case_field_store_exit` exercises nested enum replacement
-through each of two selected record references while preserving their siblings
-and an untouched third record.
 
 Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit
 implementation limits. The Terminal interpreter supports primitive referents, including total shared
 representation views and finite alternative origins below one owned reference
-container formal. `layouts/runtime_multi_origin_encoded_reference_exit` selects
-encoded-byte and ordinary integer backing at runtime; Native, Terminal and
-checked interpretation preserve both formats and exit 0 on macOS ARM64.
+container formal.
 Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only
 access without creating such a carrier. None of the unsupported forms gains
 authority merely because its shape or source lifetime resembles an admitted
@@ -448,10 +437,7 @@ storage shapes without requiring that their contents be copyable.
 
 Formation compares complete ingress paths: mutable loans of disjoint record
 fields may coexist, while identical or enclosing paths remain suspended. Every
-possible origin of a returned reference participates in that comparison. The
-three `borrows/runtime_{indexed,mutable,nested}_reference_array_bounded_read_exit`
-fixtures select stored references, observe their bounded scalar and Boolean
-fields, and return 70 in native and checked-interpreter execution on macOS ARM64.
+possible origin of a returned reference participates in that comparison.
 Competing mutable elements and mutation or extraction of live backing reject.
 
 `EstablishScalarArray` retains its row-major scalar-operand contract. Structural
@@ -610,8 +596,10 @@ fields must not carry one. Independent reconstruction derives the conjunction
 of the destination declaration's lower and upper bounds on the exact stored
 SSA value, using only pre-write facts. The completed write's new field equality
 cannot prove its own validity. The canonical certificate is checked before
-execution, and Omega's current-IR validation binds the retained obligation to
-the current destination, value and bounds before native lowering. Accepting
+execution. Omega's current-IR validation binds the retained obligation to the
+current destination, value and bounds; the corpus runner and the tests run
+it, not the default compile path before native lowering
+([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Accepting
 only the underlying scalar carrier would invalidate later range snapshots.
 Scalar and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
@@ -817,8 +805,9 @@ custody and predicate checks. Descriptor replacement is the
 `StructuralByteViewFieldStore` above. Qualified mutable, write-only, and access-unspecified
 view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
-invariants independently of source checking and repeats the check after
-optimization. Zero-initialized attachment storage requires every contained byte
+invariants independently of source checking. The rewrite validator repeats
+the check after optimization in the corpus runner and the tests, not on the
+default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement)). Zero-initialized attachment storage requires every contained byte
 field predicate to hold for the empty sequence. Every write keeps every declared
 predicate true: Terminal Psi opens no invariant window on a field, so reads and
 calls may rely on the declaration at any point.
@@ -842,8 +831,10 @@ ASCII, and operations disjoint from the field may intervene. A replacement
 from a source not proved ASCII, a projected move, an overlapping mutable or
 write-only call argument, and dynamic dispatch each reject. The machine entry
 supplies only the declaration, never ASCII contents. The Omega consumer
-requires the accepted obligation to be exactly this goal and replays the
-carrier rule on its current graph after every rewrite.
+requires the accepted obligation to be exactly this goal. Its rewrite
+validator replays the carrier rule on the current graph after every rewrite;
+the corpus runner and the tests run it, not the default compile path
+([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
 
 `ByteSequenceLength` on a whole bounded owner observes current live-length
 metadata through shared, mutable, or write-only access. Metadata access grants

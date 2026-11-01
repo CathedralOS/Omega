@@ -1,0 +1,9 @@
+// Invalid: a future normal-return case guarantee cannot establish this call's entry requirement.
+data Choice { case Cell(value: u32); case Empty; }
+machine retain(choice: &mut Choice)
+requires choice in Choice::Cell
+ensures choice in Choice::Cell {}
+machine main() {
+    let mut choice: Choice = Choice::Empty {};
+    retain(&mut choice);
+}

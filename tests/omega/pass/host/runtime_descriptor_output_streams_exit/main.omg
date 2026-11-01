@@ -1,50 +1,49 @@
-// Exact descriptor calls preserve borrowed extents, stream separation and
-// ordering across differently typed import slots. No process-exit authority
-// is needed: a normal Unit entry returns zero after checking write results.
-use omega::language::core::external_binding;
+// Each entry uses its exact native calling policy and the same write/backing oracle.
+// The two ordinary entry bodies differ only in their concrete native ABI facet.
+use omega_language_std::calling;
+use omega_language_std::posix_byte_view_calling;
 
-public data DescriptorProbe { }
-// A byte view supplies the two native words (pointer, length) of write's
-// buffer and count. A primitive loan supplies only its pointer, so that
-// declaration carries the separate bounded count.
-public boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
-public boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
-data DescriptorImports { }
-
-macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-    } }
+public boundary trait LinuxDescriptorProbe: Calling<SystemVByteViewCalling> {
+    machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64 reaches;
+    machine write_word(descriptor: i32, word: &u32, count: u64) -> i64 reaches;
+}
+public boundary trait DarwinDescriptorProbe: Calling<DarwinArm64ByteViewCalling> {
+    machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64 reaches;
+    machine write_word(descriptor: i32, word: &u32, count: u64) -> i64 reaches;
 }
 
-linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
-    } }
-}
-macos_arm64 machine DescriptorImports::write_bytes(descriptor: i32, bytes: &[u8]) -> i64
-    satisfies DescriptorProbe::write_bytes via write_binding();
-
-linux_x86_64 machine DescriptorImports::write_bytes(descriptor: i32, bytes: &[u8]) -> i64
-    satisfies DescriptorProbe::write_bytes via linux_x86_64_write_binding();
-macos_arm64 machine DescriptorImports::write_word(descriptor: i32, word: &u32, count: u64) -> i64
-    satisfies DescriptorProbe::write_word via write_binding();
-
-linux_x86_64 machine DescriptorImports::write_word(descriptor: i32, word: &u32, count: u64) -> i64
-    satisfies DescriptorProbe::write_word via linux_x86_64_write_binding();
-
-machine emit_bytes(descriptor: i32, bytes: &[u8]) -> bool {
-    let written: i64 = DescriptorProbe::write_bytes(descriptor, bytes);
+machine linux_emit_bytes(descriptor: i32, bytes: &[u8]) -> bool {
+    let written: i64 = LinuxDescriptorProbe::write_bytes(descriptor, bytes);
     written == 4
 }
 
-machine main() crashes Trap {
+machine linux_main() crashes Trap {
     let output: [u8; 4] = [111, 117, 116, 10];
     let error: [u8; 4] = [101, 114, 114, 10];
     let word: u32 = 111u32 | (107u32 << 8) | (10u32 << 16);
-    let first: bool = emit_bytes(1, &output);
-    let second: bool = emit_bytes(2, &error);
-    let written: i64 = DescriptorProbe::write_word(1, &word, 3);
+    let first: bool = linux_emit_bytes(1, &output);
+    let second: bool = linux_emit_bytes(2, &error);
+    let written: i64 = LinuxDescriptorProbe::write_word(1, &word, 3);
+    transition first && second && written == 3 && output[0] == 111 && error[0] == 101 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine darwin_emit_bytes(descriptor: i32, bytes: &[u8]) -> bool {
+    let written: i64 = DarwinDescriptorProbe::write_bytes(descriptor, bytes);
+    written == 4
+}
+
+machine darwin_main() crashes Trap {
+    let output: [u8; 4] = [111, 117, 116, 10];
+    let error: [u8; 4] = [101, 114, 114, 10];
+    let word: u32 = 111u32 | (107u32 << 8) | (10u32 << 16);
+    let first: bool = darwin_emit_bytes(1, &output);
+    let second: bool = darwin_emit_bytes(2, &error);
+    let written: i64 = DarwinDescriptorProbe::write_word(1, &word, 3);
     transition first && second && written == 3 && output[0] == 111 && error[0] == 101 {
         true -> done()
         false -> bad()

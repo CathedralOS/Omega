@@ -48,7 +48,7 @@ impl LivePlaceIntervals<'_> {
     /// Bounds for one resolved operand place. Live snapshots and standing
     /// invariants both hold at this read; neither replays an earlier initializer.
     pub(crate) fn interval_at_place(
-        &self,
+        &mut self,
         place: &CanonicalPlace,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {

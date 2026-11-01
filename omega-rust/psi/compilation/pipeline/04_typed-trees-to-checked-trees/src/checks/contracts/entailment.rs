@@ -183,60 +183,6 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
     }
 }
 
-/// Integral reflexivity is independent of parameter substitution. An
-/// inherited signature keeps its own formal symbol, not the implementing
-/// machine's parameter identity. Floating equality is deliberately excluded.
-pub(super) fn integral_parameter_reflexivity(
-    program: &dyn ::validation::CheckingInput,
-    fact: &facts::Fact,
-) -> bool {
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::TypeReferenceNode;
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
-        return false;
-    };
-    let Some(comparison) = program.expression_table.binary_node(expression) else {
-        return false;
-    };
-    if comparison.operator != BinaryOperator::Equal {
-        return false;
-    }
-    let Some(left) = program.expression_table.name_path_node(comparison.left) else {
-        return false;
-    };
-    let Some(right) = program.expression_table.name_path_node(comparison.right) else {
-        return false;
-    };
-    if !program.expression_table.name_path_is_single_member(left)
-        || !program.expression_table.name_path_is_single_member(right)
-        || left.symbol != right.symbol
-        || left.head_symbol != right.head_symbol
-    {
-        return false;
-    }
-    left.symbol.is_valid()
-        && program.symbols.get(left.symbol).kind == symbols::SymbolKind::Parameter
-        && validation::find_state(program, program.symbols.get(left.symbol).parent)
-            .and_then(|(_, state)| {
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == left.symbol)
-            })
-            .is_some_and(|parameter| {
-                match program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                {
-                    TypeReferenceNode::Named { symbol, .. } => program
-                        .symbols
-                        .builtin_type_atom(*symbol)
-                        .is_some_and(|atom| atom.is_fixed_integer()),
-                    _ => false,
-                }
-            })
-}
-
 pub(super) fn transparent_proposition_proves_exit(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,

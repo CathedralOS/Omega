@@ -110,9 +110,9 @@ foreign locator need not be realizable on the selected target, but its source
 must still be checked. Missing, duplicate, incompatible, or unadmitted selected
 supply rejects rather than choosing a body by spelling or source order.
 
-The reference compiler and existing sources still contain the retired family
-model. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
-tracks the end-to-end migration; the existing prefix is not an alternate API.
+`BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
+tracks the end-to-end migration off the retired family model; the target
+prefix is not an alternate API.
 
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
@@ -310,8 +310,8 @@ calling plans, target admission, and role-specific realization. Provider-authore
 generic assertions do not establish coverage. A future checked universal theorem
 could not replace those concrete obligations.
 
-Universal generic coverage remains unimplemented and fail-closed without an
-actual checked generic operator customer. An eligible future row must be
+Universal generic coverage is fail-closed without an actual checked generic
+operator customer. An eligible future row must be
 compiler-issued from a checked Omega body on the pristine pre-monomorphization
 graph under its complete symbolic telescope. It binds requirement and realization
 telescopes, binder categories/domains/bounds, exact mapping, requirement coordinate,

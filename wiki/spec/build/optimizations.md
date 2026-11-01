@@ -42,15 +42,20 @@ An optimization normally consumes and produces the same representation. A new
 representation requires a different semantic vocabulary, invariant set, or
 product boundary; optimization history alone is not such a boundary.
 
-Every phase receives validated input and its exact phase selection, executes
-selected rules in canonical order under explicit bounds, independently validates
-each applied transformation and the final representation, and returns one typed
+Every phase receives its input and its exact phase selection, executes
+selected rules in canonical order under explicit bounds, and returns one typed
 stage result with execution evidence. Candidate ordering is deterministic;
 fixed-point passes have explicit convergence and iteration budgets.
 
-An empty selection is the same phase's identity execution. Input and output
-validation still run; output equals input, with no pass manifests or
-transformation records. Empty selection is not a separate compiler or
+Each applied transformation and the final representation keep an independent
+validator. Under [verification placement](../../../omega-rust/pipeline.md#verification-placement), set by the owner in
+`b1423f5385d` (2026-10-04), the corpus runner and the tests run those
+validators; the default compile path does not re-validate the input or output
+that the same compile just produced.
+
+An empty selection is the same phase's identity execution: output equals input,
+with no pass manifests or transformation records, and the validators accept it
+as the identity. Empty selection is not a separate compiler or
 publication route. Disabling every selected rule yields the same identity-phase
 acceptance, diagnostics, and output as an initially empty selection, apart from
 the separately retained rollback provenance.

@@ -40,7 +40,7 @@ pub(super) fn settle_boundary<'request>(
             selected_plan.name
         ))]);
     }
-    let realization = match settlement.realization {
+    let realize = |abi: &semantic_vocabulary::CallingAbiIdentity| -> Result<target_operations::BoundarySettlementRealization, Vec<Diagnostic>> { Ok(match settlement.realization {
         NativeBoundaryRealization::SystemCall => {
             target_operations::BoundarySettlementRealization::NormalizedForeignCall(
                 super::system_call::rejoin_system_call(
@@ -48,6 +48,7 @@ pub(super) fn settle_boundary<'request>(
                     request.external_binding_rows,
                     requirement,
                     request.target(),
+                    abi,
                 )?,
             )
         }
@@ -61,6 +62,7 @@ pub(super) fn settle_boundary<'request>(
                     requirement,
                     request.selected_provider_plans.identities(),
                     request.target(),
+                    abi,
                 )?,
             )
         }
@@ -80,18 +82,20 @@ pub(super) fn settle_boundary<'request>(
                 request.selected_provider_plans.identities(),
                 receiver,
                 request.profile,
+                abi,
             )?,
         ),
         NativeBoundaryRealization::Builtin(realization) => {
             target_operations::BoundarySettlementRealization::Builtin(realization)
         }
-    };
+    }) };
     let matching_boundaries = input
         .plan()
         .boundary_machines
         .iter()
         .filter(|boundary| {
-            request
+            (!matches!(settlement.realization, NativeBoundaryRealization::Component { call, .. } if boundary.id != call.selection().receiving_boundary()))
+            && request
                 .selected_provider_plans
                 .selected_row_matches_requirement(
                     input
@@ -111,13 +115,17 @@ pub(super) fn settle_boundary<'request>(
     }
     let mut admitted = Vec::with_capacity(matching_boundaries.len());
     for boundary in matching_boundaries {
-        if let NativeBoundaryRealization::Component { call, .. } = settlement.realization
-            && boundary.id != call.selection().receiving_boundary()
-        {
-            return Err(vec![Diagnostic::error(
-                "component execution cannot cover another artifact-local boundary occurrence",
-            )]);
-        }
+        let realization = match settlement.realization {
+            NativeBoundaryRealization::Builtin(realization) => {
+                target_operations::BoundarySettlementRealization::Builtin(realization)
+            }
+            _ => realize(
+                &input
+                    .module()
+                    .calling_abi_identity(boundary.id)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            )?,
+        };
         if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
             boundary,
             selected_plan,

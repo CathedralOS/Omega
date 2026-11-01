@@ -192,7 +192,7 @@ public promises and candidate admission, not a previous provider's private proof
 
 Named decision: `source-visible-service-binding-retirement`, settled 2026-10-14.
 
-These are accepted source semantics, not a claim that the migration is complete.
+These are accepted source semantics.
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../TASKS.md) owns deletion of the
 legacy core carrier, compiler paths, authored fields/parameters, and fixtures.
 

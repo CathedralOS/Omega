@@ -245,7 +245,7 @@ impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema 
             .map_err(|reason| output.error(reason))?;
         let effects::provider_plan::ServiceSchema {
             declaration,
-            calling_applications: _,
+            calling_applications,
         } = self;
         let effects::provider_plan::ServiceSurface {
             trait_name,
@@ -258,22 +258,13 @@ impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema 
         identities.write(output)?;
         trait_package_identity.write(output)?;
         receiver_applications.write(output)?;
-        output.sequence(methods.len())?;
-        for method in methods {
-            method.write(output)?;
-            let calling = self.calling_plan(method.requirement_identity);
-            calling.map(|plan| plan.report_fingerprint).write(output)?;
-            calling.map(|plan| plan.commitment).write(output)?;
-        }
-        Ok(())
+        methods.write(output)?;
+        calling_applications.write(output)
     }
 
     fn read(input: &mut super::super::value::RecordReader<'_>) -> Result<Self, RecordError> {
         use super::super::value::RecordValue;
-        use effects::provider_plan::{
-            BoundaryCallingPlanCommitment, ServiceCallingApplication, ServiceCallingPlan,
-            ServiceMethod, ServiceSurface,
-        };
+        use effects::provider_plan::{ServiceCallingApplication, ServiceMethod, ServiceSurface};
         input.record(|input| {
             input.allocate(
                 std::mem::size_of::<ServiceSurface>()
@@ -283,35 +274,8 @@ impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema 
             let identities = RecordValue::read(input)?;
             let trait_package_identity = RecordValue::read(input)?;
             let receiver_applications = RecordValue::read(input)?;
-            let (methods, calling_applications) = input.record(|input| {
-                let count = input.sequence::<ServiceMethod>()?;
-                let mut methods = Vec::with_capacity(count.min(1024));
-                let mut calling_applications = Vec::new();
-                for _ in 0..count {
-                    let method = ServiceMethod::read(input)?;
-                    let fingerprint = Option::<u64>::read(input)?;
-                    let commitment = Option::<BoundaryCallingPlanCommitment>::read(input)?;
-                    match (fingerprint, commitment) {
-                        (Some(report_fingerprint), Some(commitment)) => {
-                            input.allocate(std::mem::size_of::<ServiceCallingApplication>())?;
-                            calling_applications.push(ServiceCallingApplication {
-                                requirement: method.requirement_identity,
-                                plan: ServiceCallingPlan {
-                                    report_fingerprint,
-                                    commitment,
-                                },
-                            });
-                        }
-                        (None, None) => {}
-                        _ => {
-                            return Err(input
-                                .error("service calling coordinates must be retained together"));
-                        }
-                    }
-                    methods.push(method);
-                }
-                Ok((methods, calling_applications))
-            })?;
+            let methods = Vec::<ServiceMethod>::read(input)?;
+            let calling_applications = Vec::<ServiceCallingApplication>::read(input)?;
             let schema = Self {
                 declaration: std::sync::Arc::new(ServiceSurface {
                     trait_name,
@@ -329,6 +293,16 @@ impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema 
         })
     }
 }
+
+record_fields!(effects::provider_plan::ServiceCallingApplication {
+    requirement,
+    abi,
+    plan
+});
+record_fields!(effects::provider_plan::ServiceCallingPlan {
+    report_fingerprint,
+    commitment
+});
 
 record_variants!(effects::TerminalAuthorityClass {
     0 => FilesystemContentRead,

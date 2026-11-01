@@ -10,9 +10,12 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
-    changed_golden_rows, count_source_reads, fact_row_violations, golden_rows,
-    golden_violations, lanes, measurement_violations, nearest_rows, program_shingles, read_baseline,
-    source_read_counts, source_read_violations, subject_violations, write_baseline,
+    board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
+    count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
+    golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
+    program_shingles, read_baseline, read_dangling_baseline, source_read_counts,
+    source_read_violations, status_phrase_counts, status_phrase_violations,
+    subject_violations, write_baseline, write_dangling_baseline, write_status_baseline,
 )
 
 
@@ -47,6 +50,74 @@ class SourceReadTests(unittest.TestCase):
     def test_the_tree_matches_its_baseline(self):
         baseline = read_baseline((check_rules.ROOT / check_rules.READS_BASELINE).read_text())
         self.assertEqual(source_read_violations(source_read_counts(), baseline), [])
+
+
+class StatusPhraseTests(unittest.TestCase):
+    # Passages deleted from omega-rust/pipeline.md and wiki/spec on 2026-11-01.
+    STATUS = """
+## Implementation status
+
+**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic
+### Acceptance status
+Not yet closed:
+it executes with its authored exit 70 on macOS ARM64.
+fields, and return 70 in native and checked-interpreter execution on macOS ARM64.
+callback/policy capture, and Terminal-first target orchestration are still
+open.
+review projection remain migration work. This is
+multi-slot readiness remains open. Corpus consumers use this same executed
+Resolver/typing continuation now lives in the Psi compiler.
+This boundary is implemented; the common Psi
+These are semantic and evidence requirements, not a claim that every described
+"""
+
+    # Rules that share words with status and must not count.
+    RULES = """
+## Status codes
+A host exposing fewer status bits does not authorize truncation.
+An acyclic join may introduce a merge token only from matching valid tokens.
+Check and declaration review must still work without executable publication.
+record the requirements still open on the value that layer emits
+The process exits with status 70 only through a checked exit.
+A detached editable document is not an instance of its described type.
+"""
+
+    def test_status_wording_counts(self):
+        self.assertEqual(count_status_phrases(self.STATUS), 12)
+
+    def test_rules_do_not_count(self):
+        self.assertEqual(count_status_phrases(self.RULES), 0)
+
+    def test_new_status_in_a_contract_fails(self):
+        violations = status_phrase_violations({"wiki/spec/a.md": 2, "wiki/spec/b.md": 1},
+                                              {"wiki/spec/a.md": 2})
+        self.assertEqual(len(violations), 1)
+        self.assertIn("wiki/spec/b.md: 1 status phrases, baseline 0", violations[0])
+        self.assertIn("TASKS.md", violations[0])
+
+    def test_removed_status_lowers_the_baseline(self):
+        violations = status_phrase_violations({"omega-rust/pipeline.md": 1},
+                                              {"omega-rust/pipeline.md": 31})
+        self.assertIn("--update-status-phrases", violations[0])
+        rewritten = read_baseline(write_status_baseline({"omega-rust/pipeline.md": 1}))
+        self.assertEqual(status_phrase_violations({"omega-rust/pipeline.md": 1}, rewritten), [])
+
+    def test_contracts_are_pipeline_and_spec_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "omega-rust").mkdir()
+            (root / "omega-rust/pipeline.md").write_text("X now owns Y.\n")
+            (root / "wiki/spec/build").mkdir(parents=True)
+            (root / "wiki/spec/build/a.md").write_text("Not yet closed:\n")
+            (root / "wiki/drafts").mkdir()
+            (root / "wiki/drafts/b.md").write_text("Not yet closed:\n")
+            (root / "TASKS.md").write_text("now passes; not yet\n")
+            self.assertEqual(status_phrase_counts(root),
+                             {"omega-rust/pipeline.md": 1, "wiki/spec/build/a.md": 1})
+
+    def test_the_tree_matches_its_baseline(self):
+        baseline = read_baseline((check_rules.ROOT / check_rules.STATUS_BASELINE).read_text())
+        self.assertEqual(status_phrase_violations(status_phrase_counts(), baseline), [])
 
 
 class GoldenTests(unittest.TestCase):
@@ -225,6 +296,71 @@ class LaneTests(unittest.TestCase):
 
     def test_long_subject_fails(self):
         self.assertEqual(len(subject_violations("psi: " + "x" * 90, self.lanes)), 1)
+
+
+class DanglingTaskTests(unittest.TestCase):
+    BOARD = ("## Section\n\n"
+             "- **NESTED-MACHINE-UNIFICATION.** Implement nested machines.\n"
+             "  - **NOT-AN-ITEM:** a sub-bullet label.\n\n"
+             "- **NORMALIZED-ABI-LOWERING.** (Also covers **`OPAQUE-BY-VALUE-BOUNDARY-ABI`**\n"
+             "  and **`FOREIGN-RETAINED-ARGUMENT-BACKING`**.) Complete foreign calls.\n"
+             "  Later prose naming **EXPLICIT-ENTRY-STORAGE** is not an item.\n")
+    FACT = "samples/cli/facts/row/README.md"
+
+    def setUp(self):
+        self.known = board_task_ids([self.BOARD])
+
+    def test_items_and_covered_ids_are_on_the_board(self):
+        self.assertEqual(self.known, {"NESTED-MACHINE-UNIFICATION", "NORMALIZED-ABI-LOWERING",
+                                      "OPAQUE-BY-VALUE-BOUNDARY-ABI",
+                                      "FOREIGN-RETAINED-ARGUMENT-BACKING"})
+
+    def test_a_closed_item_cited_by_the_spec_fails(self):
+        documents = {"wiki/spec/build/entry_roots.md":
+                     "Remaining code is migration debt under `EXPLICIT-ENTRY-STORAGE`.\n"
+                     "See [NESTED-MACHINE-UNIFICATION](../../../TASKS.md#x) and "
+                     "**OPAQUE-BY-VALUE-BOUNDARY-ABI**.\n"}
+        dangling = dangling_task_ids(documents, self.known)
+        self.assertEqual(dangling, {("wiki/spec/build/entry_roots.md", "EXPLICIT-ENTRY-STORAGE")})
+        violations = dangling_task_violations(dangling, set())
+        self.assertEqual(len(violations), 1)
+        self.assertIn("cites EXPLICIT-ENTRY-STORAGE, which is on no board", violations[0])
+
+    def test_other_upper_case_words_are_not_task_ids(self):
+        documents = {"AGENTS.md": "SHA-256 of UTF-8 and UTF-16 text per IEEE-2019, R1-R9, "
+                                  "`BOUNDARY-REPORT.md` and docs/X86-64."}
+        self.assertEqual(dangling_task_ids(documents, self.known), set())
+
+    def test_only_fact_readmes_may_be_baselined(self):
+        dangling = {(self.FACT, "CONSERVATION-CONTRACT"), ("AGENTS.md", "CORE-INTEGER-FLOAT-APIS")}
+        baseline = read_dangling_baseline(write_dangling_baseline(dangling))
+        self.assertEqual(baseline, {(self.FACT, "CONSERVATION-CONTRACT")})
+        violations = dangling_task_violations(dangling, dangling)
+        self.assertEqual(len(violations), 1)
+        self.assertIn("AGENTS.md: cites CORE-INTEGER-FLOAT-APIS", violations[0])
+
+    def test_a_new_fact_citation_fails(self):
+        dangling = {(self.FACT, "CONSERVATION-CONTRACT"), (self.FACT, "BOUNDARY-ISSUANCE")}
+        violations = dangling_task_violations(dangling, {(self.FACT, "CONSERVATION-CONTRACT")})
+        self.assertEqual(len(violations), 1)
+        self.assertIn("cites BOUNDARY-ISSUANCE", violations[0])
+
+    def test_a_repointed_citation_lowers_the_baseline(self):
+        violations = dangling_task_violations(set(), {(self.FACT, "CONSERVATION-CONTRACT")})
+        self.assertEqual(len(violations), 1)
+        self.assertIn("--update-dangling-task-ids", violations[0])
+
+    def test_deleting_a_cited_board_item_fails(self):
+        root = check_rules.ROOT
+        boards = [(root / board).read_text() for board in check_rules.TASK_BOARDS]
+        documents = citing_documents(root)
+        baseline = read_dangling_baseline((root / check_rules.DANGLING_BASELINE).read_text())
+        known = board_task_ids(boards)
+        self.assertEqual(dangling_task_violations(dangling_task_ids(documents, known), baseline), [])
+        known.discard("NESTED-MACHINE-UNIFICATION")
+        violations = dangling_task_violations(dangling_task_ids(documents, known), baseline)
+        self.assertIn("AGENTS.md: cites NESTED-MACHINE-UNIFICATION", "\n".join(violations))
+
 
 
 if __name__ == "__main__":

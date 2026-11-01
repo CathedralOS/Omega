@@ -31,7 +31,7 @@ boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
   verifier-reconstructed premise that is itself trusted input.
 - **Classical** — reserved: excluded middle, double-negation elimination,
   proof by contradiction, choice, or a decision over an undecidable
-  relation. Nothing maps here today.
+  relation. No admitted rule maps here.
 
 ## Certificate rules (`terminal_psi::ProofRule` → `AcceptedProofRule`)
 

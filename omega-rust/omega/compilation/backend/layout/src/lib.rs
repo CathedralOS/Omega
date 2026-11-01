@@ -22,7 +22,10 @@ pub use terminal_layout_identity::{TerminalLayoutIdentity, terminal_layout_ident
 mod terminal_record_storage;
 pub use terminal_record_storage::TerminalRecordStorage;
 mod terminal_callback_layouts;
-pub use terminal_callback_layouts::{CallbackStorageRoot, TerminalCallbackLayouts};
+pub use terminal_callback_layouts::{
+    CallbackLayoutCoordinates, CallbackStorageRoot, MaterializedCallbackLayout,
+    TerminalCallbackLayouts, callback_storage_has_slots,
+};
 mod layout_plan;
 mod packing;
 mod sizing;
