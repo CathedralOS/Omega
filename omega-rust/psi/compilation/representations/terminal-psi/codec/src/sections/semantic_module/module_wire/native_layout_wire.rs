@@ -25,6 +25,7 @@ impl Field<NativeLayoutCatalog> for Catalog {
             Id::write(writer, &record.record)?;
             Index::write(writer, &record.data_identity)?;
             Index::write(writer, &record.policy_identity)?;
+            Index::write(writer, &record.semantic_identity)?;
             let fields = value.fields(record).map_err(CodecError::NativeLayout)?;
             writer.len("native nominal fields", fields.len())?;
             for field in fields {
@@ -46,9 +47,10 @@ impl Field<NativeLayoutCatalog> for Catalog {
             let record = Id::read(reader)?;
             let data = Index::read(reader)?;
             let policy = Index::read(reader)?;
+            let semantic = Index::read(reader)?;
             let fields = List::<NominalField>::read(reader)?;
             let realizations = List::<Realization>::read(reader)?;
-            catalog.insert(record, data, policy, fields, realizations);
+            catalog.insert(record, data, policy, semantic, fields, realizations);
         }
         Ok(catalog)
     }

@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 225 even when every table
+order below. This layout uses semantic format marker 226 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -788,7 +788,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 212 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 226 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -898,12 +898,17 @@ Older markers are rejected before their payload is read.
 | 41 | boundary application candidates | counted checked bodies for closed applications |
 | 42 | task activation demands | counted task activation demand rows |
 
-Marker 225 adds a native-layout catalog alongside semantic storage. Its ordered
+Marker 226 retains the native-layout catalog alongside semantic storage. Its ordered
 record roster equals the complete structural record inventory. Each row encodes
-the structural type id, nominal data and selected policy identity-table indices
+the structural type id, nominal data, selected policy and semantic-argument identity-table indices
 (`u32`, zero denotes absence), then counted nominal fields and realizations.
 Each field carries its structural field id and declaration identity-table index
 in semantic field order. Natural records have no policy or authored realization.
+The semantic-argument identity names the exact layout argument independently of
+the data declaration and policy roles. Private slots must name that same argument;
+an incidental agreement between slots cannot establish the owning argument.
+An absent semantic argument remains inert for records with no private slots;
+it cannot satisfy the role of any selected private-slot application.
 
 A realization encodes an optional target input (deployment string, `u64` pointer
 size and alignment, Boolean endianness), followed by the full normalized layout

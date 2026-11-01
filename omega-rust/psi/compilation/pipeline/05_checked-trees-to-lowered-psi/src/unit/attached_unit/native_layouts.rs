@@ -106,6 +106,11 @@ pub(super) fn lower(
                 .map(|identity| identities.intern(identity))
                 .unwrap_or_default(),
             policy,
+            source
+                .native_semantic_identity
+                .as_deref()
+                .map(|identity| identities.intern(identity))
+                .unwrap_or_default(),
             fields,
             realizations,
         );

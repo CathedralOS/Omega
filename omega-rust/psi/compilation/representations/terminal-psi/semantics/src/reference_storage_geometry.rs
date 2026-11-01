@@ -7,10 +7,10 @@
 use semantic_vocabulary::{
     AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout,
 };
-use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    LayoutApplicationId, StructuralFieldDeclaration, StructuralPathSegment,
+    StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
+    TargetLayoutRealization,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,15 +54,15 @@ fn scalar_geometry(scalar: ScalarType) -> Option<(u64, u64)> {
 fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldDeclaration,
+    storage: Option<&AuthoredFieldStorage>,
     active: &mut Vec<StructuralTypeId>,
     carriers: Option<TargetCarrierLayout>,
+    records: &impl RecordStorageResolver,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
         return scalar_geometry(
-            field
-                .storage
-                .as_ref()
+            storage
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
         )
@@ -76,7 +76,7 @@ fn field_geometry<'types>(
         .field_type
         .as_structural()
         .ok_or(StorageGeometryError::UnsupportedField)?;
-    geometry(types, child, active, carriers, extents)
+    geometry(types, child, active, carriers, records, extents)
 }
 
 /// A missing application is a dependency, never a zero element count. The
@@ -93,6 +93,8 @@ pub enum StorageGeometryError {
     UnsupportedByteSequence(terminal_psi::ByteSequenceCarrier),
     UnresolvedExtent(ScalarApplicationId),
     UnresolvedLayout(StructuralTypeId),
+    MissingFieldStorage(StructuralTypeId, semantic_vocabulary::StructuralFieldId),
+    InvalidRecordStorage(StructuralTypeId),
     Overflow,
     MissingCarrierLayout,
     InvalidCarrierLayout,
@@ -110,13 +112,57 @@ impl std::error::Error for StorageGeometryError {}
 /// This does not copy or rewrite the canonical structural catalog. A resolver
 /// can report an outstanding extent so its owner evaluates that dependency
 /// before attempting geometry again; no guest computation runs in this query.
-pub struct ReferenceStorageGeometry<Types, Extents> {
+/// Supplies one already selected record realization. Selection and admission
+/// belong to the caller; this operation describes bytes without executing code.
+pub trait RecordStorageResolver {
+    fn realization(
+        &self,
+        record: StructuralTypeId,
+        application: LayoutApplicationId,
+    ) -> Result<&TargetLayoutRealization, StorageGeometryError>;
+}
+
+/// Queries without selected storage refuse pending layouts, never pack them.
+pub struct UnselectedRecordStorage;
+
+impl RecordStorageResolver for UnselectedRecordStorage {
+    fn realization(
+        &self,
+        record: StructuralTypeId,
+        _application: LayoutApplicationId,
+    ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+        Err(StorageGeometryError::UnresolvedLayout(record))
+    }
+}
+
+/// One field's actual storage. Fragmented transfers have no single address;
+/// their complete containers remain in `storage`, not a fabricated offset.
+pub struct ReferenceRecordField<'storage> {
+    pub declaration: &'storage StructuralFieldDeclaration,
+    pub storage: Option<&'storage AuthoredFieldStorage>,
+    pub byte_offset: Option<u64>,
+    pub byte_size: u64,
+    pub byte_alignment: u64,
+    pub repeated: Option<ReferenceRepeatedField>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceRepeatedField {
+    pub element_size: u64,
+    pub element_count: u64,
+    pub element_stride: u64,
+}
+
+/// One geometry algorithm over borrowed declarations and exact scalar inputs.
+/// Selected storage is borrowed, never copied into a rewritten type catalog.
+pub struct ReferenceStorageGeometry<Types, Extents, Records = UnselectedRecordStorage> {
     types: Types,
     extents: Extents,
     carriers: Option<TargetCarrierLayout>,
+    records: Records,
 }
 
-impl<'types, Types, Extents> ReferenceStorageGeometry<Types, Extents>
+impl<'types, Types, Extents> ReferenceStorageGeometry<Types, Extents, UnselectedRecordStorage>
 where
     Types: Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
@@ -126,6 +172,26 @@ where
             types,
             extents,
             carriers: None,
+            records: UnselectedRecordStorage,
+        }
+    }
+}
+
+impl<'types, Types, Extents, Records> ReferenceStorageGeometry<Types, Extents, Records>
+where
+    Types: Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    Records: RecordStorageResolver,
+{
+    pub fn with_record_storage<Selected: RecordStorageResolver>(
+        self,
+        records: Selected,
+    ) -> ReferenceStorageGeometry<Types, Extents, Selected> {
+        ReferenceStorageGeometry {
+            types: self.types,
+            extents: self.extents,
+            carriers: self.carriers,
+            records,
         }
     }
 
@@ -146,6 +212,7 @@ where
             root,
             &mut Vec::new(),
             self.carriers,
+            &self.records,
             &mut |application| {
                 if !dependencies.contains(&application) {
                     dependencies.push(application);
@@ -162,9 +229,167 @@ where
             root,
             &mut Vec::new(),
             self.carriers,
+            &self.records,
             &mut |application| (self.extents)(application).map(Some),
         )?
         .ok_or(StorageGeometryError::UnresolvedLayout(root))
+    }
+
+    /// Borrow exact field recipes over the original declarations. Array counts
+    /// come only from the supplied extent resolver; references remain leaves.
+    pub fn record_fields<'storage>(
+        &'storage mut self,
+        root: StructuralTypeId,
+    ) -> Result<Vec<ReferenceRecordField<'storage>>, StorageGeometryError>
+    where
+        'types: 'storage,
+    {
+        let declaration = crate::structural_declaration(self.types.clone(), root)
+            .ok_or(StorageGeometryError::MissingType(root))?;
+        let StructuralTypeShape::Record { fields, storage } = &declaration.shape else {
+            return Err(StorageGeometryError::UnsupportedType(root));
+        };
+        let selected = match storage {
+            StructuralRecordStorage::TargetLayout(application) => {
+                Some(self.records.realization(root, *application)?)
+            }
+            StructuralRecordStorage::Packed | StructuralRecordStorage::Authored(_) => None,
+            _ => return Err(StorageGeometryError::UnsupportedType(root)),
+        };
+        let mut output = Vec::with_capacity(fields.len());
+        let mut packed_offset = 0;
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            let field_storage = match selected {
+                Some(realization) => Some(
+                    &realization
+                        .fields
+                        .iter()
+                        .find(|row| row.field == field.id)
+                        .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
+                        .storage,
+                ),
+                None => field.storage.as_ref(),
+            };
+            let (byte_size, byte_alignment) = field_geometry(
+                self.types.clone(),
+                field,
+                field_storage,
+                &mut Vec::new(),
+                self.carriers,
+                &self.records,
+                &mut |application| (self.extents)(application).map(Some),
+            )?
+            .ok_or(StorageGeometryError::UnresolvedLayout(root))?;
+            let repeated = match field_storage {
+                Some(AuthoredFieldStorage::Repeated { element_stride, .. }) => {
+                    let array = field
+                        .field_type
+                        .as_structural()
+                        .ok_or(StorageGeometryError::InvalidRecordStorage(root))?;
+                    let StructuralTypeShape::FixedArray { element, length } =
+                        &crate::structural_declaration(self.types.clone(), array)
+                            .ok_or(StorageGeometryError::MissingType(array))?
+                            .shape
+                    else {
+                        return Err(StorageGeometryError::InvalidRecordStorage(root));
+                    };
+                    let element_count = match length {
+                        terminal_psi::ArrayExtent::Literal(count) => *count,
+                        terminal_psi::ArrayExtent::Application(application) => {
+                            (self.extents)(*application)?
+                        }
+                    };
+                    let element_size = geometry(
+                        self.types.clone(),
+                        *element,
+                        &mut Vec::new(),
+                        self.carriers,
+                        &self.records,
+                        &mut |application| (self.extents)(application).map(Some),
+                    )?
+                    .ok_or(StorageGeometryError::UnresolvedLayout(*element))?
+                    .0;
+                    Some(ReferenceRepeatedField {
+                        element_size,
+                        element_count,
+                        element_stride: *element_stride,
+                    })
+                }
+                _ => None,
+            };
+            let byte_offset = match storage {
+                StructuralRecordStorage::Packed => {
+                    packed_offset = align(packed_offset, byte_alignment)
+                        .ok_or(StorageGeometryError::Overflow)?;
+                    let offset = packed_offset;
+                    packed_offset = packed_offset
+                        .checked_add(byte_size)
+                        .ok_or(StorageGeometryError::Overflow)?;
+                    Some(offset)
+                }
+                _ => field_storage
+                    .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
+                    .byte_offset(),
+            };
+            output.push(ReferenceRecordField {
+                declaration: field,
+                storage: field_storage,
+                byte_offset,
+                byte_size,
+                byte_alignment,
+                repeated,
+            });
+        }
+        Ok(output)
+    }
+
+    /// Whole-record extent can be fixed while individual field recipes still
+    /// require scalar counts. Discover that distinct read set before access.
+    pub fn record_field_dependencies(
+        &self,
+        root: StructuralTypeId,
+    ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
+        let declaration = crate::structural_declaration(self.types.clone(), root)
+            .ok_or(StorageGeometryError::MissingType(root))?;
+        let StructuralTypeShape::Record { fields, storage } = &declaration.shape else {
+            return Err(StorageGeometryError::UnsupportedType(root));
+        };
+        let selected = match storage {
+            StructuralRecordStorage::TargetLayout(application) => {
+                Some(self.records.realization(root, *application)?)
+            }
+            StructuralRecordStorage::Packed | StructuralRecordStorage::Authored(_) => None,
+            _ => return Err(StorageGeometryError::UnsupportedType(root)),
+        };
+        let mut dependencies = Vec::new();
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            let field_storage = match selected {
+                Some(realization) => Some(
+                    &realization
+                        .fields
+                        .iter()
+                        .find(|row| row.field == field.id)
+                        .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
+                        .storage,
+                ),
+                None => field.storage.as_ref(),
+            };
+            field_geometry(
+                self.types.clone(),
+                field,
+                field_storage,
+                &mut Vec::new(),
+                self.carriers,
+                &self.records,
+                &mut |application| {
+                    if !dependencies.contains(&application) {
+                        dependencies.push(application);
+                    }
+                    Ok(None)
+                },
+            )?;
+        }
+        Ok(dependencies)
     }
 }
 
@@ -186,6 +411,7 @@ fn geometry<'types>(
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
     carriers: Option<TargetCarrierLayout>,
+    records: &impl RecordStorageResolver,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if active.len() >= 128 {
@@ -220,6 +446,16 @@ fn geometry<'types>(
             .map(Some)
             .ok_or(StorageGeometryError::UnsupportedScalar(*scalar)),
         StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::TargetLayout(application),
+            ..
+        } => {
+            let selected = records.realization(root, *application)?;
+            Ok(Some((
+                selected.storage.byte_size,
+                selected.storage.byte_alignment,
+            )))
+        }
+        StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Authored(storage),
             ..
         } => Ok(Some((storage.byte_size, storage.byte_alignment))),
@@ -230,7 +466,15 @@ fn geometry<'types>(
             let mut size = Some(0);
             let mut alignment = 1;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let child = field_geometry(types.clone(), field, active, carriers, extents)?;
+                let child = field_geometry(
+                    types.clone(),
+                    field,
+                    field.storage.as_ref(),
+                    active,
+                    carriers,
+                    records,
+                    extents,
+                )?;
                 let Some((child_size, child_alignment)) = child else {
                     size = None;
                     continue;
@@ -257,7 +501,7 @@ fn geometry<'types>(
                 terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                 terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
             };
-            let element = geometry(types.clone(), *element, active, carriers, extents)?;
+            let element = geometry(types.clone(), *element, active, carriers, records, extents)?;
             let (Some(length), Some((size, alignment))) = (length, element) else {
                 return Ok(None);
             };
@@ -267,10 +511,10 @@ fn geometry<'types>(
             Ok(Some((size, alignment)))
         }
         StructuralTypeShape::Sum { cases } => {
-            sum_geometry(types, &[], cases, active, carriers, extents)
+            sum_geometry(types, &[], cases, active, carriers, records, extents)
         }
         StructuralTypeShape::Mixed { fields, cases } => {
-            sum_geometry(types, fields, cases, active, carriers, extents)
+            sum_geometry(types, fields, cases, active, carriers, records, extents)
         }
         _ => Err(StorageGeometryError::UnsupportedType(root)),
     })();
@@ -284,13 +528,24 @@ fn sum_geometry<'types>(
     cases: &[terminal_psi::StructuralCaseDeclaration],
     active: &mut Vec<StructuralTypeId>,
     carriers: Option<TargetCarrierLayout>,
+    records: &impl RecordStorageResolver,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     let mut fields = |fields: &[StructuralFieldDeclaration]| {
         fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
-            .map(|field| field_geometry(types.clone(), field, active, carriers, extents))
+            .map(|field| {
+                field_geometry(
+                    types.clone(),
+                    field,
+                    field.storage.as_ref(),
+                    active,
+                    carriers,
+                    records,
+                    extents,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()
     };
     let common = fields(common_fields)?;
@@ -528,8 +783,10 @@ fn storage_path<'types>(
                             let (size, alignment) = field_geometry(
                                 types.clone(),
                                 candidate,
+                                candidate.storage.as_ref(),
                                 &mut Vec::new(),
                                 None,
+                                &UnselectedRecordStorage,
                                 &mut |application| {
                                     Err(StorageGeometryError::UnresolvedExtent(application))
                                 },

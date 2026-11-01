@@ -236,6 +236,35 @@ impl TypedTrees {
 }
 
 impl crate::PlanLaidLayout {
+    /// The semantic argument of the exact representation application, not an
+    /// identity inferred from one of the slots the policy happens to return.
+    pub fn native_semantic_identity(&self, program: &TypedTrees) -> Result<String, String> {
+        use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
+        let owner = program
+            .data_implementation_applications
+            .iter()
+            .find_map(|(_, demand)| {
+                (program.normalized_type_identity(demand.source_application)
+                    == program.normalized_type_identity(self.application))
+                .then_some(demand.lexical_owner)
+            })
+            .unwrap_or_else(|| {
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(self.semantic_type)
+            });
+        let identity = portable_applied_index_identity(
+            program,
+            IndexIdentityArgument::TypeArgument(self.semantic_type),
+            owner,
+            &[],
+        )
+        .ok_or("native layout lost its complete semantic argument identity")?;
+        program
+            .type_identity_text(identity)
+            .ok_or("native layout lost its semantic argument coordinate".into())
+    }
+
     /// Retain the selected implementation's complete nominal application,
     /// independently from any particular slot or target member it produces.
     pub fn native_policy_identity(&self, program: &TypedTrees) -> Result<String, String> {
