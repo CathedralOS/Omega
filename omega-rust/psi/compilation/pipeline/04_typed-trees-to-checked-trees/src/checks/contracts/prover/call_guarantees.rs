@@ -402,7 +402,7 @@ pub(in crate::checks::contracts) fn proves(
     .into_iter()
     .any(|guarantee| {
         if let Some(post_return_writes) = guarantee.post_return_writes.as_deref()
-            && let Some(proposition) = arithmetic::at_invocation(
+            && let Some(bound) = arithmetic::at_invocation(
                 program,
                 facts,
                 caller,
@@ -413,7 +413,7 @@ pub(in crate::checks::contracts) fn proves(
             )
         {
             arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
-                proposition,
+                proposition: bound.proposition,
                 holds: true,
             });
         }
