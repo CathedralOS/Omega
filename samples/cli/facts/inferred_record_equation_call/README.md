@@ -52,7 +52,7 @@ wrong heads/carriers, and data-equation reconstruction.
 - **Soundness:** explicit/repeated conflicts, wrong constructors and wrong declared
   carriers reject. Existing kind, occurs-check, selected-constructor obligations
   and unsolved-equation rejection remain required.
-- **Psi 05–07:** the solver retains non-scalar const references and compares their
+- **Psi 06–08:** the solver retains non-scalar const references and compares their
   canonical values. Machine completion restores the exact source operand for
   ordinary resolved const admission. Existing closed-recipe normalization runs
   after source formation before tuple selection, including nongeneric callers.

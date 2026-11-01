@@ -19,8 +19,8 @@ this board through one lifecycle:
    fact witness, specification requirement, or architectural gap).
 2. **It is framed as an end-to-end sample outcome** (`samples/cli/facts/<fact>/`
    across all nine transport places and their reject twins, or a named customer
-   program plus invalid controls) carried through the entire pipeline (`Psi 00–04`
-   checking/proof → `Psi 05–07` Terminal Psi lowering and interpretation →
+   program plus invalid controls) carried through the entire pipeline (`Psi 00–05`
+   checking/proof → `Psi 06–08` Terminal Psi lowering and interpretation →
    `Omega 00–09` target realization, layout/ABI plans, instruction selection,
    register homes, encoding, and native execution via `omega run --both`).
 3. **It is merged by similarity into one single-agent loop outcome** so one
@@ -416,7 +416,7 @@ retired-syntax deletions to completion.
   reach-exceeding providers reject.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run calls to declared operations and their
-  premises end to end (`Psi 00–07` and `Omega 00–09`) under
+  premises end to end (`Psi 00–08` and `Omega 00–09`) under
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
@@ -555,7 +555,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   requirement through checking, stage 05, Terminal Psi semantics/codec, the
   Terminal interpreter and `terminal-runtime` on one path per layer.
   Scope: `omega-rust/psi/compilation/checking/src/value_custody`,
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi`,
+  `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi`,
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
   `omega-rust/omega/application/terminal-runtime`.
@@ -583,7 +583,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `omega-rust/omega/packages/compilation-inputs/src/wire_codec_sources/mod.rs`,
   `omega-rust/omega/packages/compilation-inputs/src/source_assembly.rs`,
   `omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/wire_codecs.rs`,
-  and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections.rs`.
+  and `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/authored_selections.rs`.
   Acceptance: the reflection inspector/serializer and `source/library/std/wire.omg`
   compile from Omega source and run in both engines (`omega run --both`) across
   the 40-field/five-type record, three-package delegated visitation,
@@ -609,7 +609,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   Route direct interpretation, embedding, and demanded compile-time evaluation
   (const scalars, provider-selected constants, owned structural snapshots, and
   layout/wire/proof-value queries) through one shared Terminal program/instance
-  lifecycle (`TerminalProgram::load`) and the shared Psi 05-07 production
+  lifecycle (`TerminalProgram::load`) and the shared Psi 06-08 production
   operation end to end (`omega run --both`).
   Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{program,instance,execution,adapters}.rs`,
   `omega-rust/psi/compilation/compile-time/src/{machine_execution,const_evaluation,layouts}/`,
@@ -923,7 +923,7 @@ helper that passes does not close an item.
   [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering),
   [loans](wiki/spec/terminal-psi/loans.md), and
   [terminal calls in transition arms](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms).
-  Owners: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/`,
+  Owners: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/`,
   `.../terminal_unit/control/statement_sequence/local_data.rs`,
   `.../terminal_unit/receiver_aliases/`, stage 05 argument evaluation,
   `expression_preparation/bindings/`, `scalar_lowering/computations/fields.rs`,
@@ -938,7 +938,7 @@ helper that passes does not close an item.
     recipes until `omega/compilation/driver/src/execution_settlement/constant_recipe_closure.rs`
     rewrites application sites to canonical literal spellings, so the layout
     crate's two `full_width_*_rejects_placement_instead_of_panicking` tests built
-    from raw 01→03b output degrade generic-capacity fields to `Unit` and must be
+    from raw 01→04 output degrade generic-capacity fields to `Unit` and must be
     migrated to the closed representation or have their contract restated.
   - **REFERENCE-LOCAL-BINDING-ROUTES:** qualify reference-valued local routes on
     Linux x86-64 and Windows x86-64 and carry
@@ -973,7 +973,7 @@ helper that passes does not close an item.
   through `samples/cli/facts/recoverable_replacement_window` and the corpus
   `pass/ownership/runtime_*` / `pass/drops/runtime_*` suites (`omega run --both`).
   Owner: `OpenWindows::replace` in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/borrowed_windows.rs`.
+  `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/borrowed_windows.rs`.
   Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   - Qualify borrowed byte-storage state joins, referent windows, and
     `samples/cli/facts/recoverable_replacement_window` on Windows x86-64,
@@ -997,7 +997,7 @@ defines the complete product bar.
 
 - **MATCH-SELECTIVE-LOWERING.** Lower [value dispatch](wiki/spec/language/patterns.md)
   for owned, borrowed, and linear results, structural/case/domain patterns, and
-  coverage end to end (`Psi 04–07` and `Omega 00–09`), preserving once-only
+  coverage end to end (`Psi 05–08` and `Omega 00–09`), preserving once-only
   subject evaluation, authored first-match order, selected-arm-only execution,
   and exact result/loan origins and death edges. Owners:
   `omega-rust/psi/compilation/checking/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
@@ -1024,7 +1024,7 @@ defines the complete product bar.
   70), while wrong qualifications, ownership, or incompatible arms reject.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Complete exact declaration selection through
-  checking, constant evaluation, and publication end to end (`Psi 00–07` and
+  checking, constant evaluation, and publication end to end (`Psi 00–08` and
   `Omega 00–09`) under the [module/name contract](wiki/spec/language/modules.md)
   and [default builds and anonymous owner identity](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
   - Assign versioned content owners to nonempty authored anonymous `Build`
@@ -1042,7 +1042,7 @@ defines the complete product bar.
     array/case and whole-aggregate subjects, open applications, and
     abstract-carrier constraints over explicit named subjects.
   - Carry constant-invocation crash premises through
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
   Acceptance: `python3 tools/corpus_gate.py --both --filter modules/`,
   `samples/cli/facts/{nominal_declaration_owner,computed_constant_array_extent}`,
   and fixtures for nonempty anonymous `Build` owners and new constant forms pass
@@ -1050,7 +1050,7 @@ defines the complete product bar.
   unproved constant indices reject.
 
 - **RUNTIME-VALUE-GENERICS.** Support runtime-capable value binders on data end
-  to end (`Psi 00–07` and `Omega 00–09`) under
+  to end (`Psi 00–08` and `Omega 00–09`) under
   [value binders](wiki/spec/language/generics.md#value-binders-and-const-requirements)
   and [runtime index identity](wiki/spec/language/generics.md#runtime-index-identity-and-storage)
   beyond `samples/cli/facts/{runtime_index_application,selected_value_application}`:
@@ -1078,7 +1078,7 @@ defines the complete product bar.
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
-  through specialization, layout, and native execution (`Psi 02–07` and `Omega
+  through specialization, layout, and native execution (`Psi 02–08` and `Omega
   00–09`). Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/{type_equations/,machine_equations.rs}`.
   - Extend equation and argument/result composition beyond closed generic
@@ -1104,11 +1104,11 @@ defines the complete product bar.
   occurs cycles, kind mismatches, and unmet conformances reject.
 
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime end
-  to end (`Psi 02–07` and `Omega 00–09`) under the
+  to end (`Psi 02–08` and `Omega 00–09`) under the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
   and [dynamic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
   Owners:
-  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/checking/src/machine_calls/calls/dynamic_requirement.rs`.
   - Complete public slot-relative returned-loan origin contracts for borrowed
     descriptor results, structural field reads rooted in entry content claims,
@@ -1123,7 +1123,7 @@ defines the complete product bar.
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
   [mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains).
-  Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`
+  Owner: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`
   and `src/flow/state_values/`.
   - Restore representation-erased domain qualification (`[u8; N] in D` is the
     same exact-length fixed array as `[u8; N]`, with `.len == N`), delete the
@@ -1180,7 +1180,7 @@ defines the complete product bar.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`
+    `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`
     and `.../attached_unit/catalog.rs`, bind an executable entry for
     `tests/omega/pass/domains/bodyless_owner_establishment`, and exercise
     admitted provider issuance for core's protected `Vacant`/`Resident` routes
@@ -1210,7 +1210,7 @@ defines the complete product bar.
   [termination contract](wiki/spec/language/termination.md) and
   [cyclic control](wiki/spec/terminal-psi/control_flow.md).
   Owners: stage 04
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/{ranking,progress}/`,
+  `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/termination/{ranking,progress}/`,
   `src/flow/value_origins.rs`, `src/execution/terminal_unit/`,
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`,
   `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`,
@@ -1244,7 +1244,7 @@ defines the complete product bar.
   Complete invocation-specific crash obligations and outcome-specific call
   evidence through selected operators, nested values, calls, cycles, and package
   review end to end (`omega run --both`).
-  Owners: stage 04 `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/{operator_crashes,crash_entry_values}.rs`,
+  Owners: stage 04 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/{operator_crashes,crash_entry_values}.rs`,
   `src/values/scalar/contract_entry.rs`, `src/flow/expression.rs`, stage 05
   lowering of crash routes, and the native consumers.
   - Extend selected-use joins for remaining intrinsic spellings, generic
@@ -1302,7 +1302,7 @@ defines the complete product bar.
   and interpreted/native execution model in
   [assembly](wiki/spec/language/assembly.md) and the
   [inline assembly catalog](omega-rust/psi/foundation/language-core/inline_assembly.md)
-  end to end (`Psi 00–07` and `Omega 00–09`).
+  end to end (`Psi 00–08` and `Omega 00–09`).
   Owners: `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs`,
   `language-core/src/inline_assembly/`, stage 04 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, stage 05 lowering,
@@ -1477,7 +1477,7 @@ defines the complete product bar.
 
 - **ENTRY-CONTENT-ROOTS.** (Also covers **`PROCESS-EXIT-CONTRACT`**.) Activate
   and complete provisioned receivers and process-exit boundary contracts end to
-  end (`Psi 00–07` and `Omega 00–09`) under
+  end (`Psi 00–08` and `Omega 00–09`) under
   [entry roots](wiki/spec/build/entry_roots.md),
   [provider-slot realization](wiki/spec/build/component_publication.md#provider-slots-and-era-entry),
   and [process exit](wiki/spec/language/process_exit.md).
@@ -1530,7 +1530,7 @@ defines the complete product bar.
   documentation ratification.
 
 - **DEVICE-EXTENT-ACCESS.** Execute provider-backed lending, completion, and
-  restored CPU access end to end (`Psi 04–07` and `Omega 00–09`) in
+  restored CPU access end to end (`Psi 05–08` and `Omega 00–09`) in
   `samples/cli/device/device_extent_access` under
   [device custody and ordering](wiki/spec/resources/device_access.md).
   - Admit `BoundaryOpaque` types (`DeviceLoan`, `DeviceOrderingEvent` in
@@ -1563,7 +1563,7 @@ defines the complete product bar.
 - **ADDRESS-EXPOSURE.** (Also covers **`NATIVE-CODE-LAYOUT-QUERIES`**.) Complete
   [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
   and [`code_layout<Machine>()` queries](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
-  end to end (`Psi 00–07` and `Omega 00–09`):
+  end to end (`Psi 00–08` and `Omega 00–09`):
   - Retain selected machine applications (`address_of<Selected<Arguments>>()`),
     bodyless target-family applications (`code_layout<Machine>()`), and
     aggregate/re-view/write-only storage referents (`address_of(reference)`)
@@ -1597,7 +1597,7 @@ defines the complete product bar.
 ## P3 - Terminal Psi, proofs, and observation
 
 - **WRITE-ONLY-BORROW.** Complete caller-visible `&write T` mutation end to end
-  (`Psi 04–07` and `Omega 00–09`) under
+  (`Psi 05–08` and `Omega 00–09`) under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority):
   - Admit non-observation evidence for opaque foreign declarations and
     boundary-trait requirements bound to the selected implementation and receipt
@@ -1614,7 +1614,7 @@ defines the complete product bar.
   **`GENERIC-FIXED-ARRAY-VIEWS`**.)
   Preserve original caller storage and exact-once computed/indexed selector
   semantics through every projection, call preparation, and native placement
-  end to end (`Psi 04–07` and `Omega 00–09`) under
+  end to end (`Psi 05–08` and `Omega 00–09`) under
   [structural access](wiki/spec/terminal-psi/structural_access.md). Owners:
   stage 04 `execution/terminal_scalar/`,
   `execution/terminal_unit/calls/computation_arguments/`, and
@@ -1682,7 +1682,7 @@ defines the complete product bar.
 - **NORMALIZED-ABI-LOWERING.** (Also covers **`OPAQUE-BY-VALUE-BOUNDARY-ABI`**
   and **`FOREIGN-RETAINED-ARGUMENT-BACKING`**.) Complete foreign and
   cross-component calling plans, opaque by-value representation agreement, and
-  retained outbound argument backing end to end (`Psi 04–07` and `Omega 00–09`)
+  retained outbound argument backing end to end (`Psi 05–08` and `Omega 00–09`)
   under [calling plans](wiki/spec/build/calling_plans.md),
   [opaque representations](wiki/spec/build/opaque_representations.md), and
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody):
@@ -1721,7 +1721,7 @@ defines the complete product bar.
   **`PROOF-RELEVANCE-MIGRATION`**, **`QUOTIENT-THEOREM-LIFT`**, and
   **`PROOF-SURFACE-DECLARED-NOT-BUILT`**.) Complete source-to-kernel proof
   checking, mathematical bindings, quotient theorem lifting, and carrier-free
-  erasure end to end (`Psi 00–07` and `Omega 00–09`) under
+  erasure end to end (`Psi 00–08` and `Omega 00–09`) under
   [proof foundation](wiki/spec/proofs/foundation.md),
   [inductive profile](wiki/spec/proofs/inductive_profile.md),
   [contracts](wiki/spec/proofs/contracts.md),
@@ -1762,7 +1762,7 @@ defines the complete product bar.
 - **BUILD-SEMANTIC-EXCLUSIONS.** (Also covers **`BUILD-EXCLUSION-REALIZATION`**.)
   Deliver the [behavior exclusion contract](wiki/spec/build/behavior_exclusions.md)
   across the full admitted entry/call closure, native artifact custody,
-  installation, and replacement (`Psi 04–07` and `Omega 00–09`). Reuse
+  installation, and replacement (`Psi 05–08` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
   `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
@@ -1783,7 +1783,7 @@ defines the complete product bar.
 - **BUILD-TEST-GROUPS.** (Also covers **`BUILD-TEST-AUTHORITY`**.) Implement the
   [testing contract](wiki/spec/build/testing.md) and
   [authored source shape](wiki/language_guide/chapter_23_testing.md) end to end
-  (`Psi 00–07` and `Omega 00–09`):
+  (`Psi 00–08` and `Omega 00–09`):
   - Add `builder.tests.group<ExactRequirement>()` registration and enablement to
     `Build` (`omega-rust/omega/packages/build-declarations/src/prelude.rs`) and
     `EvaluatedBuildSettings`
@@ -1893,7 +1893,7 @@ defines the complete product bar.
   **`FILESYSTEM-RELEASE-CONTRACT`**.) Complete portable and raw
   [platform services](wiki/spec/build/platform_services.md) and
   [bounded occurrence-specific release proofs](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
-  end to end (`Psi 04–07` and `Omega 00–09`):
+  end to end (`Psi 05–08` and `Omega 00–09`):
   - Validate the Windows portable `FilesystemService` implementation natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
     data sync), run `file_journal` (exit 7), `note_vault` (exit 14), Windows raw
@@ -1919,7 +1919,7 @@ defines the complete product bar.
 
 - **COMPONENT-SUBSTRATE.** (Also covers **`WIRE-RUNTIME-AND-INSTALLATION`**.)
   Execute two-package `Independent` composition, stable-slot replacement, and
-  receiving-provider executable installation end to end (`Psi 04–07` and `Omega
+  receiving-provider executable installation end to end (`Psi 05–08` and `Omega
   00–09`) under
   [component publication](wiki/spec/build/component_publication.md) and
   [executable installation](wiki/spec/build/executable_installation.md).
@@ -1943,7 +1943,7 @@ defines the complete product bar.
 
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`
-  package end to end (`Psi 04–07` and `Omega 00–09`) under
+  package end to end (`Psi 05–08` and `Omega 00–09`) under
   [task activation](wiki/spec/build/task_runtime.md),
   [suspension](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension), and
   [foreign execution](wiki/spec/build/foreign_bindings.md#operational-coherence).
@@ -1986,7 +1986,7 @@ defines the complete product bar.
   **`CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`** and
   **`BOUNDARY-ISSUANCE`**.) Complete checked n-to-m content conservation,
   provider boundary issuance, and core `Extent` split/merge operations end to
-  end (`Psi 04–07` and `Omega 00–09`) under
+  end (`Psi 05–08` and `Omega 00–09`) under
   [content custody](wiki/spec/resources/content_custody.md) and
   [external roots and issuance](wiki/spec/resources/authority.md#external-roots-and-issuance).
   - Carry general n-to-m claim transformations and match-selected wrapper
@@ -2016,7 +2016,7 @@ defines the complete product bar.
 - **BUMP-ALLOCATOR-CANARY.** (Also covers **`VEC-NATIVE-GROWTH`**.) Deliver an
   executable package allocator (`source/library/alloc/bump.omg`) and native
   growable `Vec` (`source/library/alloc/vec.omg`) over qualified `Extent` and
-  access views end to end (`Psi 04–07` and `Omega 00–09`) under
+  access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
   - Complete `ExtentPartition` conservation and every-retired-extent `reset`
@@ -2035,7 +2035,7 @@ defines the complete product bar.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** (Also covers **`UEFI-OS-HANDOFF`**.) Execute
   the [two-surface UEFI bootstrap](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters)
   and [Boot Services-to-OS handoff](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff)
-  end to end (`Psi 04–07` and `Omega 00–09`).
+  end to end (`Psi 05–08` and `Omega 00–09`).
   - Complete returning semantic-entry lifecycles (single context cleanup, fresh
     context on repeated invocation, provider-owned reference outputs, and
     `pass/build/uefi_selected_physical_entry`) and Cathedral's
@@ -2122,7 +2122,7 @@ defines the complete product bar.
   `package-source`, and `resolver-execution` at the release commit, and pin
   end-to-end corpus/package witnesses for:
   - Package and selection identity in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
     (`allow_unresolved_toolchain`).
   - Private progress premises in stage 04 `checks/contracts/calls.rs` and
     `checks/termination/progress/components.rs`.

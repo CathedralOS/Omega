@@ -93,7 +93,7 @@ Its twin replaces the branch condition with `true`, so no equation reaches the
   that admits both alternatives excludes nothing, and listing the wrong arm
   (`Boolean` under `T == i32`) leaves `Integer` owed; the last two were run as
   probes, not pinned.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** each specialization lowers
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** each specialization lowers
   a closed `Value<i32>` or `Value<bool>` whose refuted case is already absent
   from the sum; the omitted arm adds no roster entry.
 - **Runtime falsifier:** `main()` observes four distinct results through two

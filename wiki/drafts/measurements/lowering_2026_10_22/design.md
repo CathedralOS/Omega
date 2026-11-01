@@ -153,7 +153,7 @@ binary identity, command form and hardware reports. Library hashes are retained
 in the original [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/timings.json); those sources remained unchanged.
 
 Source anchors are relative to
-`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/` at
+`omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/` at
 `0047571a3f1`: `retention/copied_memberships.rs`,
 `unit/attached_unit/{ordinary_machine.rs,operation_frame.rs,call_catalog.rs}`,
 `unit/attached_unit/composed_control/callable.rs`,

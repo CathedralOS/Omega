@@ -8,7 +8,7 @@ the current diagnosis records the missing direct import and remaining route.
 
 ## The site
 
-`04_typed-trees-to-checked-trees/src/operators/applications.rs`. For each
+`05_typed-trees-to-checked-trees/src/operators/applications.rs`. For each
 `ValidatedBoundaryOperatorApplication` whose site is an expression, the pass
 requires a `CheckedNamedOperatorUseFact` in `operators.named_uses` with **both**
 the same `selected_operator_symbol` and the same `expression` handle. When no

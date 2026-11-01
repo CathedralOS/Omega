@@ -57,7 +57,7 @@ four-hosted-target form.
 - **Soundness boundaries:** the addition acquires no authority and retires no
   linear claim. Proof-only label obligations do not grant a runtime access.
   The row does not claim hardware-effect retirement.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the addition lowers to
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the addition lowers to
   ordinary wrapping addition plus the width-total flag image. Terminal
   execution consumes those operations. `omega run --both` reports native exit
   0 and interp exit 0 on every positive place.

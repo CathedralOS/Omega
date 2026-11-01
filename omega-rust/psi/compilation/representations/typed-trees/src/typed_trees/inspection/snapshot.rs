@@ -285,7 +285,7 @@ pub struct AuthoredServiceReachRowSnapshot {
 
 /// The audit identity of one compile-time machine specialization: template,
 /// instance, the canonical argument spellings and identities, and the
-/// commitments stage 04 records for it.
+/// commitments stage 05 records for it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MachineSpecializationSnapshot {
     pub template: u32,

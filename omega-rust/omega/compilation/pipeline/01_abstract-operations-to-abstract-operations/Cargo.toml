@@ -23,16 +23,16 @@ terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-p
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 
 [dev-dependencies]
-typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
+typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-typed-trees" }
 # Dev builds enable test-support so the psi_optimization_allocations example and
 # the test_support exports it drives compile alongside the unit tests.
 abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }
-checked-trees-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees" }
 
 [features]
 test-support = []

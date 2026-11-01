@@ -98,7 +98,7 @@ need those hosts; `linux_arm64` has no native golden in this checkout.
 - Soundness boundaries: all nine twins retain 48 instead of 32 and reject.
   Separate bundled-library controls reject an inflated counter and a split
   larger than its actual tail.
-- Checked-to-Terminal Psi (Psi 05–07): the checked qualification and arithmetic
+- Checked-to-Terminal Psi (Psi 06–08): the checked qualification and arithmetic
   relation reach ordinary record and call lowering, with proof erasure and
   actual Terminal interpretation. This model does not exercise affine cleanup,
   borrow restoration, dynamic dispatch, or a backing provider.

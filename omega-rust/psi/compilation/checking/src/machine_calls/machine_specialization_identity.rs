@@ -4,7 +4,7 @@
 //! A ProviderPlan row names its checked adapter by normalized callable
 //! identity and package, not by symbol. A generic adapter is selected by the
 //! authored template, while execution runs one of its specializations, so
-//! the join reads the template identity stage 04 recorded before
+//! the join reads the template identity stage 05 recorded before
 //! substitution: `<declaration>|<callable identity>`. The declaration half is
 //! derived from the template symbol alone and contains no `|`, so the join
 //! compares the template's package and the recorded callable half.

@@ -713,7 +713,7 @@ impl ReturnReader<'_, '_> {
                     _ => return None,
                 };
                 // Pristine typed trees retain a checked-operator selection
-                // request, before stage 04 publishes its intrinsic outcome.
+                // request, before stage 05 publishes its intrinsic outcome.
                 // Rejoin that one exact occurrence and independently resolve
                 // both ordinary/trait and implicit-borrow indexed meanings.
                 let mut occurrences =

@@ -55,7 +55,7 @@ The chained two-tag reference control retains independent sibling backings.
 - Soundness: physical identity does not merge domain identities or introduce
   routed evidence. Predicates, ranges, unknown and routed constraints keep their
   receiving storage identity. Neither access-policy admission fence changes.
-- Psi 05–07: ordinary reference establishment, descriptor transport and cleanup
+- Psi 06–08: ordinary reference establishment, descriptor transport and cleanup
   lower into Terminal Psi; acceptance requires actual interpreter/native
   agreement, not source checking alone.
 - Omega 00–02: every positive binds all four hosted `ProgramEntry` targets;

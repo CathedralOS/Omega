@@ -70,7 +70,7 @@ Full 8-layer specification and lowering evidence:
   agreement, and rejection when no provider is selected (`missing_link`).
   Any edit to the accepted source graph invalidates the host-local lock
   acceptance before execution.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source constructs lower
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower
   without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). Boundary-application
   demands (`Required::get`) and assumed exit certificates lower into canonical
   representations without erasing the boundary call demand, and execute in the

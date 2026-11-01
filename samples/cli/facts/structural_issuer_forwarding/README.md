@@ -52,7 +52,7 @@ generated native image, canonical Terminal product and companion outputs.
 - Soundness boundaries: wrong-trait and wrong-member controls reject, and neither
   result establishment nor forwarding proves an independent predicate or the
   body's call precondition. Boundary admission remains separate.
-- Psi 05–07: ordinary structural calls, results and state edges preserve checked
+- Psi 06–08: ordinary structural calls, results and state edges preserve checked
   membership into canonical Terminal Psi and its interpreter. No special issuer
   operation or runtime tag is introduced.
 - Omega 00–02: hosted entry selection, record layout, and argument/result calling

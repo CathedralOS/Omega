@@ -35,7 +35,7 @@ impl TypeIdentityId {
     }
 }
 
-/// The identity type stages 04, 05 and checking previously compared as
+/// The identity type stages 05, 06 and checking previously compared as
 /// rendered text. It is the interned handle now: comparisons are integer
 /// equality and rendering is a program query, not a carrier payload.
 pub type NormalizedTypeIdentity = TypeIdentityId;

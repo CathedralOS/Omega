@@ -77,7 +77,7 @@ the twin's authored diagnostic independently.
   NaN, signed zero, f32 rounding, selected operation meaning and the distinction
   between public and private guarantees retain their ordinary rules. A false
   ordered predicate grants no integer complement law.
-- **Psi 05–07:** mathematical input/result propositions erase after checking;
+- **Psi 06–08:** mathematical input/result propositions erase after checking;
   selected dispatch and ordinary f64 arguments/results remain in canonical
   Terminal Psi. Actual interpreter execution must agree with native exit 0.
 - **Omega 00–02:** the existing selector word, record layouts, public slot call

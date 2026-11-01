@@ -3,7 +3,7 @@
 //! The template retains its inferred finite reach dependency, not the row of
 //! whichever application happens to be emitted, so private helper
 //! contributions change the template commitment. Each application also
-//! encodes which binder every rewritten call selected. Stage 04 folds these
+//! encodes which binder every rewritten call selected. Stage 05 folds these
 //! bytes into the template and specialization commitments once; no later
 //! stage recomputes them.
 

@@ -76,7 +76,7 @@ recorded separately.
    termination, linear carriers, service reach, suspension/blocking and authored
    declaration authority. Selection does not turn an external or deferred body
    into executable code. Width-4 result placement must fail independently.
-5. **Psi 05–07.** Terminal Psi retains the target-neutral boundary demand and
+5. **Psi 06–08.** Terminal Psi retains the target-neutral boundary demand and
    checked runtime bodies. Evaluated target policy data remains a separate
    realization input. All closed runtime family bodies still undergo ordinary
    lowering; build-time use does not hide their carrier/custody gaps. `--both`

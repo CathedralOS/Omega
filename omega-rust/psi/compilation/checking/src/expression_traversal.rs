@@ -57,7 +57,7 @@ pub fn inert_value_tree_with_operations(
 /// change a coordinate already captured. Repeated handles remain occurrences,
 /// so one earlier visit cannot conceal a later read following an effect.
 /// The checked route binds selected authored operators to ordinary Call nodes
-/// during 03b preparation, including declared indexing. This query consumes
+/// during stage 04 preparation, including declared indexing. This query consumes
 /// that prepared input; operator syntax is not an independent purity claim.
 pub fn expression_has_inert_prefix(
     program: &dyn crate::CheckingInput,

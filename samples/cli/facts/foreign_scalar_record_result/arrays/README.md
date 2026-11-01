@@ -69,7 +69,7 @@ No symbol-specific adapter or implicit C pointer decay is added.
 - Composition and soundness: all nine places preserve the same arrays and copy
   obligation. Markers distinguish match paths. Removing only outer copy custody
   rejects; representation grants no reference, claim or qualification authority.
-- Psi 05–07: complete checked array/record result geometry and ordinary custody
+- Psi 06–08: complete checked array/record result geometry and ordinary custody
   survive Terminal publication and canonical artifact inspection.
 - Omega 00–02: exact ABI applications retain array counts, scalar element classes,
   record offsets and thirty-two-byte aggregate placements. Arrays remain values,

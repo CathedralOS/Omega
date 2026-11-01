@@ -36,7 +36,7 @@ It must reject the cycle's missing strict edge. The row and twins are pinned as
   result do not supply an entry snapshot. Stored-reference loads retain their
   independent exact frame-source requirements. Atomic, placed, write-only and
   unproved case observations acquire no ordinary read authority.
-- Psi 05–07: admitted entry bounds remain on the selected rank coordinate.
+- Psi 06–08: admitted entry bounds remain on the selected rank coordinate.
   Pure read templates bind its selectors to captured scalar formals and its
   array to the full structural formal. They emit ordinary operation-owned
   runtime-index obligations without inventing an authored indexing occurrence

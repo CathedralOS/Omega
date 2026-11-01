@@ -84,7 +84,7 @@ Requirements exercised:
   through the requirement it satisfies. Copying result orderings into a
   synthesized return local cannot hide a citation cycle. Exact-edge induction,
   declared carrier ranges and body inference remain separate.
-- Psi 05–07: proof decisions erase without changing the copied scalar,
+- Psi 06–08: proof decisions erase without changing the copied scalar,
   branch choice or outgoing result; Terminal execution checks that value.
 - Omega 00–02: checked providers and ProgramEntry settle through the ordinary
   Build companion, one selected implementation per hosted target; integer and

@@ -10,7 +10,7 @@ The witness exercises the applicable requirement layers:
 - Identity and lifetime: immutable erased evidence keeps its exact source carrier, current binder and capture tuple; changed captures and indices reject.
 - Composition: constructor evidence crosses local construction, a generic call/result, an erased parameter, case dispatch, recursive theorem citation and the executing consumer. The alpha-renamed and two-node positive controls challenge identity and recursive substitution. These are mechanism-based witnesses; duplicating identical proof-only transports adds no distinct layout or ABI obligation.
 - Soundness boundaries: the transport retains checked terms, source associations, keys, exact assumption closures and receiving grants for independent verification. Source negatives separately challenge payloads, indices, capture, false invariants, missing bounds, preconditions, termination and forbidden runtime elimination. Higher-order negative recursion is covered at the existing kernel boundary; source function-field syntax is not invented as a positivity test.
-- Psi 05–07: erased values supply no executable read, field, cleanup or runtime control; the serialized artifact preserves mathematical certificates and cited roots for canonical decode and independent receiving. The consumer executes through the Terminal interpreter.
+- Psi 06–08: erased values supply no executable read, field, cleanup or runtime control; the serialized artifact preserves mathematical certificates and cited roots for canonical decode and independent receiving. The consumer executes through the Terminal interpreter.
 - Omega 00–02: the ordinary hosted Build/ProgramEntry and existing scalar call/layout paths settle the consumer. Erased evidence introduces no new physical argument lane or provider.
 - Omega 03–06: ordinary scalar instruction selection, register homes and bounded activation realize the consumer; proof-only recursion is erased after its separate totality check. This change makes no new physical recursive-frame claim.
 - Omega 07–09 and emission: the normal Linux x86_64 ELF emission and Terminal execution agree on the authored result. The source retains all four hosted ProgramEntry bindings; only Linux x86_64 execution was measured here.
@@ -160,7 +160,7 @@ Applicable requirement obligations for this row:
   predicate rosters, independent termination and transitive assumption closure
   retain their own gates. General mathematics and stronger recursive families
   remain outside this row's acceptance.
-- **Psi 05–07:** retain checked constructor schemas as closed mathematical
+- **Psi 06–08:** retain checked constructor schemas as closed mathematical
   functions applied to exact erased formals. Invocation inputs remain distinct
   from edge-bound block inputs. Preserve theorem roots and source associations
   in canonical Terminal Psi; runtime transports contain only the scalar result.

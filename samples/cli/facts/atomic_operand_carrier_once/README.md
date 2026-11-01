@@ -108,7 +108,7 @@ reports `opt_level` 1).
   diagnosed once in each; the route changes only where the carrier is declared.
 - Soundness: the operand's own arithmetic obligations stay separate. An
   overflowing operand that also changes carrier still reports both.
-- Psi 05-07 and Omega 00-09: the positives run through Terminal Psi, calling
+- Psi 06-08 and Omega 00-09: the positives run through Terminal Psi, calling
   plans and native emission; a store on mismatch or a missing store changes the
   exit code.
 

@@ -256,7 +256,7 @@ checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
-[Psi stage 04](../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+[Psi stage 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the
 identity case, root validation, pruning and selection evidence. It consumes only
 checked trees, not the Omega provider-settlement carrier.
@@ -363,7 +363,7 @@ production or its exact declaration join; neither step executes an artifact.
 Terminal production borrows the unoptimized program for authored exclusions,
 checking each application's main and selected callback roots before optimization.
 Exclusion admission uses the backend effects checker; on rejection,
-[Psi lowering's source attribution](../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+[Psi lowering's source attribution](../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 

@@ -69,7 +69,7 @@ Applicable requirement layers:
 - Soundness: snapshots describe values and confer no storage permission. Runtime
   copies separately require owned access, Copy, unrestricted multiplicity and
   borrow-free contents. The controls cannot establish their own premises.
-- Psi 05–07: ordinary structural arguments and explicit selector computations
+- Psi 06–08: ordinary structural arguments and explicit selector computations
   produce Terminal Psi and use the same call scheduler as statement calls.
   Interpreter/native agreement is the runtime oracle; no new runtime opcode or
   declaration-specific interpreter is introduced.

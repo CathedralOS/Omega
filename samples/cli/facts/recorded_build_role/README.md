@@ -64,7 +64,7 @@ the candidate's role/ledgers and reject tampered historical bytes.
 - **Soundness boundaries:** wrong-name imports reject; recorded metadata cannot
   authorize tampered bytes. Product/build dependency ordering and scope remain
   separate. Source diff remains an audit aid, not acceptance authority.
-- **Psi 05–07:** Build name computation and the imported product execute through
+- **Psi 06–08:** Build name computation and the imported product execute through
   Terminal Psi; product bodies are not evaluated to infer package names.
 - **Omega 00–02:** the exact declared alias supplies package lookup and Build
   binds each hosted entry. Ordinary field/view/call layout carries the name.

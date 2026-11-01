@@ -73,7 +73,7 @@ executed.
   machine, another machine, or a Build-selected implementation.
 - **Soundness:** an argument whose type is not the substituted formal is refused
   before execution, in the template and in each instantiation.
-- **Psi 05–07 through Omega 07–09:** the two instantiations (`i32`, `u8`) lower
+- **Psi 06–08 through Omega 07–09:** the two instantiations (`i32`, `u8`) lower
   to separate closed applications, and the native and interpreter engines agree
   on the stores. A dropped or misrouted call leaves `hits` at 0 and `main`
   crashes.

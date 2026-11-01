@@ -1,6 +1,6 @@
 //! Closed integer intervals of selected scalar plans.
 //!
-//! Stage 04 selects each scalar expression into a `CheckedScalarExpression`
+//! Stage 05 selects each scalar expression into a `CheckedScalarExpression`
 //! plan and evaluates it against live place facts during flow and at exits.
 //! The interval arithmetic for those plans lives here, beside the arithmetic
 //! walk's own `Interval`, so one domain answers "what range can this integer

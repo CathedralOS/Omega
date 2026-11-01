@@ -154,7 +154,7 @@ foreign effects and executes in both engines.
 - Authority: nonspatial dependencies cannot supply reference-result pointers or
   spatial access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
   persistent stores remain rejected.
-- Psi 05–07: checked boundary custody retains its exact source/result projection;
+- Psi 06–08: checked boundary custody retains its exact source/result projection;
   ordinary loan flow carries the token's dependency without a fabricated
   reference field. Terminal executes the actual C provider under the same custody joins.
 - Omega 00–02: the existing borrowed-record path resolves the original home,

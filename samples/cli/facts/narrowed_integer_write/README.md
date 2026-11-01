@@ -65,7 +65,7 @@ Matching `layouts/direct_encoded_assignment_*` fixtures pin both outcomes.
   result guarantees belong to exact completed invocations and both match arms.
 - Soundness: source checks retain narrow-width fitting, unknown concrete-origin
   refusals, and concrete obligations inside open generic bodies.
-- Psi 05–07: the checked store preserves semantic i64 meaning through Terminal
+- Psi 06–08: the checked store preserves semantic i64 meaning through Terminal
   lowering and execution, independently of its eight-bit physical encoding.
 - Omega 00–02: the validated layout and ordinary call plans retain original
   storage geometry through the scalar reference.

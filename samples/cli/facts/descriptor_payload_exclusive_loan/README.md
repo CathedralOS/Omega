@@ -105,7 +105,7 @@ natively with Terminal Psi agreement. Canonical authority:
   loan of the arm-local view, and `visits == 1` pins once-only effectful
   subject evaluation at both engines. No erased mathematics is substituted
   for the executable element write.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** stage 05 records the
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** stage 05 records the
   selected descriptor on the match join: an exclusive element view transfers
   it owned onto the join parameter and the successor reads that carrier,
   while shared views and mutable byte views keep joining under their loan;

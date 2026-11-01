@@ -31,7 +31,7 @@ original postcondition. Both arms and multiple successful inputs are observable.
 - **Soundness boundaries:** executed-body observation supplies neither pure,
   repeatable denotation nor a recursive induction hypothesis. Existing purity,
   stale-reference, and formation controls remain applicable.
-- **Psi 05–07:** `omega run --both` exercises Terminal production and actual
+- **Psi 06–08:** `omega run --both` exercises Terminal production and actual
   interpreter execution, including mutable borrowed storage and Unit completion.
 - **Omega 00–02:** all positives bind the four hosted entries. Native checks
   observe scalar results and caller-owned record writeback through their calls.

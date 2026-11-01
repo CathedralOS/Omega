@@ -32,7 +32,7 @@ On Windows x86-64, all nine positives then return native exit 0 and Terminal exi
 - **Identity and lifetime:** Complete intervening write frames retire overlapping content relations. Disjoint buffers and fields survive. The saved Boolean is not overwritten by content invalidation. Coarse collection footprints remain conservative.
 - **Composition:** The same consuming contract and write target distinction occur in all nine places. Sources are pinned byte-identically under `tests/omega/{pass,fail}/facts/saved_byte_predicate_through_*`.
 - **Soundness:** The selected scalar producer, source custody, access, bounds and loan checks remain required. Backing footprints grant no exact identity, access or new callable purity. Unknown origins remain opaque.
-- **Psi 05–07:** Actual `omega run --both` carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
+- **Psi 06–08:** Actual `omega run --both` carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
 - **Omega 00–02:** Each hosted Build companion supplies ProgramEntry; the ordinary view/scalar calling plans and provider settlement carry `inspect` and its result.
 - **Omega 03–06:** Native execution exercises the selected predicate operations, live saved Boolean, mutation, calls, register homes and activation frames.
 - **Omega 07–09 and emission:** The Windows x86-64 image executes with the authored result and agrees with Terminal. The other three hosted targets are authored and were not executed on this host.

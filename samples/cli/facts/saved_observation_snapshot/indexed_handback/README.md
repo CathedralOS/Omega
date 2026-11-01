@@ -84,7 +84,7 @@ explorer on every true return; a descriptor alone contributes no element facts.
   selector formation, enclosing invariants and representation authority remain
   separate. See [mutation and subject identity](../../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
   and [fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md).
-- Psi 05–07: exact reads, captured destinations, ordered effects and continuation
+- Psi 06–08: exact reads, captured destinations, ordered effects and continuation
   must retain their behavior through canonical Terminal Psi and interpretation;
   static predicates erase.
 - Omega 00–02: ordinary record/array geometry and calling plans retain both

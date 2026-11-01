@@ -69,7 +69,7 @@ provider value, per-index specialized body, policy authority or OS structure her
   Unused-template controls retain complete source tuple admission.
 - Soundness: runtime Value is not Const. Mathematical facts do not authorize
   access, erase call formation, or establish repeated effectful-call equality.
-- Psi 05–07: ordinary Value actuals and the returned record survive lowering
+- Psi 06–08: ordinary Value actuals and the returned record survive lowering
   into Terminal Psi and interpreter execution. No new proof-only, cleanup or
   loan construct is claimed by these programs.
 - Omega 00–02: existing Build providers, applied record layouts and calling
