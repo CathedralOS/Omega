@@ -1,0 +1,8 @@
+// A generic machine's final value answers its declared type parameter, not
+// only the one specialization a caller requests. The sole instance binds `T`
+// to bool, where the specialized body is well typed; the template is not,
+// because a Boolean is not an arbitrary `T`.
+machine bad<T>(value: T) -> T { true }
+machine main() {
+    let kept: bool = bad<bool>(true);
+}
