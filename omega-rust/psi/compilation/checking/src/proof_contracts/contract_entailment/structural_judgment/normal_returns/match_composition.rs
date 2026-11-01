@@ -203,8 +203,10 @@ impl<'program> StructuralJudge<'program> {
             let observed_subject = subject
                 .judge
                 .completed_match_case_observation(&subject.value);
-            let judgment = subject.judge.judge_case(
-                observed_subject.clone(),
+            let judgment = subject.judge.admitted_case_judgment(
+                subject_expression,
+                &subject.value,
+                subject_type,
                 definition.symbol,
                 variant.symbol,
             );

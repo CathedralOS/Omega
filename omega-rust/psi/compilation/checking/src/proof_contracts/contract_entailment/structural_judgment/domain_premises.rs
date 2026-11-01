@@ -18,6 +18,94 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
+    /// Consequences conditional on a successful test of this independently
+    /// admitted value. Only the equations/refutation escape the hypothetical
+    /// case; they are consumed under that test's true branch.
+    pub(in crate::proof_contracts::contract_entailment) fn conditional_case_type_equations(
+        &self,
+        expression: ExpressionHandle,
+        value: &StructuralTerm,
+        reference: TypeReferenceHandle,
+        data: SymbolHandle,
+        case: SymbolHandle,
+        candidates: &[(TypeReferenceHandle, TypeReferenceHandle)],
+    ) -> Option<(bool, Vec<(TypeReferenceHandle, TypeReferenceHandle)>)> {
+        if !self.has_admitted_nominal_subject(expression, value, reference) {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT predicate-case admission-refused expression={expression:?} reference={reference:?} value={value:?}"
+                );
+            }
+            return None;
+        }
+        let mut trial = self.clone();
+        for subject in [self.completed_match_case_observation(value), value.clone()] {
+            trial.intake_case_guarantee(&super::CaseGuarantee {
+                subject,
+                data,
+                case,
+            });
+        }
+        trial.intake_admitted_value_predicates(reference, value.clone());
+        if trial.hypotheses_contradictory {
+            return Some((true, Vec::new()));
+        }
+        let equations = candidates
+            .iter()
+            .copied()
+            .filter(|(left, right)| {
+                super::super::structural_terms::static_type_equation_term(
+                    self.program,
+                    *left,
+                    *right,
+                    false,
+                    &[],
+                )
+                .is_some_and(|predicate| {
+                    matches!(
+                        trial.judge_observed_predicate(predicate, 0),
+                        super::StructuralJudgment::Proven
+                    )
+                })
+            })
+            .collect();
+        Some((false, equations))
+    }
+
+    /// Refute a case by combining its hypothetical tag with this exact value's
+    /// independently admitted complete predicate. The hypothetical tag is not
+    /// an admission premise; only a contradiction can leave this trial.
+    pub(in crate::proof_contracts::contract_entailment) fn admitted_case_judgment(
+        &self,
+        expression: ExpressionHandle,
+        value: &StructuralTerm,
+        reference: TypeReferenceHandle,
+        data: SymbolHandle,
+        case: SymbolHandle,
+    ) -> super::StructuralJudgment {
+        let observed = self.completed_match_case_observation(value);
+        let judgment = self.judge_case(observed.clone(), data, case);
+        if !matches!(judgment, super::StructuralJudgment::Unknown)
+            || !self.has_admitted_nominal_subject(expression, value, reference)
+        {
+            return judgment;
+        }
+        let mut trial = self.clone();
+        for subject in [observed, value.clone()] {
+            trial.intake_case_guarantee(&super::CaseGuarantee {
+                subject,
+                data,
+                case,
+            });
+        }
+        trial.intake_admitted_value_predicates(reference, value.clone());
+        if trial.hypotheses_contradictory {
+            super::StructuralJudgment::Refuted
+        } else {
+            super::StructuralJudgment::Unknown
+        }
+    }
+
     /// Expression and transition matches share the same admitted-case owner.
     /// The completed subject supplies the complete pattern view; a classifier
     /// alone never manufactures a payload value or imports nominal validity.
@@ -100,6 +188,7 @@ impl StructuralJudge<'_> {
         ) else {
             return;
         };
+        self.intake_admitted_value_predicates(subject_type, subject.clone());
         self.intake_selected_case_predicates(
             definition,
             variant,
@@ -145,6 +234,7 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        let type_bindings = self.data_application_type_bindings(subject_type);
         let definition = selected_definition;
         let variant = selected_variant;
         let Some(indices) =
@@ -209,6 +299,18 @@ impl StructuralJudge<'_> {
         // pattern view of that value's selected fields, not a new owner.
         let admitted =
             self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type);
+        if admitted {
+            // The successful guard selected this exact, independently admitted
+            // value. Establish its tag before projecting payload fields, and
+            // consume its complete predicate even when a descriptor cannot be
+            // projected into the fresh pattern view.
+            self.intake_case_guarantee(&super::CaseGuarantee {
+                subject: admitted_subject.clone(),
+                data: definition.symbol,
+                case: variant.symbol,
+            });
+            self.intake_admitted_value_predicates(subject_type, admitted_subject.clone());
+        }
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(
                 "STRUCT case-domain data={} case={} admitted={} reference={:?} subject={:?}",
@@ -250,11 +352,6 @@ impl StructuralJudge<'_> {
                 projections.push((projected, captured.clone()));
             }
             if complete {
-                self.intake_case_guarantee(&super::CaseGuarantee {
-                    subject: admitted_subject.clone(),
-                    data: definition.symbol,
-                    case: variant.symbol,
-                });
                 for (projected, captured) in projections {
                     self.intake_equation(projected, captured, 0);
                 }
@@ -269,7 +366,7 @@ impl StructuralJudge<'_> {
                     parameters.push(StateParameter {
                         symbol: definition.predicate_subject_symbol,
                         name: name.as_str().into(),
-                        type_reference: definition.predicate_subject_type,
+                        type_reference: subject_type,
                         ..Default::default()
                     });
                     bindings.push((name, admitted_subject.clone()));
@@ -281,6 +378,7 @@ impl StructuralJudge<'_> {
                             &parameters,
                             *expression,
                             &bindings,
+                            &type_bindings,
                         );
                     }
                 }
@@ -293,6 +391,7 @@ impl StructuralJudge<'_> {
                     &parameters,
                     *expression,
                     &bindings,
+                    &type_bindings,
                 );
             }
         }
@@ -342,6 +441,32 @@ impl StructuralJudge<'_> {
             candidate_identity.is_valid()
                 && candidate_identity == program.normalized_type_identity(reference)
         };
+        // An owned local may carry the exact entry value under another storage
+        // name (including a transition's saved subject). Its receiving type
+        // supplies no premise: join the observed identity to an independently
+        // admitted owned argument of the same semantic application. Reference
+        // referents retain the backing/epoch checks below.
+        if let Some((_, state)) = self.runtime_declaration_scope() {
+            for parameter in program.state_parameters(state) {
+                if crate::reference_shell(program, parameter.type_reference).is_some()
+                    || !same_application(parameter.type_reference)
+                {
+                    continue;
+                }
+                let entry = crate::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
+                    segments: Vec::new(),
+                };
+                if self
+                    .captured_place_projection(&entry, ContentPlaceVersion::Entry)
+                    .and_then(|value| value.observation_identity_key())
+                    .as_ref()
+                    == Some(&identity)
+                {
+                    return true;
+                }
+            }
+        }
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
         // A descriptor home is not its referent. Resolve the completed read's
@@ -628,9 +753,6 @@ impl StructuralJudge<'_> {
                 let ProofFact::Membership(membership) = fact else {
                     continue;
                 };
-                if !membership.domain_arguments.is_empty() {
-                    continue;
-                }
                 let Some(reference) = crate::expression_result_type_reference(
                     program,
                     machine,
@@ -650,6 +772,9 @@ impl StructuralJudge<'_> {
                 };
                 self.intake_domain_predicates(
                     membership.domain_symbol,
+                    program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments),
                     reference,
                     value,
                     &mut Vec::new(),
@@ -710,12 +835,22 @@ impl StructuralJudge<'_> {
             else {
                 continue;
             };
-            self.intake_domain_predicates(
-                row.domain_symbol,
-                projected_type,
-                projected,
-                &mut Vec::new(),
-            );
+            for constraint in
+                crate::field_domains::declared_domain_constraint_records(program, projected_type)
+                    .into_iter()
+                    .filter(|constraint| {
+                        constraint.symbol == row.domain_symbol
+                            && constraint.semantic_id == row.semantic_domain
+                    })
+            {
+                self.intake_domain_predicates(
+                    row.domain_symbol,
+                    &constraint.arguments,
+                    projected_type,
+                    projected.clone(),
+                    &mut Vec::new(),
+                );
+            }
         }
         self.intake_admitted_data_predicates(reference, value, &mut Vec::new());
     }
@@ -915,8 +1050,23 @@ impl StructuralJudge<'_> {
             return;
         }
         active.push(definition.symbol);
+        let type_bindings = self.data_application_type_bindings(reference);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
+        if definition.predicate_subject_symbol.is_valid() {
+            let name = format!(
+                "\0data_subject_{}_{}",
+                definition.predicate_subject_symbol.arena_index(),
+                definition.predicate_subject_symbol.generation()
+            );
+            parameters.push(StateParameter {
+                symbol: definition.predicate_subject_symbol,
+                name: name.as_str().into(),
+                type_reference: reference,
+                ..Default::default()
+            });
+            bindings.push((name, value.clone()));
+        }
         for (parameter, value) in self.data_application_static_bindings(reference) {
             bindings.push((parameter.name.to_string(), value));
             parameters.push(parameter);
@@ -1001,6 +1151,7 @@ impl StructuralJudge<'_> {
                     &parameters,
                     *expression,
                     &bindings,
+                    &type_bindings,
                 );
             }
         }
@@ -1092,6 +1243,56 @@ impl StructuralJudge<'_> {
             .substitutions
             .iter()
             .any(|(_, right)| mentions_projection_of(right, root_sem))
+    }
+
+    /// Bind declaration operands to this exact semantic application. Prepared
+    /// field views can retain the source predicate without rewriting its type
+    /// binders; those binders must never escape as the caller's type variables.
+    pub(in crate::proof_contracts::contract_entailment) fn data_application_type_bindings(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+        use typed_trees::types::TypeReferenceNode;
+        let program = self.program;
+        let carrier = program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        let application = if matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Generic { .. }
+        ) {
+            carrier
+        } else if let Some(application) =
+            crate::field_domains::readable_nominal_definition(program, reference)
+                .and_then(|definition| definition.generic_instance)
+        {
+            application
+        } else {
+            return Vec::new();
+        };
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = program.type_reference_table.type_reference(application)
+        else {
+            return Vec::new();
+        };
+        let Some(template) = program.unique_data_definition_by_symbol(*base_symbol) else {
+            return Vec::new();
+        };
+        let parameters = program.data_type_parameters(template);
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return Vec::new();
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect()
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn data_application_static_bindings(
@@ -1216,13 +1417,13 @@ impl StructuralJudge<'_> {
     fn intake_domain_predicates(
         &mut self,
         symbol: SymbolHandle,
+        arguments: &[TypeReferenceHandle],
         reference: TypeReferenceHandle,
         value: StructuralTerm,
         active: &mut Vec<SymbolHandle>,
     ) {
         let program = self.program;
-        if active.contains(&symbol) || !typed_trees::domain::has_symbol_only_proof(program, symbol)
-        {
+        if active.contains(&symbol) {
             return;
         }
         let Some(domain) = program
@@ -1231,19 +1432,64 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        active.push(symbol);
-        let parameters = [StateParameter {
+        let indices = typed_trees::domain::index_parameters(program, domain);
+        if indices.len() != arguments.len() || domain.index_arguments.len() != indices.len()
+            || !indices.iter().zip(&domain.index_arguments).all(|(parameter, argument)| {
+                matches!(program.type_reference_table.type_reference(*argument), typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol)
+            })
+        { return; }
+        let mut type_bindings = indices
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect::<Vec<_>>();
+        if typed_trees::domain::has_generic_carrier(program, domain) {
+            type_bindings.push((
+                program.domain_type_parameters(domain)[0].symbol,
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(reference),
+            ));
+        }
+        let mut parameters = vec![StateParameter {
             symbol: domain.subject_symbol,
             name: domain.subject_name.clone(),
             type_reference: reference,
             ..Default::default()
         }];
-        let bindings = [(domain.subject_name.as_str().to_owned(), value)];
+        let mut bindings = vec![(domain.subject_name.as_str().to_owned(), value)];
+        for (parameter, argument) in indices.iter().zip(arguments) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+                    continue;
+                }
+                return;
+            };
+            let Some(integer) = program
+                .static_const_literal_from_type_reference(*argument)
+                .and_then(|literal| literal.value_bignum())
+            else {
+                return;
+            };
+            parameters.push(StateParameter {
+                symbol: parameter.symbol,
+                name: parameter.name.clone(),
+                type_reference,
+                ..Default::default()
+            });
+            bindings.push((parameter.name.to_string(), StructuralTerm::Integer(integer)));
+        }
+        active.push(symbol);
         for fact in program.proof_facts(domain) {
             match fact {
-                ProofFact::Expression(expression) => {
-                    self.intake_instantiated_predicate(symbol, &parameters, *expression, &bindings)
-                }
+                ProofFact::Expression(expression) => self.intake_instantiated_predicate(
+                    symbol,
+                    &parameters,
+                    *expression,
+                    &bindings,
+                    &type_bindings,
+                ),
                 ProofFact::Membership(membership) if membership.domain_arguments.is_empty() => {
                     let Some(reference) = crate::parameter_expression_result_type_reference(
                         program,
@@ -1265,6 +1511,9 @@ impl StructuralJudge<'_> {
                     let value = Self::substitute_call_term(&term, &bindings, &[]);
                     self.intake_domain_predicates(
                         membership.domain_symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments),
                         reference,
                         value,
                         active,
@@ -1282,12 +1531,40 @@ impl StructuralJudge<'_> {
         parameters: &[StateParameter],
         expression: ExpressionHandle,
         bindings: &[(String, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     ) {
         let program = self.program;
+        if super::super::structural_terms::is_case_observation(program, expression) {
+            if let Some(guarantee) =
+                self.instantiated_case_guarantee(owner, parameters, expression, bindings, &[])
+            {
+                if matches!(
+                    self.judge_case(guarantee.subject.clone(), guarantee.data, guarantee.case),
+                    super::StructuralJudgment::Refuted
+                ) {
+                    self.hypotheses_contradictory = true;
+                } else {
+                    self.intake_case_guarantee(&guarantee);
+                }
+            }
+            return;
+        }
         if let Some(binary) = expression_table(program).binary_node(expression) {
             if binary.operator == BinaryOperator::And {
-                self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
-                self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);
+                self.intake_instantiated_predicate(
+                    owner,
+                    parameters,
+                    binary.left,
+                    bindings,
+                    type_bindings,
+                );
+                self.intake_instantiated_predicate(
+                    owner,
+                    parameters,
+                    binary.right,
+                    bindings,
+                    type_bindings,
+                );
                 return;
             }
             if binary.operator == BinaryOperator::Or {
@@ -1300,14 +1577,26 @@ impl StructuralJudge<'_> {
                         operand,
                         bindings,
                         &[],
-                        &[],
+                        type_bindings,
                         None,
                     )
                 };
                 if matches!(judgment(binary.left), super::StructuralJudgment::Refuted) {
-                    self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);
+                    self.intake_instantiated_predicate(
+                        owner,
+                        parameters,
+                        binary.right,
+                        bindings,
+                        type_bindings,
+                    );
                 } else if matches!(judgment(binary.right), super::StructuralJudgment::Refuted) {
-                    self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
+                    self.intake_instantiated_predicate(
+                        owner,
+                        parameters,
+                        binary.left,
+                        bindings,
+                        type_bindings,
+                    );
                 }
                 return;
             }
@@ -1327,14 +1616,25 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        if let Some(term) = super::super::structural_terms::structural_term(
-            program,
-            None,
-            Some((owner, parameters)),
+        let bound = parameters
+            .iter()
+            .filter_map(|parameter| {
+                bindings
+                    .iter()
+                    .find(|(name, _)| name == parameter.name.as_str())
+                    .map(|(_, value)| (parameter.symbol, value.clone()))
+            })
+            .collect::<Vec<_>>();
+        if let Some(term) = self.bound_contract_term(
             expression,
+            owner,
+            parameters,
+            owner,
+            &bound,
+            type_bindings,
             None,
+            0,
         ) {
-            let term = Self::substitute_call_term(&term, bindings, &[]);
             self.intake_equation(term, super::value_predicates::boolean_term(true), 0);
         }
     }

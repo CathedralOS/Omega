@@ -3047,11 +3047,7 @@ pass/data/property_carry_declared checked 2918ms @ccdb99ca2214
 pass/data/qualified_record_pattern_exit checked 3434ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/record_pattern_let_exit checked 17454ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/record_snapshot_finish checked 3557ms @ccdb99ca2214
-pass/data/runtime_case_payload_call_result_window_exit rejected 2493ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/data/runtime_case_payload_call_result_window_exit checked 33919ms check-target:macos_arm64 @a91a8de86514+wt
 pass/data/runtime_case_reassignment_exit checked 11352ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_constructor_observation_exit checked 11738ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_data_properties_exit checked 11841ms check-target:macos_arm64 @ccdb99ca2214
@@ -4127,15 +4123,15 @@ pass/facts/case_const_equal_literals_with_predicate checked 2486ms @ccdb99ca2214
 pass/facts/case_const_equal_literals_without_predicate checked 3045ms @ccdb99ca2214
 pass/facts/case_const_forwarded_binder_compile rejected 1075ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/case_dependent_default_domain_through_call_result_exit checked 23893ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_const_name_exit checked 22070ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_field_exit checked 21420ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_local_exit checked 21997ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_match_join_exit checked 20262ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_other_machine_exit checked 21410ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_other_state_exit checked 21906ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_parameter_exit checked 21572ms check-target:macos_arm64 @e1fc6f12ecda+wt
-pass/facts/case_dependent_default_domain_through_target_body_exit checked 18451ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_call_result_exit checked 60511ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_const_name_exit checked 58469ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_field_exit checked 61467ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_local_exit checked 46594ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_match_join_exit checked 41399ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_other_machine_exit checked 34824ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_other_state_exit checked 52013ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_parameter_exit checked 47242ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_dependent_default_domain_through_target_body_exit checked 77954ms check-target:macos_arm64 @a91a8de86514+wt
 pass/facts/case_equality_through_call_result_compile checked 2279ms @ccdb99ca2214
 pass/facts/case_equality_through_const_name_compile rejected 899ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -17388,12 +17384,12 @@ fail/constants/target_layout_derived_qualified_reject rejected 3454ms unexpected
 	cannot prove requires contract for call bounded_layout from @constant-BAD: size_of() + 1 <= 3 (needs fact `value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `@constant-BAD`
 fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 1929ms expected @ccdb99ca2214
 	store in machine `@constant-BAD` state `@constant-BAD` return value implicitly converts `u64` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
-fail/constants/unused_case_predicate_constant rejected 64ms unexpected @ccdb99ca2214
-	data `Choice` case `Selected` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/constants/unused_case_predicate_constant rejected 388ms expected @a91a8de86514+wt
+	data `Choice` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/unused_default_domain_constant rejected 173ms expected @ccdb99ca2214
 	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/constants/unused_empty_case_predicate_constant rejected 55ms unexpected @ccdb99ca2214
-	data `Choice` case `Impossible` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/constants/unused_empty_case_predicate_constant rejected 381ms expected @a91a8de86514+wt
+	data `Choice` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/unused_generic_default_domain_constant rejected 217ms expected @ccdb99ca2214
 	data `Counter<7>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/unused_nested_default_domain_constant rejected 258ms expected @ccdb99ca2214
@@ -20685,24 +20681,51 @@ fail/facts/case_const_unequal_literals_subtraction_rejected rejected 647ms unexp
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_const_unequal_predicate_rejected rejected 75ms unexpected @ccdb99ca2214
 	data `Interval` case `Point` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 9291ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 9149ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_field_rejected rejected 9134ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_local_rejected rejected 8032ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 9058ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 10600ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 3935ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 4556ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 5062ms expected @e1fc6f12ecda+wt
-	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 49134ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 43310ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_field_rejected rejected 39504ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_local_rejected rejected 35118ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 44209ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 32119ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 56710ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 41160ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 39750ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
 fail/facts/case_equality_through_call_result_compile rejected 831ms expected @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_const_name_compile rejected 692ms unexpected @ccdb99ca2214
@@ -40502,3 +40525,38 @@ pass/facts/prefix_case_identity_other_machine checked 899ms check-target:macos_a
 pass/facts/prefix_case_identity_other_state checked 902ms check-target:macos_arm64 @3e5750be47b9
 pass/facts/prefix_case_identity_parameter checked 912ms check-target:macos_arm64 @3e5750be47b9
 pass/facts/prefix_case_identity_target_body checked 943ms check-target:macos_arm64 @3e5750be47b9
+fail/facts/case_predicate_const_wrong_named_type_rejected rejected 2754ms expected @a91a8de86514+wt
+	constant initializer: demanded premise closure checking failed: `as ... in Typed` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_predicate_inactive_payload_rejected rejected 26700ms expected @a91a8de86514+wt
+	machine `invalid` state `entry` statement 0: cannot prove selected case for payload access `value.hi`: captured source `value::Range.hi` has no live case evidence: the current source does not select its required case
+fail/facts/case_predicate_invalid_zero_rejected rejected 16677ms expected @a91a8de86514+wt
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/facts/case_predicate_named_invalid_zero_rejected rejected 13288ms expected @a91a8de86514+wt
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/facts/case_predicate_named_stale_write_rejected rejected 22036ms expected @a91a8de86514+wt
+	`as ... in Ordered` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+	cannot prove initializer of `stale` in main is in domain `Ordered`; an annotation cannot establish routed qualification
+fail/facts/case_predicate_other_argument_rejected rejected 25179ms expected @a91a8de86514+wt
+	cannot prove requires contract for call width_range from invalid: <saved subject #5:1>.lo <= <saved subject #5:1>.hi && <saved subject #5:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/case_predicate_other_subject_rejected rejected 12526ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `invalid` state `entry` return value expects `T`, but the value is delivered as `i32`
+fail/facts/case_predicate_retired_requires_rejected rejected 1396ms expected @a91a8de86514+wt
+	tests/omega/fail/facts/case_predicate_retired_requires_rejected/main.omg:1:46: case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`
+fail/facts/case_predicate_reversed_bounds_rejected rejected 7072ms expected @a91a8de86514+wt
+	data `Interval` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/case_predicate_stale_type_rejected rejected 9460ms expected @a91a8de86514+wt
+	match arms produce incompatible values
+	machine `invalid` state `entry` return value expects `T`, but the value is delivered as `i32`
+fail/facts/case_predicate_stale_write_rejected rejected 7652ms expected @a91a8de86514+wt
+	machine `main` state `entry` statement 2: the next whole-value read of `value` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `value` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/case_predicate_wrong_case_type_rejected rejected 13703ms expected @a91a8de86514+wt
+	data `Value<i32>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<i32>` case `Boolean` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/case_predicate_wrong_named_type_rejected rejected 15863ms expected @a91a8de86514+wt
+	`as ... in Typed` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+pass/facts/case_predicate_guard_effects_exit checked 53779ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_predicate_named_coverage_exit checked 21533ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_predicate_restoration_exit checked 25899ms check-target:macos_arm64 @a91a8de86514+wt
+pass/facts/case_predicate_zero_exit checked 22678ms check-target:macos_arm64 @a91a8de86514+wt
