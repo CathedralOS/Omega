@@ -36,7 +36,9 @@ pub(super) fn type_identity(
                 name_atom(reader, "name", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    type_identity(reader, visitor)?;
+                    // Declaration telescopes retain both type operands and
+                    // const/value operands in their existing index grammar.
+                    index::static_argument(reader, visitor)?;
                 }
             }
             "named" => const_or_name(reader, "name", visitor)?,
