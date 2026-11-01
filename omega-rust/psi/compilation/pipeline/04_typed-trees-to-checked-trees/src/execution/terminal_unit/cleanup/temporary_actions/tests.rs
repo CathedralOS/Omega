@@ -41,6 +41,7 @@ fn graph(owner: SymbolHandle, body: StatePlan) -> CheckedComposedUnitControlMach
         result: CheckedControlResultPlan::Unit,
         result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
+        rank_components: Default::default(),
         preserving_rank_edges: Vec::new(),
         attachment_type_identity: None,
         provider_attachment_requirements: Vec::new(),
