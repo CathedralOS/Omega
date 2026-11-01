@@ -7,15 +7,15 @@ public boundary trait PortSequence {
 }
 PortSequenceNative satisfies PortSequence { machine emit(device: &mut Device, enabled: bool) reaches PortIo { emit_realization(device, enabled) } }
 machine second(device: &mut Device) reaches PortIo {
-    asm where clobbers r10, r11, r15, rax, rdx { out 0x2F8, 0x42 }
+    asm clobbers r10, r11, r15, rax, rdx { out 0x2F8, 0x42 }
     device.marker = 2;
 }
 machine emit_realization(device: &mut Device, enabled: bool) reaches PortIo {
-    asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
+    asm clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
     second(device);
     transition enabled { true -> selected(device) false -> done() }
     machine selected(device: &mut Device) {
-        asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x43 }
+        asm clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x43 }
         device.marker = 3;
     }
     machine done() {}

@@ -1,6 +1,6 @@
 machine main() crashes Trap {
  let mut output: u32 = 99;
- asm where clobbers none {
+ asm clobbers none {
 entry:
  mov eax, 2;
  sub eax, 1;

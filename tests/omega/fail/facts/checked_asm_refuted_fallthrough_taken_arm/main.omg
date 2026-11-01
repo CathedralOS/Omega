@@ -2,7 +2,7 @@
 // ZF is set here, so the `jz` arm to `equal` is the one that runs: only a
 // refuted arm is free of its requirement, and `eax == 0` is not required.
 machine main() crashes Trap {
-    asm where clobbers rax, rflags {
+    asm clobbers rax, rflags {
     entry:
         mov eax, 3;
         cmp eax, eax;

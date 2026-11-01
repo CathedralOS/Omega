@@ -1,0 +1,1 @@
+expected one of `clobbers <registers>`, `requires`, `ensures`, `{`

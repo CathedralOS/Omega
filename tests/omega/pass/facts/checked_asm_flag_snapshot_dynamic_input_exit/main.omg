@@ -1,11 +1,11 @@
 // Expected exit: 0.
 machine main() crashes Trap {
  let mut seed:u64=0;
- asm where clobbers r10,r15 {pushfq seed}
+ asm clobbers r10,r15 {pushfq seed}
  let input:u32=(seed & 1u64) as u32;
  let mut snapshot:u64=0;
  let mut output:u32=0;
- asm where clobbers rax,rflags,r10,r15 {
+ asm clobbers rax,rflags,r10,r15 {
  entry:
  mov eax,input;
  sub eax,1;

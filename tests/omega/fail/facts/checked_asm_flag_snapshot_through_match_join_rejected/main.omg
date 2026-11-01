@@ -8,7 +8,7 @@ machine main() crashes Trap {
 machine observe_branch(branch: bool) crashes Trap {
  let mut left: u64 = 0;
  let mut right: u64 = 0;
- asm where clobbers rax, rflags, r10, r15 {
+ asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 1;
   sub eax, 1;

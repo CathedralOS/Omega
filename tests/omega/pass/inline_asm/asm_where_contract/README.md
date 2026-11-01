@@ -1,6 +1,6 @@
 # asm_where_contract
 
-First sample with a full `asm where` block contract:
+First sample with a full `asm` block contract:
 `requires main.ready`, an order-free `clobbers` union, and
 `ensures main.ready` — plus field operands `out main.port,
 main.status` / `in main.status, main.port` on a machine
