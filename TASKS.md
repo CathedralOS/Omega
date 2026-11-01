@@ -1214,6 +1214,9 @@ defines the complete product bar.
     arrival/custody checking and stage 05 lowering (broader qualified/partial
     ownership, content reshuffles/partitions, broader structural-result custody,
     boundary completion receipts, and claim transfers through Unit/scalar calls).
+  - Compose cyclic Unit plans, and the per-callee call/return composition the
+    admission roster cannot express, under the
+    [fact validity](wiki/spec/terminal-psi/fact_validity.md) cyclic rules.
   - **TPR6:** extend `src/flow/value_origins.rs` beyond single-origin tracing so
     projected/stored helper results, extra reference boundaries, and state
     arrivals with distinct local owned backing homes retain exact provenance for
@@ -1274,6 +1277,8 @@ defines the complete product bar.
     synchronization, and outcome-sensitive RMW obligations, then run the
     concurrent publication, fence-pair, global-order, and compare-exchange
     contention witnesses once **TR3-TR8** lands.
+  - Specify the complete formal atomic/fence axioms and global-order semantics,
+    and mechanically check the target-refinement proofs against them.
   Acceptance: `shared_receiver_atomic_store` and `atomic_global_order_operations`
   (given an entry) execute via `omega run --both` on every matching host;
   missing or substituted relations, locations, orderings or outcomes reject in
@@ -1796,6 +1801,8 @@ defines the complete product bar.
     on Windows and macOS with an Omega-authored installer, private-pipe
     adaptation, explicit Windows handle transfer, macOS validated/signed member
     images, and generation replacement.
+  - Add co-located and remote realizations beside the private-pipe leg and show
+    parity across co-located, isolated and remote realization.
   Acceptance: `build_scope_topology_plan` and `verify.omg` admit and verify
   `payments.plan` and execute the three-process payment topology on Windows and
   macOS with schema-checked private pipes and quiesced generation replacement,
@@ -1906,6 +1913,9 @@ defines the complete product bar.
     `omega-rust/omega/compilation/backend/images/image-emission/src/` to an
     authored/package provider and executor join that installs, invokes at
     distinct placements, and retires with quiescence and W^X enforcement.
+  - Replace the opaque `ExportSurface.identity` string with the export's
+    requirement identity so a demanded import is checked against the offered
+    export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,

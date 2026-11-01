@@ -50,8 +50,7 @@ blocks carry entry/exit assertions under [checked assembly](assembly.md#contract
 an enclosing callable machine's postcondition still applies at normal completion.
 No assertion becomes an admission or overrides the instruction catalog.
 
-This is the accepted source contract, not a claim that either compiler already
-accepts all new forms. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
+This is the accepted source contract. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
 tracks both producers, repository and customer source migration, and deletion of
 the retired grammar and compatibility paths.
 

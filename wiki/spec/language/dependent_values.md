@@ -6,8 +6,7 @@ arbitrary runtime computation of nominal types. This systems contract does not
 restrict the general mathematical quantification of the
 [selected foundation](../proofs/foundation.md). Its
 [mathematical source binders](../proofs/mathematical_bindings.md) and the
-[W-based profile](../proofs/inductive_profile.md) are selected but still need
-their required metatheory, encodings and checker implementation.
+[W-based profile](../proofs/inductive_profile.md) are selected.
 
 ## Static indices and runtime witnesses
 

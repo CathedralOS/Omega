@@ -114,14 +114,8 @@ not scalar equality, disjointness, bounds or wildcard storage authority.
 Executable indexed projections retain their ordinary evaluated selectors and
 bounds obligations independently of this lifecycle publication.
 
-Lowering consumes the checked lifetime and restoration relationships. The
-implementation still carries containment and restored-use records joining a
-later operation to its exact source call, parent lifetime and child interval.
-Their retirement must migrate those consumers without weakening source borrow
-checks; see **BORROW-CERTIFICATES-DELETED** in [the execution board](../../../TASKS.md).
-
-General proof-derived compatibility and broader restoration remain implementation
-work. Current supported forms live beside
+Lowering consumes the checked lifetime and restoration relationships.
+Supported forms live beside
 [borrow checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md).
 The [structural access contract](structural_access.md) governs permitted operations
 and original-referent preservation independently of these relational proofs.

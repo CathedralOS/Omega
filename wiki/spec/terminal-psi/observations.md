@@ -149,11 +149,9 @@ of abandoned obligations. Interpreter exit ends the simulated domain, not the
 embedding process. A native containment trap after a violated provider premise
 is not a permitted substitute terminal event.
 
-The source-to-Terminal route remains unimplemented. An ordinary Unit
-`Console::exit_process` call or a provider's nonreturning native operation still
-establishes no terminal-external observation. Unsupported rows reject until
-the [implementation task](../../../TASKS.md#process-exit-contract) closes; do
-not populate them from interpreter name matching or backend behavior.
+Unsupported rows reject; do not populate them from interpreter name matching
+or backend behavior. The [implementation task](../../../TASKS.md#process-exit-contract)
+owns the source-to-Terminal route.
 
 ## Other observation domains
 

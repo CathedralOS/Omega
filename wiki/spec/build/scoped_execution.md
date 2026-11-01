@@ -6,8 +6,7 @@ This contract defines ordinary Omega build evaluation's checked stages,
 dependency scopes, delegated execution capabilities and product handoff. It does not
 introduce a second build language. These rules are normative; implementation
 coverage is tracked in [the execution board](../../../TASKS.md).
-Existing scoped filesystem enforcement is not evidence that the full contract
-is implemented. API role names and schematic examples below do not establish
+API role names and schematic examples below do not establish
 shipped signatures or wire compatibility.
 
 ## Contract summary

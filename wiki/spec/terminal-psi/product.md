@@ -206,9 +206,8 @@ and possession does not grant realization authority.
 Omega selects the exact implementation through those Build provider rows, not
 through a target modifier on a source declaration. Every implementation remains
 checked independently of selection; selected ABI, import, layout, and ISA
-applicability is a realization obligation. The reference compiler's retained
-target-family rows are legacy migration work under
-`BUILD-OWNED-TARGET-SELECTION`, not accepted Terminal product semantics.
+applicability is a realization obligation. Retained target-family rows are
+not accepted Terminal product semantics.
 
 The companion binds each target's pending selection to the complete
 build-selection identity. Terminal independently retains the Psi selection already executed.
