@@ -40,6 +40,8 @@ macro_rules! certificate {
     };
 }
 
+mod walk;
+
 impl<'a> Elaboration<'a> {
     pub(super) fn new(
         context: &'a PropositionContext,
@@ -85,51 +87,18 @@ impl<'a> Elaboration<'a> {
         self.denotation.arena.insert(Term::Variable(index))
     }
 
-    /// Bind `hypothesis`'s evidence at `domain` while `inside` runs — the
-    /// discharged premise of an implication introduction or case branch.
-    /// The roster entry lands at the current binder depth, then `depth`
-    /// counts the new λ for the body's citations.
-    fn with_hypothesis(
-        &mut self,
-        hypothesis: &Proposition,
-        domain: TermHandle,
-        inside: impl FnOnce(&mut Self) -> Result<TermHandle, BoundedDenotationError>,
-    ) -> Result<TermHandle, BoundedDenotationError> {
-        self.roster.push(hypothesis.clone());
-        self.positions.push(self.depth);
-        self.depth += 1;
-        let body = inside(self);
-        self.depth -= 1;
-        self.positions.pop();
-        self.roster.pop();
-        let body = body?;
-        Ok(self.denotation.arena.insert(Term::Lambda { domain, body }))
-    }
-
-    /// An intermediate binder that is not a cited premise — the nested
-    /// tagged-sum hypothesis inside a multi-way disjunction elimination.
-    /// `depth` still counts it, so outer citations stay aligned.
-    fn with_intermediate(
-        &mut self,
-        domain: TermHandle,
-        inside: impl FnOnce(&mut Self, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
-    ) -> Result<TermHandle, BoundedDenotationError> {
-        self.depth += 1;
-        let bound = self.denotation.arena.insert(Term::Variable(0));
-        let body = inside(self, bound);
-        self.depth -= 1;
-        let body = body?;
-        Ok(self.denotation.arena.insert(Term::Lambda { domain, body }))
-    }
-
     pub(super) fn node(&mut self, proof: &ProofNode) -> Result<TermHandle, BoundedDenotationError> {
-        self.steps += 1;
-        if self.steps > MAX_ELABORATION_NODES {
-            return Err(BoundedDenotationError::DepthLimitExceeded);
-        }
-        self.context
-            .validate(&proof.conclusion)
-            .map_err(|error| certificate!(ProofError::MalformedProposition(error)))?;
+        walk::elaborate(self, proof)
+    }
+
+    /// Reconstruct one ordinary rule from its exact, already elaborated child
+    /// occurrences. Shared premise/conclusion checks stay in their original
+    /// family owners and run at the same post-child point.
+    fn finish_regular(
+        &mut self,
+        proof: &ProofNode,
+        operands: &mut walk::ChildEvidence<'_>,
+    ) -> Result<TermHandle, BoundedDenotationError> {
         match &proof.rule {
             ProofRule::Primitive(judgment) => {
                 decide_primitive(self.context, &proof.conclusion, *judgment)
@@ -166,16 +135,11 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::ConjunctionIntroduction(children) => {
                 let Proposition::Conjunction(expected) = &proof.conclusion else {
-                    return Err(certificate!(ProofError::RuleConclusionMismatch(
-                        "conjunction introduction"
-                    )));
+                    unreachable!("conjunction shape admitted before its children")
                 };
-                if children.len() != expected.len() {
-                    return Err(certificate!(ProofError::ConjunctionArityMismatch));
-                }
                 let mut terms = Vec::with_capacity(children.len());
                 for child in children {
-                    terms.push(self.node(child)?);
+                    terms.push(operands.take(child));
                 }
                 for (child, expected) in children.iter().zip(expected.iter()) {
                     if &child.conclusion != expected {
@@ -197,7 +161,7 @@ impl<'a> Elaboration<'a> {
                 conjunction,
                 conjunct,
             } => {
-                let pair = self.node(conjunction)?;
+                let pair = operands.take(conjunction);
                 let Proposition::Conjunction(conjuncts) = &conjunction.conclusion else {
                     return Err(certificate!(ProofError::RulePremiseMismatch(
                         "conjunction elimination"
@@ -225,14 +189,9 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::DisjunctionIntroduction { disjunct, index } => {
                 let Proposition::Disjunction(disjuncts) = &proof.conclusion else {
-                    return Err(certificate!(ProofError::RuleConclusionMismatch(
-                        "disjunction introduction"
-                    )));
+                    unreachable!("disjunction shape and index admitted before the child")
                 };
-                if *index >= disjuncts.len() {
-                    return Err(certificate!(ProofError::UnknownDisjunct(*index)));
-                }
-                let disjunct_term = self.node(disjunct)?;
+                let disjunct_term = operands.take(disjunct);
                 if disjuncts[*index] != disjunct.conclusion {
                     return Err(certificate!(ProofError::DisjunctConclusionMismatch));
                 }
@@ -241,56 +200,20 @@ impl<'a> Elaboration<'a> {
                 Ok(self.disjunction_intro(disjuncts.len(), *index, disjunct_term))
             }
             ProofRule::DisjunctionElimination {
-                disjunction,
-                branches,
+                disjunction: _,
+                branches: _,
             } => {
-                let scrutinee = self.node(disjunction)?;
-                let Proposition::Disjunction(disjuncts) = &disjunction.conclusion else {
-                    return Err(certificate!(ProofError::RulePremiseMismatch(
-                        "disjunction elimination"
-                    )));
-                };
-                if branches.len() != disjuncts.len() {
-                    return Err(certificate!(ProofError::DisjunctionArityMismatch));
-                }
-                let conclusion = self.denotation.denote(&proof.conclusion)?;
-                let term = self.disjunction_elim(disjuncts, branches, scrutinee, conclusion)?;
-                for branch in branches {
-                    if branch.conclusion != proof.conclusion {
-                        return Err(certificate!(
-                            ProofError::DisjunctionBranchConclusionMismatch
-                        ));
-                    }
-                }
-                self.rules.insert(AcceptedProofRule::DisjunctionElimination);
-                Ok(term)
+                unreachable!("disjunction elimination is owned by scoped case continuation frames")
             }
-            ProofRule::ImplicationIntroduction { body } => {
-                let Proposition::Implication {
-                    premise,
-                    conclusion,
-                } = &proof.conclusion
-                else {
-                    return Err(certificate!(ProofError::RuleConclusionMismatch(
-                        "implication introduction"
-                    )));
-                };
-                let domain = self.denotation.denote(premise)?;
-                let premise = premise.clone();
-                let term = self.with_hypothesis(&premise, domain, |this| this.node(body))?;
-                if &body.conclusion != conclusion.as_ref() {
-                    return Err(certificate!(ProofError::ImplicationConclusionMismatch));
-                }
-                self.rules
-                    .insert(AcceptedProofRule::ImplicationIntroduction);
-                Ok(term)
+            ProofRule::ImplicationIntroduction { body: _ } => {
+                unreachable!("implication introduction is owned by scoped continuation frames")
             }
             ProofRule::ImplicationElimination {
                 implication,
                 premise,
             } => {
-                let function = self.node(implication)?;
-                let argument = self.node(premise)?;
+                let function = operands.take(implication);
+                let argument = operands.take(premise);
                 let Proposition::Implication {
                     premise: required,
                     conclusion,
@@ -313,7 +236,7 @@ impl<'a> Elaboration<'a> {
                     .insert(Term::Apply { function, argument }))
             }
             ProofRule::EqualitySymmetry { equality } => {
-                let proof_term = self.node(equality)?;
+                let proof_term = operands.take(equality);
                 let Proposition::Equal(left, right) = &equality.conclusion else {
                     return Err(certificate!(ProofError::RulePremiseMismatch(
                         "equality symmetry"
@@ -342,8 +265,8 @@ impl<'a> Elaboration<'a> {
                 left_equals_middle,
                 middle_equals_right,
             } => {
-                let first = self.node(left_equals_middle)?;
-                let second = self.node(middle_equals_right)?;
+                let first = operands.take(left_equals_middle);
+                let second = operands.take(middle_equals_right);
                 equality_rules::equality_transitivity_relation(
                     &left_equals_middle.conclusion,
                     &middle_equals_right.conclusion,
@@ -376,7 +299,7 @@ impl<'a> Elaboration<'a> {
                 }
             }
             ProofRule::PredicateDenotation { premise } => {
-                let evidence = self.node(premise)?;
+                let evidence = operands.take(premise);
                 predicate_denotation_relation(self.context, &premise.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::PredicateDenotation);
@@ -406,13 +329,11 @@ impl<'a> Elaboration<'a> {
                 premise,
                 equalities,
             } => {
-                let mut premises = Vec::with_capacity(equalities.len() + 1);
+                let premises = operands.take_prepared_premises();
                 let mut evidence = Vec::with_capacity(equalities.len() + 1);
-                premises.push(premise.conclusion.clone());
-                evidence.push(self.node(premise)?);
+                evidence.push(operands.take(premise));
                 for equality in equalities {
-                    premises.push(equality.conclusion.clone());
-                    evidence.push(self.node(equality)?);
+                    evidence.push(operands.take(equality));
                 }
                 equality_rules::value_equality_transport_relation(
                     self.context,
@@ -442,8 +363,8 @@ impl<'a> Elaboration<'a> {
                 difference,
                 positive,
             } => {
-                let difference_evidence = self.node(difference)?;
-                let positive_evidence = self.node(positive)?;
+                let difference_evidence = operands.take(difference);
+                let positive_evidence = operands.take(positive);
                 subtract_order::check(
                     &difference.conclusion,
                     &positive.conclusion,
@@ -459,8 +380,8 @@ impl<'a> Elaboration<'a> {
                 )
             }
             ProofRule::IntegerAddOrder { sum, positive } => {
-                let sum_evidence = self.node(sum)?;
-                let positive_evidence = self.node(positive)?;
+                let sum_evidence = operands.take(sum);
+                let positive_evidence = operands.take(positive);
                 add_order::check(&sum.conclusion, &positive.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::IntegerAddOrder);
@@ -483,9 +404,9 @@ impl<'a> Elaboration<'a> {
                 larger,
                 order,
             } => {
-                let smaller_evidence = self.node(smaller)?;
-                let larger_evidence = self.node(larger)?;
-                let order_evidence = self.node(order)?;
+                let smaller_evidence = operands.take(smaller);
+                let larger_evidence = operands.take(larger);
+                let order_evidence = operands.take(order);
                 subtract_antitone::check(
                     &smaller.conclusion,
                     &larger.conclusion,
@@ -516,7 +437,7 @@ impl<'a> Elaboration<'a> {
                 }
             }
             ProofRule::IntegerOrderDiscreteness { relation } => {
-                let evidence = self.node(relation)?;
+                let evidence = operands.take(relation);
                 order_discreteness::check(&relation.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
@@ -528,7 +449,7 @@ impl<'a> Elaboration<'a> {
                 )
             }
             ProofRule::IntegerOrderWeakening { relation } => {
-                let evidence = self.node(relation)?;
+                let evidence = operands.take(relation);
                 integer_order_rules::order_weakening(&relation.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::IntegerOrderWeakening);
@@ -551,8 +472,8 @@ impl<'a> Elaboration<'a> {
                 left_less_or_equal_middle,
                 middle_less_or_equal_right,
             } => {
-                let first = self.node(left_less_or_equal_middle)?;
-                let second = self.node(middle_less_or_equal_right)?;
+                let first = operands.take(left_less_or_equal_middle);
+                let second = operands.take(middle_less_or_equal_right);
                 integer_order_rules::less_or_equal_transitivity(
                     &left_less_or_equal_middle.conclusion,
                     &middle_less_or_equal_right.conclusion,
@@ -588,8 +509,8 @@ impl<'a> Elaboration<'a> {
                 left_to_middle,
                 middle_to_right,
             } => {
-                let first = self.node(left_to_middle)?;
-                let second = self.node(middle_to_right)?;
+                let first = operands.take(left_to_middle);
+                let second = operands.take(middle_to_right);
                 strict_order_transitivity::check(
                     &left_to_middle.conclusion,
                     &middle_to_right.conclusion,
@@ -618,8 +539,8 @@ impl<'a> Elaboration<'a> {
                 }
             }
             ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
-                let forward_evidence = self.node(forward)?;
-                let backward_evidence = self.node(backward)?;
+                let forward_evidence = operands.take(forward);
+                let backward_evidence = operands.take(backward);
                 order_antisymmetry(&forward.conclusion, &backward.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
@@ -637,7 +558,7 @@ impl<'a> Elaboration<'a> {
                 )
             }
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
-                let evidence = self.node(relation)?;
+                let evidence = operands.take(relation);
                 math_order_translation(&relation.conclusion, addend, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
@@ -653,8 +574,8 @@ impl<'a> Elaboration<'a> {
                 equality,
                 endpoint,
             } => {
-                let relation_evidence = self.node(relation)?;
-                let equality_evidence = self.node(equality)?;
+                let relation_evidence = operands.take(relation);
+                let equality_evidence = operands.take(equality);
                 integer_order_rules::endpoint_substitution(
                     &relation.conclusion,
                     &equality.conclusion,
@@ -688,7 +609,7 @@ impl<'a> Elaboration<'a> {
                 root_bound,
                 witness,
             } => {
-                let root = self.node(root_bound)?;
+                let root = operands.take(root_bound);
                 let cited = integer_bound_rules::affine_bound_relation(
                     self.context,
                     self.axioms,
@@ -793,8 +714,8 @@ impl<'a> Elaboration<'a> {
                         AcceptedProofRule::IntegerExactSubtractDefinitionBound,
                     ),
                 };
-                let left = self.node(left_bound)?;
-                let right = self.node(right_bound)?;
+                let left = operands.take(left_bound);
+                let right = operands.take(right_bound);
                 integer_bound_rules::exact_definition_bound_relation(
                     self.context,
                     self.axioms,
@@ -849,7 +770,7 @@ impl<'a> Elaboration<'a> {
                 root_bound,
                 witness,
             } => {
-                let root = self.node(root_bound)?;
+                let root = operands.take(root_bound);
                 let (citations, chain) = integer_bound_rules::cast_bound_relation(
                     self.context,
                     self.axioms,
@@ -1064,87 +985,30 @@ impl<'a> Elaboration<'a> {
     /// tagged pair for the disjuncts after the first.
     fn disjunction_intro(
         &mut self,
-        remaining: usize,
-        index: usize,
-        term: TermHandle,
+        mut remaining: usize,
+        mut index: usize,
+        mut term: TermHandle,
     ) -> TermHandle {
-        let tag = self.denotation.arena.insert(if index == 0 {
-            Term::TwoZero
-        } else {
-            Term::TwoOne
-        });
-        let second = if index == 0 || remaining == 2 {
-            term
-        } else {
-            self.disjunction_intro(remaining - 1, index - 1, term)
-        };
-        self.denotation
-            .arena
-            .insert(Term::Pair { first: tag, second })
-    }
-
-    /// `caseTwo(λ(t : Two). Π(_ : F t). ⟦C⟧, λ(h : ⟦d₀⟧). b₀, λ(h :
-    /// rest). inner, fst s) (snd s)` — the dependent two-elimination a
-    /// disjunction elimination denotes, where `F t = caseTwo(M, d₀, rest,
-    /// t)` is the tagged sum's family and `inner` recurses into the
-    /// nested disjunction when more than two disjuncts remain.
-    fn disjunction_elim(
-        &mut self,
-        disjuncts: &[Proposition],
-        branches: &[ProofNode],
-        scrutinee: TermHandle,
-        conclusion: TermHandle,
-    ) -> Result<TermHandle, BoundedDenotationError> {
-        let first_denoted = self.denotation.denote(&disjuncts[0])?;
-        let zero_branch =
-            self.with_hypothesis(&disjuncts[0], first_denoted, |this| this.node(&branches[0]))?;
-        let rest = if disjuncts.len() == 2 {
-            self.denotation.denote(&disjuncts[1])?
-        } else {
-            self.denotation.disjunction(&disjuncts[1..])?
-        };
-        let one_branch = if disjuncts.len() == 2 {
-            self.with_hypothesis(&disjuncts[1], rest, |this| this.node(&branches[1]))?
-        } else {
-            // λ(h : rest). caseTwo(…) — `h` is the nested tagged sum, an
-            // intermediate binder that itself is never a cited premise.
-            self.with_intermediate(rest, |this, bound| {
-                this.disjunction_elim(&disjuncts[1..], &branches[1..], bound, conclusion)
-            })?
-        };
-        let motive = {
-            let inner_motive = self.denotation.arena.insert(Term::Lambda {
-                domain: self.denotation.two,
-                body: self.denotation.type_zero,
+        let mut tags = Vec::new();
+        loop {
+            tags.push(self.denotation.arena.insert(if index == 0 {
+                Term::TwoZero
+            } else {
+                Term::TwoOne
+            }));
+            if index == 0 || remaining == 2 {
+                break;
+            }
+            remaining -= 1;
+            index -= 1;
+        }
+        while let Some(first) = tags.pop() {
+            term = self.denotation.arena.insert(Term::Pair {
+                first,
+                second: term,
             });
-            let bound = self.denotation.arena.insert(Term::Variable(0));
-            let family = self.denotation.arena.insert(Term::CaseTwo {
-                motive: inner_motive,
-                zero_branch: first_denoted,
-                one_branch: rest,
-                scrutinee: bound,
-            });
-            let body = self.denotation.arena.insert(Term::Pi {
-                domain: family,
-                codomain: conclusion,
-            });
-            self.denotation.arena.insert(Term::Lambda {
-                domain: self.denotation.two,
-                body,
-            })
-        };
-        let tag = self.denotation.arena.insert(Term::Fst { pair: scrutinee });
-        let elimination = self.denotation.arena.insert(Term::CaseTwo {
-            motive,
-            zero_branch,
-            one_branch,
-            scrutinee: tag,
-        });
-        let payload = self.denotation.arena.insert(Term::Snd { pair: scrutinee });
-        Ok(self.denotation.arena.insert(Term::Apply {
-            function: elimination,
-            argument: payload,
-        }))
+        }
+        term
     }
 
     pub(super) fn finish(self, term: TermHandle) -> BoundedDenotation {
