@@ -9,7 +9,7 @@
 //! schedule their checked premises here too. Typed conversion still owns its
 //! separate comparison rules and is the remaining recursive judgment route.
 
-use super::super::conversion::{Budget, convertible, weak_head_normalize};
+use super::super::conversion::{Budget, weak_head_normalize};
 use super::super::substitution::{shift, substitute};
 use super::super::term::{Level, Sort, Term, TermArena, TermHandle};
 use super::{Context, CoreError, box_body_type, infer_leaf_type, inferred_sort, w_step_type};
@@ -66,7 +66,59 @@ enum MotiveUse {
     },
 }
 
-enum Pending {
+mod comparison;
+
+enum Compared {
+    Endpoint {
+        elimination: IdentityElimination,
+        recorded: TermHandle,
+    },
+    IdentityMotive {
+        elimination: IdentityElimination,
+        proof_domain: TermHandle,
+        motive_codomain: TermHandle,
+        expected_domain: TermHandle,
+        prefix: usize,
+    },
+    Motive {
+        motive: TermHandle,
+        domain: TermHandle,
+        codomain: TermHandle,
+        scrutinee_type: TermHandle,
+        use_kind: MotiveUse,
+    },
+    WFamily {
+        carrier: TermHandle,
+        children: TermHandle,
+        carrier_level: Level,
+        domain: TermHandle,
+        codomain: TermHandle,
+        use_kind: WUse,
+    },
+    Argument {
+        domain: TermHandle,
+        codomain: TermHandle,
+        argument: TermHandle,
+        argument_type: TermHandle,
+    },
+    Annotation {
+        domain: TermHandle,
+        body: TermHandle,
+        expected_domain: TermHandle,
+        codomain: TermHandle,
+    },
+    Check {
+        expected: TermHandle,
+        actual: TermHandle,
+    },
+}
+
+enum Pending<'a> {
+    Compared(Compared),
+    ConversionScope {
+        prefix: usize,
+    },
+    Conversion(comparison::Work<'a>),
     IdentityProof {
         motive: TermHandle,
         base: TermHandle,
@@ -275,7 +327,8 @@ enum Pending {
     },
 }
 
-enum Operation {
+enum Operation<'a> {
+    Convert(comparison::Query<'a>),
     Infer(TermHandle),
     Check {
         term: TermHandle,
@@ -286,20 +339,34 @@ enum Operation {
 enum JudgmentValue {
     Inferred(TermHandle),
     Checked,
+    Converted(bool),
 }
 
 impl JudgmentValue {
     fn require_inferred(self) -> TermHandle {
         match self {
             Self::Inferred(ty) => ty,
-            Self::Checked => unreachable!("inference continuation consumes an inferred type"),
+            Self::Checked | Self::Converted(_) => {
+                unreachable!("inference continuation consumes an inferred type")
+            }
+        }
+    }
+
+    fn require_converted(self) -> bool {
+        match self {
+            Self::Converted(equal) => equal,
+            Self::Inferred(_) | Self::Checked => {
+                unreachable!("conversion continuation consumes a comparison")
+            }
         }
     }
 
     fn require_checked(self) {
         match self {
             Self::Checked => {}
-            Self::Inferred(_) => unreachable!("checking continuation consumes a completed check"),
+            Self::Inferred(_) | Self::Converted(_) => {
+                unreachable!("checking continuation consumes a completed check")
+            }
         }
     }
 }
@@ -324,10 +391,27 @@ pub(super) fn check(
         .map(JudgmentValue::require_checked)
 }
 
-fn drive(
+pub(super) fn convert(
     arena: &mut TermArena,
     context: &Context,
-    operation: Operation,
+    left: TermHandle,
+    right: TermHandle,
+    shared_type: TermHandle,
+    budget: &mut Budget,
+    retained: &dyn Fn(u32) -> bool,
+) -> Result<bool, CoreError> {
+    let query = comparison::Query {
+        terms: comparison::Terms { left, right },
+        shared_type,
+        retained,
+    };
+    drive(arena, context, Operation::Convert(query), budget).map(JudgmentValue::require_converted)
+}
+
+fn drive<'a>(
+    arena: &mut TermArena,
+    context: &Context,
+    operation: Operation<'a>,
     budget: &mut Budget,
 ) -> Result<JudgmentValue, CoreError> {
     let mut context = context.clone();
@@ -335,6 +419,14 @@ fn drive(
     let mut current = operation;
     loop {
         let mut value = match current {
+            Operation::Convert(query) => {
+                pending.push(Pending::ConversionScope {
+                    prefix: context.bindings.len(),
+                });
+                pending.push(Pending::Conversion(comparison::Work::SharedSort(query)));
+                current = Operation::Infer(query.shared_type);
+                continue;
+            }
             Operation::Check { term, expected } => {
                 pending.push(Pending::CheckScope {
                     prefix: context.bindings.len(),
@@ -541,6 +633,30 @@ fn drive(
         };
         loop {
             match pending.pop() {
+                Some(Pending::ConversionScope { prefix }) => {
+                    let equal = value.require_converted();
+                    context.bindings.truncate(prefix);
+                    value = JudgmentValue::Converted(equal);
+                }
+                Some(Pending::Conversion(work)) => {
+                    match work.resume(arena, &mut context, value, budget)? {
+                        comparison::Step::Infer { term, next } => {
+                            pending.push(Pending::Conversion(next));
+                            current = Operation::Infer(term);
+                            break;
+                        }
+                        comparison::Step::Compare { query, next } => {
+                            if let Some(next) = next {
+                                pending.push(Pending::Conversion(next));
+                            }
+                            current = Operation::Convert(query);
+                            break;
+                        }
+                        comparison::Step::Complete(equal) => {
+                            value = JudgmentValue::Converted(equal)
+                        }
+                    }
+                }
                 Some(Pending::CheckScope { prefix }) => {
                     value.require_checked();
                     context.bindings.truncate(prefix);
@@ -674,26 +790,13 @@ fn drive(
                     recorded,
                 }) => {
                     value.require_checked();
-                    if !convertible(
-                        arena,
-                        &context,
+                    let query =
+                        comparison::Query::ordinary(recorded, elimination.endpoint, elimination.ty);
+                    pending.push(Pending::Compared(Compared::Endpoint {
+                        elimination,
                         recorded,
-                        elimination.endpoint,
-                        elimination.ty,
-                        budget,
-                    )? {
-                        return Err(CoreError::TypeMismatch {
-                            expected: recorded,
-                            actual: elimination.endpoint,
-                        });
-                    }
-                    let motive = elimination.motive;
-                    pending.push(Pending::MotiveType {
-                        motive,
-                        scrutinee_type: elimination.ty,
-                        use_kind: MotiveUse::Identity(elimination),
-                    });
-                    current = Operation::Infer(motive);
+                    }));
+                    current = Operation::Convert(query);
                     break;
                 }
                 Some(Pending::IdentityBase {
@@ -710,6 +813,320 @@ fn drive(
                         function: at_endpoint,
                         argument: proof,
                     }));
+                }
+                Some(Pending::Compared(conclusion)) => {
+                    let equal = value.require_converted();
+                    match conclusion {
+                        Compared::Endpoint {
+                            elimination,
+                            recorded,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch {
+                                    expected: recorded,
+                                    actual: elimination.endpoint,
+                                });
+                            }
+
+                            let motive = elimination.motive;
+                            pending.push(Pending::MotiveType {
+                                motive,
+                                scrutinee_type: elimination.ty,
+                                use_kind: MotiveUse::Identity(elimination),
+                            });
+                            current = Operation::Infer(motive);
+                            break;
+                        }
+                        Compared::IdentityMotive {
+                            elimination,
+                            proof_domain,
+                            motive_codomain,
+                            expected_domain,
+                            prefix,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch {
+                                    expected: expected_domain,
+                                    actual: proof_domain,
+                                });
+                            }
+
+                            context.bindings.truncate(prefix);
+                            let head = weak_head_normalize(
+                                arena,
+                                context.signature(),
+                                motive_codomain,
+                                budget,
+                            )?;
+                            match arena.get(head) {
+                                Term::Sort(Sort::Type(_)) => {}
+                                Term::Sort(Sort::Strict(_)) => {
+                                    return Err(CoreError::StrictIdentityMotiveCodomain {
+                                        codomain: motive_codomain,
+                                    });
+                                }
+                                _ => {
+                                    return Err(CoreError::IdentityMotiveCodomainNotAUniverse {
+                                        codomain: motive_codomain,
+                                    });
+                                }
+                            }
+                            let refl = arena.insert(Term::Refl {
+                                ty: elimination.ty,
+                                value: elimination.fixed,
+                            });
+                            let at_fixed = arena.insert(Term::Apply {
+                                function: elimination.motive,
+                                argument: elimination.fixed,
+                            });
+                            let base_type = arena.insert(Term::Apply {
+                                function: at_fixed,
+                                argument: refl,
+                            });
+                            pending.push(Pending::IdentityBase {
+                                motive: elimination.motive,
+                                endpoint: elimination.endpoint,
+                                proof: elimination.proof,
+                            });
+                            current = Operation::Check {
+                                term: elimination.base,
+                                expected: base_type,
+                            };
+                            break;
+                        }
+                        Compared::Motive {
+                            motive,
+                            domain,
+                            codomain,
+                            scrutinee_type,
+                            use_kind,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch {
+                                    expected: scrutinee_type,
+                                    actual: domain,
+                                });
+                            }
+
+                            let head =
+                                weak_head_normalize(arena, context.signature(), codomain, budget)?;
+                            match use_kind {
+                                MotiveUse::Identity(elimination) => {
+                                    let Term::Pi {
+                                        domain: proof_domain,
+                                        codomain: motive_codomain,
+                                    } = arena.get(head)
+                                    else {
+                                        return Err(
+                                            CoreError::IdentityMotiveCodomainNotAFunction {
+                                                codomain,
+                                            },
+                                        );
+                                    };
+                                    // The second domain is checked under exactly
+                                    // the motive's endpoint binder, never a new
+                                    // or relocated identity carrier.
+                                    let prefix = context.bindings.len();
+                                    context.bindings.push(domain);
+                                    let shifted_ty = shift(arena, elimination.ty, 0, 1);
+                                    let shifted_fixed = shift(arena, elimination.fixed, 0, 1);
+                                    let bound = arena.insert(Term::Variable(0));
+                                    let expected_domain = arena.insert(Term::Id {
+                                        ty: shifted_ty,
+                                        left: shifted_fixed,
+                                        right: bound,
+                                    });
+                                    pending.push(Pending::IdentityMotiveDomain {
+                                        elimination,
+                                        proof_domain,
+                                        motive_codomain,
+                                        expected_domain,
+                                        prefix,
+                                    });
+                                    current = Operation::Infer(proof_domain);
+                                }
+                                MotiveUse::Two {
+                                    zero_branch,
+                                    one_branch,
+                                    scrutinee,
+                                } => {
+                                    match arena.get(head) {
+                                        Term::Sort(Sort::Type(_)) => {}
+                                        Term::Sort(Sort::Strict(_)) => {
+                                            return Err(CoreError::StrictCaseMotiveCodomain {
+                                                codomain,
+                                            });
+                                        }
+                                        _ => {
+                                            return Err(
+                                                CoreError::CaseMotiveCodomainNotAUniverse {
+                                                    codomain,
+                                                },
+                                            );
+                                        }
+                                    }
+                                    let two = arena.insert(Term::Two);
+                                    pending.push(Pending::CaseScrutinee {
+                                        motive,
+                                        zero_branch,
+                                        one_branch,
+                                        scrutinee,
+                                    });
+                                    current = Operation::Check {
+                                        term: scrutinee,
+                                        expected: two,
+                                    };
+                                }
+                                MotiveUse::W {
+                                    carrier,
+                                    children,
+                                    tree,
+                                    step,
+                                } => {
+                                    match arena.get(head) {
+                                        Term::Sort(Sort::Type(_)) => {}
+                                        Term::Sort(Sort::Strict(_)) => {
+                                            return Err(CoreError::StrictInductionMotiveCodomain {
+                                                codomain,
+                                            });
+                                        }
+                                        _ => {
+                                            return Err(
+                                                CoreError::InductionMotiveCodomainNotAUniverse {
+                                                    codomain,
+                                                },
+                                            );
+                                        }
+                                    }
+                                    let step_type = w_step_type(arena, carrier, children, motive);
+                                    pending.push(Pending::ReturnApplication {
+                                        function: motive,
+                                        argument: tree,
+                                    });
+                                    current = Operation::Check {
+                                        term: step,
+                                        expected: step_type,
+                                    };
+                                }
+                                MotiveUse::Box {
+                                    payload,
+                                    body,
+                                    scrutinee,
+                                } => {
+                                    if !matches!(arena.node(head), Term::Sort(_)) {
+                                        return Err(CoreError::BoxMotiveCodomainNotAUniverse {
+                                            codomain,
+                                        });
+                                    }
+                                    let body_type = box_body_type(arena, payload, motive);
+                                    pending.push(Pending::ReturnApplication {
+                                        function: motive,
+                                        argument: scrutinee,
+                                    });
+                                    current = Operation::Check {
+                                        term: body,
+                                        expected: body_type,
+                                    };
+                                }
+                            }
+                            break;
+                        }
+                        Compared::WFamily {
+                            carrier,
+                            children,
+                            carrier_level,
+                            domain,
+                            codomain,
+                            use_kind,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch {
+                                    expected: carrier,
+                                    actual: domain,
+                                });
+                            }
+
+                            let head =
+                                weak_head_normalize(arena, context.signature(), codomain, budget)?;
+                            let children_level = match arena.get(head) {
+                                Term::Sort(Sort::Type(level)) => level,
+                                Term::Sort(Sort::Strict(_)) => {
+                                    return Err(CoreError::StrictWChildrenCodomain { codomain });
+                                }
+                                _ => {
+                                    return Err(CoreError::WChildrenCodomainNotAUniverse {
+                                        codomain,
+                                    });
+                                }
+                            };
+                            // Both W formation and every sup annotation owe the
+                            // complete relevant carrier/family judgment first.
+                            let level = carrier_level.maximum(children_level);
+                            match use_kind {
+                                WUse::Formation => {
+                                    value = JudgmentValue::Inferred(
+                                        arena.insert(Term::Sort(Sort::Type(level))),
+                                    );
+                                }
+                                WUse::Constructor { label, function } => {
+                                    pending.push(Pending::SupLabel {
+                                        carrier,
+                                        children,
+                                        label,
+                                        function,
+                                    });
+                                    current = Operation::Check {
+                                        term: label,
+                                        expected: carrier,
+                                    };
+                                    break;
+                                }
+                            }
+                        }
+                        Compared::Argument {
+                            domain,
+                            codomain,
+                            argument,
+                            argument_type,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::ArgumentTypeMismatch {
+                                    expected: domain,
+                                    actual: argument_type,
+                                });
+                            }
+
+                            value = JudgmentValue::Inferred(substitute(arena, codomain, argument));
+                        }
+                        Compared::Annotation {
+                            domain,
+                            body,
+                            expected_domain,
+                            codomain,
+                        } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch {
+                                    expected: expected_domain,
+                                    actual: domain,
+                                });
+                            }
+
+                            context.bindings.push(domain);
+                            current = Operation::Check {
+                                term: body,
+                                expected: codomain,
+                            };
+                            break;
+                        }
+                        Compared::Check { expected, actual } => {
+                            if !equal {
+                                return Err(CoreError::TypeMismatch { expected, actual });
+                            }
+
+                            value = JudgmentValue::Checked;
+                            continue;
+                        }
+                    }
                 }
                 Some(frame) => {
                     let mut inferred = value.require_inferred();
@@ -849,20 +1266,16 @@ fn drive(
                             let domain_sort =
                                 inferred_sort(arena, &context, domain, inferred, budget)?;
                             let shared_type = arena.insert(Term::Sort(domain_sort));
-                            if !convertible(
-                                arena,
-                                &context,
-                                argument_type,
+                            let query =
+                                comparison::Query::ordinary(argument_type, domain, shared_type);
+                            pending.push(Pending::Compared(Compared::Argument {
                                 domain,
-                                shared_type,
-                                budget,
-                            )? {
-                                return Err(CoreError::ArgumentTypeMismatch {
-                                    expected: domain,
-                                    actual: argument_type,
-                                });
-                            }
-                            inferred = substitute(arena, codomain, argument);
+                                codomain,
+                                argument,
+                                argument_type,
+                            }));
+                            current = Operation::Convert(query);
+                            break;
                         }
                         Pending::Projection { is_first, pair } => {
                             let head =
@@ -927,60 +1340,19 @@ fn drive(
                             let sort =
                                 inferred_sort(arena, &context, proof_domain, inferred, budget)?;
                             let shared_domain = arena.insert(Term::Sort(sort));
-                            if !convertible(
-                                arena,
-                                &context,
+                            let query = comparison::Query::ordinary(
                                 proof_domain,
                                 expected_domain,
                                 shared_domain,
-                                budget,
-                            )? {
-                                return Err(CoreError::TypeMismatch {
-                                    expected: expected_domain,
-                                    actual: proof_domain,
-                                });
-                            }
-                            context.bindings.truncate(prefix);
-                            let head = weak_head_normalize(
-                                arena,
-                                context.signature(),
+                            );
+                            pending.push(Pending::Compared(Compared::IdentityMotive {
+                                elimination,
+                                proof_domain,
                                 motive_codomain,
-                                budget,
-                            )?;
-                            match arena.get(head) {
-                                Term::Sort(Sort::Type(_)) => {}
-                                Term::Sort(Sort::Strict(_)) => {
-                                    return Err(CoreError::StrictIdentityMotiveCodomain {
-                                        codomain: motive_codomain,
-                                    });
-                                }
-                                _ => {
-                                    return Err(CoreError::IdentityMotiveCodomainNotAUniverse {
-                                        codomain: motive_codomain,
-                                    });
-                                }
-                            }
-                            let refl = arena.insert(Term::Refl {
-                                ty: elimination.ty,
-                                value: elimination.fixed,
-                            });
-                            let at_fixed = arena.insert(Term::Apply {
-                                function: elimination.motive,
-                                argument: elimination.fixed,
-                            });
-                            let base_type = arena.insert(Term::Apply {
-                                function: at_fixed,
-                                argument: refl,
-                            });
-                            pending.push(Pending::IdentityBase {
-                                motive: elimination.motive,
-                                endpoint: elimination.endpoint,
-                                proof: elimination.proof,
-                            });
-                            current = Operation::Check {
-                                term: elimination.base,
-                                expected: base_type,
-                            };
+                                expected_domain,
+                                prefix,
+                            }));
+                            current = Operation::Convert(query);
                             break;
                         }
                         Pending::MotiveType {
@@ -1018,140 +1390,16 @@ fn drive(
                             let domain_sort =
                                 inferred_sort(arena, &context, domain, inferred, budget)?;
                             let shared_domain = arena.insert(Term::Sort(domain_sort));
-                            if !convertible(
-                                arena,
-                                &context,
+                            let query =
+                                comparison::Query::ordinary(domain, scrutinee_type, shared_domain);
+                            pending.push(Pending::Compared(Compared::Motive {
+                                motive,
                                 domain,
+                                codomain,
                                 scrutinee_type,
-                                shared_domain,
-                                budget,
-                            )? {
-                                return Err(CoreError::TypeMismatch {
-                                    expected: scrutinee_type,
-                                    actual: domain,
-                                });
-                            }
-                            let head =
-                                weak_head_normalize(arena, context.signature(), codomain, budget)?;
-                            match use_kind {
-                                MotiveUse::Identity(elimination) => {
-                                    let Term::Pi {
-                                        domain: proof_domain,
-                                        codomain: motive_codomain,
-                                    } = arena.get(head)
-                                    else {
-                                        return Err(
-                                            CoreError::IdentityMotiveCodomainNotAFunction {
-                                                codomain,
-                                            },
-                                        );
-                                    };
-                                    // The second domain is checked under exactly
-                                    // the motive's endpoint binder, never a new
-                                    // or relocated identity carrier.
-                                    let prefix = context.bindings.len();
-                                    context.bindings.push(domain);
-                                    let shifted_ty = shift(arena, elimination.ty, 0, 1);
-                                    let shifted_fixed = shift(arena, elimination.fixed, 0, 1);
-                                    let bound = arena.insert(Term::Variable(0));
-                                    let expected_domain = arena.insert(Term::Id {
-                                        ty: shifted_ty,
-                                        left: shifted_fixed,
-                                        right: bound,
-                                    });
-                                    pending.push(Pending::IdentityMotiveDomain {
-                                        elimination,
-                                        proof_domain,
-                                        motive_codomain,
-                                        expected_domain,
-                                        prefix,
-                                    });
-                                    current = Operation::Infer(proof_domain);
-                                }
-                                MotiveUse::Two {
-                                    zero_branch,
-                                    one_branch,
-                                    scrutinee,
-                                } => {
-                                    match arena.get(head) {
-                                        Term::Sort(Sort::Type(_)) => {}
-                                        Term::Sort(Sort::Strict(_)) => {
-                                            return Err(CoreError::StrictCaseMotiveCodomain {
-                                                codomain,
-                                            });
-                                        }
-                                        _ => {
-                                            return Err(
-                                                CoreError::CaseMotiveCodomainNotAUniverse {
-                                                    codomain,
-                                                },
-                                            );
-                                        }
-                                    }
-                                    let two = arena.insert(Term::Two);
-                                    pending.push(Pending::CaseScrutinee {
-                                        motive,
-                                        zero_branch,
-                                        one_branch,
-                                        scrutinee,
-                                    });
-                                    current = Operation::Check {
-                                        term: scrutinee,
-                                        expected: two,
-                                    };
-                                }
-                                MotiveUse::W {
-                                    carrier,
-                                    children,
-                                    tree,
-                                    step,
-                                } => {
-                                    match arena.get(head) {
-                                        Term::Sort(Sort::Type(_)) => {}
-                                        Term::Sort(Sort::Strict(_)) => {
-                                            return Err(CoreError::StrictInductionMotiveCodomain {
-                                                codomain,
-                                            });
-                                        }
-                                        _ => {
-                                            return Err(
-                                                CoreError::InductionMotiveCodomainNotAUniverse {
-                                                    codomain,
-                                                },
-                                            );
-                                        }
-                                    }
-                                    let step_type = w_step_type(arena, carrier, children, motive);
-                                    pending.push(Pending::ReturnApplication {
-                                        function: motive,
-                                        argument: tree,
-                                    });
-                                    current = Operation::Check {
-                                        term: step,
-                                        expected: step_type,
-                                    };
-                                }
-                                MotiveUse::Box {
-                                    payload,
-                                    body,
-                                    scrutinee,
-                                } => {
-                                    if !matches!(arena.node(head), Term::Sort(_)) {
-                                        return Err(CoreError::BoxMotiveCodomainNotAUniverse {
-                                            codomain,
-                                        });
-                                    }
-                                    let body_type = box_body_type(arena, payload, motive);
-                                    pending.push(Pending::ReturnApplication {
-                                        function: motive,
-                                        argument: scrutinee,
-                                    });
-                                    current = Operation::Check {
-                                        term: body,
-                                        expected: body_type,
-                                    };
-                                }
-                            }
+                                use_kind,
+                            }));
+                            current = Operation::Convert(query);
                             break;
                         }
                         Pending::InductionTree { motive, step, tree } => {
@@ -1299,53 +1547,17 @@ fn drive(
                             let domain_sort =
                                 inferred_sort(arena, &context, domain, inferred, budget)?;
                             let shared_domain = arena.insert(Term::Sort(domain_sort));
-                            if !convertible(
-                                arena,
-                                &context,
-                                domain,
+                            let query = comparison::Query::ordinary(domain, carrier, shared_domain);
+                            pending.push(Pending::Compared(Compared::WFamily {
                                 carrier,
-                                shared_domain,
-                                budget,
-                            )? {
-                                return Err(CoreError::TypeMismatch {
-                                    expected: carrier,
-                                    actual: domain,
-                                });
-                            }
-                            let head =
-                                weak_head_normalize(arena, context.signature(), codomain, budget)?;
-                            let children_level = match arena.get(head) {
-                                Term::Sort(Sort::Type(level)) => level,
-                                Term::Sort(Sort::Strict(_)) => {
-                                    return Err(CoreError::StrictWChildrenCodomain { codomain });
-                                }
-                                _ => {
-                                    return Err(CoreError::WChildrenCodomainNotAUniverse {
-                                        codomain,
-                                    });
-                                }
-                            };
-                            // Both W formation and every sup annotation owe the
-                            // complete relevant carrier/family judgment first.
-                            let level = carrier_level.maximum(children_level);
-                            match use_kind {
-                                WUse::Formation => {
-                                    inferred = arena.insert(Term::Sort(Sort::Type(level)))
-                                }
-                                WUse::Constructor { label, function } => {
-                                    pending.push(Pending::SupLabel {
-                                        carrier,
-                                        children,
-                                        label,
-                                        function,
-                                    });
-                                    current = Operation::Check {
-                                        term: label,
-                                        expected: carrier,
-                                    };
-                                    break;
-                                }
-                            }
+                                children,
+                                carrier_level,
+                                domain,
+                                codomain,
+                                use_kind,
+                            }));
+                            current = Operation::Convert(query);
+                            break;
                         }
                         Pending::IdentityDomain { ty, use_kind } => {
                             // Relevant identity keeps its carrier and both
@@ -1465,47 +1677,34 @@ fn drive(
                             let domain_sort =
                                 inferred_sort(arena, &context, expected_domain, inferred, budget)?;
                             let shared_domain = arena.insert(Term::Sort(domain_sort));
-                            if !convertible(
-                                arena,
-                                &context,
+                            let query =
+                                comparison::Query::ordinary(domain, expected_domain, shared_domain);
+                            pending.push(Pending::Compared(Compared::Annotation {
                                 domain,
+                                body,
                                 expected_domain,
-                                shared_domain,
-                                budget,
-                            )? {
-                                return Err(CoreError::TypeMismatch {
-                                    expected: expected_domain,
-                                    actual: domain,
-                                });
-                            }
-                            context.bindings.push(domain);
-                            current = Operation::Check {
-                                term: body,
-                                expected: codomain,
-                            };
+                                codomain,
+                            }));
+                            current = Operation::Convert(query);
                             break;
                         }
                         Pending::CheckActual {
                             expected,
                             shared_type,
                         } => {
-                            if !convertible(
-                                arena,
-                                &context,
-                                inferred,
+                            let query =
+                                comparison::Query::ordinary(inferred, expected, shared_type);
+                            pending.push(Pending::Compared(Compared::Check {
                                 expected,
-                                shared_type,
-                                budget,
-                            )? {
-                                return Err(CoreError::TypeMismatch {
-                                    expected,
-                                    actual: inferred,
-                                });
-                            }
-                            value = JudgmentValue::Checked;
-                            continue;
+                                actual: inferred,
+                            }));
+                            current = Operation::Convert(query);
+                            break;
                         }
-                        Pending::CheckScope { .. }
+                        Pending::Compared(_)
+                        | Pending::ConversionScope { .. }
+                        | Pending::Conversion(_)
+                        | Pending::CheckScope { .. }
                         | Pending::CheckPairSecond { .. }
                         | Pending::ApplyPair { .. }
                         | Pending::IdentityLeft { .. }

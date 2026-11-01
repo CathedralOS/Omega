@@ -459,6 +459,18 @@ fn infer_leaf_type(
     }
 }
 
+pub(super) fn convert_retaining(
+    arena: &mut TermArena,
+    context: &Context,
+    left: TermHandle,
+    right: TermHandle,
+    shared_type: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
+) -> Result<bool, CoreError> {
+    judgments::convert(arena, context, left, right, shared_type, budget, retained)
+}
+
 /// The closed-level scope rule: a level is well-formed under `arity` when
 /// every `Parameter(i)` names one of the judgment's `arity` universe
 /// parameters. Constant, successor and maximum levels introduce no scope
