@@ -6,12 +6,19 @@ exact `issue` route and `Consume::subtract` operation. Positives use
 `START = 100`; each reject twin changes only that input to 99, violating the
 same bound before it can be issued. No caller guard reconstructs the fact.
 
-`issue` now has a checked body for every hosted target. The route still names
-one family declaration: each body owes the predicate independently, and the
-opaque family call must retain its qualified scalar result before the boundary
-parameter consumes it. The previous compiler refused the target issuer at
-source checking; merely repairing authorization then exposed a bare-result
-erasure in boundary call lowering. The row exercises both joins end to end.
+Owning migration: **BUILD-OWNED-TARGET-SELECTION**, alongside the filesystem
+prerequisite below. The four identical issuer bodies now share one ordinary
+`issue` machine with the same signature, `value >= 100` precondition, `{ value }`
+body, and concrete `established by issue` route. This preserves exact-machine
+origin authority; it does not replace it with a trait route or let arbitrary
+providers mint the qualification. Every caller still receives `u64 in AtLeast100`
+before `Consume::subtract` consumes the bound.
+
+The target-body place selects ordinary `TargetSubtractCode` through a private
+`TargetSubtract` requirement, preserving the original qualified input, subtraction
+call and `Consume` ceiling. The existing `Consume`/`Actual` selections and all four
+hosted entries are unchanged. The old target-family result and authorization
+repairs described below retain their historical producer identities.
 
 This is the next prerequisite of **FILESYSTEM-PLATFORM-SERVICES**: the Windows
 transfer leaf requires an already issued synchronous-handle classification.
@@ -80,3 +87,18 @@ controls live beside the executable fact fixtures.
 This is macOS ARM64 execution evidence, not a four-host runtime claim. Windows
 runtime acceptance and the full portable provider remain unfinished under the
 parent task; the owner will arrange a later Windows agent for execution.
+
+The migration also observes both match paths: the unchanged START=100 produces
+subtraction0 and marker17, while the same issuance/qualification operation on101
+produces subtraction1 and marker23. The target-body place likewise observes100/0
+and101/1. These checks follow formation and consumption; they do not prove the
+qualification for the compiler. All nine invalid twins still differ only by
+START100→99 and fail the issuer precondition before issuance.
+
+The current matching-host baseline is the scoped macOS15 run41323737111 with
+optimized source08798a08b8d2ef02bc438ece549d6006539d0d5f: all18original Source
+pins (nine positives/nine intended rejections) and nine native/Terminal agreements
+pass. Its two Source/two runtime historical timing slowdowns remain reported,
+not semantic failures. Fresh migrated-row observations and exact independent
+review are being completed before publication; no Windows runtime or full
+filesystem capability closure is claimed.
