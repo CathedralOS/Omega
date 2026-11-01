@@ -10,9 +10,11 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
-    changed_golden_rows, count_source_reads, fact_row_violations, golden_rows,
-    golden_violations, lanes, measurement_violations, nearest_rows, program_shingles, read_baseline,
-    source_read_counts, source_read_violations, subject_violations, write_baseline,
+    changed_golden_rows, count_source_reads, count_status_phrases, fact_row_violations,
+    golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
+    program_shingles, read_baseline, source_read_counts, source_read_violations,
+    status_phrase_counts, status_phrase_violations, subject_violations, write_baseline,
+    write_status_baseline,
 )
 
 
@@ -47,6 +49,74 @@ class SourceReadTests(unittest.TestCase):
     def test_the_tree_matches_its_baseline(self):
         baseline = read_baseline((check_rules.ROOT / check_rules.READS_BASELINE).read_text())
         self.assertEqual(source_read_violations(source_read_counts(), baseline), [])
+
+
+class StatusPhraseTests(unittest.TestCase):
+    # Passages deleted from omega-rust/pipeline.md and wiki/spec on 2026-11-01.
+    STATUS = """
+## Implementation status
+
+**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic
+### Acceptance status
+Not yet closed:
+it executes with its authored exit 70 on macOS ARM64.
+fields, and return 70 in native and checked-interpreter execution on macOS ARM64.
+callback/policy capture, and Terminal-first target orchestration are still
+open.
+review projection remain migration work. This is
+multi-slot readiness remains open. Corpus consumers use this same executed
+Resolver/typing continuation now lives in the Psi compiler.
+This boundary is implemented; the common Psi
+These are semantic and evidence requirements, not a claim that every described
+"""
+
+    # Rules that share words with status and must not count.
+    RULES = """
+## Status codes
+A host exposing fewer status bits does not authorize truncation.
+An acyclic join may introduce a merge token only from matching valid tokens.
+Check and declaration review must still work without executable publication.
+record the requirements still open on the value that layer emits
+The process exits with status 70 only through a checked exit.
+A detached editable document is not an instance of its described type.
+"""
+
+    def test_status_wording_counts(self):
+        self.assertEqual(count_status_phrases(self.STATUS), 12)
+
+    def test_rules_do_not_count(self):
+        self.assertEqual(count_status_phrases(self.RULES), 0)
+
+    def test_new_status_in_a_contract_fails(self):
+        violations = status_phrase_violations({"wiki/spec/a.md": 2, "wiki/spec/b.md": 1},
+                                              {"wiki/spec/a.md": 2})
+        self.assertEqual(len(violations), 1)
+        self.assertIn("wiki/spec/b.md: 1 status phrases, baseline 0", violations[0])
+        self.assertIn("TASKS.md", violations[0])
+
+    def test_removed_status_lowers_the_baseline(self):
+        violations = status_phrase_violations({"omega-rust/pipeline.md": 1},
+                                              {"omega-rust/pipeline.md": 31})
+        self.assertIn("--update-status-phrases", violations[0])
+        rewritten = read_baseline(write_status_baseline({"omega-rust/pipeline.md": 1}))
+        self.assertEqual(status_phrase_violations({"omega-rust/pipeline.md": 1}, rewritten), [])
+
+    def test_contracts_are_pipeline_and_spec_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "omega-rust").mkdir()
+            (root / "omega-rust/pipeline.md").write_text("X now owns Y.\n")
+            (root / "wiki/spec/build").mkdir(parents=True)
+            (root / "wiki/spec/build/a.md").write_text("Not yet closed:\n")
+            (root / "wiki/drafts").mkdir()
+            (root / "wiki/drafts/b.md").write_text("Not yet closed:\n")
+            (root / "TASKS.md").write_text("now passes; not yet\n")
+            self.assertEqual(status_phrase_counts(root),
+                             {"omega-rust/pipeline.md": 1, "wiki/spec/build/a.md": 1})
+
+    def test_the_tree_matches_its_baseline(self):
+        baseline = read_baseline((check_rules.ROOT / check_rules.STATUS_BASELINE).read_text())
+        self.assertEqual(status_phrase_violations(status_phrase_counts(), baseline), [])
 
 
 class GoldenTests(unittest.TestCase):
