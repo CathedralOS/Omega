@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "stored_shared_byte_view_element_lend_target_body");
+    Build::select_provider<Observe, LinuxX8664Observer>(builder, linux_x86_64);
+    Build::select_provider<Observe, LinuxArm64Observer>(builder, linux_arm64);
+    Build::select_provider<Observe, MacosArm64Observer>(builder, macos_arm64);
+    Build::select_provider<Observe, WindowsX8664Observer>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}
