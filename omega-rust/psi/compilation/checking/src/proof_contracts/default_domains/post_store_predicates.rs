@@ -44,12 +44,28 @@ pub(super) fn post_store_predicate_holds(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    receiver: ExpressionHandle,
+    receiver: &crate::CanonicalPlace,
+    preserves_scalar_value: bool,
     place: &TrackedPlace<'_>,
     written_field: SymbolHandle,
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
+    // A representation-changing store supplies source bits, not the RHS's
+    // numerical value. The execution-prefix owner interprets those bits at
+    // the captured source coordinate before proving its predicate.
+    if !preserves_scalar_value {
+        return crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+            program,
+            machine,
+            state,
+            statement_index,
+            receiver,
+            place.definition,
+            place.active_case,
+            predicate,
+        );
+    }
     // Exact scalar substitution can finish without reconstructing private
     // arrivals. Both queries are independently sufficient proofs; replay the
     // execution prefix only when the scalar query cannot establish the fact.

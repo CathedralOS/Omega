@@ -63,8 +63,8 @@ Nested decode field scopes are children of graph decode, not additional work.
 No large unused owner family, selective-restoration benefit or new speedup is
 established. Do not retry a lazy decoder or worker-lifetime rewrite from this.
 
-[Scope values and controls](summary.json) and
-[exact temporary patch, optimized build, codec test and raw evidence](evidence.json.gz)
+[Scope values and controls](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/owner_lifecycle_2026_10_29/summary.json) and
+[exact temporary patch, optimized build, codec test and raw evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/owner_lifecycle_2026_10_29/evidence.json.gz)
 preserve the bounded diagnostic. Native allocation/frame realization took
 448.3/99.1 ms in the stack32 profile. The next question is how much of that work
 belongs to independently owned functions; measure its distribution and whole-run

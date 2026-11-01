@@ -88,7 +88,7 @@ callers; they are not identical to this isolated physical-file batch.
 
 ## Replay and remaining work
 
-[observations.json](observations.json) binds input and binary hashes, profiles,
+[observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/argument_transfer/observations.json) binds input and binary hashes, profiles,
 all repetition logs, CLI timings and runtime observations. The full input
 manifest, parse TSVs, binaries, build/test/corpus logs, patches and harness
 workspace are retained in `build/argument-transfer` and archived before cleanup.
@@ -127,7 +127,7 @@ whole-compile median 1403.1145 → 1303.548 ms. The wide variation again support
 no latency improvement claim. No builds from this session ran during timing.
 The retained benefit is fewer allocations and copies, measured separately.
 
-[integration.json](integration.json) retains exact producer revisions, binary
+[integration.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/argument_transfer/integration.json) retains exact producer revisions, binary
 hashes/profiles, timings, load averages, runtime outputs, test failure names,
 corpus command and consumer-based applicability. The raw integration directory
 also retains both executables, complete test/build logs and all six runtime
@@ -152,7 +152,7 @@ No builds from this session ran during timing. Allocation/copy removal remains
 the demonstrated mechanism, with historical observations labeled by their
 original producer and input scope.
 
-[integration-final.json](integration-final.json) binds this refresh to exact
+[integration-final.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/argument_transfer/integration-final.json) binds this refresh to exact
 producer revisions and binary hashes/profiles, complete timing observations,
 runtime outputs, shared test failures, corpus command and applicability. The
 production diff is unchanged; this record is appended after measurement.
@@ -177,6 +177,6 @@ A fresh candidate-only CLI repetition has 12 successful checks,
 assembly minimum 5.096 ms and median 5.241 ms,
 and reaches the five-second quiet interval. There is no paired-baseline latency
 claim for this refresh. No session build runs during measurement.
-[publication.json](publication.json) retains the applicability argument, exact
+[publication.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/argument_transfer/publication.json) retains the applicability argument, exact
 producer, binary profile/hash, observations and verification commands. The
 production diff is unchanged; this documentation is committed after measurement.

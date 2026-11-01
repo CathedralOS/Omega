@@ -119,12 +119,12 @@ summed. They do not establish an independent phase confidence interval.
 
 ## Evidence and limits
 
-[`result.json`](result.json) retains all 48 raw pairs, the separate summaries,
-phase medians and classified setup failures. [`audit.json`](audit.json) records
+[`result.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/matrix/result.json) retains all 48 raw pairs, the separate summaries,
+phase medians and classified setup failures. [`audit.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/matrix/audit.json) records
 the final source, lock, cache, output and runtime audit.
-`observations.zip` contains raw journals/reports/plans, streams and observation
+[`observations.zip`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/matrix/observations.zip) contains raw journals/reports/plans, streams and observation
 records, exact accepted locks, frozen Matrix input, adapters, ELF validator,
-source overlay patch and validation logs. `evidence.json` binds the archive.
+source overlay patch and validation logs. [`evidence.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/matrix/evidence.json) binds the archive.
 It excludes large executables and private graphs; those remain in the ignored
 `build/performance/cathedral-matrix-generation-domains/fixed/` directory. Paths
 and lock identities are as-run provenance, not a promise that moving the archive

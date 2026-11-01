@@ -3,7 +3,7 @@
 2026-10-22. Rebuilt and rechecked after integrating main
 `c00fe7c23ba7be4dff1eb0bc724d2a2a78214418`. Observed candidate:
 `23e22919620625b940901d3301a374c71d1dc720`. The subsequent commit adds this
-evidence only. [Manifest](manifest.json) records both compiler trees, the library
+evidence only. [Manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/manifest.json) records both compiler trees, the library
 tree and artifact hashes. All six implementation files still match the original
 experiment's source hashes; the only rebase conflict was the shared experiment
 ledger, resolved by preserving both entries.
@@ -30,7 +30,7 @@ The candidate has lower medians but does not consistently improve minima.
 | dependent subtraction Stage 05, 12 pairs | 724.183 / 824.335 / 858.436 / 1044.285 | 741.291 / 785.933 / 812.123 / 1004.167 |
 | dependent subtraction total | 922.276 / 1028.676 / 1065.944 / 1273.702 | 911.318 / 981.127 / 1023.163 / 1308.736 |
 
-[Length raw records](length-timings.json) and [subtraction raw records](dependent_subtract-timings.json)
+[Length raw records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/length-timings.json) and [subtraction raw records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/dependent_subtract-timings.json)
 retain output, load averages, profiles and binary identities. Baseline executable
 SHA-256 is `0b74983d8822d09299bcd08f2512fca1151323f76ee349f005d4f20e9531cccd`;
 candidate is `261598c276c48c3109b420691deb6a28ae636d7c8ea45d339f019271e54337a5`.
@@ -41,25 +41,25 @@ patch hash reflects measurements of committed source, not identical producers.
 
 ## Integrated correctness
 
-- [Eight validation tests passed](tests-refresh.log), including the independent
+- [Eight validation tests passed](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/tests-refresh.log), including the independent
   symbolic-walk oracle, occurrence/generation distinctions and environment scope.
-- [49 checked corpus comparisons](checked-comparison.json): zero losses or gains.
-  [Candidate](checked-records-0.txt) and [baseline](checked-records-1.txt) retain
+- [49 checked corpus comparisons](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/checked-comparison.json): zero losses or gains.
+  [Candidate](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/checked-records-0.txt) and [baseline](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/checked-records-1.txt) retain
   raw diagnostics: 21 positives checked and all 28 controls rejected with their
   expected diagnostic fragments.
-- [21 native/Terminal comparisons](both-comparison.json): zero losses or gains.
-  [Candidate](both-records-0.txt) and [baseline](both-records-1.txt) retain 20 actual
+- [21 native/Terminal comparisons](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/both-comparison.json): zero losses or gains.
+  [Candidate](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/both-records-0.txt) and [baseline](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/both-records-1.txt) retain 20 actual
   exit-0 agreements and one check-only proof fixture.
-- [Public CLI](public-length.json): nine length programs produced native exit 0
+- [Public CLI](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/public-length.json): nine length programs produced native exit 0
   and interpreter exit 0; nine invalid twins rejected with their authored
   diagnostic. Source/build hashes and actual command outputs are retained.
-- Scoped [Clippy](clippy-refresh.log) completed with existing warnings.
-  [Baseline](baseline-refresh-build.log) and [candidate](candidate-refresh-build.log)
+- Scoped [Clippy](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/clippy-refresh.log) completed with existing warnings.
+  [Baseline](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/baseline-refresh-build.log) and [candidate](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/candidate-refresh-build.log)
   optimized incremental builds succeeded. Log trailing whitespace was trimmed.
 
 Replay the [original commands](../README.md#identity-and-replay), replacing the
 comparison base with `c00fe7c23ba7be4dff1eb0bc724d2a2a78214418` and building the
-candidate revision above. [Run log](validation.log) records the complete sequence.
+candidate revision above. [Run log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/integration/validation.log) records the complete sequence.
 The normal landing receipt separately checks the exact publication commit,
 intermediate commits and preservation of golden corpus rows. No foreign-host,
 release-profile, whole-corpus or new precise performance claim is made here.

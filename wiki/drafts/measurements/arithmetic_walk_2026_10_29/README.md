@@ -20,8 +20,8 @@ smaller subjects; their spreads overlap. All 36 compiles and native executions
 succeed with byte-identical images per subject, including the unchanged stack32
 114176-byte image. No valid observation was excluded.
 
-[Retained runs](retained-runs.json), [summary](retained-summary.json),
-[metadata](retained-metadata.json), [transcript](retained-comparison.txt).
+[Retained runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/retained-runs.json), [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/retained-summary.json),
+[metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/retained-metadata.json), [transcript](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/retained-comparison.txt).
 A is the start-of-continuation producer SHA256 `67c79dda...` (already includes
 PR750); B is `139ad7c5...`, the exact retained producer from source commit
 `5f5f5c64e5a2d8f8fb78b2a649ccb3025779bf2f`. Full hashes and optimized profiles
@@ -39,8 +39,8 @@ no production source changed after their commit.
 ## Rejected follow-up
 
 The hit/miss diagnostic proves eight misses and three cheap hits; all six
-expensive projections are misses at 103-118 ms each. [Actual cache events](cache-attribution.json)
-and [complete profile](cache-attribution-profile.json) supersede the earlier
+expensive projections are misses at 103-118 ms each. [Actual cache events](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/cache-attribution.json)
+and [complete profile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/cache-attribution-profile.json) supersede the earlier
 address-based roster. Different context lifetimes can reuse an allocator address;
 address equality was insufficient evidence for shared memo ownership. The cache
 correctly reset at those boundaries, so its useful reuse was negligible. Remove
@@ -58,7 +58,7 @@ The production memo was removed. The candidate timing results below describe
 the rejected experimental bundle, not the final retained compiler.
 
 ITERATION-PERFORMANCE, fixed candidate base
-`5f5f5c64e5a2d8f8fb78b2a649ccb3025779bf2f` plus [candidate.patch](candidate.patch).
+`5f5f5c64e5a2d8f8fb78b2a649ccb3025779bf2f` plus [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/candidate.patch).
 Continues [equality endpoint indexing](../statement_remainder_2026_10_28/README.md).
 This is a compiler-workflow optimization; no new language rule or fact-row
 completion is claimed.
@@ -73,7 +73,7 @@ was rejected without implementation. Complete contract projection takes 650 ms
 for 33 calls. These are inclusive scopes from separate profiles, not additive
 whole-compile costs.
 
-The [query roster](query-roster.json) contains 22 distinct complete keys among
+The [query roster](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/query-roster.json) contains 22 distinct complete keys among
 33 requests; two expensive 32-formal keys occur twice each. Reuse those complete
 answers within the existing immutable checking context. The key includes the
 callable, result type, declared interval, and complete formal-keyed scalar and
@@ -127,15 +127,15 @@ separate profile pair is 4607 -> 4111 ms; profile scopes are attribution, not
 substitutes for the unprofiled comparison. These are local matched-workload
 results, not a claim about all programs or hosts. No timing was discarded.
 
-All [36 cumulative observations](runs.json) and [six incremental profile
-observations](incremental-runs.json) compiled and ran natively at zero. Each
+All [36 cumulative observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/runs.json) and [six incremental profile
+observations]([incremental-runs.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/incremental-runs.json)) compiled and ran natively at zero. Each
 subject's native image is byte-identical across producers. Stack32 remains
 114176 bytes, SHA256
 `55adb749405f33a9dcefcadb5a0c3f165452d1a8f05993f11f30ce8114aeb8b8`.
-See [summary](summary.json), [metadata](metadata.json) and
-[transcript](comparison.txt). Peak job commitment medians for stack32 are
-1.353 -> 1.350 GB; no memory saving is claimed. The [host snapshot](host-memory.json)
-and [build-process snapshot](competing-builds.json) are point-in-time evidence,
+See [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/summary.json), [metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/metadata.json) and
+[transcript](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/comparison.txt). Peak job commitment medians for stack32 are
+1.353 -> 1.350 GB; no memory saving is claimed. The [host snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/host-memory.json)
+and [build-process snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/competing-builds.json) are point-in-time evidence,
 not exclusive access guarantees.
 
 The incremental six-run profile screen alone is inconclusive: wall medians
@@ -145,7 +145,7 @@ separate direct comparison and must not be assigned wholly to the last memo.
 
 ## Behavior validation and limits
 
-[Seventy A/B observations](validation.json) agree, including 26 actual native /
+[Seventy A/B observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/validation.json) agree, including 26 actual native /
 Terminal pairs at exit zero. The existing nine positive call-guarantee places
 and nine circular-promise twins pass on both producers. Additional controls
 exercise distinct scalar actuals, collection lengths, mutation, nested calls,
@@ -158,9 +158,9 @@ its authored diagnostic is stale on the baseline: it expects missing reference
 origin; both producers instead reject `count` outside length 2. This is explicitly
 marked `authored_oracle_matched: false`, with source/oracle hashes and the exact
 baseline refusal pinned. The original failed oracle check is preserved in
-[validation-initial.txt](validation-initial.txt). No canonical fixture was
-weakened or edited. [Inputs](validation-inputs.json) and
-[producer identities](validation-producers.json) bind the observations.
+[validation-initial.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/validation-initial.txt). No canonical fixture was
+weakened or edited. [Inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/validation-inputs.json) and
+[producer identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/validation-producers.json) bind the observations.
 
 This targeted validation does not establish full-corpus health, other-host
 native behavior, independent promotion review, or publication. No full suite,
@@ -185,7 +185,7 @@ refusal, plus source-level actual-substitution, length, mutation and formation
 controls. It freezes source, Build and authored oracle files and checks their
 hashes after both producers finish. The new reject fixture was first refused by
 the baseline for the intended `second_difference` exact-arithmetic obligation;
-[new-reject-baseline.log](new-reject-baseline.log) retains that observation.
+[new-reject-baseline.log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/arithmetic_walk_2026_10_29/new-reject-baseline.log) retains that observation.
 
 Follow-up: these two retained optimizations landed in PR760. The next
 [conjunction projection experiment](../conjunction_flow_2026_10_29/README.md)

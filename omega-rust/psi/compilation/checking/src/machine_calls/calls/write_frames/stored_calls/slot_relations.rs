@@ -3,6 +3,13 @@
 
 use super::*;
 
+/// Stored lifetime debt has no descriptor address or pointer permission.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum StoredReferenceDestinationKind {
+    Reference(language_semantics::ReferenceAccess),
+    LifetimeDependency,
+}
+
 /// One exact destination leaf after an ordinary call. All sources must remain
 /// live while this leaf is used. Incoming means the call may leave its prior
 /// contents intact; an empty new-source set is not permission to drop them.
@@ -24,7 +31,16 @@ pub struct StoredReferenceEffect {
     /// Unlike a conditional write to one exact slot, it cannot replace the
     /// destination's complete current descriptor occurrence.
     pub may_select: bool,
-    pub access: language_semantics::ReferenceAccess,
+    pub destination_kind: StoredReferenceDestinationKind,
+}
+
+impl StoredReferenceEffect {
+    pub fn reference_access(&self) -> Option<language_semantics::ReferenceAccess> {
+        match self.destination_kind {
+            StoredReferenceDestinationKind::Reference(access) => Some(access),
+            StoredReferenceDestinationKind::LifetimeDependency => None,
+        }
+    }
 }
 
 /// Construction graph of exact normal-call descriptor contexts. Each node
@@ -108,7 +124,7 @@ impl SlotSource {
 #[derive(Clone)]
 pub(in crate::machine_calls::calls::write_frames) struct SlotInventory {
     pub(in crate::machine_calls::calls::write_frames) origin: StoredWriteOrigin,
-    pub(in crate::machine_calls::calls::write_frames) access: language_semantics::ReferenceAccess,
+    pub(in crate::machine_calls::calls::write_frames) kind: stored_origins::StoredOriginKind,
     /// Each crossed pointer still denotes its incoming descriptor occurrence.
     /// A final spelling cannot recover a destination captured before rebinding.
     pub(in crate::machine_calls::calls::write_frames) ancestors: Vec<Vec<PlaceSegment>>,

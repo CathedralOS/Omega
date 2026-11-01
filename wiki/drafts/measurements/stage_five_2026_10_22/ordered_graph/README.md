@@ -19,14 +19,14 @@ vector_distance had Build 34 / previous 0, Build 34 / previous 1, and Product
 1,347 / previous 0. The latter then refused its existing package admission:
 `macos_arm64::ProgramEntry` needed an accepted program-entry binding. That input
 was not modified and supplies no successful performance comparison. The raw
-[length](length.stderr) and [vector](vector.stderr) observations correct the reuse
+[length](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/length.stderr) and [vector](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/vector.stderr) observations correct the reuse
 premise; machine-visit counts alone never established redundant judgments.
 The owner selected reducing cold work with compact symbolic graphs.
 
 The old ordering walk repeatedly collected structurally equal operands and
 searched recursive operand trees during edge relaxation. A temporary probe at
 `ordered_gaps_by` entry counted 69,939 walks and 729,621 relation entries summed
-on length/local ([output](order-profile.stderr)). Its inclusive 159.587 ms timer
+on length/local ([output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/order-profile.stderr)). Its inclusive 159.587 ms timer
 contains nested scopes and instrumentation overhead: it is not removable wall
 time. These counts include the outer congruence-aware walk as well as exact
 leaf walks. They must not be compared one-for-one with the new exact graph rows.
@@ -78,8 +78,8 @@ Length: 28 pairs, candidate Stage 05 faster in all 28, median paired saving
 32.185 ms. Total median reduced 3.95%. Subtract: 16 pairs, candidate Stage 05
 faster in 13, total median reduced 2.71%. Raw records include stdout/stderr,
 load averages, verified optimization profiles, executable hashes, source hash,
-patch hash and toolchain: [length](final-length-timings.json),
-[subtract](final-subtract-timings.json).
+patch hash and toolchain: [length](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/final-length-timings.json),
+[subtract](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/final-subtract-timings.json).
 
 Own builds and timings were serialized. Other sessions were building and running
 corpus checks on this shared host; no applications were closed or desktop state
@@ -89,14 +89,14 @@ measurements do not establish release-profile, Windows, large-program, memory,
 or cross-process reuse gains. The earlier exploratory candidate is not pooled
 with these final-source observations.
 
-Three separately [profiled pairs](final-phase-timings.json) each report 4,260
+Three separately [profiled pairs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/final-phase-timings.json) each report 4,260
 graphs, 26,752 vertices summed, 32,172 edges summed and 4,453 computed source rows
 for the candidate. Optional profiling counters take a shared lock; instrumented
 latencies are perturbed and are not used for the speedup claim. Existing outer
 ordering walks remain. The counted waste supports the mechanism but gives no
 numeric ceiling on whole-stage savings.
 
-The [actual arm64 assembly](difference-graph-arm64.asm) retains the numeric
+The [actual arm64 assembly](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/difference-graph-arm64.asm) retains the numeric
 relaxation loop: indexed loads/stores, `adds` with overflow tested before update,
 and no recursive Operand equality in that loop. Structural equality remains
 in endpoint lookup. This confirms the intended code exists, not a specific CPU
@@ -104,28 +104,28 @@ throughput or cache limit.
 
 ## Behavior and validation
 
-- [Eight validation crate tests passed](final-tests.log). Three new tests compare
+- [Eight validation crate tests passed](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/final-tests.log). Three new tests compare
   against the previous symbolic walk on 256 deterministic graphs (cycles,
   Unequal edges, missing endpoints, i64 extremes, repeated/reversed queries),
   retain call occurrence and generation distinctions, and prevent equality
   leaking across changed environments. This is an independent representation
   oracle, not a test that merely restates the compact implementation.
-- [Checked corpus comparison](corpus-checked.json): 49 fixtures, 0 lost / 0 gained
-  against `4533fd644482`. [Candidate records](corpus-checked-0.txt) contain 21
-  checked positives and 28 rejects with expected diagnostics; [baseline records](corpus-checked-1.txt)
+- [Checked corpus comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/corpus-checked.json): 49 fixtures, 0 lost / 0 gained
+  against `4533fd644482`. [Candidate records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/corpus-checked-0.txt) contain 21
+  checked positives and 28 rejects with expected diagnostics; [baseline records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/corpus-checked-1.txt)
   retain the corresponding raw observations. Coverage includes constructor
   captures, effectful epochs, snapshot invalidation, congruence false twins,
   missing argument bounds and the length fact row.
-- [Native/Terminal comparison](corpus-comparison.json): 21 fixtures, 0 lost /
-  0 gained. The [baseline rows](corpus-both-baseline.txt) show 20 native/interpreter
+- [Native/Terminal comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/corpus-comparison.json): 21 fixtures, 0 lost /
+  0 gained. The [baseline rows](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/corpus-both-baseline.txt) show 20 native/interpreter
   exit-0 agreements and one check-only proof fixture. `--both` selects positives;
   the separate checked comparison above supplies reject evidence.
-- [Public CLI observations](public-length.json): all nine length transport places
+- [Public CLI observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/public-length.json): all nine length transport places
   produced native exit 0 and interpreter exit 0; all nine invalid twins rejected
   with their authored `rejection_contains` diagnostic. Sources/oracles unchanged.
-- Optimized CLI build passed ([log](final-build.log)). Scoped Clippy completed
-  with warnings ([log](clippy-warnings.log), trailing whitespace trimmed); strict `-D warnings` stopped at an
-  unchanged `optimization-selections.rs:152` useless conversion ([log](clippy.log)).
+- Optimized CLI build passed ([log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/final-build.log)). Scoped Clippy completed
+  with warnings ([log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/clippy-warnings.log), trailing whitespace trimmed); strict `-D warnings` stopped at an
+  unchanged `optimization-selections.rs:152` useless conversion ([log](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/clippy.log)).
   The warning in touched `delivered.rs:96` is also unchanged (`&arguments`).
   No warning points to introduced code. Affected-file rustfmt check and
   `git diff --check` passed. No full corpus or foreign-host execution is claimed.
@@ -145,9 +145,9 @@ Baseline executable SHA-256:
 `7d324fb6afb876d146fb219975e5590bb0dffb4f8f3b6a2fcb457b3f479a633c`.
 Final candidate executable SHA-256:
 `7236e1c400a8c2b68eea7a27242f677631c0bdd77ed22c93ebf51839c9291b27`.
-The decompressed [implementation patch](implementation.patch.gz) hashes to
+The decompressed [implementation patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/implementation.patch.gz) hashes to
 `67d0438d819b63bf3582ad759ddc381a6a4e75d3edeee4730633e8b2721b89e3`.
-[Manifest](manifest.json) binds source files, runner, workload roots/builds and
+[Manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/stage_five_2026_10_22/ordered_graph/manifest.json) binds source files, runner, workload roots/builds and
 diagnostic probe binaries. The temporary probes are removed; their outputs are
 diagnostic evidence, not the production candidate or a performance denominator.
 

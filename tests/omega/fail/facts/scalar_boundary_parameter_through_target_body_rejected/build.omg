@@ -13,4 +13,8 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<TargetSubtract, TargetSubtractCode>(builder, macos_arm64);
+    Build::select_provider<TargetSubtract, TargetSubtractCode>(builder, linux_arm64);
+    Build::select_provider<TargetSubtract, TargetSubtractCode>(builder, linux_x86_64);
+    Build::select_provider<TargetSubtract, TargetSubtractCode>(builder, windows_x86_64);
 }

@@ -16,10 +16,10 @@ second census and always-empty exclusion argument were removed.
 
 Baseline: `b428c347b51`, built in this isolated checkout with the pinned nightly,
 optimized dev profile 1. Candidate is that base plus the two-file implementation
-in this commit. `timings.json` binds the exact binary digests, profile, Rust
+in this commit. [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/timings.json) binds the exact binary digests, profile, Rust
 version, Apple M4/macOS ARM64 host, source/library hashes and implementation
-patch digest. `instrumentation.patch` contains temporary attribution probes;
-it is not part of the candidate Rust source. `attribution.txt` shows the full
+patch digest. [`instrumentation.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/instrumentation.patch) contains temporary attribution probes;
+it is not part of the candidate Rust source. [`attribution.txt`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/attribution.txt) shows the full
 source census costing 0.602 ms out of 6.265 ms lowering in one exploratory run.
 That exploratory observation is not the A/B baseline.
 
@@ -45,12 +45,12 @@ Whole-compile medians are 1543.850 → 1526.893 ms and 744.186 → 736.299 ms.
 The broad ranges and background load do not establish a reliable end-to-end
 speedup. Checking dominates these workloads. Every emitted native image has
 exactly the same SHA-256 within each subject across both producers and all
-rounds. Raw observations and descriptive statistics are in `timings.json` and
-`timing-summary.json`.
+rounds. Raw observations and descriptive statistics are in [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/timings.json) and
+[`timing-summary.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/timing-summary.json).
 
 ## Correctness and limitations
 
-`validation.json` contains 126 observations, grouped into 63 baseline/candidate
+[`validation.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/validation.json) contains 126 observations, grouped into 63 baseline/candidate
 comparisons: native/Terminal execution of all nine places of both fact rows and
 three trait consumers (21 programs), canonical Terminal artifact bytes for those
 21, the 18 fact-sensitive reject twins, and three implementation-argument controls. Every execution has actual native
@@ -62,14 +62,14 @@ and hashed; no witness, oracle or golden was edited.
 The captured-region fixture names `Main::main`, unlike the other subjects. An
 initial standalone inspection with `main` failed identically on both producers;
 the corrected inspections are the accepted artifact comparisons. Initial raw
-probes are retained in `inspection-wrong-machine.json`. A comparison script also
+probes are retained in [`inspection-wrong-machine.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/inspection-wrong-machine.json). A comparison script also
 initially treated the per-process `--keep` scratch path as a diagnostic change;
 normalizing that line reuses the actual observations without relabeling them.
 
 Affected package build and Clippy complete; Clippy reports existing warnings.
 Touched-file rustfmt and `git diff --check` pass. Package nextest runs 26 tests:
 24 pass, including all four existing conformance occurrence tests; two lowering
-source audits fail on 14 baseline violations. `audit-attribution.json` binds
+source audits fail on 14 baseline violations. [`audit-attribution.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/audit-attribution.json) binds
 the unchanged audit definition and each unchanged violating file to their base
 hashes. The changed retention source introduces none of their forbidden patterns.
 This is source-reader attribution, not a claim of a fresh baseline test run.
@@ -90,9 +90,9 @@ check results accompany this record. No execution on other hosts is claimed.
    `build/lowering-performance/omega-candidate`. Save the Rust diff as
    `build/lowering-performance/candidate.patch`.
 3. From the checkout root, run `python3
-   wiki/drafts/measurements/lowering_2026_10_22/measure.py` and `validate.py`.
+   [wiki/drafts/measurements/lowering_2026_10_22/measure.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/measure.py)` and `[validate.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/validate.py)`.
    The latter may re-summarize saved observations with `--summarize`.
-4. Corpus commands and their exact filter are retained in `checks.json`.
+4. Corpus commands and their exact filter are retained in [`checks.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/checks.json).
 
 This bounded iteration removes measured repeated discovery while preserving
 behavior. It does not establish that lowering is saturated. The next question

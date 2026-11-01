@@ -202,6 +202,7 @@ fn analyze_default_domain_writes_with_frames(
                                     &mut throwaway,
                                     &mut throwaway_crash_sites,
                                     false,
+                                    &[],
                                 )
                                 .0,
                             ],
@@ -235,6 +236,7 @@ fn analyze_default_domain_writes_with_frames(
                                     &mut throwaway,
                                     &mut throwaway_crash_sites,
                                     false,
+                                    &[],
                                 )
                                 .0;
                             }
@@ -373,6 +375,7 @@ fn analyze_default_domain_writes_with_frames(
                             &mut state_diagnostics,
                             &mut state_crash_sites,
                             true,
+                            &[],
                         );
                         walks[index] = Some(StateWalk {
                             exit: StateExit {
@@ -796,6 +799,7 @@ fn restore_parameter_write<'program>(
     )],
     tracked: &mut Vec<TrackedPlace<'program>>,
     diagnostics: &mut Vec<Diagnostic>,
+    active_callees: &[symbols::SymbolHandle],
 ) {
     let Some(machine) = program.machine(target).or_else(|| {
         state_to_machine
@@ -804,6 +808,19 @@ fn restore_parameter_write<'program>(
     }) else {
         return;
     };
+    // A specialized walk re-enters callees with the caller's literal field
+    // valuations. Private machines that hand the same place back and forth
+    // (`head -> tail -> head`) would re-walk forever. A callee already on this
+    // chain records an unproved attempt: the re-entry is a real arrival this
+    // walk did not prove, so the callee's own unspecialized walk keeps every
+    // diagnostic instead of being excused by its other proved attempts.
+    if active_callees.contains(&machine.symbol) {
+        proved_parameter_calls()
+            .lock()
+            .expect("parameter call proofs")
+            .push((machine.symbol, false));
+        return;
+    }
     let Some(state) = program.machine_states(machine).first() else {
         return;
     };
@@ -829,6 +846,8 @@ fn restore_parameter_write<'program>(
     }
     let mut callee_diagnostics = Vec::new();
     let mut crash_sites = Vec::new();
+    let mut chain = active_callees.to_vec();
+    chain.push(machine.symbol);
     walk_state(
         program,
         None,
@@ -844,6 +863,7 @@ fn restore_parameter_write<'program>(
         &mut callee_diagnostics,
         &mut crash_sites,
         false,
+        &chain,
     );
     let proved = callee_diagnostics.is_empty();
     proved_parameter_calls()
@@ -921,6 +941,7 @@ fn walk_state(
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
     record_crash_sites: bool,
+    active_callees: &[symbols::SymbolHandle],
 ) -> (Vec<String>, Vec<PlaceValuation>, Vec<InvariantWindow>) {
     // The binding that names the record this state's field places are rooted
     // at: `self` under the receiver spelling, an ordinary parameter name under
@@ -1004,8 +1025,8 @@ fn walk_state(
                     program,
                     machine,
                     state,
-                    assignment.target,
-                    assignment.value,
+                    statement,
+                    call_frames,
                     &mut tracked,
                     entry_valuations,
                     &inherited_windows,
@@ -1013,6 +1034,7 @@ fn walk_state(
                     &mut poisoned_paths,
                     born_zero,
                     statement_ordinal,
+                    diagnostics,
                 );
                 // Assignment checking establishes the destination's declared
                 // type, not an unfinished containing predicate or every
@@ -1078,6 +1100,7 @@ fn walk_state(
                     &saved_places,
                     &mut tracked,
                     diagnostics,
+                    active_callees,
                 );
             }
             StatementNode::Expression(expression) => {
@@ -1106,6 +1129,7 @@ fn walk_state(
                         &saved_places,
                         &mut tracked,
                         diagnostics,
+                        active_callees,
                     );
                 }
             }
@@ -1136,6 +1160,7 @@ fn walk_state(
                             &saved_places,
                             &mut tracked,
                             diagnostics,
+                            active_callees,
                         );
                     }
                 }
@@ -1248,6 +1273,7 @@ fn walk_state(
                         &saved_places,
                         &mut tracked,
                         diagnostics,
+                        active_callees,
                     );
                 }
             }

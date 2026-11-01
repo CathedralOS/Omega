@@ -22,7 +22,7 @@ No relation is added or retained across a write, join or rebinding. The existing
 storage-preservation admission, match-arm environments, recursion limit,
 relation order, finite closure bounds and maximum-floor selection are unchanged.
 The governing contract is [fact validity](../../../spec/terminal-psi/fact_validity.md).
-The local implementation diff is [compiler.patch](compiler.patch); diagnostic scope
+The local implementation diff is [compiler.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/compiler.patch); diagnostic scope
 patches were removed before building the candidate. Diagnostic patches are
 zero-context diffs against the fixed base; replay them with `git apply
 --unidiff-zero`. Their reconstruction and reverse application were checked. No cache framework, new
@@ -36,9 +36,9 @@ supports reduced statement-checking cost on the stack-call witness. It does
 **not** establish a reliable whole-compile speedup or regression-free performance
 across workloads. No PR, landing or release qualification is claimed.
 
-The initial [diagnostic](statement-profile.json) put 1806.059 ms in local and
+The initial [diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/statement-profile.json) put 1806.059 ms in local and
 terminal-expression arithmetic-range scopes versus 1906.922 ms in statement
-validation. The [arithmetic diagnostic](arithmetic-profile.json) then identified
+validation. The [arithmetic diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/arithmetic-profile.json) then identified
 1002.844 ms in mathematical-interval refinement. See [research](research.md)
 for the source trace, deferred alternative and primary-source research.
 Inclusive scopes overlap and may span workers; they are not additive wall time.
@@ -54,7 +54,7 @@ median [minimum, maximum]. All valid observations remain included:
 
 The smaller workloads have higher candidate medians and overlapping ranges.
 Those observations are not discarded or called improvements. Other Rust builds
-were active during the comparison ([snapshot](competing-builds.json)); this
+were active during the comparison ([snapshot](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/competing-builds.json)); this
 checkout isolates source, not host resources. Whole-compile performance on the
 smaller cases remains unresolved.
 
@@ -70,8 +70,8 @@ while adjacent call checking remained 825 → 802 ms. This is the basis for the
 decision to preserve the local candidate; it is not promotion or a generalized
 compiler-speed claim.
 
-[Runs](runs.json), [summary](summary.json), [follow-up](phase-runs.json),
-[phase summary](phase-summary.json), and [producer/source metadata](metadata.json)
+[Runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/runs.json), [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/summary.json), [follow-up](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/phase-runs.json),
+[phase summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/phase-summary.json), and [producer/source metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/metadata.json)
 retain the exact measurements. All 42 comparison/follow-up compiles succeeded,
 all native executions exited 0 with empty output, and the images match the
 baseline byte for byte within each subject. Both diagnostic builds also
@@ -84,18 +84,18 @@ saving is claimed.
 - Optimized candidate build succeeded; both producers report opt-level 1.
 - Five focused equality-graph tests passed, covering bounded symbolic walks,
   cycles, overflow, constructor identities, fresh environments and finite limits
-  ([output](tests.txt)). Existing tests exercise the reused helper directly;
+  ([output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/tests.txt)). Existing tests exercise the reused helper directly;
   no implementation-mirroring test or new language fixture was needed.
 - All 68 A/B behavioral observations passed: the unchanged stack32 nine-place
   row and its nine reject twins, twelve arithmetic controls and four additional
   subtraction controls. The eighteen positive row executions agree between
   Terminal Psi and native execution. Rejection exits and diagnostics agree
   between producers; additional rejection fragments match their authored oracle.
-  See [results](validation.json), [output](validation.txt) and
-  [exact producers](validation-producers.json). Source/build hashes and producer
+  See [results](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/validation.json), [output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/validation.txt) and
+  [exact producers](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/validation-producers.json). Source/build hashes and producer
   digests were checked again after execution.
-- The shared [validator](../checking_simplification_2026_10_28/validate.py) now
-  isolates A/B Windows source caches. The small [wrapper](validate.py) adds
+- The shared [validator](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/validate.py) now
+  isolates A/B Windows source caches. The small [wrapper](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/validate.py) adds
   captured-result, match-subtraction and invalidated-bound controls, verifying
   their authored reject fragments as well as identical A/B diagnostics.
 - Formatting and scoped whitespace checks passed. Both validation scripts parse.
@@ -135,5 +135,5 @@ value-position-call scanning (roughly 0.57 seconds in the candidate follow-up).
 
 The registered claim `75a2942bdb2f4b89aae220b2dad27bc6` was released after
 validation. The push response timed out with an unknown outcome
-([receipt](claim-release.json)); subsequent [remote read-back](claim-status.json)
+([receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/claim-release.json)); subsequent [remote read-back](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/statement_validation_2026_10_28/claim-status.json)
 confirmed the ticket absent. No registered claim remains for this iteration.

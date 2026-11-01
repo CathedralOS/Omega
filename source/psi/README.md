@@ -98,7 +98,8 @@ Base { machine (* | [Base::]requirement) clauses }` narrows its base's
 `reaches`, `suspends`, `blocks` and `terminates`, each clause ending at its
 own `;`; a
 named conformance `[public] Name [<generic parameters>] satisfies Trait<arguments>
-{ ... }` holds checked machines and reference rows `Trait::requirement = Path;`
+{ ... }` holds checked machines only: the reference row `Trait::requirement = Path;`
+is retired and rejects at its first token
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
 `[public] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
 is a transparent alias `= A & B;` or takes `requires` facts and
@@ -124,7 +125,7 @@ conformance member must have one. Target-prefixed machines are retired language
 syntax; `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route)
 tracks removing that parser path and using ordinary implementations selected by
 target-keyed Build rows. `::` name paths (domain routes and
-constituents, both sides of a reference row) share one table
+constituents) share one table
 ([`parse/path.omg`](parse/path.omg)). The retired `boundary requirement` and
 `operator` introducers reject at their word: a boundary operation is a
 requirement of a boundary trait, and a token binds to an ordinary
@@ -264,11 +265,10 @@ one target or an untargeted body beside them repeats it; that grouping is remova
 work, not the accepted declaration model. A bodyless machine binds only its
 signature; whether it has a supply is checking's question. The binding tables
 are indexed by the syntax table's type-reference handles. Name paths bind
-next: a reference row's left side to a trait requirement (`NotARequirement`
-otherwise) and its right side to a machine, a domain's establishment routes to
-a requirement or machine, and an alias's constituents to domains, bare ones
-over the alias's own carrier. Then every name and path in a machine body or a
-constant's value binds ([`resolve/names.omg`](resolve/names.omg)) in the
+next: a domain's establishment routes to a requirement or machine, and an
+alias's constituents to domains, bare ones over the alias's own carrier. Then
+every name and path in a machine body or a constant's value binds
+([`resolve/names.omg`](resolve/names.omg)) in the
 language's resolution order: an earlier `let` of the same body, the enclosing
 arm's pattern binders, the body's own parameters, then its lexical static
 binders (never another invocation's parameters or locals), then the machine's
@@ -280,8 +280,8 @@ member of the enclosing trait or conformance, then a machine or a proposition
 (both of one spelling are ambiguous); a callee path `Owner::name` names the
 machine of
 that path, so `Trait::requirement` and `Conformance::member`, or, for a
-conformance declaring no such member, the machine its reference row or its
-trait supplies for that requirement. Ordinary and terminal calls use the same
+conformance declaring no such member, the machine its trait supplies for that
+requirement. Ordinary and terminal calls use the same
 exact machine lookup; qualification
 cannot expose a sibling's private descendants or export a nested helper. Static
 machine arguments use that same lexical lookup. A construction or case pattern

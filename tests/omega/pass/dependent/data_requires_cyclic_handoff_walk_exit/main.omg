@@ -1,0 +1,41 @@
+// Expected exit: 0
+// Two private machines hand the same bounded record back and forth. `head`
+// stores a literal into a sibling field before the hand-off, so the
+// default-domain walk re-enters `tail` with that literal valuation; the
+// re-entry of `head` from `tail` must end the specialized walk instead of
+// re-walking the cycle until the checker's stack is exhausted.
+data Pump
+requires level >= 0 && level <= 16
+{
+    level: i32;
+    scratch: u32;
+    steps: u32;
+    total: u32 in Wrapping;
+}
+machine drain(pump: &mut Pump) {
+    transition { _ -> head(pump) }
+    machine head(pump: &mut Pump) {
+        pump.scratch = 0;
+        transition pump.steps > 0 { true -> tail(pump) _ -> done(pump) }
+    }
+    machine tail(pump: &mut Pump) requires pump.steps > 0 {
+        pump.scratch = pump.scratch + 1;
+        pump.total = pump.total + (pump.scratch as u32 in Wrapping);
+        pump.steps = pump.steps - 1;
+        transition { _ -> head(pump) }
+    }
+    machine done(pump: &mut Pump) { }
+}
+machine main() crashes Trap {
+    let mut idle: Pump = Pump { level: 9, scratch: 5, steps: 0, total: 0 };
+    let mut busy: Pump = Pump { level: 3, scratch: 5, steps: 4, total: 0 };
+    drain(&mut idle);
+    drain(&mut busy);
+    transition idle.scratch == 0 && idle.total == 0 && busy.scratch == 0
+        && busy.total == 4 && busy.steps == 0 && busy.level == 3 {
+        true -> passed()
+        _ -> failed()
+    }
+    machine passed() { }
+    machine failed() { crash Trap; }
+}

@@ -106,7 +106,7 @@ Baseline source: `b1d401fd1d3ddc5470d915bc5ab5044c2e093677`, with ownership
 attribution. Its producer identity records the prior committed base plus the
 exact source-graph file hash, which matches this committed source. Candidate:
 that base plus the three source hashes in
-[`generation-domains/after-identity.json`](generation-domains/after-identity.json).
+[`generation-domains/after-identity.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/generation-domains/after-identity.json).
 Both are retained optimized `opt-level=1` producers using the pinned nightly.
 Their public version says `unrecorded`; source revisions are not inferred from it.
 
@@ -117,9 +117,9 @@ fixture repair are retained beside the successful validation log.
 
 ## Replay material and rejected candidates
 
-[`generation-domains/pooled-result.json`](generation-domains/pooled-result.json)
+[`generation-domains/pooled-result.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/generation-domains/pooled-result.json)
 contains every paired duration and both batches separately.
-[`generation-domains/summarize.py`](generation-domains/summarize.py) replays the
+[`generation-domains/summarize.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/generation-domains/summarize.py) replays the
 analysis after extracting `observations.zip` into the same directory. The archive
 preserves raw journals, reports, streams, plans, accepted input copies, commands
 and validation logs. Executables and large graph payloads remain in ignored

@@ -1,0 +1,32 @@
+// The guard admits 16, so `count + 1` can reach 17 past the `where` bound.
+// The counter's `where` lower bound and the guard in `handle` together prove
+// the store in `next`, although `handle` is reached only through the cycle
+// head `poll` and is not itself the recurring arrival boundary.
+data Counter
+requires count >= 0 && count <= 16
+{
+    count: i32;
+    polls: i32 in Wrapping;
+}
+machine run(counter: &mut Counter) {
+    counter.count = 0;
+    transition { _ -> poll(counter) }
+    machine poll(counter: &mut Counter) {
+        counter.polls = counter.polls + 1;
+        transition { _ -> handle(counter) }
+    }
+    machine handle(counter: &mut Counter) {
+        transition counter.count < 17 { true -> next(counter) _ -> done() }
+    }
+    machine next(counter: &mut Counter) {
+        counter.count = counter.count + 1;
+        transition { _ -> poll(counter) }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { count: 9, polls: 0 };
+    run(&mut counter);
+    transition counter.count == 16 && counter.polls == 17 { true -> {} _ -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

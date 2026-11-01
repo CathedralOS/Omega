@@ -18,7 +18,7 @@ Their initializing calls needed no shared-reference leaf query; whether later
 calls would need the retained graphs was still unknown. This experiment delays
 construction until an actual projected shared-referent backing query.
 
-The pure [candidate patch](candidate.patch) changes only
+The pure [candidate patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/candidate.patch) changes only
 `reference_origins/memberships.rs` in `terminal-semantics`. A private kernel
 accepts a graph provider and initializes an invocation-local graph/analysis pair
 with `Option::get_or_insert_with` at the existing backing-query call. The public
@@ -62,7 +62,7 @@ a gain across both cache modes or another program.
 
 The predeclared rule requires at least 5/6 positive wall pairs in **each** mode,
 at least 4/6 positive CPU pairs and positive median wall/CPU reductions, alongside
-the quality checks. [summary.json](summary.json) recomputes to
+the quality checks. [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/summary.json) recomputes to
 `promotion_supported: false`. Acceptance was not changed after seeing results.
 
 ## Actual graph demand
@@ -76,7 +76,7 @@ The independently frozen counter producers observe:
 
 All four qualifying candidate call preparations stayed short of a graph-backed
 query. This measures actual eliminated builds, rather than assuming later calls
-also have the initializing call's requirements. The [diagnostic patch](diagnostic.patch)
+also have the initializing call's requirements. The [diagnostic patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/diagnostic.patch)
 adds only ready/build counters in the changed file; it is independently applicable
 to the recorded base, not stacked on the pure patch. Counter overhead and all
 counter-producer timings are excluded from the pure A/B result.
@@ -94,7 +94,7 @@ The corpus diff gates nevertheless returned **1 for both producers**: one
 positive fixture is absent from the retained golden, and one mixed-origin
 negative's diagnostics moved relative to that golden. The exact baseline replay
 establishes that these discrepancies predate this candidate. No golden was
-recorded. [quality-summary.json](quality-summary.json) and the individual reports
+recorded. [quality-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/quality-summary.json) and the individual reports
 preserve the nonzero gate results; these are not claimed as green diff gates.
 
 All 31 compiler observations succeeded: 24 pure timing runs, two pure both-engine
@@ -106,14 +106,14 @@ native image has SHA-256
 
 The recorded base is `d9c92de878a42e495f45fdf49ba228d64294f4aa`; its compiler
 source equals semantic base `456c5e984452a45d977295e254b3ca9ae3cc7750`.
-[Candidate source identity](candidate-source.json),
-[diagnostic source identity](diagnostic-source.json),
-[pure producer identities](identities.json),
-[counter identities](counter-identities.json) and
-[corpus identities](corpus-identity.json) bind patches, binaries, normal accepted
+[Candidate source identity](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/candidate-source.json),
+[diagnostic source identity](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/diagnostic-source.json),
+[pure producer identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/identities.json),
+[counter identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/counter-identities.json) and
+[corpus identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/corpus-identity.json) bind patches, binaries, normal accepted
 locks and optimized profiles (`opt_level=1`). The original counter producer is
 the verified retained `terminal-breakdown` producer from the preceding record.
-[Patch checks](patch-checks.json) verify both patches apply independently to the
+[Patch checks](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/patch-checks.json) verify both patches apply independently to the
 exact base and reproduce the pure candidate's source digest.
 
 ## Evidence replay and limits
@@ -127,7 +127,7 @@ python wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_grap
 The analyzer checks the manifest, identities, all 31 observations, native/Terminal
 agreement, graph counts, warm-cache ancestry, every paired result and the exact
 baseline-equivalent focused corpus outcomes. Raw records and compressed streams
-are under [raw](raw/). [research.md](research.md) records the original hypothesis,
+are under [raw](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/raw). [research.md](research.md) records the original hypothesis,
 acceptance, API research, scheduling correction and final decision. Build and
 quality logs are compressed alongside the scripts. The optional reported phase
 rows are post hoc diagnostic observations; they cannot rescue promotion or be

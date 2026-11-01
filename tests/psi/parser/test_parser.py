@@ -45,7 +45,6 @@ class Observation:
     traits: tuple[tuple[int, ...], ...] = ()
     trait_parents: tuple[int, ...] = ()
     conformances: tuple[tuple[int, ...], ...] = ()
-    conformance_rows: tuple[tuple[int, ...], ...] = ()
     domains: tuple[tuple[int, ...], ...] = ()
     constants: tuple[tuple[int, ...], ...] = ()
     propositions: tuple[tuple[int, ...], ...] = ()
@@ -410,7 +409,7 @@ def decode(payload: bytes) -> Observation:
         for _ in range(reader.u64())
     )
     # The declaration tables: name paths, traits, trait parents,
-    # conformances, conformance rows, domains, constants and propositions.
+    # conformances, domains, constants and propositions.
     name_paths = tuple(
         (reader.u64(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
@@ -435,14 +434,9 @@ def decode(payload: bytes) -> Observation:
             reader.u64(), reader.u64(),
             reader.u64(),
             reader.u64(), reader.u64(),
-            reader.u64(), reader.u64(),
             reader.byte(),
             reader.u64(), reader.u64(), reader.u64(),
         )
-        for _ in range(reader.u64())
-    )
-    conformance_rows = tuple(
-        (reader.u64(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
     domains = tuple(
@@ -558,7 +552,6 @@ def decode(payload: bytes) -> Observation:
         traits,
         trait_parents,
         conformances,
-        conformance_rows,
         domains,
         constants,
         propositions,
@@ -714,7 +707,6 @@ def accepted(
     traits: tuple[tuple[int, ...], ...] = (),
     trait_parents: tuple[int, ...] = (),
     conformances: tuple[tuple[int, ...], ...] = (),
-    conformance_rows: tuple[tuple[int, ...], ...] = (),
     domains: tuple[tuple[int, ...], ...] = (),
     constants: tuple[tuple[int, ...], ...] = (),
     propositions: tuple[tuple[int, ...], ...] = (),
@@ -751,7 +743,6 @@ def accepted(
         traits,
         trait_parents,
         conformances,
-        conformance_rows,
         domains,
         constants,
         propositions,
@@ -782,7 +773,6 @@ def rejected(
     trait_count: int = 0,
     trait_parent_count: int = 0,
     conformance_count: int = 0,
-    conformance_row_count: int = 0,
     domain_count: int = 0,
     constant_count: int = 0,
     proposition_count: int = 0,
@@ -810,7 +800,6 @@ def rejected(
     assert len(actual.traits) == trait_count, (name, actual)
     assert len(actual.trait_parents) == trait_parent_count, (name, actual)
     assert len(actual.conformances) == conformance_count, (name, actual)
-    assert len(actual.conformance_rows) == conformance_row_count, (name, actual)
     assert len(actual.domains) == domain_count, (name, actual)
     assert len(actual.constants) == constant_count, (name, actual)
     assert len(actual.propositions) == proposition_count, (name, actual)
@@ -818,7 +807,7 @@ def rejected(
 
 DECLARATION_TABLES = (
     "name_paths", "traits", "trait_parents", "conformances",
-    "conformance_rows", "domains", "constants", "propositions",
+    "domains", "constants", "propositions",
     "contracts", "match_arms", "definitions", "erased_bindings", "retired_identities",
 )
 
@@ -1214,20 +1203,16 @@ def root_declaration_cases(program: str) -> None:
         actual = decode(payload)
         assert status != 0 and not actual.accepted and actual.diagnostic == 200, (name, status, actual)
 
-    # Named conformances: checked members and reference rows.
+    # Named conformances: every member is a checked machine.
     source = (
-        b'public Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} Increment::reset = Counter::clear; }'
+        b'public Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} }'
     )
     declaration_accepted(
         program, "conformance", source,
         roots=((CONFORMANCE, 0, *whole(source)),),
-        members=(span(source, b"Increment", 2), span(source, b"reset"), span(source, b"Counter", 3),
-                 span(source, b"clear")),
-        name_paths=((0, 2, *span(source, b"Increment::reset")), (2, 2, *span(source, b"Counter::clear"))),
-        conformance_rows=((0, 1, *span(source, b"Increment::reset = Counter::clear;")),),
         machines=(machine(source, b"increment", through(source, b"machine", b"{}"), parameters=(0, 1),
                           container=2, generics=(1, 0)),),
-        conformances=((*span(source, b"Saturating"), 0, 1, 2, 0, 1, 0, 1, 1, *whole(source)),),
+        conformances=((*span(source, b"Saturating"), 0, 1, 2, 0, 1, 1, *whole(source)),),
         type_arguments=(0, 1, 3),
     )
 
@@ -1254,12 +1239,11 @@ def root_declaration_cases(program: str) -> None:
         ("conformance-trait", b"Name satisfies { }", 122, (15, 16), {}),
         ("conformance-body", b"Name satisfies T x", 123, (17, 18), {"type_reference_count": 1}),
         ("conformance-member", b"Name satisfies T { ; }", 124, (19, 20), {"type_reference_count": 1}),
-        ("conformance-row-equals", b"Name satisfies T { T::f g; }", 125, (24, 25),
-         {"type_reference_count": 1, "member_count": 2, "name_path_count": 1}),
-        ("conformance-row-target", b"Name satisfies T { T::f = ; }", 126, (26, 27),
-         {"type_reference_count": 1, "member_count": 2, "name_path_count": 1}),
-        ("conformance-row-end", b"Name satisfies T { T::f = g }", 127, (28, 29),
-         {"type_reference_count": 1, "member_count": 3, "name_path_count": 2}),
+        ("retired-conformance-reference-row", b"Name satisfies T { T::f = g; }", 124, (19, 20),
+         {"type_reference_count": 1}),
+        ("retired-conformance-reference-row-after-member",
+         b"Name satisfies T { machine f() {} T::g = h; }", 124, (34, 35),
+         {"type_reference_count": 1, "machine_count": 1}),
         ("conformance-member-body", b"Name satisfies T { machine f() }", 47, (31, 32), {"type_reference_count": 1}),
         ("conformance-member-bodyless", b"Name satisfies T { machine f(); }", 155, (30, 31),
          {"type_reference_count": 1, "machine_count": 1}),
@@ -1294,7 +1278,7 @@ def root_declaration_cases(program: str) -> None:
         rejected(program, name, source, diagnostic, where, **counts)
 
     # Capacity edges: each table holds exactly its bound, and one more
-    # rejects at the declaration or row past it.
+    # rejects at the declaration past it.
     edges = (
         ("trait", b"trait T { }\n", 256, 119, b"trait", {"trait_count": 256}),
         ("conformance", b"C satisfies T { }\n", 256, 128, b"C", {"conformance_count": 256, "type_reference_count": 256}),
@@ -1310,13 +1294,6 @@ def root_declaration_cases(program: str) -> None:
         start = len(declaration) * bound
         rejected(program, f"{name}-capacity-plus-one", source, diagnostic, (start, start + len(word)),
                  root_count=bound, **counts)
-    rows = b"T::f = g; " * 512
-    source = b"C satisfies T { " + rows + b"}"
-    status, _ = run(program, source)
-    assert status == 0, f"conformance-row-capacity: status {status}"
-    source = b"C satisfies T { " + rows + b"T::f = g; }"
-    rejected(program, "conformance-row-capacity-plus-one", source, 129, (len(source) - 1, len(source)),
-             type_reference_count=1, member_count=1539, name_path_count=1026, conformance_row_count=512)
     parents = b" + P" * 511
     status, _ = run(program, b"trait T: P" + parents + b" { }")
     assert status == 0, "trait-parent-capacity: status"

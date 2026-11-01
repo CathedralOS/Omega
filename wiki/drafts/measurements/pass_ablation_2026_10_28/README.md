@@ -47,12 +47,12 @@ Fresh repaired-producer observations:
   on/off for length, dispatch and stack32, plus the unselected control. The
   control's A/B rollback requests both have the same empty effective selection.
 
-[Dispatch observations](evidence/dispatch-validation.json),
-[corrected setup retries](evidence/runtime-retries.json),
-[performance-engine observations](evidence/performance-quality.json),
-[Clippy](evidence/clippy.log), [native/Terminal corpus verdict](evidence/corpus-result.json),
-[reject corpus verdict](evidence/corpus-reject-result.json),
-[scoped golden update](evidence/corpus-record-result.json).
+[Dispatch observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/dispatch-validation.json),
+[corrected setup retries](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/runtime-retries.json),
+[performance-engine observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/performance-quality.json),
+[Clippy](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/clippy.log), [native/Terminal corpus verdict](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/corpus-result.json),
+[reject corpus verdict](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/corpus-reject-result.json),
+[scoped golden update](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/corpus-record-result.json).
 
 ## Timing result
 
@@ -89,8 +89,8 @@ length, 1,216 ms on dispatch, and 6,025 ms on stack32. Investigate one repeated
 checking operation on the retained stack32 input before trying another optional
 pass. This experiment stops here; it establishes no reduction in that work.
 
-[All observations](evidence/runs.json), [summary and stability checks](evidence/summary.json),
-[separate detailed profiles](evidence/profiles/).
+[All observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/runs.json), [summary and stability checks](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/summary.json),
+[separate detailed profiles](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/profiles).
 
 ## Producer and input provenance
 
@@ -98,10 +98,10 @@ pass. This experiment stops here; it establishes no reduction in that work.
   `030867b795b1e1c84dad3cd58c46bff310fd75bc425995a68eee88a8efdc2b83`.
 - Repaired optimized dev producer SHA-256:
   `64983946d8bccabbfa18efcc9a25e8339ff8a5aa6cc297d044b1454bcda4308d`.
-- The repaired producer is the fixed base plus [compiler.patch](evidence/compiler.patch).
+- The repaired producer is the fixed base plus [compiler.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/compiler.patch).
   The commit containing this record additionally carries sample/fixture and
   documentation changes. Compiler profiles, exact input hashes, commands and
-  output hashes are in [metadata](evidence/metadata.json) and the raw observations.
+  output hashes are in [metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/metadata.json) and the raw observations.
 - Baseline and repaired executables are retained locally under
   `build/pass-ablation/baseline/omega.exe` and `build/pass-producer/debug/omega.exe`.
   Native products and package locks remain local under `build/pass-ablation/`;
@@ -121,14 +121,14 @@ this experiment validates the compiler's observed receipts directly.
 - The initially selected recoverable-restoration and indexed-restoration
   witnesses fail on the fixed baseline before optimization, with missing
   conserved linear return-claim mappings. Their diagnostics are retained in
-  [restoration-baseline.txt](evidence/restoration-baseline.txt) and
-  [indexed-baseline.txt](evidence/indexed-baseline.txt). They supply no timings.
+  [restoration-baseline.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/restoration-baseline.txt) and
+  [indexed-baseline.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/indexed-baseline.txt). They supply no timings.
 - The original producer's length observations and failed dispatch compile remain
-  in [baseline-probes.json](evidence/baseline-probes.json). They are not mixed with
+  in [baseline-probes.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/baseline-probes.json). They are not mixed with
   the repaired-producer comparison. See the exact
-  [enabled failure](evidence/dispatch-on-baseline.txt),
-  [disabled compile](evidence/dispatch-off.txt), and
-  [two-implementation failure](evidence/match-baseline.txt).
+  [enabled failure](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/dispatch-on-baseline.txt),
+  [disabled compile](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/dispatch-off.txt), and
+  [two-implementation failure](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/match-baseline.txt).
 - An initial validation invocation supplied `run --target windows_x86_64`, which
   is compile-only even on this host. The guard rejected it as missing runtime
   evidence. A subsequent root run overlapped the preceding target-body setup
@@ -139,9 +139,9 @@ this experiment validates the compiler's observed receipts directly.
 - The corpus gate wrapper stalled after the runner was built, with no compiler
   child still active. That wrapper was stopped. A fresh cached `mbx test --no-run`
   completed with exit 0 in 2.66 seconds; its Cargo output was bound to the
-  [runner profile receipt](evidence/corpus-runner-profile.json). Both focused gates
+  [runner profile receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/corpus-runner-profile.json). Both focused gates
   then ran with that explicit runner. The inherited negative-golden drift is
-  documented above and in [other-state-baseline.txt](evidence/other-state-baseline.txt);
+  documented above and in [other-state-baseline.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/pass_ablation_2026_10_28/evidence/other-state-baseline.txt);
   it is not attributed to the cleanup repair.
 - No full corpus/workspace sweep, native execution on other hosts, or remote
   integration/landing is claimed. Timing runs are serialized but not a claim

@@ -121,7 +121,7 @@ python3 tools/sample_native_gate.py --cli target/debug/omega --facts \
 `baseline.json` preserves the frozen original refusals, and
 `final-sample-results.json` records the current 11 passes and 15 intended
 rejections. Earlier failed iterations remain historical observations.
-The [published evidence manifest](../../../../../wiki/drafts/measurements/indexed_handback_2026_10_31/manifest.json)
+The [published evidence manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/indexed_handback_2026_10_31/manifest.json)
 binds the compressed raw receipts, baseline replay inputs and retained source
 bundle to their hashes. Both scoped golden-recording commands exit 0.
 

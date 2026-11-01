@@ -344,6 +344,10 @@ pub(super) struct CapturedStoreDestination {
     coordinate: Option<CapturedStorageCoordinate>,
     frame: facts::NormalizedWriteFrame,
     stored_type: TypeReferenceHandle,
+    representation: Option<(
+        typed_trees::types::PrimitiveType,
+        typed_trees::types::PrimitiveType,
+    )>,
 }
 
 fn expression_exposure_path(
@@ -1340,9 +1344,13 @@ impl StructuralJudge<'_> {
             state,
             statement.as_assignment()?,
         )?;
-        let coordinate = frame
+        let captured = frame
             .complete_paths()
             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
+        let (coordinate, representation) = match captured {
+            Some((coordinate, representation)) => (Some(coordinate), representation),
+            None => (None, None),
+        };
         if coordinate.is_none() && !self.requires_value_preservation() {
             return None;
         }
@@ -1350,6 +1358,7 @@ impl StructuralJudge<'_> {
             coordinate,
             frame,
             stored_type,
+            representation,
         })
     }
 
@@ -1362,13 +1371,20 @@ impl StructuralJudge<'_> {
         state: &State,
         statement: &typed_trees::statement::StatementNode,
         written: &[String],
-    ) -> Option<CapturedStorageCoordinate> {
+    ) -> Option<(
+        CapturedStorageCoordinate,
+        Option<(
+            typed_trees::types::PrimitiveType,
+            typed_trees::types::PrimitiveType,
+        )>,
+    )> {
         let assignment = statement.as_assignment()?;
-        self.ordinary_storage_path(Some((machine, state)), assignment.target)
+        crate::place_has_builtin_coordinates(self.program, machine, Some(state), assignment.target)
             .then_some(())?;
         let program = self.program;
         let frames = self.frame_resolver()?;
         let origins = frames.assignment_storage_origins(machine, statement)?;
+        let mut representation = None;
         let place = match origins.destinations.as_slice() {
             [origin]
                 if origin.root.is_valid()
@@ -1380,6 +1396,17 @@ impl StructuralJudge<'_> {
                     root: facts::PlaceRoot::Symbol(origin.root),
                     segments: origin.segments.clone(),
                 }
+            }
+            [origin] => {
+                let scalar = origin.scalar_storage_coordinate(program, state)?;
+                if !scalar.preserves_scalar_value && !scalar.preserves_primitive_bits {
+                    // Geometry still invalidates overlapping observations. A
+                    // stored-width codec is not a native-primitive bitcast.
+                    return None;
+                }
+                representation = (!scalar.preserves_scalar_value)
+                    .then_some((scalar.view_primitive, scalar.source_primitive));
+                scalar.place
             }
             [] => {
                 // Replacing a plain owned binding names the binding itself;
@@ -1415,7 +1442,7 @@ impl StructuralJudge<'_> {
         }
         // Frame paths deliberately coarsen collections for invalidation only.
         // Exact storage retains the already completed selector value identities.
-        self.capture_storage_place(place)
+        Some((self.capture_storage_place(place)?, representation))
     }
 
     pub(super) fn observe_captured_store(
@@ -1468,6 +1495,14 @@ impl StructuralJudge<'_> {
             self.retain_storage_value(coordinate, current, false);
         }
         if let Some(coordinate) = destination.coordinate {
+            let value = match destination.representation {
+                Some((source, target)) => {
+                    super::super::structural_terms::normalize_scalar_representation(
+                        source, target, value,
+                    )
+                }
+                None => value,
+            };
             if super::super::struct_trace() {
                 eprintln!(
                     "STRUCT install-store owner={} type={:?} value={value:?}",

@@ -354,13 +354,15 @@ fn reference_frontier(
         .references
         .iter()
         .filter(|leaf| {
-            matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_))
-                && leaf.local_segments.iter().all(|segment| {
-                    matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
-                        || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())
-                        || matches!(segment, PlaceSegment::FixedIndex { .. })
-                })
-                && source.segments.starts_with(&leaf.local_segments)
+            matches!(
+                leaf.kind,
+                stored_origins::StoredOriginKind::Reference(_)
+                    | stored_origins::StoredOriginKind::LifetimeDependency
+            ) && leaf.local_segments.iter().all(|segment| {
+                matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
+                    || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())
+                    || matches!(segment, PlaceSegment::FixedIndex { .. })
+            }) && source.segments.starts_with(&leaf.local_segments)
         })
         .min_by_key(|leaf| leaf.local_segments.len())
         .map(|leaf| leaf.local_segments.clone())
@@ -426,6 +428,28 @@ fn collect_exit(
                 return None;
             }
         };
+        if sources.is_empty()
+            && declaration.kind == stored_origins::StoredOriginKind::LifetimeDependency
+        {
+            if let Some(effect) = effects.iter_mut().find(|effect| {
+                effect.root == slot.local_symbol
+                    && effect.segments == slot.local_segments
+                    && effect.may_select == slot.may_select
+            }) {
+                if effect.kind != declaration.kind {
+                    return None;
+                }
+            } else {
+                effects.push(SlotEffect {
+                    root: slot.local_symbol,
+                    segments: slot.local_segments.clone(),
+                    sources: Some(Vec::new()),
+                    incoming: false,
+                    may_select: slot.may_select,
+                    kind: declaration.kind,
+                });
+            }
+        }
         for mut supplied in sources {
             super::summary_windows::coarsen(program, &mut supplied);
             let source = &supplied.origin;
@@ -462,7 +486,9 @@ fn collect_exit(
                     }
                 }
             }
-            let incoming = !supplied.lifetime_access.is_some()
+            let incoming = (declaration.kind
+                == stored_origins::StoredOriginKind::LifetimeDependency
+                || supplied.lifetime_access.is_none())
                 && source.source.root == slot.local_symbol
                 && source.source.segments == slot.local_segments;
             if !incoming
@@ -487,11 +513,11 @@ fn collect_exit(
                     sources: Some(Vec::new()),
                     incoming: slot.may_select,
                     may_select: slot.may_select,
-                    kind: stored_origins::StoredOriginKind::Reference(declaration.access),
+                    kind: declaration.kind,
                 });
                 effects.last_mut()?
             };
-            if effect.kind != stored_origins::StoredOriginKind::Reference(declaration.access) {
+            if effect.kind != declaration.kind {
                 return None;
             }
             effect.incoming |= incoming;

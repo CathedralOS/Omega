@@ -21,7 +21,7 @@ first package update hit a 180 s bound. A fresh extended replay was stopped
 after 438.34 s following a noninvasive stack sample in
 `infer_synchronous_invocations`. Its matching PDB identity, logs, input hashes,
 timeout and explicit stop are retained with the
-[publication record](../operand_order_overflow_2026_10_29/publication/results.json).
+[publication record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/operand_order_overflow_2026_10_29/publication/results.json).
 The sampled replay is diagnostic, not a clean performance sample; the initial
 timeout wrapper did not persist partial stdout/stderr. Neither was successful
 compilation. These failures preceded the candidate edit.
@@ -39,7 +39,7 @@ The inference loop reconstructs each machine's effect vectors, then compares
 them with the previous iteration. Abstract targets already normalize their
 ordering. Realized targets added in #794 only deduplicated insertion order.
 Recursive discovery can permute a complete set forever. The six-node
-[model](model.py) reproduces a period-two ordering cycle; canonical order
+[model](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/model.py) reproduces a period-two ordering cycle; canonical order
 converges in four iterations. An independent graph-reachability calculation
 checks that both contain exactly the same effects. That model establishes the
 mechanism; the real compiler controls below establish customer behavior.
@@ -96,8 +96,8 @@ comparisons (five candidate controls plus two provider controls on both
 binaries), and twelve expected rejects (six candidate controls plus three
 provider controls on both binaries). Review-internal compiles and no-pending-
 review setup refusals are not counted as execution observations or failures.
-[Summary](summary.json), [quality](quality.json), [provider comparison](providers.json),
-exact input/oracle hashes, raw logs and assertion-based [collector](collect.py)
+[Summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/summary.json), [quality](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/quality.json), [provider comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/providers.json),
+exact input/oracle hashes, raw logs and assertion-based [collector](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/preparation_convergence_2026_10_29/collect.py)
 are retained. Touched-file rustfmt, scoped whitespace checks, script parsing,
 the model assertions and exact input/binary/output/patch assertions pass.
 

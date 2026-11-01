@@ -17,7 +17,7 @@ The compiler repair already reached main through
 guard before carrier selection as well as guarantee evaluation. Publication on
 base `f1058703209f782fc08fc621471257095a2f7f47` preserves that implementation
 unchanged and adds only the reduced regression pair and this evidence. The
-archived `candidate.patch` below belongs to the historical fixed workbench; it
+archived [`candidate.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/operand_order_overflow_2026_10_29/candidate.patch) below belongs to the historical fixed workbench; it
 is not the publication diff. Historical timings and runtime records are not
 claims about the current-main producer.
 
@@ -27,7 +27,7 @@ built in 4m28s from unchanged main compiler source. The added positive compiles,
 executes natively with exit 0; its target-only comparison call does not establish
 Terminal agreement. Its reject twin
 reports the expected unproved `abs_i32` requirement. Image hashes, exact inputs,
-commands and logs are in [publication/results.json](publication/results.json).
+commands and logs are in [publication/results.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/operand_order_overflow_2026_10_29/publication/results.json).
 
 The larger existing operand-order control does not have fresh main acceptance:
 its first package update hit a 180-second bound; an extended replay was stopped
@@ -163,7 +163,7 @@ rejects. Review-internal compilation is excluded from these counts.
 
 The source patch stayed identical from optimized build through validation.
 Touched-file rustfmt, scoped whitespace checks, evidence-script parsing and
-the identity/outcome assertions in [collect.py](collect.py) pass. No temporary
+the identity/outcome assertions in [collect.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/operand_order_overflow_2026_10_29/collect.py) pass. No temporary
 diagnostic logging or stack-size change remains in production. The existing
 original controls remain unchanged; the smaller positive/reject pair is pinned
 under `tests/omega/{pass,fail}/calls/selected_contract_equation_reentry*`.

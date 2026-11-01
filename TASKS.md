@@ -195,26 +195,10 @@ retired-syntax deletions to completion.
     predicate handback with current storage versions, including `window_demo`'s
     guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
     60-frame bounds; preserve that sample's existing guards and operation.
-    [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
-    establishes the nine-place captured-read prerequisite after disjoint writes;
-    full GUI qualification remains open.
-    [Invariant-window snapshots](samples/cli/facts/invariant_window_snapshot/README.md)
-    retain actual negative scalar values across restoration without importing
-    temporarily false mixed predicates, while preserving established entry
-    snapshots. Nine runnable places and nine false-domain twins cover ordinary
-    read-query availability. Scalar-recast source-domain restoration remains open:
-    a `u32` view of `pair.start` can store `0xFFFFFFFFu32` and leave the mixed
-    parent predicate false while Source checking accepts, on both baseline and
-    repair. Carry that alias write into the parent's restoration obligation.
-    [Guarded call entry](samples/cli/facts/guarded_call_entry/README.md) establishes
-    fresh referent guards and immutable scalar facts at opaque invocations across
-    the nine places, with nine fact-sensitive rejects and stale-storage controls.
-    It repairs the integrated `6c8950d4825` producer's refusal of the unchanged
-    `frame_fields` / `parse` guards after opaque callbacks in
-    [CompactBinary](source/library/std/wire.omg), without changing those callers
-    or callback contracts. WindowDemo now clears source checking and Terminal
-    production; ordinary package-policy review and native GUI execution remain
-    open, alongside the mixed-predicate restoration-window issue above.
+    Complete WindowDemo's ordinary package-policy review and native GUI
+    qualification; its authored message/frame bounds and guards remain the
+    acceptance. Scalar-range syntax migration and the remaining aggregate
+    handback obligations below are still open.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -249,9 +233,6 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - Retire authored `Trait::member = Existing::machine;` reference rows in the
-    Omega-written producer (`source/psi/parse/conformance.omg`, the syntax rows
-    and resolver binding they feed, and the `tests/psi` harnesses).
   - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
     from its foreign binding plan rather than provider data, and ensure no
     installation or interpretation route supplies an unauthored provider value
@@ -357,10 +338,10 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 64 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 6 facts spell it in all nine places
+    Frontier: 63 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 5 facts spell it in all nine places
     (`generic_calling_policy`,
-    `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
+    `opaque_closed_carrier_exchange`,
     `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
