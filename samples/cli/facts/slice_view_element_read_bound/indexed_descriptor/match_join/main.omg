@@ -20,7 +20,7 @@ requires selected < windows.len
         _ -> bad()
     }
     machine done() -> i32 { 0 }
-    machine bad() -> i32 { 1 }
+    machine bad() -> i32 { 2 }
 
     }
     machine short() -> i32 { 1 }
