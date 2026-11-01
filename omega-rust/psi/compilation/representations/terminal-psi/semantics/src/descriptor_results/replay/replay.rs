@@ -15,7 +15,8 @@ pub(super) enum Origin {
     Storage(DescriptorLocation),
 }
 pub(super) type Value = Option<BTreeSet<Origin>>;
-pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
+pub(super) type Slots = super::origin_maps::OriginMap<DescriptorLocation>;
+pub(super) type Contents = super::origin_maps::OriginMap<DescriptorContentsQuery>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) cases: Arc<super::case_flow::CurrentCases>,
@@ -25,7 +26,7 @@ pub(super) struct State {
     pub(super) slots: Arc<Slots>,
     // Keys name incoming backing families, not addresses in local carriers.
     // Values are captured origins; reading them never replays a later write.
-    pub(super) contents: Arc<BTreeMap<DescriptorContentsQuery, Value>>,
+    pub(super) contents: Arc<Contents>,
     // Captured values remain valid; only later reads of untracked backing
     // contents become unavailable. The flag joins monotonically across edges.
     pub(super) contents_invalidated: bool,
@@ -1657,7 +1658,7 @@ impl State {
         Arc::make_mut(&mut self.slots)
     }
 
-    pub(super) fn contents_mut(&mut self) -> &mut BTreeMap<DescriptorContentsQuery, Value> {
+    pub(super) fn contents_mut(&mut self) -> &mut Contents {
         Arc::make_mut(&mut self.contents)
     }
 
