@@ -8,6 +8,15 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/facts/finite_family_input_index/call_result built 13372ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/const_name built 14937ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/field built 12869ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/local built 11294ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/match_join built 13158ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/other_machine built 12204ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/other_state built 11537ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/parameter built 13939ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_input_index/target_body built 16042ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/inline_member_helper_through_call_result_exit built 8987ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/inline_member_helper_through_const_name_exit built 8668ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/inline_member_helper_through_field_exit built 15819ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
@@ -5990,6 +5999,7 @@ pass/machines/hold_state_call checked 2412ms @a92f16431042
 pass/machines/machine_param_data checked 1843ms @a92f16431042
 pass/machines/machine_type_equations checked 2628ms @a92f16431042
 pass/machines/nonreturning_unit checked 1935ms @a92f16431042
+pass/machines/private_division_snapshot_before_write_exit built 7197ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e+wt
 pass/machines/runtime_explicit_data_parameter_exit built 2439ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/machines/static_namespace_constant_exit built 3041ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/machines/write_state_forward checked 1837ms @a92f16431042
@@ -7454,8 +7464,11 @@ pass/traits/runtime_dyn_byte_record_result rejected 1984ms interpreter:unchecked
 pass/traits/runtime_dyn_byte_result_candidates built 2173ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_byte_subview_join built 1943ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_data_argument_counts_exit built 6107ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/traits/runtime_dyn_family_nested_result built 5936ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/traits/runtime_dyn_family_scalar_continuation built 2039ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_family_local_width_exit built 16471ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/traits/runtime_dyn_family_nested_result built 77271ms exit:70 interpreter-exit:70 interpreter:agrees @7b6988120e7e
+pass/traits/runtime_dyn_family_reordered_roster_exit built 12201ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/traits/runtime_dyn_family_replaced_width_exit built 12224ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/traits/runtime_dyn_family_scalar_continuation built 11614ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/traits/runtime_dyn_guarded_result_exit built 2748ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_joined_selector_exit built 6274ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_linear_result_exit built 3187ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

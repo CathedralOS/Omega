@@ -312,13 +312,6 @@ retired-syntax deletions to completion.
       all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
-    - Migrate `traits/runtime_dyn_family_nested_result` and
-      `traits/runtime_dyn_family_scalar_continuation` from the retired `where`
-      family roster to `requires`, then prove the dyn-selector call
-      `Shape::code<width>(selected, item)`: with `requires` spelled, both refuse
-      `cannot prove requires contract for call dyn Shape<1 argument>::code`
-      because the runtime `width` that instantiates `Width` is not related to the
-      caller's `requires width == 16 || width == 32`.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including

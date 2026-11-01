@@ -60,3 +60,31 @@ their own partial operations. The local production also uses the shared
 parameter-plus-local symbol roster, so a local width cannot read the selector's
 parameter slot. The larger `runtime_dyn_family_nested_result` fixture retains
 its original duplicate/reordered three-width roster and exit-70 oracle.
+
+## Measured replay
+
+Optimized source checkpoint `7b6988120e7ed1d2a87b396676600fd78f378042`
+was measured on Linux x86-64 over the fixed base above. The scoped Source
+checks covered 34 fixtures: 17 checked and 17 rejected with their expected
+fragments. Native/Terminal execution covered 17 positive fixtures: 16 agreed
+on exit 0 and the unchanged nested-result fixture agreed on exit 70. This
+includes all nine places, the three compositions, both migrated fixtures and
+three existing dynamic-contract/division-snapshot controls. A deliberately
+corrupted replaced-width oracle (expecting row 16 instead of 32) traps in both
+engines with the same final producer.
+
+Focused Clippy for `validation`, `typed-trees-to-checked-trees` and
+`checked-trees-to-lowered-psi` completed with existing warnings. The Source
+control's diagnostic label changed from `terminal expression` to `return value`;
+the retained fixed-base producer confirms the latter wording and the same
+independent-formation rejection. The division-snapshot native result had no
+prior golden row; its successful actual replay was recorded separately.
+
+The [raw evidence archive](../../../../wiki/drafts/measurements/dynamic_family_membership_2026_11_01/raw-evidence.tar.gz)
+retains commands, logs, producer digests, canonical context and the exact
+source bundle (requiring the fixed base). Its SHA-256 is
+`5c0c4ba9c5e4b05f9aebe1092293c629b9d5b7e4f9fa3e316a65a7959f5fd089`. Extract it at a repository root.
+The final CLI SHA-256 is
+`15a75295c6e8eafd66c290ba0834660d85f07b8a2117f8087b831bacfed676d1`
+(opt-level 1). These observations do not establish Product compiler parity or
+execution on other hosts.

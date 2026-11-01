@@ -1532,9 +1532,11 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
-fail/traits/runtime_dyn_family_local_width_requires rejected 6381ms expected @feae70bdc3eb
+fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/runtime_dyn_family_replaced_width_requires rejected 6865ms expected @feae70bdc3eb
+fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
+	cannot prove requires contract for call dyn Family::row from create: Width == 32 || Width == 16 || Width == 16 (needs fact `Width == 32 || Width == 16 || Width == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/runtime_dyn_family_replaced_width_requires rejected 9888ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
@@ -5877,15 +5879,15 @@ pass/facts/finite_family_exclusive_result/parameter rejected 1436ms check-target
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_exclusive_result/target_body rejected 1268ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/call_result checked 10154ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/const_name checked 12684ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/field checked 14922ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/local checked 10916ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/match_join checked 12690ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/other_machine checked 14236ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/other_state checked 13504ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/parameter checked 11636ms check-target:macos_arm64 @feae70bdc3eb
-pass/facts/finite_family_input_index/target_body checked 15790ms check-target:macos_arm64 @feae70bdc3eb
+pass/facts/finite_family_input_index/call_result checked 15899ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/const_name checked 15017ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/field checked 15381ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/local checked 12285ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/match_join checked 12431ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/target_body checked 12216ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_returned_descriptor/call_result rejected 1675ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_returned_descriptor/const_name rejected 1492ms check-target:macos_arm64 @ccdb99ca2214
@@ -12912,12 +12914,11 @@ pass/traits/runtime_dyn_byte_record_result checked 3619ms check-target:macos_arm
 pass/traits/runtime_dyn_byte_result_candidates checked 4308ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_byte_subview_join checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11178ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_family_local_width_exit checked 13780ms check-target:macos_arm64 @feae70bdc3eb
-pass/traits/runtime_dyn_family_nested_result rejected 67559ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @feae70bdc3eb
-	cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 64 || Width == 16 || Width == 16 || Width == 32 (needs fact `Width == 64 || Width == 16 || Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call dyn Shape<1 argument>::code from nested_read: Width == 64 || Width == 16 || Width == 16 || Width == 32 (needs fact `Width == 64 || Width == 16 || Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/traits/runtime_dyn_family_replaced_width_exit checked 12045ms check-target:macos_arm64 @feae70bdc3eb
-pass/traits/runtime_dyn_family_scalar_continuation checked 14271ms check-target:macos_arm64 @feae70bdc3eb
+pass/traits/runtime_dyn_family_local_width_exit checked 11708ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_nested_result checked 93728ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_reordered_roster_exit checked 11748ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_replaced_width_exit checked 14132ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_scalar_continuation checked 15484ms check-target:macos_arm64 @7b6988120e7e
 pass/traits/runtime_dyn_field_assignment_establishment_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_guarded_result_exit checked 4858ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_image_incoming_backing_exit checked 3641ms check-target:macos_arm64 @ccdb99ca2214
@@ -22311,25 +22312,25 @@ fail/facts/finite_family_exclusive_result/parameter rejected 1741ms unexpected @
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 fail/facts/finite_family_exclusive_result/target_body rejected 1252ms unexpected @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/call_result rejected 7295ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/call_result rejected 9033ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/const_name rejected 10718ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/const_name rejected 7997ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/field rejected 7733ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/field rejected 9640ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/local rejected 7935ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/local rejected 8098ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/match_join rejected 13151ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/match_join rejected 6491ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_machine rejected 11746ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/other_machine rejected 14133ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_state rejected 25185ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/other_state rejected 11782ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/parameter rejected 6209ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/parameter rejected 16530ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/target_body rejected 8661ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/target_body rejected 8905ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/wrong_provider rejected 4535ms expected @feae70bdc3eb
+fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b6988120e7e
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
@@ -31432,9 +31433,9 @@ fail/machines/private_division_changed_storage_control rejected 1128ms expected 
 	division by zero in machine `divided` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/machines/private_division_mixed_arrival_control rejected 1487ms expected @ccdb99ca2214
 	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_self_formation_control rejected 1410ms expected @ccdb99ca2214
+fail/machines/private_division_self_formation_control rejected 1929ms expected @7b6988120e7e
 	partial wrapping division in machine `quotient` state `entry` local `__transition_subject#34`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial wrapping division in machine `divided` state `entry` return value: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/machines/private_division_signed_pair_control rejected 1379ms expected @ccdb99ca2214
 	partial exact division in machine `divided` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/machines/private_division_zero_divisor_control rejected 1436ms expected @ccdb99ca2214
