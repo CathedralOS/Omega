@@ -46,7 +46,7 @@ pub(super) fn call_result(
         _ => return None,
     };
     let mut relative = AggregateOrigins::default();
-    for leaf in inventory.references {
+    for leaf in inventory.into_owned().references {
         let mut dependencies = Vec::new();
         for field in fields.iter().filter(|field| field.lifetime_only) {
             if owner_segments(&field.owner_path)? != leaf.local_segments {
