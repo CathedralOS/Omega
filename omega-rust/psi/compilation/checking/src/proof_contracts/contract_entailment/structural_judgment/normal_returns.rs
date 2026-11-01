@@ -2182,7 +2182,7 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
         Arc::make_mut(&mut self.normal_guarantees).push((left.clone(), right.clone()));
-        self.intake_equation(left, right, 0);
+        self.intake_completed_equation(left, right, 0);
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(

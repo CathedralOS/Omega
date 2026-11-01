@@ -1,0 +1,3 @@
+exact arithmetic in machine `invoke`
+return value may overflow `u64`
+operands are not provably in range
