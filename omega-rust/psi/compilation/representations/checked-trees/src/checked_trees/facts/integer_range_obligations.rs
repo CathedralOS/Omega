@@ -12,7 +12,6 @@ use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::{self, IntegerBoundStep};
-use std::sync::{Arc, OnceLock};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -27,48 +26,10 @@ type RangeStep = IntegerBoundStep<SourceObservation>;
 
 /// Invocation-owned construction storage. Equal snapshots compare by value,
 /// not allocation identity, so flow fixed points do not manufacture changes.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegerRangeRecipe {
     steps: Vec<RangeStep>,
     target_dependent: bool,
-    /// Immutable recipes are shared by completed observations. Preparing their
-    /// ordinary description once avoids serializing the same proof payload for
-    /// every resolver fingerprint. This is presentation, never value identity.
-    prepared_debug: OnceLock<Arc<str>>,
-}
-
-impl PartialEq for IntegerRangeRecipe {
-    fn eq(&self, other: &Self) -> bool {
-        self.steps == other.steps && self.target_dependent == other.target_dependent
-    }
-}
-
-impl Eq for IntegerRangeRecipe {}
-
-struct UnpreparedRecipeDebug<'recipe>(&'recipe IntegerRangeRecipe);
-
-impl std::fmt::Debug for UnpreparedRecipeDebug<'_> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("IntegerRangeRecipe")
-            .field("steps", &self.0.steps)
-            .field("target_dependent", &self.0.target_dependent)
-            .finish()
-    }
-}
-
-impl std::fmt::Debug for IntegerRangeRecipe {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if formatter.alternate() {
-            // Pretty descriptions inherit the caller's indentation rather
-            // than reusing bytes prepared for ordinary fingerprint printing.
-            return std::fmt::Debug::fmt(&UnpreparedRecipeDebug(self), formatter);
-        }
-        let description = self
-            .prepared_debug
-            .get_or_init(|| Arc::from(format!("{:?}", UnpreparedRecipeDebug(self))));
-        formatter.write_str(description)
-    }
 }
 
 impl IntegerRangeRecipe {
@@ -76,7 +37,6 @@ impl IntegerRangeRecipe {
         Self {
             steps: vec![RangeStep::Bounds { low, high }],
             target_dependent: false,
-            prepared_debug: OnceLock::new(),
         }
     }
 
@@ -89,7 +49,6 @@ impl IntegerRangeRecipe {
                 owner,
             })],
             target_dependent: true,
-            prepared_debug: OnceLock::new(),
         }
     }
 
@@ -131,7 +90,6 @@ impl IntegerRangeRecipe {
         Self {
             steps,
             target_dependent: self.target_dependent || right.target_dependent,
-            prepared_debug: OnceLock::new(),
         }
     }
 }
@@ -330,85 +288,5 @@ impl IntegerRangeObligation {
             ))
             .with_source_span(program.expression_table.source_span(self.expression))),
         }
-    }
-}
-
-#[cfg(test)]
-mod prepared_debug_tests {
-    use super::{IntegerRangeRecipe as Recipe, RangeStep};
-    use numerics::bignum::BigInt;
-    use std::hash::{DefaultHasher, Hasher};
-    use typed_trees::expression::BinaryOperator;
-
-    // This is the original derived presentation, without preparation storage.
-    #[derive(Debug)]
-    #[allow(dead_code)]
-    struct IntegerRangeRecipe<'recipe> {
-        steps: &'recipe [RangeStep],
-        target_dependent: bool,
-    }
-
-    fn fingerprint(value: &impl std::fmt::Debug) -> u64 {
-        struct Writer(DefaultHasher);
-        impl std::fmt::Write for Writer {
-            fn write_str(&mut self, value: &str) -> std::fmt::Result {
-                self.0.write(value.as_bytes());
-                Ok(())
-            }
-        }
-        let mut writer = Writer(DefaultHasher::new());
-        std::fmt::write(&mut writer, format_args!("{value:?}")).unwrap();
-        writer.0.finish()
-    }
-
-    #[test]
-    fn prepared_debug_preserves_bytes_fingerprints_and_value_identity() {
-        let recipe = Recipe::bounds(BigInt::from_i64(-3), BigInt::from_i64(7))
-            .binary(
-                BinaryOperator::Add,
-                &Recipe::observation(
-                    typed_trees::expression::ExpressionHandle::from_arena_index(5),
-                    symbols::SymbolHandle::from_arena_index(9),
-                ),
-            )
-            .unwrap();
-        let cold_clone = recipe.clone();
-        let original = IntegerRangeRecipe {
-            steps: &recipe.steps,
-            target_dependent: recipe.target_dependent,
-        };
-        assert_eq!(format!("{recipe:#?}"), format!("{original:#?}"));
-        assert!(recipe.prepared_debug.get().is_none());
-        let expected = fingerprint(&original);
-        assert_eq!(fingerprint(&recipe), expected);
-        assert_eq!(format!("{recipe:?}"), format!("{original:?}"));
-        assert_eq!(fingerprint(&recipe), expected);
-        assert_eq!(recipe, cold_clone);
-        assert_eq!(fingerprint(&cold_clone), expected);
-        let warm_clone = recipe.clone();
-        assert!(std::sync::Arc::ptr_eq(
-            recipe.prepared_debug.get().unwrap(),
-            warm_clone.prepared_debug.get().unwrap(),
-        ));
-        assert_eq!(fingerprint(&warm_clone), expected);
-        assert_eq!(format!("{warm_clone:#?}"), format!("{original:#?}"));
-        assert_eq!(recipe, warm_clone);
-    }
-
-    #[test]
-    fn prepared_debug_composition_prepares_its_new_payload_independently() {
-        let left = Recipe::bounds(BigInt::from_i64(2), BigInt::from_i64(4));
-        let before = fingerprint(&left);
-        let right = Recipe::bounds(BigInt::from_i64(1), BigInt::from_i64(1));
-        let composed = left.binary(BinaryOperator::Add, &right).unwrap();
-        assert!(composed.prepared_debug.get().is_none());
-        let original = IntegerRangeRecipe {
-            steps: &composed.steps,
-            target_dependent: composed.target_dependent,
-        };
-        assert_eq!(fingerprint(&composed), fingerprint(&original));
-        assert_ne!(fingerprint(&composed), before);
-        assert_ne!(composed, left);
-        assert_eq!(fingerprint(&left), before);
     }
 }

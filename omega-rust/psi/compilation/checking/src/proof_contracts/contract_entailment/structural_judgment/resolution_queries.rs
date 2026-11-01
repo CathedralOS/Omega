@@ -12,7 +12,7 @@
 
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hasher};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 pub(super) struct ApplicationResolution<'program> {
@@ -69,19 +69,73 @@ struct CompletedResolution<'program> {
     value: StructuralQueryAnswer,
 }
 
-// Formatting supplies only a bucket filter; full authority-bearing equality
-// still decides reuse, including payload omitted by semantic Debug output.
+// A bucket is not an identity judgment. Recurrence and completed reuse below
+// still compare the full payload, proof context and dependency observations.
+// In particular a capture's occurrence selects its bucket without repeatedly
+// serializing the retained range proof, which full payload equality checks.
 fn fingerprint(term: &StructuralTerm) -> u64 {
-    struct Writer(DefaultHasher);
-    impl std::fmt::Write for Writer {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            self.0.write(text.as_bytes());
-            Ok(())
+    fn visit(term: &StructuralTerm, hash: &mut DefaultHasher) {
+        // Observation authority remains in same_resolution_payload. Like the
+        // former semantic Debug filter, this view intentionally allows those
+        // unequal payloads to collide rather than treating a hash as evidence.
+        let term = term.semantic_value();
+        std::mem::discriminant(term).hash(hash);
+        match term {
+            StructuralTerm::Variable(name) | StructuralTerm::Opaque(name) => name.hash(hash),
+            StructuralTerm::BoundValue(symbol) => symbol.hash(hash),
+            StructuralTerm::BoundProjection { subject, path } => (subject, path).hash(hash),
+            StructuralTerm::CapturedValue {
+                expression,
+                statement,
+                callable,
+                occurrence,
+                result_type,
+                ..
+            } => (expression, statement, callable, occurrence, result_type).hash(hash),
+            StructuralTerm::Integer(value) => {
+                value.is_negative().hash(hash);
+                value.magnitude_words().hash(hash);
+            }
+            StructuralTerm::Constructor { data, case, fields } => {
+                (data, case, fields.len()).hash(hash);
+                for (field, _) in fields {
+                    field.hash(hash);
+                }
+            }
+            StructuralTerm::Application {
+                target,
+                result_type,
+                machine,
+                ..
+            } => (target, result_type, machine).hash(hash),
+            StructuralTerm::CallProjection {
+                target,
+                result_type,
+                field,
+                field_name,
+                machine,
+                ..
+            } => (target, result_type, field, field_name, machine).hash(hash),
+            StructuralTerm::Projection { path, .. } => path.hash(hash),
+            StructuralTerm::RepeatedArray { length, element } => {
+                (length, element.is_some()).hash(hash);
+            }
+            StructuralTerm::MathematicalBinary { operator, .. }
+            | StructuralTerm::ScalarBinary { operator, .. } => {
+                std::mem::discriminant(operator).hash(hash);
+            }
+            StructuralTerm::CollectionMeasure { measure, .. } => {
+                std::mem::discriminant(measure).hash(hash);
+            }
+            // Remaining type, selected-meaning and landing metadata are still
+            // required by the full comparison, not by this inexpensive filter.
+            _ => {}
         }
+        term.for_each_child(|child| visit(child, hash));
     }
-    let mut writer = Writer(DefaultHasher::new());
-    std::fmt::write(&mut writer, format_args!("{term:?}")).expect("fingerprint writer cannot fail");
-    writer.0.finish()
+    let mut hash = DefaultHasher::new();
+    visit(term, &mut hash);
+    hash.finish()
 }
 
 impl<'program> CompletedResolutions<'program> {
@@ -531,6 +585,9 @@ mod tests {
         let mut changed = judge.clone();
         changed.capture_sequence += 1;
         changed.completed_resolution(term.clone(), 0, compute);
+        let mut changed_storage = judge.clone();
+        changed_storage.storage_write_sequence += 1;
+        changed_storage.completed_resolution(term.clone(), 0, compute);
         let mut authority = term.clone();
         if let StructuralTerm::ObservedValue { observed_type, .. } = &mut authority {
             *observed_type = TypeReferenceHandle::from_arena_index(2);
@@ -538,7 +595,46 @@ mod tests {
         assert!(authority == term);
         assert_eq!(fingerprint(&authority), fingerprint(&term));
         judge.completed_resolution(authority, 0, compute);
-        assert_eq!(calls.get(), 4);
+        assert_eq!(calls.get(), 5);
+    }
+
+    #[test]
+    fn bucket_collisions_preserve_capture_proofs_and_recurrence_inputs() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let capture = |maximum| StructuralTerm::CapturedValue {
+            expression: typed_trees::expression::ExpressionHandle::from_arena_index(1),
+            statement: arena::Handle::invalid(),
+            callable: symbols::SymbolHandle::from_arena_index(2),
+            occurrence: 1,
+            result_type: TypeReferenceHandle::from_arena_index(3),
+            integer_range: Some(Arc::new(checked_trees::IntegerRangeRecipe::bounds(
+                numerics::bignum::BigInt::zero(),
+                numerics::bignum::BigInt::from_i64(maximum),
+            ))),
+        };
+        let first = capture(7);
+        let second = capture(8);
+        assert_eq!(fingerprint(&first), fingerprint(&second));
+        assert!(!first.same_resolution_payload(&second));
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, value| {
+            calls.set(calls.get() + 1);
+            value
+        };
+        judge.completed_resolution(first.clone(), 0, compute);
+        judge.completed_resolution(second.clone(), 0, compute);
+        judge.completed_resolution(first.clone(), 0, compute);
+        assert_eq!(calls.get(), 2);
+        let entered = judge.resolving_application(&first, 0).unwrap();
+        assert!(entered.resolving_application(&first, 0).is_none());
+        assert!(entered.resolving_application(&second, 0).is_some());
     }
 
     #[test]
