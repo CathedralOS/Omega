@@ -228,6 +228,9 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
+    /// Shared Product artifact and exact calling declarations. Retention grants
+    /// neither Source formation nor provider execution authority.
+    pub calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     /// Original authored candidates and their defaults, before native Build
     /// supplies and compiler-minted plans enter the execution inventory.
     pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
@@ -276,6 +279,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<ProviderSettlement, Vec<Diagnostic>> {
         let Self {
+            calling_program,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -296,6 +300,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             );
         }
         Ok(ProviderSettlement {
+            calling_program,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -419,6 +424,7 @@ pub fn settle_checked_providers(
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
+    calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
@@ -479,6 +485,7 @@ pub fn settle_checked_providers(
         build_provider_selections,
     )?;
     let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
+        calling_program: &calling_program,
         selected_target: target_name,
         native_target: provider_selection_target,
         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
@@ -527,6 +534,7 @@ pub fn settle_checked_providers(
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         services,
+        &calling_program,
         opaque_representation_selections,
     )?;
     // Component-closure join. The verified components come only from the
@@ -771,12 +779,13 @@ pub fn settle_checked_providers(
         crate::calling_policy_plans::component_calling_applications(
             services,
             provider_selection_target,
+            &calling_program,
             &component_providers,
             &boundary_calling_plan_realizations,
-            opaque_representation_selections,
         )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
+            calling_program,
             authored_providers,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,

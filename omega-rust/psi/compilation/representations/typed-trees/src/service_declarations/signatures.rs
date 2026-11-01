@@ -143,6 +143,69 @@ impl PreparedBoundarySignatures {
         &self.abi_signatures
     }
 
+    /// Exact default requests for this original requirement and applied
+    /// receiver. Formation retains refusals; requesting an ABI consumes them.
+    pub(super) fn default_abis(
+        &self,
+        source: super::projection::ServiceRequirementSource,
+        surface: &language_semantics::service_surface::ServiceSurface,
+        requirement: language_semantics::service_surface::identities::ProviderIdentityId,
+    ) -> Result<Vec<semantic_vocabulary::CallingAbiIdentity>, String> {
+        let mut keys = Vec::new();
+        let mut open = false;
+        for declaration in &self.abi_signatures {
+            if !declaration.default_eligible
+                || !declaration.source_templates.contains(&source.symbol)
+                || declaration.requirement_identity != surface.identity_text(requirement)
+            {
+                continue;
+            }
+            if source.declaring_trait.is_valid()
+                && !surface.receiver_applications.iter().any(|receiver| {
+                    receiver.requirement_identities.contains(&requirement)
+                        && surface.identity_text(receiver.application)
+                            == declaration.declaring_application
+                })
+            {
+                continue;
+            }
+            let formals = declaration
+                .formals
+                .iter()
+                .filter(|formal| formal.callback.is_none());
+            if !formals
+                .clone()
+                .zip(&declaration.operands)
+                .all(|(formal, operand)| {
+                    formal.ordinal == operand.ordinal && formal.kind == operand.kind
+                })
+                || formals.count() != declaration.operands.len()
+            {
+                open = true;
+                continue;
+            }
+            let key = semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: declaration.requirement_identity.clone(),
+                declaring_application: declaration.declaring_application.clone(),
+                operands: declaration.operands.clone(),
+            };
+            key.validate()?;
+            if key.id() != declaration.id {
+                return Err("default ABI census key differs from its retained coordinate".into());
+            }
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+        }
+        if keys.is_empty() && open {
+            return Err(
+                "default ABI request requires complete declaring and non-callback local operands"
+                    .into(),
+            );
+        }
+        Ok(keys)
+    }
+
     pub fn abi_for_boundary(
         &self,
         source: SymbolHandle,

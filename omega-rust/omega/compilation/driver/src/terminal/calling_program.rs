@@ -1,4 +1,4 @@
-//! Bind exact policy entries into the invocation's shared Product publication.
+//! Retain calling declarations and policy entries in the shared Product publication.
 //!
 //! Target-specific admission and signature preparation remain with provider
 //! planning. All target children borrow this one immutable code catalog; no
@@ -7,15 +7,15 @@
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
-use provider_planning::calling_policy_plans::CallingPolicyCode;
+use provider_planning::calling_policy_plans::CallingProgram;
 use std::sync::Arc;
 
-pub(crate) fn retain_calling_policy_code(
+pub(crate) fn retain_calling_program(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
+) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
     source
-        .calling_policy_code
+        .calling_program
         .get_or_init(|| prepare(source, timings))
         .clone()
 }
@@ -23,12 +23,9 @@ pub(crate) fn retain_calling_policy_code(
 fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
+) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
     let code = super::product_code::ProductCodeSource::checked(source);
     let machines = code.calling_policy_roots()?;
-    if machines.is_empty() {
-        return Ok(None);
-    }
     let applications = machines
         .iter()
         .map(|machine| {
@@ -63,10 +60,10 @@ fn prepare(
             (machine, entry)
         })
         .collect();
-    Ok(Some(Arc::new(CallingPolicyCode {
+    Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
         entries,
         source_records: program.source_records().to_vec().into(),
-    })))
+    }))
 }

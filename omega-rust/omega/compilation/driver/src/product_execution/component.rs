@@ -62,9 +62,9 @@ impl ComponentPublication {
                     .services_for(checked.execution().provider_source.program())
                     .map_err(|error| vec![error])?,
                 target,
+                &checked.providers().calling_program,
                 &providers,
                 &checked.providers().boundary_calling_plan_realizations,
-                &checked.build().config.opaque_representation_selections,
             )?
         };
         let timings = std::mem::take(checked.timings_mut());

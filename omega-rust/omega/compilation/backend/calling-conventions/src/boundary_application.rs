@@ -83,12 +83,30 @@ pub enum BoundaryNativeParameterShape {
     TargetFunctionPointer { byte_size: u16, alignment: u16 },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryNativeParameterGeometry {
     pub identity: crate::NativeParameterId,
     pub native_ordinal: u32,
     pub shape: BoundaryNativeParameterShape,
     pub origin: crate::BoundaryNativeParameterOrigin,
+}
+
+impl BoundaryNativeParameterGeometry {
+    pub const fn identity(&self) -> crate::NativeParameterId {
+        self.identity
+    }
+
+    pub const fn native_ordinal(&self) -> u32 {
+        self.native_ordinal
+    }
+
+    pub const fn shape(&self) -> BoundaryNativeParameterShape {
+        self.shape
+    }
+
+    pub const fn origin(&self) -> crate::BoundaryNativeParameterOrigin {
+        self.origin
+    }
 }
 
 impl Default for BoundaryNativeParameterGeometry {

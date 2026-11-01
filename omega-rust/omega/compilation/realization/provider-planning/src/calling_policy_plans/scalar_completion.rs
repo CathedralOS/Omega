@@ -1,34 +1,49 @@
-//! Complete retained policy debts before ordinary activation, without source.
+//! Complete calling-plan scalar debts without reopening Source.
 
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_installation::{
-    AdmittedProviderSelections, AdmittedScalarApplications, ScalarAddressModel,
-    ScalarApplicationClosure, ScalarApplicationObservations,
+    AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
+    ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
 };
 
-/// All work uses the invocation's existing meter. Neither a selected entry nor
-/// a target layout supplies the retained predicates that must be re-decided.
-/// Policies have the exact empty provider selection used by their activation;
-/// completion cannot install a host import or borrow another Product's grants.
-pub(super) fn complete_policy_scalar_inputs(
+/// Invoking a policy owes its checked entry. Describing a default ABI does not
+/// invoke the boundary and cannot certify its ordinary body or Product formation.
+pub(super) enum CallingScalarScope<'request> {
+    Invocation {
+        declaration: terminal_psi::ProofDeclarationId,
+        applications: &'request [ScalarApplicationId],
+    },
+    AbiStorage(&'request CallingAbiStorageDemand),
+}
+
+/// Both purposes use the same dependency-ready scalar evaluator and supplied
+/// provider custody. Neither can install host imports or inherit Product grants.
+pub(super) fn complete_calling_scalar_inputs(
     artifact: &CanonicalTerminalArtifact,
     primary: target::TargetProfile,
-    entry: terminal_psi::TargetMachineCallable,
-    requested: &[ScalarApplicationId],
+    request: CallingScalarScope<'_>,
     providers: &AdmittedProviderSelections,
     meter: &mut TerminalFuelMeter,
 ) -> Result<AdmittedScalarApplications, String> {
-    let root = artifact
-        .view()
-        .module()
-        .scalar_applications
-        .proof_scope
-        .callable_declaration(entry)
-        .ok_or("calling policy entry has no exact checked proof declaration")?;
-    let mut closure =
-        ScalarApplicationClosure::for_invocation(artifact.view(), primary.target_name(), &[root]);
+    let (mut closure, requested) = match &request {
+        CallingScalarScope::Invocation {
+            declaration,
+            applications,
+        } => (
+            ScalarApplicationClosure::for_invocation(
+                artifact.view(),
+                primary.target_name(),
+                &[*declaration],
+            ),
+            *applications,
+        ),
+        CallingScalarScope::AbiStorage(demand) => (
+            ScalarApplicationClosure::for_abi_storage(artifact.view(), demand)?,
+            demand.applications(),
+        ),
+    };
     let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
     for scope in scopes {
         let profile = target::TargetProfile::from_canonical_target_name(&scope)
@@ -37,15 +52,20 @@ pub(super) fn complete_policy_scalar_inputs(
             terminal_installation::admit_target_machine_selections(artifact.view(), &scope);
         let facts = profile
             .layout_target_facts()
-            .ok_or("calling policy scalar target has no immutable layout catalogue")?;
-        let mut observations =
+            .ok_or("calling scalar target has no immutable layout catalogue")?;
+        let observations =
             ScalarApplicationObservations::new(artifact.view(), &selected, providers, &facts)?
                 .with_target_carriers(
                     profile
                         .native_realization()
                         .map(runtime_abi::target_carrier_layout),
-                )
-                .with_invocation_roots(&[root])?;
+                );
+        let mut observations = match &request {
+            CallingScalarScope::Invocation { declaration, .. } => {
+                observations.with_invocation_roots(&[*declaration])?
+            }
+            CallingScalarScope::AbiStorage(demand) => observations.with_abi_storage(demand)?,
+        };
         let demand = if scope == primary.target_name() {
             requested
         } else {
@@ -57,7 +77,7 @@ pub(super) fn complete_policy_scalar_inputs(
             demand,
             meter,
         )
-        .map_err(|error| format!("calling policy scalar conditions: {error}"))?;
+        .map_err(|error| format!("calling scalar conditions: {error}"))?;
         let address_model =
             target::TargetSemantics::close_address_model(profile).map(|model| ScalarAddressModel {
                 target: scope,

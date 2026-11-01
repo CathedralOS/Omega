@@ -7,17 +7,12 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
 use calling_conventions::{
-    BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
-    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
+    CallbackRequirementId, NativeCallbackDemand, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
 };
-use checked_trees::typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
-use layout::BoundaryValueLayout;
-use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,14 +58,6 @@ impl MaterializedBoundarySignature {
         &self.opaque_representations
     }
 
-    /// Source-free public shape input for the backend's ABI classifier.
-    pub(crate) fn value_graph(&self) -> BoundaryValueGraph<'_> {
-        BoundaryValueGraph {
-            shapes: &self.shapes,
-            fields: &self.fields,
-        }
-    }
-
     pub fn shapes(&self) -> &[BoundaryValueShape] {
         &self.shapes
     }
@@ -107,18 +94,42 @@ impl MaterializedBoundarySignature {
                     .to_owned(),
             );
         }
+        BoundaryOpaqueMovementGeometry {
+            shapes: &self.shapes,
+            fields: &self.fields,
+            parameters: &self.parameters,
+            result: self.result,
+            native_parameters: &self.native_parameters,
+        }
+        .movement(representation.shape_root, validated, 0)
+    }
+}
+
+/// Borrowed geometry shared by Source review and canonical ABI publication.
+/// It contains no Source identities or representation-selection authority.
+pub(super) struct BoundaryOpaqueMovementGeometry<'geometry> {
+    pub shapes: &'geometry [BoundaryValueShape],
+    pub fields: &'geometry [BoundaryValueField],
+    pub parameters: &'geometry [u16],
+    pub result: Option<u16>,
+    pub native_parameters: &'geometry [calling_conventions::BoundaryNativeParameterGeometry],
+}
+
+impl BoundaryOpaqueMovementGeometry<'_> {
+    pub fn movement(
+        &self,
+        shape_root: u16,
+        validated: &ValidatedBoundaryEntryPlan,
+        dispatch_only_parameter_count: usize,
+    ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
         let mut carrying_parameters = Vec::new();
         for (formal_ordinal, root) in self.parameters.iter().copied().enumerate() {
-            if let Some(path) =
-                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
-            {
+            if let Some(path) = boundary_shape_path(&self.shapes, &self.fields, root, shape_root)? {
                 carrying_parameters.push((formal_ordinal, root, path));
             }
         }
         let result_path = match self.result {
-            Some(root) => {
-                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
-            }
+            Some(root) => boundary_shape_path(&self.shapes, &self.fields, root, shape_root)?,
             None => None,
         };
         if carrying_parameters.len() + usize::from(result_path.is_some()) != 1 {
@@ -151,15 +162,33 @@ impl MaterializedBoundarySignature {
                     matching.len(),
                 ));
             };
+            if usize::try_from(formal_ordinal).map_err(|_| "opaque formal ordinal exceeds usize")?
+                < dispatch_only_parameter_count
+            {
+                return Err("opaque occurrence belongs to a dispatch-only formal".into());
+            }
+            // Public native ordinals remain ABI identity. The wire plan omits
+            // dispatch-only semantic formals, but not native-only callbacks.
+            let removed = self
+                .native_parameters
+                .iter()
+                .filter(|parameter| {
+                    parameter.native_ordinal < native.native_ordinal
+                        && matches!(parameter.origin,
+                        BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
+                        if usize::try_from(formal_ordinal).is_ok_and(|ordinal|
+                            ordinal < dispatch_only_parameter_count))
+                })
+                .count();
+            let wire_ordinal = usize::try_from(native.native_ordinal)
+                .map_err(|_| "opaque native ordinal exceeds usize")?
+                .checked_sub(removed)
+                .ok_or("opaque movement has an invalid public-to-wire projection")?;
             let placement = validated
                 .plan()
                 .call
                 .parameters
-                .get(
-                    usize::try_from(native.native_ordinal).map_err(|_| {
-                        "opaque representation native ordinal exceeds usize".to_owned()
-                    })?,
-                )
+                .get(wire_ordinal)
                 .ok_or_else(|| {
                     "opaque representation native parameter has no validated placement".to_owned()
                 })?
@@ -179,7 +208,7 @@ impl MaterializedBoundarySignature {
             })?;
         Ok(BoundaryOpaqueRepresentationMovement {
             role: BoundaryOpaqueRepresentationMovementRole::Result,
-            path: result_path.expect("one validated result occurrence has a path"),
+            path: result_path.ok_or("opaque result occurrence lost its checked path")?,
             placement,
         })
     }
@@ -252,13 +281,7 @@ pub(crate) fn boundary_shape_path(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundaryNativeParameter {
-    pub(crate) identity: NativeParameterId,
-    pub(crate) native_ordinal: u32,
-    pub(crate) shape: BoundaryNativeParameterShape,
-    pub(crate) origin: BoundaryNativeParameterOrigin,
-}
+pub(crate) use calling_conventions::BoundaryNativeParameterGeometry as BoundaryNativeParameter;
 
 pub use calling_conventions::BoundaryNativeParameterShape;
 
@@ -276,172 +299,87 @@ pub struct BoundaryCallbackBinder {
     pub invokes_synchronously: bool,
 }
 
-pub(crate) fn exact_compatibility_overload_index<'identity>(
-    trait_name: &str,
-    method_name: &str,
-    requirement_identity: &str,
-    candidate_identities: impl IntoIterator<Item = &'identity str>,
-) -> Result<Option<usize>, String> {
-    if requirement_identity.is_empty() {
-        return Err(format!(
-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` has no exact requirement overload identity"
-        ));
-    }
-    let mut matches = candidate_identities
-        .into_iter()
-        .enumerate()
-        .filter(|(_, identity)| *identity == requirement_identity);
-    let Some((candidate_index, _)) = matches.next() else {
-        return Ok(None);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calling_conventions::{
+        BoundaryNativeParameterGeometry, CallSignature, CallingPolicy, NativeParameterId,
+        ValueShape, evaluate_ordinary_boundary_entry_plan,
     };
-    let duplicate_count = matches.count();
-    if duplicate_count != 0 {
-        return Err(format!(
-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` matches {} exact requirement overload rows for identity `{requirement_identity}`",
-            duplicate_count + 1,
-        ));
-    }
-    Ok(Some(candidate_index))
-}
 
-pub(crate) fn compatibility_call_signature(
-    materialized: &MaterializedBoundarySignature,
-    policy: CallingPolicy,
-    dispatch_only_parameter_count: usize,
-) -> Result<CallSignature, String> {
-    if dispatch_only_parameter_count > materialized.parameters.len() {
-        return Err(format!(
-            "compatibility calling plan removes {dispatch_only_parameter_count} dispatch-only parameter(s) from a signature with only {} parameter(s)",
-            materialized.parameters.len()
-        ));
+    #[test]
+    fn dispatch_projection_preserves_public_ordinals_and_native_only_lanes() {
+        let shapes = [
+            BoundaryValueShape {
+                class: BoundaryValueClass::Reference,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ];
+        for has_callback in [false, true] {
+            let mut native = vec![BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(1).unwrap(),
+                native_ordinal: 0,
+                shape: BoundaryNativeParameterShape::Semantic(0),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 0 },
+            }];
+            if has_callback {
+                native.push(BoundaryNativeParameterGeometry {
+                    identity: NativeParameterId::new(2).unwrap(),
+                    native_ordinal: 1,
+                    shape: BoundaryNativeParameterShape::TargetFunctionPointer {
+                        byte_size: 8,
+                        alignment: 8,
+                    },
+                    origin: BoundaryNativeParameterOrigin::PrivateCallback {
+                        binder: StaticMachineBinderId::new(1).unwrap(),
+                        requirement: CallbackRequirementId::new(1).unwrap(),
+                    },
+                });
+            }
+            let ordinal = u32::try_from(native.len()).unwrap();
+            native.push(BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(u64::from(ordinal) + 1).unwrap(),
+                native_ordinal: ordinal,
+                shape: BoundaryNativeParameterShape::Semantic(1),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 1 },
+            });
+            let classified = CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); native.len() - 1],
+                result: None,
+            };
+            let plan =
+                evaluate_ordinary_boundary_entry_plan(CallingPolicy::Aapcs64, &classified).unwrap();
+            let geometry = BoundaryOpaqueMovementGeometry {
+                shapes: &shapes,
+                fields: &[],
+                parameters: &[0, 1],
+                result: None,
+                native_parameters: &native,
+            };
+            let movement = geometry.movement(1, &plan, 1).unwrap();
+            assert_eq!(
+                movement.role(),
+                BoundaryOpaqueRepresentationMovementRole::Parameter {
+                    formal_ordinal: 1,
+                    native_ordinal: ordinal,
+                }
+            );
+            assert_eq!(
+                movement.placement(),
+                plan.plan().call.parameters.last().unwrap()
+            );
+            assert!(
+                geometry
+                    .movement(0, &plan, 1)
+                    .unwrap_err()
+                    .contains("dispatch-only formal")
+            );
+        }
     }
-    // Register capacity is not the source value's width or class. The old
-    // syscall shortcut replaced every root with integer(8, 8), so an i32
-    // formal no longer matched native transport and floats/large aggregates
-    // bypassed the syscall evaluator's normal rejection. Classify every root
-    // through the same checked graph; the ABI evaluator decides placement.
-    Ok(CallSignature {
-        parameters: materialized
-            .parameters
-            .iter()
-            .skip(dispatch_only_parameter_count)
-            .copied()
-            .map(|root| materialized.value_graph().classify(root, policy))
-            .collect::<Result<Vec<_>, _>>()?,
-        result: materialized
-            .result
-            .map(|root| materialized.value_graph().classify(root, policy))
-            .transpose()?,
-    })
-}
-
-/// Materialize the source owner's already-prepared declaration. Type recipes
-/// remain per-parameter work so a refused value stops before later values; the
-/// declaration telescope itself is shared across target requests.
-pub(crate) fn materialize_prepared_signature(
-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
-    declaration_abi: Option<semantic_vocabulary::CallingSignatureId>,
-    bindings: &[BoundaryTypeBinding],
-    layout_target: layout::LayoutTarget,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
-) -> Result<MaterializedBoundarySignature, String> {
-    let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
-    let census = services.signatures();
-    let coordinate = match declaration_abi {
-        Some(coordinate) => coordinate,
-        None => *census
-            .abi_for_boundary(declaration.symbol)
-            .ok_or("boundary signature lost its exact declaration ABI association")?
-            .as_ref()
-            .map_err(Clone::clone)?,
-    };
-    let declaration_abi = census
-        .abi_signatures()
-        .iter()
-        .find(|row| row.id == coordinate)
-        .ok_or("boundary signature lost its complete declaration ABI key")?;
-    let abi = semantic_vocabulary::CallingAbiIdentity {
-        requirement_identity: declaration_abi.requirement_identity.clone(),
-        declaring_application: declaration_abi.declaring_application.clone(),
-        operands: declaration_abi.operands.clone(),
-    };
-    abi.validate()?;
-    if abi.id() != coordinate {
-        return Err("boundary declaration ABI key differs from its coordinate".into());
-    }
-    let typed = services.context().typed;
-    let telescope = &prepared.telescope;
-    let callback_binders = telescope
-        .binders
-        .iter()
-        .zip(&prepared.callback_sources)
-        .map(|(binder, source)| BoundaryCallbackBinder {
-            binder: binder.binder,
-            requirement: binder.requirement,
-            static_machine_ordinal: binder.static_machine_ordinal,
-            parameter_symbol: source.parameter_symbol,
-            requirement_trait: source.requirement_trait,
-            requirement_machine: source.requirement_machine,
-            requirement_identity: binder.requirement_identity.clone(),
-            invokes_synchronously: binder.invokes_synchronously,
-        })
-        .collect();
-    let representation_types =
-        crate::boundary_value_recipes::representation_types(opaque_representation_selections);
-    let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
-    let mut values = BoundaryValueLayout::new(layout_target);
-    let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
-    let mut native_parameters =
-        Vec::<BoundaryNativeParameter>::with_capacity(prepared.parameter_types.len());
-    for (formal_ordinal, (type_reference, formal)) in prepared
-        .parameter_types
-        .iter()
-        .copied()
-        .zip(&telescope.parameters)
-        .enumerate()
-    {
-        let recipe = preparation.value_type(type_reference);
-        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
-        parameters.push(root);
-        let formal_ordinal = u32::try_from(formal_ordinal)
-            .map_err(|_| "boundary signature has too many runtime parameters")?;
-        validate_fresh_native_parameter_identity(
-            native_parameters.iter().map(|parameter| parameter.identity),
-            formal.identity,
-            formal.native_ordinal,
-        )?;
-        native_parameters.push(BoundaryNativeParameter {
-            identity: formal.identity,
-            native_ordinal: formal.native_ordinal,
-            shape: BoundaryNativeParameterShape::Semantic(root),
-            origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
-        });
-    }
-    let result = if prepared.return_type.is_valid() {
-        let recipe = preparation.value_type(prepared.return_type);
-        Some(values.value_type(preparation.recipes(), recipe)?.1)
-    } else {
-        None
-    };
-    let (shapes, fields, occurrences) = values.into_parts();
-    let opaque_representations = crate::boundary_value_recipes::representation_uses(
-        opaque_representation_selections,
-        &occurrences,
-    )?;
-    Ok(MaterializedBoundarySignature {
-        abi,
-        owner_requirement_identity: declaration.requirement_identity.clone(),
-        native_target: layout_target.native_target(),
-        opaque_representations,
-        shapes,
-        fields,
-        parameters,
-        callback_binders,
-        callback_demands: Vec::new(),
-        callback_layout_catalog: Vec::new(),
-        native_parameters,
-        direct_callback_parameters: telescope.direct_callbacks.clone(),
-        result,
-    })
 }
