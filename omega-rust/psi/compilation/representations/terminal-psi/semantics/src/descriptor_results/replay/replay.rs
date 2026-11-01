@@ -107,6 +107,13 @@ impl<'a> Replay<'a> {
             arrival_snapshots: BTreeMap::new(),
         }
     }
+    /// Position maps belong to a completed read sweep, not to the module's
+    /// lifetime. Keep compact call summaries and unavailable/in-flight fences;
+    /// a later sweep can reconstruct successful maps from the same graph.
+    pub(super) fn release_completed_snapshots(&mut self) {
+        self.snapshots.retain(|_, states| states.is_none());
+        self.arrival_snapshots.retain(|_, states| states.is_none());
+    }
     pub(super) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
         let mut rows = self
             .machines
@@ -1808,11 +1815,30 @@ mod snapshot_tests {
             Some(&original)
         );
         assert_eq!(edited.slots.get(&parameter), Some(&None));
+        replay.release_completed_snapshots();
+        assert!(!replay.snapshots.contains_key(&id));
+        assert!(!replay.arrival_snapshots.contains_key(&id));
+        let reconstructed = replay.states(id, 0).unwrap();
+        assert!(!Arc::ptr_eq(&completed, &reconstructed));
+        assert!(*completed == *reconstructed);
+        // An outstanding reader still owns its exact earlier cut.
+        assert_eq!(
+            completed[&positions[0]].slots.get(&parameter),
+            Some(&original)
+        );
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
         assert!(limited.states(id, 128).is_none());
         assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+        limited.release_completed_snapshots();
+        assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+        assert!(
+            limited
+                .arrival_snapshots
+                .get(&id)
+                .is_some_and(Option::is_none)
+        );
         assert!(limited.states(id, 0).is_none());
         drop(limited);
         // A new query cannot borrow a completed map from another body/context.
