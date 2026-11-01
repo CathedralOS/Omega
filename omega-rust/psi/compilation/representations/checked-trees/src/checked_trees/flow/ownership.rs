@@ -1,3 +1,4 @@
+use super::FlowPermissionEvaluation::Statement;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
@@ -291,11 +292,7 @@ impl super::FlowOwnershipFacts {
         arena::Handle<FlowOwnedSelectionReceipt>,
         &FlowOwnedSelectionReceipt,
     )> {
-        self.owned_selection_at_evaluation(
-            state,
-            statement_ordinal,
-            super::FlowPermissionEvaluation::Statement,
-        )
+        self.owned_selection_at_evaluation(state, statement_ordinal, Statement)
     }
 
     pub fn owned_selection_at_evaluation(

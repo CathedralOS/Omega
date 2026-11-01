@@ -398,7 +398,9 @@ pub struct CheckedLocatedScalarExpression {
 pub enum CheckedScalarExpressionRole {
     /// Arrival observation of the independently checked natural rank, before
     /// the state prefix. Its root uses this state's exact formal telescope.
-    RankObservation,
+    RankObservation {
+        component: u32,
+    },
     /// Evaluated selector of one structural call argument. The argument's
     /// dense structural ordinal and authored operand keep equal selectors at
     /// different evaluation points distinct.

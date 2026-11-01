@@ -1,11 +1,15 @@
 use crate::build_time_evaluation::type_reference_table;
+use crate::machine_execution::admission::require_established_arguments;
+use checked_interpreter::BuildMachineEvaluationRequest;
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
+use typed_trees::references::collect_selected_program_type_occurrences;
 use typed_trees::{
     PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField,
     PlanLaidSchemaFieldKind, PlanLaidTargetLayout, TypedTrees,
 };
+use validation::conformance_applications::validate_data_evidence_application;
 
 struct FixedRepresentationRequest {
     application_name: String,
@@ -81,17 +85,11 @@ pub(crate) fn compute_plan_laid_layouts_in(
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
-    for occurrence in
-        typed_trees::references::collect_selected_program_type_occurrences(typed, domain.work())
-    {
+    for occurrence in collect_selected_program_type_occurrences(typed, domain.work()) {
         let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
             continue;
         };
-        validation::conformance_applications::validate_data_evidence_application(
-            typed,
-            storage.application,
-            occurrence.lexical_owner,
-        )?;
+        validate_data_evidence_application(typed, storage.application, occurrence.lexical_owner)?;
         if let Some(known) = requests
             .iter_mut()
             .find(|known: &&mut ScopedRepresentationRequest| {
@@ -111,10 +109,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
         // ordinary evaluator receives no value for those symbolic operands:
         // only an output that does not read them can complete. Explicit target
         // facts remain known inputs; no caller's policy instance supplies proof.
-        if typed
-            .closed_data_field_definition(storage.semantic_type)
-            .is_some()
-        {
+        if typed.data_field_definition(storage.semantic_type).is_some() {
             let policy_is_closed =
                 typed_trees::domain::index_argument_is_closed(typed, storage.policy);
             let policy_declaration = typed.type_reference_table.type_symbol(storage.policy);
@@ -176,7 +171,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 }
                 continue;
             }
-            validation::conformance_applications::validate_data_evidence_application(
+            validate_data_evidence_application(
                 typed,
                 dependency.storage.application,
                 dependency.lexical_owner,
@@ -268,7 +263,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
         // of the narrower roster of bodies permitted to execute. Describing T
         // never promotes T or any Product machine into the execution domain.
         let semantic = typed
-            .closed_data_field_definition(storage.semantic_type)
+            .data_field_definition(storage.semantic_type)
             .ok_or_else(|| {
                 fail(format!(
                     "fixed representation lost its exact declared semantic application `{}`",
@@ -405,18 +400,10 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 schema_value.clone(),
                 build_time_values::BuildTimeValue::LayoutTarget(target.clone()),
             ];
-            crate::machine_execution::admission::require_established_arguments(
-                &execution,
-                machine,
-                &mut arguments,
-            )
-            .map_err(fail)?;
+            require_established_arguments(&execution, machine, &mut arguments).map_err(fail)?;
             let evaluation = match domain.accounting.evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(&execution),
-                checked_interpreter::BuildMachineEvaluationRequest::symbol(
-                    machine.symbol,
-                    arguments,
-                ),
+                BuildMachineEvaluationRequest::symbol(machine.symbol, arguments),
             ) {
                 Ok(evaluation) => evaluation,
                 Err(checked_interpreter::BuildMachineEvaluationError::StaticInputUnavailable(
@@ -567,14 +554,15 @@ pub(crate) fn validate_layout_application_coverage(
     Ok(())
 }
 
-/// Discover only by-value dependencies from the exact closed field views.
+/// Discover only by-value dependencies from exact prepared field telescopes.
+/// A symbolic field telescope supplies no storage geometry; references stop here.
 fn representation_dependencies(
     typed: &TypedTrees,
     semantic_type: typed_trees::types::TypeReferenceHandle,
 ) -> Result<Vec<RepresentationDependency>, Vec<Diagnostic>> {
     use typed_trees::types::TypeReferenceNode;
     let owner = typed
-        .closed_data_field_definition(semantic_type)
+        .data_field_definition(semantic_type)
         .map(|data| data.symbol)
         .unwrap_or_default();
     let mut work = vec![(semantic_type, owner)];
@@ -604,7 +592,7 @@ fn representation_dependencies(
                 work.push((*element_type, lexical_owner))
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                if let Some(data) = typed.closed_data_definition(reference) {
+                if let Some(data) = typed.data_field_definition(reference) {
                     work.extend(
                         typed
                             .live_data_fields(typed.data_members(data))

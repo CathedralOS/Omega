@@ -4,6 +4,7 @@
 use super::super::operation_frame::OperationFrame;
 use super::super::{CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, unsupported};
 use super::{CheckedTrees, LoweringError};
+use crate::unit::attached_unit::admission::retain_call_boundaries;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
@@ -30,12 +31,7 @@ pub(super) fn admit_calls<'a>(
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {
         for operation in state.operation_dependencies() {
-            crate::unit::attached_unit::admission::retain_call_boundaries(
-                checked,
-                plans,
-                std::iter::once(operation),
-                &mut boundaries,
-            )?;
+            retain_call_boundaries(checked, plans, std::iter::once(operation), &mut boundaries)?;
             // A call state's operations are its call and the effects that
             // prepare it: the ones the frame emits (`OperationFrame::lowers`),
             // plus the frame-local storage mints a statement establishes

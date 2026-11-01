@@ -15,6 +15,7 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
 use facts::PlaceSegment;
 use std::sync::Mutex;
 use symbols::SymbolKeyMap as HashMap;
+use symbols::SymbolKind;
 
 pub(super) mod bindings;
 mod projections;
@@ -117,9 +118,7 @@ pub(super) fn replaces_binding(
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
     let target = FrameSourcePlace::from_expression(program, assignment.target);
-    if !target.segments.is_empty()
-        || program.symbols.get(target.root).kind != symbols::SymbolKind::Local
-    {
+    if !target.segments.is_empty() || program.symbols.get(target.root).kind != SymbolKind::Local {
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
@@ -534,7 +533,7 @@ pub(super) fn local_origins(
         })?;
     if !type_reference_is_reference(program, local.type_reference)
         || program.symbols.get(local_symbol).parent != state.symbol
-        || program.symbols.get(local_symbol).kind != symbols::SymbolKind::Local
+        || program.symbols.get(local_symbol).kind != SymbolKind::Local
         || program.symbols.name(local_symbol) != local.name.as_str()
     {
         return None;
@@ -1093,7 +1092,7 @@ pub(super) fn source_root_type(
             .then_some(parameter.type_reference);
     }
     if program.symbols.get(root).parent != state.symbol
-        || program.symbols.get(root).kind != symbols::SymbolKind::Local
+        || program.symbols.get(root).kind != SymbolKind::Local
     {
         return None;
     }

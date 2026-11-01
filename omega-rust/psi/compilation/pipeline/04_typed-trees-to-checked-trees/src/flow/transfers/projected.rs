@@ -8,9 +8,12 @@
 //! `propagate_statement_transfers`, which transports the same payloads at the
 //! source place itself. Runtime-indexed segments still stop the transport -- a
 //! copy cannot promise which element supplied the evidence.
+use super::super::operand_contexts::operand_binds_stable_copy;
 use super::PlaceHandle;
+use crate::flow;
 use crate::flow::FlowBuildContext;
 use crate::flow::origin_place;
+use crate::values::is_assignment_literal;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
@@ -117,7 +120,7 @@ fn append_value_predicates(
         .place_segments
         .span_or_empty(destination_place.segments)
         .to_vec();
-    if !crate::flow::source_transfer_cases_selected(
+    if !flow::source_transfer_cases_selected(
         program,
         semantic,
         contexts,
@@ -131,7 +134,7 @@ fn append_value_predicates(
     if !source_segments
         .iter()
         .chain(&destination_segments)
-        .all(crate::flow::place_segment_has_static_identity)
+        .all(flow::place_segment_has_static_identity)
     {
         return;
     }
@@ -177,9 +180,7 @@ fn append_value_predicates(
             // literal `AssignedValue` leaves qualify -- a call occurrence is
             // retained as provenance at its root place and can never name a
             // copied field's value.
-            FactPayload::AssignedValue { value }
-                if crate::values::is_assignment_literal(program, value) =>
-            {
+            FactPayload::AssignedValue { value } if is_assignment_literal(program, value) => {
                 fact.payload
             }
             FactPayload::CaseValue { .. }
@@ -199,9 +200,7 @@ fn append_value_predicates(
             || (evidence == CopiedEvidence::ContainedStorage
                 && segments.len() == source_segments.len())
             || !segments.starts_with(&source_segments)
-            || !segments
-                .iter()
-                .all(crate::flow::place_segment_has_static_identity)
+            || !segments.iter().all(flow::place_segment_has_static_identity)
         {
             continue;
         }
@@ -247,10 +246,7 @@ fn append_value_predicates(
             };
             if validation::reference_shell(program, projected_type).is_some()
                 || (!matches!(payload, FactPayload::CaseValue { .. })
-                    && !super::super::operand_contexts::operand_binds_stable_copy(
-                        program,
-                        projected_type,
-                    ))
+                    && !operand_binds_stable_copy(program, projected_type))
             {
                 continue;
             }
@@ -328,15 +324,14 @@ pub(super) fn bound_reference_referent_place(
     let state = program.state_by_symbol(state_symbol)?;
     // The binding's own alias is recorded once the next statement begins, so
     // the prefix observed there is the one carrying the new referent.
-    let before =
-        crate::flow::state_statements(program, state.statement_nodes).get(statement_index + 1)?;
+    let before = flow::state_statements(program, state.statement_nodes).get(statement_index + 1)?;
     let mut owned = None;
-    let resolver = crate::flow::shared_call_frames_or(contexts.call_frames, program, &mut owned)?;
+    let resolver = flow::shared_call_frames_or(contexts.call_frames, program, &mut owned)?;
     // The walk records the referent beside the local's own storage entry;
     // only an origin rooted in different storage can be the referent.
-    let origin = crate::flow::sole_local_referent_origin(resolver, machine, before, local_symbol)?;
+    let origin = flow::sole_local_referent_origin(resolver, machine, before, local_symbol)?;
     let (place, precision) = origin_place(program, state, statement_index, &origin)?;
-    if precision != crate::flow::OriginPrecision::Exact {
+    if precision != flow::OriginPrecision::Exact {
         return None;
     }
     Some(crate::semantic::places::append_place(

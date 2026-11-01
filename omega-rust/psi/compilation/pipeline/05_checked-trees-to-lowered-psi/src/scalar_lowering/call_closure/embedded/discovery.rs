@@ -3,6 +3,8 @@
 use super::super::CheckedTerminalSignatureEligibility;
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::checked_facts::flow_facts;
+use crate::expression_preparation::computation_graph::structural_call_targets;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     checked: &CheckedTrees,
@@ -39,19 +41,12 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             );
         }
         let callee = if structural_members.contains(&machine) {
-            crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-                checked, machine,
-            )?
+            CheckedScalarCallee::find_for_unit_call(checked, machine)?
         } else {
-            crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
-                checked, machine,
-            )?
+            CheckedScalarCallee::find(checked, machine)?
         };
         let mut computed = source_checked_computation_targets(checked, machine)?;
-        let mut computed_structural =
-            crate::expression_preparation::computation_graph::structural_call_targets(
-                checked, machine,
-            )?;
+        let mut computed_structural = structural_call_targets(checked, machine)?;
         for operation in callee.body().operations() {
             // An ordinary scalar call names a scalar callee.
             if let Some(call) = operation
@@ -73,16 +68,12 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             // Root validation above rejoins each mixed signature independently;
             // another call reaching this target does not grant its borrow rows.
             if computed_structural.contains(&target) {
-                crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-                    checked, target,
-                )?;
+                CheckedScalarCallee::find_for_unit_call(checked, target)?;
                 if !structural_members.contains(&target) {
                     structural_members.push(target);
                 }
             } else {
-                crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
-                    checked, target,
-                )?;
+                CheckedScalarCallee::find(checked, target)?;
             }
             if !closure.contains(&target) {
                 closure.push(target);

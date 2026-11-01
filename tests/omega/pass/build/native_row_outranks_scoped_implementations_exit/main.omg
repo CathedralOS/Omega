@@ -1,0 +1,39 @@
+// Expected exit: 0
+// One portable Distance requirement is a native `abs` import on windows_x86_64
+// and linux_x86_64, and a checked adapter that Build selects on each remaining
+// target. Both adapters are in scope on every target. Each target's entry
+// checks the supply Build keyed to that target, so choosing an adapter another
+// target selected, or the native import where an adapter is selected, changes
+// the observed value and traps.
+boundary trait Distance {
+    machine absolute(value: i32) -> i32 reaches Distance;
+}
+
+MacosDistance satisfies Distance {
+    machine absolute(value: i32) -> i32 reaches Distance { 1073 }
+}
+
+LinuxArmDistance satisfies Distance {
+    machine absolute(value: i32) -> i32 reaches Distance { 2073 }
+}
+
+machine native_entry() crashes Trap reaches Distance {
+    let seen: i32 = Distance::absolute(-73);
+    transition seen == 73 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine macos_entry() crashes Trap reaches Distance {
+    let seen: i32 = Distance::absolute(-73);
+    transition seen == 1073 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine linux_arm_entry() crashes Trap reaches Distance {
+    let seen: i32 = Distance::absolute(-73);
+    transition seen == 2073 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

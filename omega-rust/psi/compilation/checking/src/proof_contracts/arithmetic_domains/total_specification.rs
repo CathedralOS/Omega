@@ -38,7 +38,8 @@ pub(crate) fn validate_total_specification_arithmetic(
     environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> super::ArithmeticDecisions {
+    let diagnostics_before = diagnostics.len();
     if let Some(state) = state {
         crate::value_custody::expression_types::validate_float_expression_formats(
             program,
@@ -54,7 +55,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     // its own proposed contract to establish its definedness. A second walk
     // from the outer environment would lose the facts of a selected match arm.
     let mut formation_diagnostics = Vec::new();
-    analyze(
+    let formed = analyze(
         program,
         machine,
         state,
@@ -107,6 +108,18 @@ pub(crate) fn validate_total_specification_arithmetic(
         true,
         diagnostics,
     );
+    // This validating walk used only preceding facts and selected-path
+    // premises, before the proposition itself entered the environment. Keep
+    // its complete decisions on the emitted occurrences: contract publication
+    // must not discard them and ask lowering to reconstruct their safety.
+    if diagnostics[diagnostics_before..]
+        .iter()
+        .any(Diagnostic::is_error)
+    {
+        super::ArithmeticDecisions::default()
+    } else {
+        formed.decisions
+    }
 }
 
 fn validate_total_specification_arithmetic_for_domains(
@@ -252,7 +265,8 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-) {
+) -> super::ArithmeticDecisions {
+    let mut decisions = super::ArithmeticDecisions::default();
     let entry_state = program.machine_states(machine).first();
     let mut machine_environment = ValueEnvironment::new();
     let mut machine_prior_facts = Vec::new();
@@ -291,7 +305,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 diagnostics,
             );
             if let Some(expression) = fact.as_expression() {
-                validate_total_specification_arithmetic(
+                decisions.extend(validate_total_specification_arithmetic(
                     program,
                     machine,
                     entry_state,
@@ -299,7 +313,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     &machine_environment,
                     &owner,
                     diagnostics,
-                );
+                ));
                 if contract.kind == SignatureContractKind::Requires
                     && diagnostics.len() == diagnostics_before
                 {
@@ -351,7 +365,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     diagnostics,
                 );
                 if let Some(expression) = fact.as_expression() {
-                    validate_total_specification_arithmetic(
+                    decisions.extend(validate_total_specification_arithmetic(
                         program,
                         machine,
                         Some(state),
@@ -359,7 +373,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                         &state_environment,
                         &owner,
                         diagnostics,
-                    );
+                    ));
                     if contract.kind == SignatureContractKind::Requires
                         && diagnostics.len() == diagnostics_before
                     {
@@ -377,6 +391,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
             }
         }
     }
+    decisions
 }
 
 #[derive(Clone, Copy, Default)]

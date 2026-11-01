@@ -7,7 +7,8 @@
 //! Unused candidate equations grant nothing and need no ancestry judgment.
 
 use checked_trees::facts::{
-    ContentBodyClaimBinding, ContentClaimTransformation, ContentClaimTransformationSource,
+    ContentBodyClaimBinding as ClaimBinding, ContentClaimTransformation,
+    ContentClaimTransformationSource as TransformationSource,
 };
 use checked_trees::{CheckFacts, FlowClaimJoinAlternativeSource, FlowClaimOutcomeSource};
 use language_semantics::{PermissionClaimIdentity, PermissionEventKind, PermissionEventSource};
@@ -37,10 +38,7 @@ pub(super) fn check_used_calls(
                     continue;
                 }
                 let transformation = content.claim_transformations.get(handle);
-                if matches!(
-                    transformation.source,
-                    ContentClaimTransformationSource::Call { .. }
-                ) {
+                if matches!(transformation.source, TransformationSource::Call { .. }) {
                     authenticate_call(facts, transformation, &mut traversal)?;
                     checked.push(handle);
                 }
@@ -104,10 +102,10 @@ fn authenticate_call(
 fn call_parents(
     facts: &CheckFacts,
     transformation: &ContentClaimTransformation,
-    output: &ContentBodyClaimBinding,
+    output: &ClaimBinding,
     traversal: &mut OriginTraversal,
 ) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
-    let ContentClaimTransformationSource::Call { call_ordinal, .. } = transformation.source else {
+    let TransformationSource::Call { call_ordinal, .. } = transformation.source else {
         return Err("ancestry edge is not a completed call");
     };
     let ownership = &facts.flow.ownership;
@@ -233,7 +231,7 @@ fn callable_entry_parameter(
 fn qualified_roots(
     facts: &CheckFacts,
     claim: PermissionClaimIdentity,
-    projection: &ContentBodyClaimBinding,
+    projection: &ClaimBinding,
     traversal: &mut OriginTraversal,
 ) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
     traversal.visit()?;
@@ -276,22 +274,22 @@ fn qualified_roots(
         {
             traversal.visit()?;
             let parents = match transformation.source {
-                ContentClaimTransformationSource::Call { .. } => call_parents(
+                TransformationSource::Call { .. } => call_parents(
                     facts,
                     transformation,
-                    &ContentBodyClaimBinding {
+                    &ClaimBinding {
                         claim_identity: claim,
                         ..projection.clone()
                     },
                     traversal,
                 )?,
-                ContentClaimTransformationSource::Body { .. } => content
+                TransformationSource::Body { .. } => content
                     .body_claim_bindings
                     .span_or_empty(transformation.inputs)
                     .iter()
                     .map(|input| input.claim_identity)
                     .collect(),
-                ContentClaimTransformationSource::Unknown => {
+                TransformationSource::Unknown => {
                     return Err("callee lineage has an unknown producer");
                 }
             };
@@ -330,7 +328,7 @@ fn same_roots(left: &[PermissionClaimIdentity], right: &[PermissionClaimIdentity
     left.len() == right.len() && left.iter().all(|claim| right.contains(claim))
 }
 
-fn same_projection(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding) -> bool {
+fn same_projection(left: &ClaimBinding, right: &ClaimBinding) -> bool {
     left.domain == right.domain
         && left.semantic_domain == right.semantic_domain
         && left.projection_machine == right.projection_machine

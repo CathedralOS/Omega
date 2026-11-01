@@ -7,6 +7,7 @@ struct Map {
     rows: Vec<u32>,
     receivers: Vec<(u32, Vec<u32>)>,
     target: &'static str,
+    keyed: bool,
     contracts_known: bool,
 }
 impl Candidate for Map {
@@ -20,6 +21,9 @@ impl Candidate for Map {
     }
     fn target(&self) -> &str {
         self.target
+    }
+    fn build_keyed(&self) -> bool {
+        self.keyed
     }
     fn has_requirements(&self) -> bool {
         !self.required.is_empty()
@@ -77,7 +81,15 @@ fn map(slot: u32, provider: u32, required: &[u32], rows: &[u32]) -> Map {
         rows: rows.to_vec(),
         receivers: vec![(slot, required.to_vec())],
         target: "",
+        keyed: false,
         contracts_known: true,
+    }
+}
+fn keyed(slot: u32, provider: u32, required: &[u32], rows: &[u32]) -> Map {
+    Map {
+        keyed: true,
+        target: "host",
+        ..map(slot, provider, required, rows)
     }
 }
 
@@ -142,6 +154,64 @@ fn ambiguous_whole_maps_preserve_the_candidate_coordinates() {
             candidates: vec![0, 1]
         }]
     );
+}
+
+#[test]
+fn a_build_row_keyed_to_the_target_is_not_rivaled_by_implementations_in_scope() {
+    let maps = [
+        map(1, 10, &[1], &[1]),
+        keyed(1, 20, &[1], &[1]),
+        map(1, 30, &[1], &[1]),
+    ];
+    let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
+    assert_eq!(
+        outcome.choices,
+        [Choice {
+            candidate: 1,
+            reason: Reason::UniqueCoveringCandidate
+        }]
+    );
+    assert!(outcome.errors.is_empty());
+}
+
+#[test]
+fn build_rows_keyed_to_the_same_target_still_conflict() {
+    let maps = [
+        map(1, 10, &[1], &[1]),
+        keyed(1, 20, &[1], &[1]),
+        keyed(1, 30, &[1], &[1]),
+    ];
+    let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
+    assert!(outcome.choices.is_empty());
+    assert_eq!(
+        outcome.errors,
+        [Error::AmbiguousCandidates {
+            slot: 1,
+            candidates: vec![1, 2]
+        }]
+    );
+}
+
+#[test]
+fn an_explicit_override_still_outranks_the_keyed_build_row() {
+    let maps = [map(1, 10, &[1], &[1]), keyed(1, 20, &[1], &[1])];
+    let outcome = choose(
+        &maps,
+        "host",
+        &[],
+        &[Selected {
+            slot: 1,
+            provider: 10,
+        }],
+    );
+    assert_eq!(
+        outcome.choices,
+        [Choice {
+            candidate: 0,
+            reason: Reason::Override(vec![0])
+        }]
+    );
+    assert!(outcome.errors.is_empty());
 }
 
 #[test]

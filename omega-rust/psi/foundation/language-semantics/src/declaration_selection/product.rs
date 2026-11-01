@@ -405,11 +405,22 @@ pub struct NativeBindingProducer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapturedNativeDeclaration {
+pub struct NativeBindingSource {
     pub producer: NativeBindingProducer,
     pub requirement_path: String,
     pub source_occurrence_digest: [u8; 32],
     pub resolution_stratum: source::SourceResolutionStratum,
+}
+
+/// A Product requirement selected under the original Build author's scope.
+/// The source anchor carries declaration custody, never checking or execution
+/// authority. Dependency visibility is independently re-admitted by consumers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedNativeDeclaration {
+    pub source: NativeBindingSource,
+    pub requirement: symbols::RetainedDeclaration,
+    pub requirement_identity: String,
+    pub dependency_alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -437,7 +448,7 @@ impl NativeBindingFormation {
     pub fn seal(
         &self,
         package: semantic_vocabulary::PackageKeyIdentity,
-    ) -> Result<CapturedNativeDeclaration, String> {
+    ) -> Result<NativeBindingSource, String> {
         if self.author_package.is_some_and(|owner| owner != package) || !self.root_scope {
             return Err(
                 "native output cannot substitute another checked Build package's scope".into(),
@@ -446,7 +457,7 @@ impl NativeBindingFormation {
         let [operand] = self.request.operands.as_ref() else {
             return Err("native formation lost its requirement".into());
         };
-        Ok(CapturedNativeDeclaration {
+        Ok(NativeBindingSource {
             producer: NativeBindingProducer {
                 package,
                 declaration_path: self.declaration_path.clone(),

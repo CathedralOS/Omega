@@ -5,7 +5,7 @@ pub use identity::fixed_precolored_segment_home_plan_identity;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 
@@ -13,7 +13,6 @@ use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSourceSegmentId, FixedPrecoloredSplitRequirementPlanIdentity,
 };
-use selected_instructions::LiveRangeIdentity;
 
 crate::identity_newtype! { pub struct FixedPrecoloredSegmentHomePlanIdentity(pub(crate) [u8; 32]); }
 

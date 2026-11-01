@@ -9,6 +9,8 @@ pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,
     resolve_build_static_operand,
 };
+use language_semantics::byte_predicates::ByteSequencePredicate;
+use typed_trees::types::TypeReferenceNode;
 
 use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::{
@@ -184,9 +186,7 @@ fn checked_call_intrinsic(
     // becoming a source-text fallback for an ordinary package declaration.
     if target_symbol.is_valid() || receiver.is_valid() {
         None
-    } else if let Some(predicate) =
-        language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
-    {
+    } else if let Some(predicate) = ByteSequencePredicate::from_name(target) {
         Some(Intrinsic::ByteSequencePredicate(predicate))
     } else if target == "address_of" {
         Some(Intrinsic::StorageAddress)
@@ -203,15 +203,13 @@ pub fn type_reference_names_exact_prelude_data(
     name: &str,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        TypeReferenceNode::Reference { referee, .. } => {
             type_reference_names_exact_prelude_data(program, *referee, name)
         }
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_names_exact_prelude_data(program, *base_type, name)
         }
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-            exact_build_prelude_data(program, *symbol, name)
-        }
+        TypeReferenceNode::Named { symbol, .. } => exact_build_prelude_data(program, *symbol, name),
         _ => false,
     }
 }

@@ -68,7 +68,16 @@ impl RankValue {
         };
         let formed =
             engine.form_declared_integer_application(application.measure, &application.input)?;
-        (engine.substituted(&formed.value) == engine.substituted(&self.value))
+        // Only completed formation can expose the declaration's value. A
+        // reservation is not an evaluator and cannot lend facts to its own
+        // partial children. Already-produced source invariants remain attached
+        // to the reserved observation while this equality gives its meaning.
+        engine
+            .install_hypotheses(vec![(
+                typed_trees::expression::BinaryOperator::Equal,
+                self.value.clone(),
+                formed.value,
+            )])
             .then_some(formed.formation)
     }
 }

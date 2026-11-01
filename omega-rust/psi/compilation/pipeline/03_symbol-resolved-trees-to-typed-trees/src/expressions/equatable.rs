@@ -31,9 +31,7 @@
 //! by one Equatable implementation; recursive types are rejected (inline
 //! expansion would not terminate).
 
-use crate::tables::resolved_statements;
-use crate::tables::type_constraints;
-use crate::tables::type_references;
+use crate::tables::{resolved_statements, type_constraints, type_references};
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};

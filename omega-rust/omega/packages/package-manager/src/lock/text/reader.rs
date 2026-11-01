@@ -7,6 +7,7 @@ use super::{
 };
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::{PackageCheckedContext, PackagePolicyOccurrence};
+use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use target::TargetProfile;
 
 impl PackageLock {
@@ -18,10 +19,7 @@ impl PackageLock {
             .targets
             .iter()
             .flat_map(|target| &target.occurrences)
-            .any(|occurrence| {
-                occurrence.acceptance.schema_version
-                    != package_evidence::record::PACKAGE_POLICY_ROW_VERSION
-            })
+            .any(|occurrence| occurrence.acceptance.schema_version != PACKAGE_POLICY_ROW_VERSION)
         {
             return Err(Error::UnsupportedVersion);
         }

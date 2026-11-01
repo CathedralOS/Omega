@@ -13,6 +13,8 @@ use super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, LocalConstructionTrace,
     SymbolHandle, checked_boolean_contains_short_circuit,
 };
+use crate::execution::terminal_unit::structural_scalar_store::scalar_custody_is_exact;
+use crate::values::scalar_expression_type;
 use checked_trees::CheckedCallScalarArgument;
 use typed_trees::types::PrimitiveType;
 
@@ -55,15 +57,8 @@ pub(super) fn value(
             .bound_expression_at(state.symbol, statement_index, role)?;
     if binding.expression != local.initial_value
         || binding.destination != local.symbol
-        || crate::values::scalar_expression_type(value) != Some(primitive_type)
-        || !crate::execution::terminal_unit::structural_scalar_store::scalar_custody_is_exact(
-            program,
-            facts,
-            state,
-            binding,
-            value,
-            primitive_type,
-        )
+        || scalar_expression_type(value) != Some(primitive_type)
+        || !scalar_custody_is_exact(program, facts, state, binding, value, primitive_type)
         || matches!(value, CheckedScalarExpression::Boolean(expression)
             if checked_boolean_contains_short_circuit(expression))
     {

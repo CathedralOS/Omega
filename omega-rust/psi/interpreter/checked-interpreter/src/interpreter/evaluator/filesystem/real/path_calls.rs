@@ -3,6 +3,7 @@
 
 use super::host_io::{open_real, real_os_bytes, real_path};
 use super::{EACCES, EBADF, EINVAL, ENOENT, io_errno};
+use crate::interpreter::evaluator::filesystem::host_open_flags;
 use crate::interpreter::evaluator::{
     EvalResult, FilesystemGrantRefusalReason, PreparedFilesystemCall,
 };
@@ -44,8 +45,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // Flag bits decode via the same host-flag mirror the virtual
             // fs uses (host_open_flags -- the program was compiled for
             // `host()`, so the numerology matches).
-            let wants_write =
-                crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
+            let wants_write = host_open_flags::wants_write(flags);
             match self.authorized_path(&path, wants_write, 0) {
                 Some(path) => {
                     self.open_flags_and_finish(path, flags, mode as u32, true, wants_write)?
@@ -424,8 +424,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         Ok({
             // `openat(dirfd, name, flags)`: join against the dirfd's opened
             // path, then the ordinary open (same flag decode + grants).
-            let wants_write =
-                crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
+            let wants_write = host_open_flags::wants_write(flags);
             let joined = match self.real_fs_mut().files.get(&dirfd) {
                 Some(entry) => match real_path(&name) {
                     Some(name) => entry.path.join(name),

@@ -15,6 +15,8 @@ use checked_interpreter::{
 use typed_trees::TypedTrees;
 
 use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody};
+use compiler_storage::{RecordError, RecordReader};
+use terminal_interpreter::TerminalExecutionResult;
 
 mod canonical_scalar;
 pub use canonical_scalar::CanonicalScalarEvaluationReceipt;
@@ -222,12 +224,8 @@ pub struct PureTerminalEvaluationReceipt {
 
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureTerminalEvaluationOutcome {
-    Returned {
-        value: terminal_interpreter::TerminalExecutionResult,
-    },
-    Failed {
-        reason: String,
-    },
+    Returned { value: TerminalExecutionResult },
+    Failed { reason: String },
 }
 
 impl PureTerminalEvaluationReceipt {
@@ -418,8 +416,8 @@ impl EvaluationAccounting {
         execute: impl FnOnce(
             &mut terminal_fuel::TerminalFuelMeter,
             &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
-        ) -> Result<terminal_interpreter::TerminalExecutionResult, String>,
-    ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
+        ) -> Result<TerminalExecutionResult, String>,
+    ) -> Result<TerminalExecutionResult, String> {
         if !matches!(
             program,
             BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
@@ -561,10 +559,7 @@ impl SourceCompletionAccounting {
 // receipts persist separately in SourceCompletionAccounting, with their real
 // charges. A collector still attached here means the continuation is not sealed.
 impl compiler_storage::Record for EvaluationAccounting {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
+    fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
         if self.state.is_some() {
             return Err(
                 output.error("source continuation still owns an active accounting collector")
@@ -572,9 +567,7 @@ impl compiler_storage::Record for EvaluationAccounting {
         }
         Ok(())
     }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
+    fn read<Context>(_: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         Ok(Self::default())
     }
 }

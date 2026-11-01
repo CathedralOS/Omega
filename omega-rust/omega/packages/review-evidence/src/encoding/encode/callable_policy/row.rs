@@ -13,6 +13,7 @@ use crate::encoding::encode::values::effects::encode_installation_reach;
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::encoding::encode::values::identity::encode_nominal;
 use crate::encoding::encode::values::identity::encode_supply;
+use crate::encoding::encode::values::identity::encode_target_context;
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableRole;
 use crate::record::PackageReviewCheckedServiceReach;
@@ -33,10 +34,7 @@ pub(in crate::encoding) fn encode_callable(
     })?;
     encoder.field_by("identity", &callable.identity, encode_nominal)?;
     encoder.field("target_context", |encoder| {
-        crate::encoding::encode::values::identity::encode_target_context(
-            encoder,
-            &callable.target_context,
-        )
+        encode_target_context(encoder, &callable.target_context)
     })?;
     encoder.field("supply", |encoder| encode_supply(encoder, callable.supply))?;
     encoder.field("spelling", |encoder| {

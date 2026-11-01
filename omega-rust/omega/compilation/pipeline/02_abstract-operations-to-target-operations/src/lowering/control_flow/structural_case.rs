@@ -1,6 +1,9 @@
 //! Sum inspection retains declared order, layout, and edge-produced parameters.
+use super::aggregate_results::value_home_layout;
+use super::terminator::plain_home_cleanup;
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
+use crate::lowering::structural_layout::reference_projection_regions;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
@@ -96,10 +99,7 @@ fn case_source(
         if !borrowed {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let layout = super::aggregate_results::value_home_layout(
-            parameter.structural_type,
-            structural_types,
-        )?;
+        let layout = value_home_layout(parameter.structural_type, structural_types)?;
         return Ok(TargetStructuralCaseSource::BorrowedBlockParameter {
             parameter: parameter.clone(),
             layout,
@@ -206,12 +206,8 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let home = case_source(function, prepared, live, structural_types, *source)?;
-    let regions = crate::lowering::structural_layout::reference_projection_regions(
-        home.structural_type(),
-        path,
-        structural_types,
-    )
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let regions = reference_projection_regions(home.structural_type(), path, structural_types)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if regions
         .pointer_slots
         .iter()
@@ -277,7 +273,7 @@ pub(super) fn lower(
             &target.structural_parameters,
             &mut edge_live,
         )?;
-        super::terminator::plain_home_cleanup(
+        plain_home_cleanup(
             function,
             &mut edge_live,
             structural_types,

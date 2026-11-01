@@ -14,6 +14,7 @@ use crate::selection::construction::scalar_graph::structural::obligation_provena
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::primitive_local_input::read_parameter;
 
 pub(super) fn replace(
     function: &LegalizedScalarFunction,
@@ -29,9 +30,7 @@ pub(super) fn replace(
             obligation,
             accepted_fact,
         } => {
-            let access = if let Some(parameter) =
-                crate::selection::primitive_local_input::read_parameter(function, *destination)
-            {
+            let access = if let Some(parameter) = read_parameter(function, *destination) {
                 if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     || !parameter.projected_qualifications.is_empty()
                 {
@@ -101,9 +100,7 @@ pub(super) fn replace(
         // The actual home retains its type across operation production and
         // state arrival. Field geometry below selects inside that home; its
         // enclosing aggregate need not itself be a record.
-        if let Some(parameter) =
-            crate::selection::primitive_local_input::read_parameter(function, destination.place)
-        {
+        if let Some(parameter) = read_parameter(function, destination.place) {
             if parameter.access != StructuralAccess::Owned {
                 return Err(invalid());
             }

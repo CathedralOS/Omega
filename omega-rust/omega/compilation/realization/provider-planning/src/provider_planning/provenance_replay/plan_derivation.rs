@@ -161,19 +161,11 @@ pub(crate) fn derive_provider_plans(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
-                plans[position]
-                    .provenance
-                    .row_requirements
-                    .push(requirement_symbol);
-                plans[position]
-                    .provenance
-                    .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
-                plans[position]
-                    .provenance
-                    .row_target_machine_origins
-                    .push(target_machine_origin.clone());
-                plans[position].provenance.row_accessors.push(None);
+                plans[position].provenance.push_authored_row(
+                    requirement_symbol,
+                    machine.symbol,
+                    target_machine_origin.clone(),
+                );
             }
         }
     }
@@ -324,17 +316,7 @@ fn derive_top_level_requirement_plans(
             });
             plans[position]
                 .provenance
-                .row_requirements
-                .push(requirement.symbol);
-            plans[position]
-                .provenance
-                .row_realizations
-                .push(ProviderRowRealization::Authored(machine.symbol));
-            plans[position]
-                .provenance
-                .row_target_machine_origins
-                .push(None);
-            plans[position].provenance.row_accessors.push(None);
+                .push_authored_row(requirement.symbol, machine.symbol, None);
         }
     }
     plans
@@ -452,17 +434,7 @@ fn derive_boundary_operator_plans(
             });
             plans[position]
                 .provenance
-                .row_requirements
-                .push(operator.symbol);
-            plans[position]
-                .provenance
-                .row_realizations
-                .push(ProviderRowRealization::Authored(machine.symbol));
-            plans[position]
-                .provenance
-                .row_target_machine_origins
-                .push(None);
-            plans[position].provenance.row_accessors.push(None);
+                .push_authored_row(operator.symbol, machine.symbol, None);
         }
     }
     plans

@@ -4,8 +4,8 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::tables::{exprs, exprs_of};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableMemberExpression,
-    TableMembershipExpression, UnaryOperator,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
+    TableMemberExpression, TableMembershipExpression, UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
@@ -69,7 +69,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         return Ok((guard, bindings, None, rest));
     }
 
-    let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
+    let (patterns, pattern_rest) = parse_transition_match_list(syntax_trees, pattern_input, true)?;
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected transition pattern"));
     }
@@ -400,13 +400,6 @@ pub(super) fn parse_transition_expression_list<'tokens, 'source>(
     parse_transition_match_list(syntax_trees, input, false)
 }
 
-fn parse_transition_pattern_list<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<Option<ExpressionHandle>>> {
-    parse_transition_match_list(syntax_trees, input, true)
-}
-
 fn parse_transition_match_list<'tokens, 'source, T>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -533,7 +526,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .iter()
         .map(|field| {
             let binding = match &field.action {
-                syntax_trees::expression::MatchFieldAction::Bind(binding) => Some(binding.clone()),
+                MatchFieldAction::Bind(binding) => Some(binding.clone()),
                 _ => None,
             };
             (field.member.clone(), binding)
@@ -543,9 +536,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .fields
         .iter()
         .filter_map(|field| match field.action {
-            syntax_trees::expression::MatchFieldAction::Equal(value) => {
-                Some((field.member.clone(), value))
-            }
+            MatchFieldAction::Equal(value) => Some((field.member.clone(), value)),
             _ => None,
         })
         .collect::<Vec<_>>();

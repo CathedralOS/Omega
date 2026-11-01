@@ -3,10 +3,12 @@
 //! and retains conditional ancestry without pruning authored alternatives.
 
 use super::topology::find_state_in_machine;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::statement::StatementNode;
+use typed_trees::typed_trees::StaticRequirementDispatch;
 mod traversal;
 use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
@@ -23,9 +25,7 @@ pub enum CallSite<'program> {
         arguments: arena::HandleSpan<ExpressionHandle>,
         evidence_arguments: &'program [Identifier],
         source_span: source::SourceSpan,
-        authored_call_selection: Option<
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
-        >,
+        authored_call_selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
     },
 }
 
@@ -126,9 +126,7 @@ impl<'program> CallSite<'program> {
                 && program.symbols.get(path.symbol).parent == caller_machine)
     }
 
-    pub fn static_requirement_dispatch(
-        &self,
-    ) -> Option<&'program typed_trees::typed_trees::StaticRequirementDispatch> {
+    pub fn static_requirement_dispatch(&self) -> Option<&'program StaticRequirementDispatch> {
         match self {
             Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
             Self::Expression { call, .. } => call.static_requirement_dispatch.as_ref(),

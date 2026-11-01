@@ -11,10 +11,13 @@ use super::{
     unsupported,
 };
 use crate::checked_facts::{flow_facts, value_facts};
+use crate::declarations::target_signature;
 use crate::emission::operation_emission::LoweredScalarBinding;
+use crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::scalar_lowering::contracts::caller_erased_proof_roster;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
@@ -191,11 +194,7 @@ impl Expansion<'_> {
         let (target_machine, target_state) = callee
             .static_target()
             .unwrap_or((callee.called_signature(), callee.called_signature()));
-        let signature = crate::declarations::target_signature(
-            self.checked,
-            self.machine,
-            callee.called_signature(),
-        )?;
+        let signature = target_signature(self.checked, self.machine, callee.called_signature())?;
         let plans = &self.checked.facts.values.scalar_computations;
         let structural =
             plans
@@ -627,32 +626,29 @@ impl Expansion<'_> {
                     expression,
                 )?);
             }
-            LoweredScalarBinding::DynamicCall(
-                crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding {
-                    source_coordinate: coordinate,
-                    loan_completions,
-                    source_expression: source.expression,
-                    slot: *slot,
-                    interface_identity: interface_identity.clone(),
-                    requirement_identity,
-                    family_tuple,
-                    result_type,
-                    selector: selector_actual.ok_or(LoweringError::Unsupported(
-                        "selector call lost its dispatch operand",
-                    ))?,
-                    arguments: scalar_actuals,
-                    family_actuals,
-                    structural_arguments,
-                    claim_transfers:
-                        crate::emission::claim_bindings::prepare_checked_claim_transfers(
-                            identities,
-                            self.checked,
-                            &claim_transfers,
-                            parameters,
-                            self.structural_types,
-                        )?,
-                },
-            )
+            LoweredScalarBinding::DynamicCall(LoweredDynamicCallBinding {
+                source_coordinate: coordinate,
+                loan_completions,
+                source_expression: source.expression,
+                slot: *slot,
+                interface_identity: interface_identity.clone(),
+                requirement_identity,
+                family_tuple,
+                result_type,
+                selector: selector_actual.ok_or(LoweringError::Unsupported(
+                    "selector call lost its dispatch operand",
+                ))?,
+                arguments: scalar_actuals,
+                family_actuals,
+                structural_arguments,
+                claim_transfers: crate::emission::claim_bindings::prepare_checked_claim_transfers(
+                    identities,
+                    self.checked,
+                    &claim_transfers,
+                    parameters,
+                    self.structural_types,
+                )?,
+            })
         } else if signature.boundary {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "boundary invocation lacks statement custody",
@@ -687,11 +683,7 @@ impl Expansion<'_> {
                 structural_arguments,
                 claim_transfers,
                 self.structural_types,
-                crate::scalar_lowering::contracts::caller_erased_proof_roster(
-                    self.checked,
-                    self.machine,
-                    site.state,
-                )?,
+                caller_erased_proof_roster(self.checked, self.machine, site.state)?,
                 loan_completions,
             )?)
         };

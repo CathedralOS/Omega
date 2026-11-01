@@ -13,6 +13,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId, ObligationId, OperationI
 use crate::FixedViewCopyDecodeError;
 
 use super::provenance::{decode_provenance, encode_provenance};
+use super::structural::{decode_invocation_site, decode_local_slot};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
         Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u16, decode_u16s,
@@ -20,6 +21,9 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     },
     values::{decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
+use selected_instructions::AccessorScalarForm;
+use selected_instructions::IeeeFloatArithmeticForm;
+use selected_instructions::SelectedImageAddressReference;
 
 pub(super) fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     crate::codec_bytes::push_encoded(bytes, instruction.id.0.to_le_bytes());
@@ -283,16 +287,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
-        tag @ selected_instructions::AccessorScalarForm::FAMILY_TAG => {
-            SelectedInstructionKind::AccessorScalarAccess {
-                form: selected_instructions::AccessorScalarForm::from_machine_payload(
-                    cursor.byte()?,
-                )
+        tag @ AccessorScalarForm::FAMILY_TAG => SelectedInstructionKind::AccessorScalarAccess {
+            form: AccessorScalarForm::from_machine_payload(cursor.byte()?)
                 .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
-                contract: cursor.array()?,
-                byte_offset: cursor.u32()?,
-            }
-        }
+            contract: cursor.array()?,
+            byte_offset: cursor.u32()?,
+        },
         tag @ selected_instructions::FloatResultPolicyForm::FAMILY_TAG => {
             SelectedInstructionKind::FloatResultPolicy {
                 form: selected_instructions::FloatResultPolicyForm::from_machine_payload(
@@ -301,12 +301,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                 .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
             }
         }
-        tag @ selected_instructions::IeeeFloatArithmeticForm::FAMILY_TAG => {
+        tag @ IeeeFloatArithmeticForm::FAMILY_TAG => {
             SelectedInstructionKind::NearestIeeeFloatArithmetic {
-                form: selected_instructions::IeeeFloatArithmeticForm::from_machine_payload(
-                    cursor.byte()?,
-                )
-                .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+                form: IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
+                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
             }
         }
         tag if selected_instructions::AtomicForm::from_machine_tag(tag).is_some() => {
@@ -366,13 +364,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                         } else {
                             selected_instructions::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        invocation_site: super::structural::decode_invocation_site(cursor)?,
+                        invocation_site: decode_invocation_site(cursor)?,
                         argument_index: cursor.u32()?,
                     },
                 ),
-                1 => selected_instructions::FrameStorageSlotId::Local(
-                    super::structural::decode_local_slot(cursor)?,
-                ),
+                1 => selected_instructions::FrameStorageSlotId::Local(decode_local_slot(cursor)?),
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
             let byte_offset = cursor.u32()?;
@@ -394,17 +390,15 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         },
         232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
-                3 => {
-                    selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart
-                }
-                2 => selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
+                3 => SelectedImageAddressReference::RetainedEntryStorageStart,
+                2 => SelectedImageAddressReference::NativeCodeLayout {
                     machine: decode_id(cursor, MachineId::new)?,
                 },
-                0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                0 => SelectedImageAddressReference::ByteLiteral {
                     operation: decode_id(cursor, OperationId::new)?,
                     place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
                 },
-                1 => selected_instructions::SelectedImageAddressReference::ImplementationTable {
+                1 => SelectedImageAddressReference::ImplementationTable {
                     table: cursor.u32()?,
                 },
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
@@ -539,16 +533,16 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         44 => SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
         45 => SelectedInstructionKind::MaterializeBooleanI64LessOrEqual,
         103 => SelectedInstructionKind::SaveFloatingControl {
-            slot: super::structural::decode_local_slot(cursor)?,
+            slot: decode_local_slot(cursor)?,
         },
         104 => SelectedInstructionKind::RestoreFloatingControl {
-            slot: super::structural::decode_local_slot(cursor)?,
+            slot: decode_local_slot(cursor)?,
         },
         32 => SelectedInstructionKind::HostedReadByte {
-            slot: super::structural::decode_local_slot(cursor)?,
+            slot: decode_local_slot(cursor)?,
         },
         23 => SelectedInstructionKind::HostedWriteByteI32 {
-            slot: super::structural::decode_local_slot(cursor)?,
+            slot: decode_local_slot(cursor)?,
         },
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,

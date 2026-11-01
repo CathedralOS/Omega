@@ -4,8 +4,9 @@
 
 use super::builder::Builder;
 use checked_trees::{
-    CheckedStructuralAccess, CheckedStructuralValueKind, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedStructuralAccess, CheckedStructuralValueKind as ValueKind,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment as PathSegment,
 };
 
 impl Builder<'_, '_> {
@@ -129,10 +130,7 @@ impl Builder<'_, '_> {
             )
     }
 
-    fn dispatch_copy_kind(
-        &self,
-        copy: checked_trees::FlowOperandFact,
-    ) -> Option<CheckedStructuralValueKind> {
+    fn dispatch_copy_kind(&self, copy: checked_trees::FlowOperandFact) -> Option<ValueKind> {
         let receiver = self.flow.control.operands.get(copy.backing);
         let place = self.canonical_place(receiver.expression)?;
         // The completed-subject receipt already requires a whole-symbol
@@ -157,16 +155,16 @@ impl Builder<'_, '_> {
             if !shell.access.is_readable() {
                 return None;
             }
-            path.push(CheckedUnitStructuralPathSegment::Referent);
+            path.push(PathSegment::Referent);
             reference = shell.referee;
         }
-        path.push(CheckedUnitStructuralPathSegment::Case(
+        path.push(PathSegment::Case(
             checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
         ));
-        path.push(CheckedUnitStructuralPathSegment::Field(
+        path.push(PathSegment::Field(
             checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
         ));
-        Some(CheckedStructuralValueKind::CopiedStructuralPlace {
+        Some(ValueKind::CopiedStructuralPlace {
             source: CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),
                 source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
@@ -192,7 +190,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: checked_trees::expression::ExpressionHandle,
         expected: typed_trees::types::TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         if !validation::type_satisfies_declared_property(
             self.program,
             &[],
@@ -277,7 +275,7 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source: saved,
             logical_root_type_identity: Default::default(),
             path,

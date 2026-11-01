@@ -30,6 +30,7 @@ use crate::{
     scoped_arithmetic_implication,
 };
 use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -44,22 +45,13 @@ pub(super) fn post_store_predicate_holds(
     statement_index: usize,
     receiver: ExpressionHandle,
     place: &TrackedPlace<'_>,
-    written_field: symbols::SymbolHandle,
+    written_field: SymbolHandle,
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
-    if crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
-        program,
-        machine,
-        state,
-        statement_index,
-        receiver,
-        place.definition,
-        place.active_case,
-        predicate,
-    ) {
-        return true;
-    }
+    // Exact scalar substitution can finish without reconstructing private
+    // arrivals. Both queries are independently sufficient proofs; replay the
+    // execution prefix only when the scalar query cannot establish the fact.
     let mut arrivals = Vec::new();
     for parameter in program.state_parameters(state) {
         if !parameter.is_mutable
@@ -251,12 +243,19 @@ pub(super) fn post_store_predicate_holds(
             bindings: fields,
         },
     ) == StrictArithmeticImplicationJudgment::Proven
+        || crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+            program,
+            machine,
+            state,
+            statement_index,
+            receiver,
+            place.definition,
+            place.active_case,
+            predicate,
+        )
 }
 
-fn scalar_binding(
-    symbol: symbols::SymbolHandle,
-    primitive: PrimitiveType,
-) -> ScopedArithmeticBinding {
+fn scalar_binding(symbol: SymbolHandle, primitive: PrimitiveType) -> ScopedArithmeticBinding {
     ScopedArithmeticBinding {
         binder: ScopedArithmeticBinder::Symbol(symbol),
         value: ScopedArithmeticValue::Atom {

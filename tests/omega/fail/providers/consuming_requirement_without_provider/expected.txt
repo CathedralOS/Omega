@@ -1,1 +1,2 @@
-no provider is selected for boundary requirement `Receipt::ack`
+no provider is selected for boundary requirement
+ReceiptAck::ack

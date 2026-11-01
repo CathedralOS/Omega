@@ -13,6 +13,7 @@
 //! inherit the selected value.
 
 use crate::flow::expressions;
+use crate::flow::match_arm_satisfies;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableCallExpression,
     TableIndexedExpression,
@@ -102,9 +103,7 @@ fn expression_has_effect_at_depth(
         }
         ExpressionNode::Match(dispatch) => {
             child_has_effect!(dispatch.subject)
-                || crate::flow::match_arm_satisfies(program, dispatch.arms, |operand| {
-                    child_has_effect!(operand)
-                })
+                || match_arm_satisfies(program, dispatch.arms, |operand| child_has_effect!(operand))
         }
         ExpressionNode::Binary(binary) => {
             child_has_effect!(binary.left) || child_has_effect!(binary.right)

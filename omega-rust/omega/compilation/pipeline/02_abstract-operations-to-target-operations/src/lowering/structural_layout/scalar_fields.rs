@@ -1,6 +1,7 @@
 //! Exact scalar-field layout, retaining canonical IEEE format identity.
 
 use super::LoweringError;
+use super::structural_sum_layout;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
@@ -121,16 +122,11 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
         if candidate.field_type.scalar_type() != Some(expected_type) {
             return Err(LoweringError::UnknownStructuralType(structural_type));
         }
-        return super::structural_sum_layout(
-            structural_type,
-            declarations,
-            &mut cache,
-            &mut active,
-        )?
-        .common_fields
-        .get(position)
-        .map(|common| (common.byte_offset, common.shape.byte_size))
-        .ok_or(LoweringError::UnknownStructuralType(structural_type));
+        return structural_sum_layout(structural_type, declarations, &mut cache, &mut active)?
+            .common_fields
+            .get(position)
+            .map(|common| (common.byte_offset, common.shape.byte_size))
+            .ok_or(LoweringError::UnknownStructuralType(structural_type));
     }
     let Some(fields) = declaration.shape.record_fields() else {
         return Err(LoweringError::UnknownStructuralType(structural_type));

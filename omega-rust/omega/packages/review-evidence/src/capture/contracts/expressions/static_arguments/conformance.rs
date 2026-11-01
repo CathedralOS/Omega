@@ -8,6 +8,8 @@ use super::ContractCallStaticParameterKind;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractStaticArgument;
+use symbols::SymbolKind;
+use validation::conformance_applications::close_conformance_application;
 
 pub(crate) fn require_exact_conformance_static_argument_selections(
     compilation: &PackageReviewInput<'_>,
@@ -23,8 +25,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
         .iter()
         .filter(|argument| {
             argument.symbol.is_valid()
-                && compilation.typed.symbols.get(argument.symbol).kind
-                    == symbols::SymbolKind::Conformance
+                && compilation.typed.symbols.get(argument.symbol).kind == SymbolKind::Conformance
         })
         .map(|argument| argument.symbol)
         .collect::<Vec<_>>();
@@ -43,9 +44,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
         let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
             continue;
         };
-        if compilation.typed.symbols.get(target.selected_symbol()).kind
-            != symbols::SymbolKind::Conformance
-        {
+        if compilation.typed.symbols.get(target.selected_symbol()).kind != SymbolKind::Conformance {
             continue;
         }
         if selection.exposure() != context.selection_exposure {
@@ -102,11 +101,8 @@ pub(super) fn project_contract_conformance_application(
             matching.len()
         )));
     };
-    let closed = validation::conformance_applications::close_conformance_application(
-        compilation.checking_input,
-        argument,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = close_conformance_application(compilation.checking_input, argument)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if checked.application != closed {
         return Err(rejected(
             "whose retained checked occurrence disagrees with the authored application",
@@ -145,11 +141,11 @@ pub(super) fn project_contract_conformance_application(
                         && !binders.iter().any(|(symbol, _)| {
                             *symbol == argument.symbol
                                 && compilation.typed.symbols.get(*symbol).kind
-                                    == symbols::SymbolKind::TypeParameter
+                                    == SymbolKind::TypeParameter
                         })
                         && (!argument.symbol.is_valid()
                             || compilation.typed.symbols.get(argument.symbol).kind
-                                != symbols::SymbolKind::Const)
+                                != SymbolKind::Const)
                 }
                 typed_trees::data::TypeParameterKind::Machine { .. }
                 | typed_trees::data::TypeParameterKind::Implementation

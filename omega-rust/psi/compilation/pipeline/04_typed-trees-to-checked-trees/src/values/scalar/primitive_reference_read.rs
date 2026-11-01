@@ -1,7 +1,7 @@
 //! Whole readable primitive referents are storage reads, not scalar formals.
 
 use crate::flow::expressions;
-use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression as ScalarExpression};
 use typed_trees::{
     expression::ExpressionHandle,
     signature::StateParameter,
@@ -13,7 +13,7 @@ pub(crate) fn lower(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     expected: PrimitiveType,
-) -> Option<CheckedScalarExpression> {
+) -> Option<ScalarExpression> {
     let (value, _) = declared(program, parameters, expression)?;
     (super::scalar_expression_type(&value) == Some(expected)).then_some(value)
 }
@@ -25,10 +25,7 @@ pub(crate) fn declared(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-) -> Option<(
-    CheckedScalarExpression,
-    numerics::arithmetic::ArithmeticDomain,
-)> {
+) -> Option<(ScalarExpression, numerics::arithmetic::ArithmeticDomain)> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -53,11 +50,11 @@ pub(crate) fn declared(
         return erased_observation(program, parameters, parameter.symbol, primitive_type);
     }
     let value = if primitive_type == PrimitiveType::Bool {
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
+        ScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
             symbol: parameter.symbol,
         }))
     } else {
-        CheckedScalarExpression::StorageRead {
+        ScalarExpression::StorageRead {
             symbol: parameter.symbol,
             primitive_type,
         }
@@ -74,10 +71,7 @@ pub(crate) fn erased_observation(
     parameters: &[StateParameter],
     symbol: symbols::SymbolHandle,
     primitive_type: PrimitiveType,
-) -> Option<(
-    CheckedScalarExpression,
-    numerics::arithmetic::ArithmeticDomain,
-)> {
+) -> Option<(ScalarExpression, numerics::arithmetic::ArithmeticDomain)> {
     let mut matching = parameters
         .iter()
         .enumerate()
@@ -99,7 +93,7 @@ pub(crate) fn erased_observation(
         })
         .count();
     Some((
-        CheckedScalarExpression::ErasedParameter {
+        ScalarExpression::ErasedParameter {
             position,
             primitive_type,
         },

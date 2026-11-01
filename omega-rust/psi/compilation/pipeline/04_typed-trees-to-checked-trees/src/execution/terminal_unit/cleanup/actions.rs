@@ -13,9 +13,9 @@
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
-    CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallableEntry,
+    CheckFacts, CheckedNormalCleanupAction as CleanupAction, CheckedUnitCallableEntry,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
 };
 
 /// The surrounding dying-owner selection, not a selected subtree path, owns
@@ -25,8 +25,8 @@ pub(super) fn home_retirement(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     disposition: &checked_trees::ContextualCleanupDisposition,
-    source: CheckedUnitStructuralArgumentSourcePlan,
-) -> Option<CheckedNormalCleanupAction> {
+    source: SourcePlan,
+) -> Option<CleanupAction> {
     let machine = program.machine_by_symbol(disposition.machine)?;
     let statement_index = match disposition.source {
         language_semantics::PermissionEventSource::Call {
@@ -47,7 +47,7 @@ pub(super) fn home_retirement(
         },
     )?;
     let type_identity = shapes.add_type(reference, &machine_binders(program, machine), &[])?;
-    Some(CheckedNormalCleanupAction::RetireHome {
+    Some(CleanupAction::RetireHome {
         source,
         type_identity,
     })
@@ -55,19 +55,16 @@ pub(super) fn home_retirement(
 
 /// Keep retirement after all of this home's region actions. A whole discard
 /// already consumes its binding; do not publish a second retirement for it.
-pub(super) fn finish_home(
-    actions: &mut Vec<CheckedNormalCleanupAction>,
-    retirement: CheckedNormalCleanupAction,
-) {
+pub(super) fn finish_home(actions: &mut Vec<CleanupAction>, retirement: CleanupAction) {
     let source = retirement.source();
     if actions.iter().any(|action| {
         action.source() == source
-            && matches!(action, CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty() && discard.case_conditions.is_empty())
+            && matches!(action, CleanupAction::Discard(discard) if discard.path.is_empty() && discard.case_conditions.is_empty())
     }) {
         return;
     }
     let mut selected = actions.iter().filter(|action| action.source() == source);
-    if matches!(selected.next(), Some(CheckedNormalCleanupAction::InvokeNominal(cleanup)) if cleanup.path.is_empty() && cleanup.case_conditions.is_empty())
+    if matches!(selected.next(), Some(CleanupAction::InvokeNominal(cleanup)) if cleanup.path.is_empty() && cleanup.case_conditions.is_empty())
         && selected.next().is_none()
     {
         return;
@@ -86,7 +83,7 @@ pub(super) fn selected_region(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
-    source: CheckedUnitStructuralArgumentSourcePlan,
+    source: SourcePlan,
     captured_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let disposition = facts.contextual_cleanup.dispositions.get(handle);
@@ -146,9 +143,9 @@ pub(super) fn disposition_actions(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
-    source: CheckedUnitStructuralArgumentSourcePlan,
+    source: SourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
-) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
+) -> Result<Vec<CleanupAction>, &'static str> {
     let disposition = facts
         .contextual_cleanup
         .dispositions
@@ -285,10 +282,14 @@ pub(super) fn disposition_actions(
                 None,
             )
             .ok_or("cleanup cannot lower its excluded relative path")?;
+        // The excluded subtree is a stored field or element: a stored loan keeps
+        // its Reference shape exactly as the owner's field plan registered it,
+        // so the residual walk compares like identities. `add_type` would peel
+        // the loan to its referent and never match the field.
         moved.push((
             relative_path,
             shapes
-                .add_type(reference, &binders, &[])
+                .add_stored_type(reference, &binders, &[])
                 .ok_or("cleanup cannot lower its excluded type")?,
         ));
     }
@@ -477,9 +478,9 @@ pub(super) fn disposition_actions(
                 selected_hooks += 1;
                 let mut hook = hooks[position].clone();
                 hook.case_conditions = case_conditions;
-                CheckedNormalCleanupAction::InvokeNominal(hook)
+                CleanupAction::InvokeNominal(hook)
             } else {
-                CheckedNormalCleanupAction::Discard(residual)
+                CleanupAction::Discard(residual)
             }
         })
         .collect::<Vec<_>>();
@@ -623,7 +624,7 @@ fn selected_nominal(
     program: &dyn ::validation::CheckingInput,
     targets: &[CheckedUnitCallableEntry<'_>],
     hook: symbols::SymbolHandle,
-    source: CheckedUnitStructuralArgumentSourcePlan,
+    source: SourcePlan,
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitNominalAffineCleanupPlan> {

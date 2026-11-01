@@ -5,6 +5,8 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
+use crate::expression_preparation::bindings::ScalarBindings;
+use crate::expression_preparation::saturating_shift::expansion;
 use crate::proofs::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression, LoweringError,
     ScalarTerm, ScalarType, ValueDeclaration, lower_checked_scalar_expression, unsupported,
@@ -125,9 +127,7 @@ pub(crate) fn checked_scalar_term_with_views(
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::new(
-        values.iter().map(|value| value.scalar_type),
-    );
+    let scalar_bindings = ScalarBindings::new(values.iter().map(|value| value.scalar_type));
     let expression = crate::expression_preparation::prepare_expression::PreparedExpressionContext {
         structural_fields: &Default::default(),
         structural_cases: &[],
@@ -283,11 +283,7 @@ pub(crate) fn lowered_direct_scalar_term(
         } => {
             // Mathematical denotation may reuse a term; runtime emission binds
             // each operand once before applying the same scaling recipe.
-            let expanded = crate::expression_preparation::saturating_shift::expansion(
-                *scalar_type,
-                *left.clone(),
-                *right.clone(),
-            );
+            let expanded = expansion(*scalar_type, *left.clone(), *right.clone());
             lowered_direct_scalar_term(&expanded, values, erased)?
         }
         LoweredDirectExpression::IntegerBinary {

@@ -11,6 +11,7 @@ use crate::tables::expressions_of;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use validation::array_window_shape;
 
 enum ReceivingType {
     Declared(TypeReferenceHandle),
@@ -41,23 +42,17 @@ pub(crate) fn prepare(program: &mut TypedTrees) {
                     .and_then(|indexed| expressions_of(program).range_node(indexed.index))
                     .is_some();
                 let receiving = if is_window {
-                    validation::array_window_shape(
-                        program,
-                        machine,
-                        state,
-                        assignment.target,
-                        &mut bounds,
-                    )
-                    .and_then(|shape| {
-                        let length = shape.length()?;
-                        shape
-                            .element_type
-                            .is_valid()
-                            .then_some(ReceivingType::Window {
-                                element_type: shape.element_type,
-                                length,
-                            })
-                    })
+                    array_window_shape(program, machine, state, assignment.target, &mut bounds)
+                        .and_then(|shape| {
+                            let length = shape.length()?;
+                            shape
+                                .element_type
+                                .is_valid()
+                                .then_some(ReceivingType::Window {
+                                    element_type: shape.element_type,
+                                    length,
+                                })
+                        })
                 } else {
                     validation::assignment_stored_value_type(program, machine, state, &assignment)
                         .map(ReceivingType::Declared)

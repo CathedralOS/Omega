@@ -6,6 +6,8 @@
 //! substituting a declaration initializer or a newer source descriptor.
 
 use super::super::CapturedReferencePlace;
+use super::super::literal_value_path_is_inactive;
+use super::super::operand_contexts::operand_binds_live_view;
 use super::finite_projection_paths;
 use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowOperandCompletion, FlowOperandFact};
@@ -93,12 +95,7 @@ fn collect_operand_reference_places(
         }
         return Some(());
     }
-    if super::super::literal_value_path_is_inactive(
-        program,
-        operand.expression,
-        reference,
-        projection,
-    ) {
+    if literal_value_path_is_inactive(program, operand.expression, reference, projection) {
         return Some(());
     }
     if let FlowOperandCompletion::Selected(alternatives) = operand.completion {
@@ -134,7 +131,7 @@ fn collect_operand_reference_places(
     if !operand.reference_leaves.is_empty() {
         return collect_leaf_places(control, operand.reference_leaves, projection, places);
     }
-    if super::super::operand_contexts::operand_binds_live_view(program, reference) {
+    if operand_binds_live_view(program, reference) {
         let referents = control.operand_referents.span(operand.referents)?;
         if referents.is_empty() {
             return None;

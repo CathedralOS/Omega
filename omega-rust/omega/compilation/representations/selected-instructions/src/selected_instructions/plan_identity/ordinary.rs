@@ -22,6 +22,7 @@ mod tests {
         SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionProvenance, SelectedSuccessor,
     };
+    use optimization_core::AcceptedObligationFactIdentity;
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use semantic_vocabulary::{BlockId, EdgeId};
 
@@ -82,9 +83,7 @@ mod tests {
                     stride: 16,
                     extent: Some(7),
                     obligation: ObligationId::new(8).unwrap(),
-                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                        [9; 32],
-                    ),
+                    accepted_fact: AcceptedObligationFactIdentity::from_bytes([9; 32]),
                 }],
             });
         let encode = |value: &SelectedSuccessor| {
@@ -105,10 +104,7 @@ mod tests {
                 2 => index.stride += 1,
                 3 => index.extent = None,
                 4 => index.obligation = ObligationId::new(11).unwrap(),
-                5 => {
-                    index.accepted_fact =
-                        optimization_core::AcceptedObligationFactIdentity::from_bytes([12; 32])
-                }
+                5 => index.accepted_fact = AcceptedObligationFactIdentity::from_bytes([12; 32]),
                 _ => changed.structural_bindings[0].source_indices.clear(),
             }
             assert_ne!(encode(&changed), canonical, "selector mutation {mutation}");

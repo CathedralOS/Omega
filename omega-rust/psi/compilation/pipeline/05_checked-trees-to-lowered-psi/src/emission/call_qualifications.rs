@@ -1,5 +1,5 @@
-//! Normal-call memberships have one publication inventory. Complete numeric
-//! field invariants belong to their exact receiving declaration; additional
+//! Normal-call memberships have one publication inventory. Complete scalar and
+//! byte-field invariants belong to their exact receiving declaration; additional
 //! nominal memberships require a catalog entry and an occurrence publication.
 
 use checked_trees::CheckedTrees;
@@ -77,16 +77,6 @@ pub(crate) fn declaration_represents(
     ) else {
         return Ok(false);
     };
-    let Some(primitive) = checked.primitive_type_reference(reference) else {
-        return Ok(false);
-    };
-    let Some(restriction) =
-        crate::expression_preparation::qualifications::retained_scalar_restriction(
-            checked, reference,
-        )
-    else {
-        return Ok(false);
-    };
     let constraints =
         validation::field_domains::declared_domain_constraint_records(&checked.typed, reference);
     let mut selected = constraints.into_iter().filter(|constraint| {
@@ -108,7 +98,6 @@ pub(crate) fn declaration_represents(
         || !definition.establishment_routes.is_empty()
         || !typed_trees::domain::required_subject_memberships(&checked.typed, definition)
             .is_some_and(|required| required.is_empty())
-        || validation::field_domains::domain_byte_predicate(&checked.typed, domain_symbol).is_some()
         || checked
             .facts
             .qualifications
@@ -118,6 +107,44 @@ pub(crate) fn declaration_represents(
     {
         return Ok(false);
     }
+    if let Some(predicate) =
+        validation::field_domains::domain_byte_predicate(&checked.typed, domain_symbol)
+    {
+        // Inline byte fields retain their complete predicate in the field
+        // declaration. Reattaching that represented invariant as a nominal
+        // projected membership would strengthen the earlier call operation,
+        // although its public result correctly contains no such row. Whole
+        // view roots and stored pointer crossings retain their ordinary
+        // qualification publication; neither has this inline field contract.
+        if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
+            || !matches!(
+                constraint.subject,
+                typed_trees::types::DomainConstraintSubject::Declared
+            )
+            || validation::byte_sequence_carrier(&checked.typed, reference, &[]).is_none()
+            || validation::stores_reference_shape(&checked.typed, reference, &[])
+        {
+            return Ok(false);
+        }
+        let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
+            &checked.typed,
+            reference,
+        );
+        return Ok(declared.iter().all(|(_, predicate)| predicate.is_some())
+            && declared
+                .iter()
+                .any(|(_, candidate)| *candidate == Some(predicate)));
+    }
+    let Some(primitive) = checked.primitive_type_reference(reference) else {
+        return Ok(false);
+    };
+    let Some(restriction) =
+        crate::expression_preparation::qualifications::retained_scalar_restriction(
+            checked, reference,
+        )
+    else {
+        return Ok(false);
+    };
     let Some(predicate) = validation::scalar_domain_value_predicate(
         &checked.typed,
         constraint,

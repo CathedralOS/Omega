@@ -1,4 +1,5 @@
 use super::{ResolvePackageSourceError, SourceRootRole};
+use crate::declarations::dependencies::read::BuildDependencyProjection;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencyProjections, extract_build_dependency_projection,
 };
@@ -24,10 +25,7 @@ pub(super) fn project_package_build(
 }
 
 fn project_build_projection(
-    result: Result<
-        crate::declarations::dependencies::read::BuildDependencyProjection,
-        DependencyProjectionError,
-    >,
+    result: Result<BuildDependencyProjection, DependencyProjectionError>,
     role: SourceRootRole,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
     let projection = match result {

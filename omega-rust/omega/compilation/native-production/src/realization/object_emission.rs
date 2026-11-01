@@ -12,6 +12,7 @@ use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
+use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput;
 use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 
@@ -24,9 +25,7 @@ pub(crate) fn emit_realization_object(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
-    program_entry: Option<
-        &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
-    >,
+    program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let native_callbacks = input

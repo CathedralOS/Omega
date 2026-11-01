@@ -9,6 +9,7 @@ use super::{
     AuthoredScalarBinding, LoweringError, ScalarBindings, ScalarType, StructuralArgument,
     StructuralTypeId, unsupported,
 };
+use crate::emission::structural_observations::explicit_path;
 use symbols::SymbolHandle;
 
 /// One structural formal, in dense structural telescope order. Source position
@@ -134,12 +135,7 @@ impl ScalarBindings {
             return unsupported("captured field observation requires readable access");
         }
         let declarations = self.structural_fields.declarations();
-        let projection = crate::emission::structural_observations::explicit_path(
-            identities,
-            structural_type,
-            path,
-            declarations,
-        )?;
+        let projection = explicit_path(identities, structural_type, path, declarations)?;
         if projection.scalar_type() != Some(scalar_type) {
             return unsupported("captured field observation changes its declared scalar type");
         }

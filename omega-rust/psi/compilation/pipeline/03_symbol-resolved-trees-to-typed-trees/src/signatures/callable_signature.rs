@@ -1,5 +1,6 @@
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_names;
+use crate::signatures::type_parameters::lower_type_parameters;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -50,10 +51,7 @@ pub(crate) fn lower_state_signature(
         },
     };
 
-    typed_signature.type_parameters = crate::signatures::type_parameters::lower_type_parameters(
-        lowerer,
-        signature.type_parameters,
-    )?;
+    typed_signature.type_parameters = lower_type_parameters(lowerer, signature.type_parameters)?;
     typed_signature.where_facts = lower_proof_facts(lowerer, signature.where_facts)?;
 
     // #66/DOM1/P1a: collect every declared domain on constrained parameters.

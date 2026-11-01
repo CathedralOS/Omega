@@ -3,6 +3,8 @@
 //! restrictions (for example a record-valued u32 versus a pointer word).
 
 use calling_conventions::{BoundarySignatureGeometry, BoundaryValueClass};
+use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+use terminal_psi::StructuralFieldType;
 
 pub(super) struct NativeWordEnvelope {
     pub(super) byte_size: u16,
@@ -65,7 +67,7 @@ pub(super) fn scalar_payload_path(
     program: &terminal_interpreter::TerminalProgram,
     root: semantic_vocabulary::StructuralTypeId,
     scalar: semantic_vocabulary::ScalarType,
-) -> Result<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>, super::TerminalRuntimeError> {
+) -> Result<Vec<Path>, super::TerminalRuntimeError> {
     let mut path = Vec::new();
     scalar_payload(program, root, scalar, &mut Vec::new(), &mut path)?;
     Ok(path)
@@ -76,7 +78,7 @@ fn scalar_payload(
     root: semantic_vocabulary::StructuralTypeId,
     scalar: semantic_vocabulary::ScalarType,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-    path: &mut Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    path: &mut Vec<Path>,
 ) -> Result<(), super::TerminalRuntimeError> {
     let invalid = super::TerminalRuntimeError::InvalidProvision;
     if visiting.contains(&root) {
@@ -98,19 +100,13 @@ fn scalar_payload(
                     "native owned value must contain exactly one scalar payload",
                 ));
             };
-            if field.storage.is_some()
-                || matches!(
-                    field.field_type,
-                    terminal_psi::StructuralFieldType::Atomic(_)
-                )
+            if field.storage.is_some() || matches!(field.field_type, StructuralFieldType::Atomic(_))
             {
                 return Err(invalid(
                     "native word payload cannot use atomic or encoded storage",
                 ));
             }
-            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                field.id,
-            ));
+            path.push(Path::Field(field.id));
             if let Some(child) = field.field_type.as_structural() {
                 scalar_payload(program, child, scalar, visiting, path)?;
             } else if field.field_type.scalar_type() != Some(scalar) {

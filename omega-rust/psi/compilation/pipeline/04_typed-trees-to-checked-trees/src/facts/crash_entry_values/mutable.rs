@@ -21,7 +21,10 @@
 //! outside its window. A dynamic index or any projection the scan cannot
 //! separate stays opaque and reaches everything at or below it.
 
+use crate::facts::push_expression_children;
+use crate::facts::push_match_children;
 use crate::flow::expressions;
+use crate::flow::state_statements;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{
@@ -262,9 +265,7 @@ pub(super) fn storage_holds_bound_value(
     symbol: SymbolHandle,
     read_path: &[PlaceSegment],
 ) -> bool {
-    let Some(window) =
-        crate::flow::state_statements(program, state.statement_nodes).get(start..end)
-    else {
+    let Some(window) = state_statements(program, state.statement_nodes).get(start..end) else {
         return false;
     };
     !window.iter().any(|statement| {
@@ -492,10 +493,8 @@ fn expression_may_overwrite(
                     pending.push(atomic.result);
                 }
             }
-            ExpressionNode::Match(dispatch) => {
-                crate::facts::push_match_children(program, dispatch, &mut pending)
-            }
-            _ => crate::facts::push_expression_children(program, expression, &mut pending),
+            ExpressionNode::Match(dispatch) => push_match_children(program, dispatch, &mut pending),
+            _ => push_expression_children(program, expression, &mut pending),
         }
     }
     false

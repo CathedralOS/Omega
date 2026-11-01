@@ -5,7 +5,7 @@
 //! meaning here before treating an authored equality as mathematical identity.
 
 use crate::TypedTrees;
-use crate::type_identity::TypeIdentityRequest;
+use crate::type_identity;
 use crate::typed_trees::declarations::operator::operand_signatures::{
     TypeParameterNormalizer, collect_type_parameter_occurrences, normalized_operand_parameters,
 };
@@ -15,6 +15,7 @@ use crate::typed_trees::declarations::operator::type_matching::{
 use crate::types::TypeReferenceHandle;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
+use type_identity::TypeIdentityRequest;
 
 /// Whether one exact selected conformance application supplies this
 /// trait-owned fixed-token requirement for the complete operand tuple.
@@ -129,10 +130,7 @@ pub struct BoundTraitOperatorMeaning<'program> {
 
 impl BoundTraitOperatorMeaning<'_> {
     /// The requirement result under this exact generic trait application.
-    pub fn result_identity(
-        &self,
-        program: &TypedTrees,
-    ) -> crate::type_identity::NormalizedTypeIdentity {
+    pub fn result_identity(&self, program: &TypedTrees) -> type_identity::NormalizedTypeIdentity {
         program.type_identity(TypeIdentityRequest {
             substitutions: &self.substitutions,
             ..TypeIdentityRequest::ordinary(self.requirement.return_type)

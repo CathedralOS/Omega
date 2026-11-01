@@ -20,6 +20,7 @@ mod entry_equations;
 mod entry_paths;
 mod float_observations;
 
+use crate::call_formals::arguments_aligned_to_formals;
 use crate::facts::crash_calls::private_summaries::{
     infer_private_body_summaries, requirement_signature,
 };
@@ -31,6 +32,7 @@ use crate::facts::crash_calls::summary_predicates::{
 };
 use crate::facts::crash_plan_facts::declared_parameter_names;
 use crate::flow::expressions;
+use crate::values::scalar::machine_parameter_booleans::structural_equality::subjects;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
@@ -111,12 +113,7 @@ fn predicate_expression(
                 | typed_trees::expression::BinaryOperator::NotEqual
         )
         && let Some((_, _, type_identity)) =
-            crate::values::scalar::machine_parameter_booleans::structural_equality::subjects(
-                program,
-                parameters,
-                binary.left,
-                binary.right,
-            )
+            subjects(program, parameters, binary.left, binary.right)
     {
         let left = lower(binary.left);
         let right = lower(binary.right);
@@ -420,7 +417,7 @@ pub(super) fn attach_checked_crash_calls(
                         }
                         let target_parameter_names = target_parameter_names_ref
                             .unwrap_or(target_parameter_names_owned.as_slice());
-                        let arguments = crate::call_formals::arguments_aligned_to_formals(
+                        let arguments = arguments_aligned_to_formals(
                             program,
                             call_flow.target_symbol,
                             target_parameters.len(),

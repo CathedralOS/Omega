@@ -3128,6 +3128,15 @@ pass/facts/generic_content_transfer_through_other_machine_exit built 5244ms exit
 pass/facts/generic_content_transfer_through_other_state_exit built 4397ms exit:0 @5f668826adf3+wt
 pass/facts/generic_content_transfer_through_parameter_exit built 4860ms exit:0 @5f668826adf3+wt
 pass/facts/generic_content_transfer_through_target_body_exit built 4315ms exit:0 @5f668826adf3+wt
+pass/facts/generic_requirement_statement_call_through_call_result_exit built 12074ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_const_name_exit built 8270ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_field_exit built 7583ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_local_exit built 8203ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_match_join_exit built 9054ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_other_machine_exit built 8008ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_other_state_exit built 7716ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_parameter_exit built 8161ms exit:0 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_target_body_exit built 6523ms exit:0 @d58d8c534048
 pass/facts/guarded_line_loan_through_call_result_exit built 4262ms exit:0 @5f668826adf3+wt
 pass/facts/guarded_line_loan_through_const_name_exit built 4360ms exit:0 @5f668826adf3+wt
 pass/facts/guarded_line_loan_through_field_exit built 4634ms exit:0 @5f668826adf3+wt

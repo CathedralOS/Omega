@@ -1,5 +1,7 @@
+use super::lookup::child_symbol_by_kinds;
 use arena::{Arena, OrderedRootArena};
 use language_core::is_self_receiver;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, TypeParameter};
 use symbol_resolved_trees::lookup_indexes::ResolvedIndexes;
 use symbol_resolved_trees::types::TypeReference;
@@ -44,7 +46,7 @@ pub(super) fn evidence_type_parameters(
 /// exact row owner. Inline member machines are root declarations; their symbol
 /// parent is not the conformance's lexical ownership roster.
 pub(crate) fn owned_conformance_realization(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &SymbolResolvedTrees,
     row: &symbol_resolved_trees::trait_definition::ConformanceRow,
 ) -> Result<SymbolHandle, &'static str> {
     if !row.source.owns_realization() {
@@ -78,7 +80,7 @@ pub(crate) fn owned_conformance_realization(
 /// has to agree with any retained realization. Every later scope consumer reads
 /// this same inverse relationship instead of reconstructing it from all maps.
 pub(super) fn record_declaration_owners(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &SymbolResolvedTrees,
     symbols: &mut SymbolTable,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut ownership = Vec::new();
@@ -122,7 +124,7 @@ pub(super) fn record_declaration_owners(
 /// Exact namespace owning this machine, if it is a retained map member.
 /// A second row cannot lend its capture or normalization domain to the first.
 pub(crate) fn owned_conformance_namespace(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &SymbolResolvedTrees,
     machine: SymbolHandle,
 ) -> Result<SymbolHandle, &'static str> {
     let owner = program.symbols.get(machine).declaration_owner;
@@ -155,9 +157,7 @@ pub(super) struct DeclarationTypeScopes {
 }
 
 impl DeclarationTypeScopes {
-    pub(super) fn of(
-        program: &symbol_resolved_trees::SymbolResolvedTrees,
-    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+    pub(super) fn of(program: &SymbolResolvedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut owned = Vec::new();
         let mut diagnostics = Vec::new();
         for conformance in program.conformances.iter() {
@@ -261,9 +261,7 @@ impl AttachedMachines {
     }
 }
 
-pub(super) fn attached_machines(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
-) -> AttachedMachines {
+pub(super) fn attached_machines(program: &SymbolResolvedTrees) -> AttachedMachines {
     let list = attached_machine_list(program);
     let mut by_owner: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
     for (index, entry) in list.iter().enumerate() {
@@ -272,9 +270,7 @@ pub(super) fn attached_machines(
     AttachedMachines { list, by_owner }
 }
 
-fn attached_machine_list(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
-) -> Vec<AttachedMachine> {
+fn attached_machine_list(program: &SymbolResolvedTrees) -> Vec<AttachedMachine> {
     program
         .machines
         .iter()
@@ -325,7 +321,7 @@ pub(super) struct TraitLexicalScopes {
 }
 
 impl TraitLexicalScopes {
-    pub(super) fn of(program: &symbol_resolved_trees::SymbolResolvedTrees) -> Self {
+    pub(super) fn of(program: &SymbolResolvedTrees) -> Self {
         let inherited = program
             .traits
             .iter()
@@ -361,7 +357,7 @@ impl TraitLexicalScopes {
 }
 
 fn collect_trait_requirements(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &SymbolResolvedTrees,
     trait_symbol: SymbolHandle,
     visited: &mut Vec<SymbolHandle>,
     requirements: &mut Vec<SymbolHandle>,
@@ -417,12 +413,7 @@ impl LexicalRequirements<'_> {
         if !self.owner.is_valid() {
             return SymbolHandle::invalid();
         }
-        let own = super::lookup::child_symbol_by_kinds(
-            symbols,
-            self.owner,
-            &[symbols::SymbolKind::State],
-            name,
-        );
+        let own = child_symbol_by_kinds(symbols, self.owner, &[symbols::SymbolKind::State], name);
         if own.is_valid() {
             return own;
         }

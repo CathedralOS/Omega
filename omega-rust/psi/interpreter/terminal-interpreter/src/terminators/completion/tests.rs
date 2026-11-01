@@ -35,13 +35,7 @@ fn check_refused_return(retain_header: bool) {
     let mut execution = TerminalExecution::start_with_program(
         empty_program(),
         &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
+        crate::TerminalStructuralInputs::default(),
         None,
         Some(account.clone()),
     )

@@ -1,7 +1,7 @@
 # linear_boundary_consume
 
-`data Receipt [linear]` + `boundary requirement Receipt::ack(receipt:
-Receipt)` — a by-value linear parameter consumed through a requirement:
+`data Receipt [linear]` + `boundary trait ReceiptAck` (`ack(receipt:
+Receipt)`) — a by-value linear parameter consumed through a requirement:
 the call edge transfers custody and the requirement discharges the claim
 (`Receipt` authors no `drop` plan, so no edge cleanup may retire it).
 Binding spellings: `DllImport::ElfVersioned { object, symbol, version }`,

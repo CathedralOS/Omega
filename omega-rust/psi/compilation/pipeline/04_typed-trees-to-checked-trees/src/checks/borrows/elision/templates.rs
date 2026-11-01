@@ -2,10 +2,18 @@
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::machine::Machine;
+use typed_trees::signature::StateSignature;
+use typed_trees::state::State;
+use typed_trees::state::state_by_symbol;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{
     expression::{ExpressionHandle, StaticMachineArgument},
     statement::{StatementNode, TransitionTargetNode},
 };
+use validation::closed_static_call_type_bindings;
+use validation::expression_traversal::collect_statement_expression_trees;
+use validation::named_conformance_target_requirement;
 
 pub(super) fn check_calls(
     program: &dyn ::validation::CheckingInput,
@@ -67,11 +75,7 @@ pub(super) fn check_calls(
                     _ => {}
                 }
                 expressions.clear();
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
+                collect_statement_expression_trees(program, statement, &mut expressions);
                 for handle in &expressions {
                     let Some(call) = program.expression_table.call_node(*handle) else {
                         continue;
@@ -95,8 +99,8 @@ pub(super) fn check_calls(
 
 fn check_target(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     deferred: &[SymbolHandle],
     target: SymbolHandle,
     name: &str,
@@ -113,14 +117,10 @@ fn check_target(
             // with an exact machine. Its own result declaration is checked normally.
             let concrete = program.machines().iter().any(|candidate| {
                 candidate.symbol == target
-                    || typed_trees::state::state_by_symbol(
-                        program.machine_states(candidate),
-                        target,
-                    )
-                    .is_some()
+                    || state_by_symbol(program.machine_states(candidate), target).is_some()
             });
             !concrete
-                && validation::named_conformance_target_requirement(program, machine, target)
+                && named_conformance_target_requirement(program, machine, target)
                     .ok()
                     .flatten()
                     .is_some_and(|requirement| deferred.contains(&requirement.signature.symbol))
@@ -144,15 +144,13 @@ fn check_target(
 /// the historical rejection.
 fn closed_return_frontier(
     program: &dyn ::validation::CheckingInput,
-    caller: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    caller: &Machine,
+    state: &State,
     target: SymbolHandle,
     static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
 ) -> bool {
-    if let Ok(Some(requirement)) =
-        validation::named_conformance_target_requirement(program, caller, target)
-    {
+    if let Ok(Some(requirement)) = named_conformance_target_requirement(program, caller, target) {
         return complete_return_frontier(
             program,
             requirement.signature,
@@ -170,7 +168,7 @@ fn closed_return_frontier(
     let Some(signature) = signature else {
         return false;
     };
-    let Some(substitutions) = validation::closed_static_call_type_bindings(
+    let Some(substitutions) = closed_static_call_type_bindings(
         program,
         caller,
         state,
@@ -185,8 +183,8 @@ fn closed_return_frontier(
 
 fn complete_return_frontier(
     program: &dyn ::validation::CheckingInput,
-    signature: &typed_trees::signature::StateSignature,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    signature: &StateSignature,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
     argument_owner: SymbolHandle,
 ) -> bool {

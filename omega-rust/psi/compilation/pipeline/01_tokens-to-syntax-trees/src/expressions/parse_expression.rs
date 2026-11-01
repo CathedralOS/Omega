@@ -12,6 +12,7 @@ use tokens::{KeywordKind, PunctuationKind};
 
 use super::membership::parse_membership_expression_handle;
 use super::parse_postfix::parse_postfix_expression_handle;
+use language_core::ReferenceAccess;
 
 pub(crate) fn parse_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -220,7 +221,7 @@ fn insert_binary_expression(
 }
 
 enum UnaryPrefix<'tokens, 'source> {
-    Borrow(language_core::ReferenceAccess),
+    Borrow(ReferenceAccess),
     Operator(UnaryOperator, source::SourceSpan),
     Negate(source::SourceSpan),
     Acknowledge {
@@ -325,22 +326,16 @@ fn take_unary_prefix<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
         let (access, input) = if input.at_contextual("mut") {
-            (
-                language_core::ReferenceAccess::Mutable,
-                input.take_contextual("mut")?,
-            )
+            (ReferenceAccess::Mutable, input.take_contextual("mut")?)
         } else if input.at_contextual("write") {
-            (
-                language_core::ReferenceAccess::WriteOnly,
-                input.take_contextual("write")?,
-            )
+            (ReferenceAccess::WriteOnly, input.take_contextual("write")?)
         } else if input.at_keyword(KeywordKind::State) {
             (
-                language_core::ReferenceAccess::Mutable,
+                ReferenceAccess::Mutable,
                 input.take_keyword(KeywordKind::State, "state")?,
             )
         } else {
-            (language_core::ReferenceAccess::Shared, input)
+            (ReferenceAccess::Shared, input)
         };
         return Ok(Some((UnaryPrefix::Borrow(access), input)));
     }

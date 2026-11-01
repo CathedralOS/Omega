@@ -6,12 +6,16 @@
 //! binding still authenticate the loan before using them.
 
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId};
-use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
 
 use crate::program::ProgramDeclarations;
 use crate::values::TerminalStructuralValue;
 
 use super::AggregateViewTip;
+use terminal_semantics::{
+    observed_field_declaration, record_field_carrier, reference_storage_byte_width,
+    reference_storage_region, reference_storage_size, static_field_projection,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AggregateViewRegion {
@@ -44,10 +48,7 @@ impl AggregateViewRegion {
         Some(Self {
             structural_type,
             byte_offset: 0,
-            byte_length: terminal_semantics::reference_storage_size(
-                types.values(),
-                structural_type,
-            )?,
+            byte_length: reference_storage_size(types.values(), structural_type)?,
         })
     }
 
@@ -56,15 +57,12 @@ impl AggregateViewRegion {
         types: &ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
         backing: StructuralTypeId,
     ) -> bool {
-        terminal_semantics::reference_storage_size(types.values(), self.structural_type)
-            == Some(self.byte_length)
-            && terminal_semantics::reference_storage_size(types.values(), backing).is_some_and(
-                |size| {
-                    self.byte_offset
-                        .checked_add(self.byte_length)
-                        .is_some_and(|end| end <= size)
-                },
-            )
+        reference_storage_size(types.values(), self.structural_type) == Some(self.byte_length)
+            && reference_storage_size(types.values(), backing).is_some_and(|size| {
+                self.byte_offset
+                    .checked_add(self.byte_length)
+                    .is_some_and(|end| end <= size)
+            })
     }
 }
 
@@ -81,8 +79,7 @@ pub(crate) fn translate_aggregate_view_path(
     if !view.fits(types, backing) {
         return None;
     }
-    let selected =
-        terminal_semantics::reference_storage_region(types.values(), view.structural_type, path)?;
+    let selected = reference_storage_region(types.values(), view.structural_type, path)?;
     if selected.byte_offset.checked_add(selected.byte_length)? > view.byte_length {
         return None;
     }
@@ -95,7 +92,7 @@ pub(crate) fn translate_aggregate_view_path(
             && fragment.bit_offset == byte_offset.checked_mul(8)?
             && fragment.source_bit_offset == 0
             && fragment.bit_length == selected.byte_length.checked_mul(8)?
-            && terminal_semantics::reference_storage_byte_width(fragment.scalar.stored_scalar)
+            && reference_storage_byte_width(fragment.scalar.stored_scalar)
                 .is_some_and(|width| u64::from(width) == selected.byte_length)
         {
             return Some((
@@ -210,10 +207,8 @@ fn collect_scalar_fragments(
                     scalar,
                     scalar.byte_offset.checked_mul(8)?,
                     0,
-                    u64::from(terminal_semantics::reference_storage_byte_width(
-                        scalar.stored_scalar,
-                    )?)
-                    .checked_mul(8)?,
+                    u64::from(reference_storage_byte_width(scalar.stored_scalar)?)
+                        .checked_mul(8)?,
                     true,
                 )?;
             }
@@ -243,7 +238,7 @@ fn collect_scalar_fragments(
         }
         return Some(());
     }
-    let region = terminal_semantics::reference_storage_region(types.values(), root, path)?;
+    let region = reference_storage_region(types.values(), root, path)?;
     let region_start = region.byte_offset.checked_mul(8)?;
     let region_end = region
         .byte_offset
@@ -266,12 +261,12 @@ fn collect_scalar_fragments(
             length: terminal_psi::ArrayExtent::Literal(length),
         } if *length != 0 => {
             path.push(StructuralPathSegment::FixedIndex(0));
-            let first = terminal_semantics::reference_storage_region(types.values(), root, path)?;
+            let first = reference_storage_region(types.values(), root, path)?;
             let stride = if *length == 1 {
                 first.byte_length
             } else {
                 *path.last_mut()? = StructuralPathSegment::FixedIndex(1);
-                terminal_semantics::reference_storage_region(types.values(), root, path)?
+                reference_storage_region(types.values(), root, path)?
                     .byte_offset
                     .checked_sub(first.byte_offset)?
             };
@@ -302,14 +297,9 @@ pub(crate) fn translate_aggregate_view_field(
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Option<(Vec<CanonicalStructuralPathSegment>, StructuralFieldId)> {
-    let carrier =
-        terminal_semantics::record_field_carrier(types.values(), view.structural_type, path)?;
-    let declaration = terminal_semantics::observed_field_declaration(
-        types.values(),
-        view.structural_type,
-        path,
-        field,
-    )?;
+    let carrier = record_field_carrier(types.values(), view.structural_type, path)?;
+    let declaration =
+        observed_field_declaration(types.values(), view.structural_type, path, field)?;
     let mut logical = carrier.path;
     logical.push(StructuralPathSegment::Field(declaration.identity));
     let (translated, _) = translate_aggregate_view_path(types, view, backing, &logical)?;
@@ -333,18 +323,13 @@ pub(crate) fn backing_scalar_path(
         let field = crate::custody::inline_structural_field(types, backing, path)?;
         if matches!(
             field.field_type,
-            terminal_psi::StructuralFieldType::Atomic(_)
-                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return None;
         }
         if field.field_type.scalar_type().is_some() {
-            let (mut canonical, field) = terminal_semantics::static_field_projection(
-                types.values(),
-                backing,
-                prefix,
-                field.id,
-            )?;
+            let (mut canonical, field) =
+                static_field_projection(types.values(), backing, prefix, field.id)?;
             canonical.push(CanonicalStructuralPathSegment::Field(field.id));
             return Some(canonical);
         }

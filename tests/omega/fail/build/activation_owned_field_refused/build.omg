@@ -1,0 +1,12 @@
+data Configuration<'activation> { builder: Build; }
+machine configure(configuration: &mut Configuration) {
+    Build::bind(configuration.builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "builder_field");
+    let mut configuration: Configuration = Configuration { builder: builder };
+    configure(&mut configuration);
+}

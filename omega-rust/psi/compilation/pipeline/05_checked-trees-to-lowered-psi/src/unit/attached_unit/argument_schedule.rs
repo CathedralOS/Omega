@@ -242,8 +242,9 @@ fn append(
     // neither attachment syntax nor the number of supplied arguments can do so.
     let structural_positions =
         super::call_parameters::structural_positions(checked, call, &target)?;
+    let scalar_positions = super::call_parameters::scalar_positions(checked, call, &target)?;
     if parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
-        || scalar_arguments.len() != authored.scalar_arguments.len()
+        || scalar_arguments.len() != scalar_positions.len()
         || structural_arguments.len() != structural_positions.len()
     {
         return unsupported("nested argument schedule has no exact positional signature");
@@ -253,11 +254,8 @@ fn append(
     // Walk both lanes in authored evaluation order; a retained receiver can
     // consume a structural slot without an explicit argument expression.
     let mut structural_ordinal = 0;
-    for (position, parameter) in parameters.iter().enumerate() {
-        if checked
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
+    for position in 0..parameters.len() {
+        if scalar_positions.get(scalar_ordinal) == Some(&position) {
             steps.push(Step::Argument {
                 operation: index,
                 ordinal: scalar_ordinal,

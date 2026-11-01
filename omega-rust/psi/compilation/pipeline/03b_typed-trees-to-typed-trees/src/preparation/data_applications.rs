@@ -32,9 +32,12 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataDefinition;
 use typed_trees::data::DataMember;
 use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
+use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::FixedArrayLength;
 use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -270,15 +273,19 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     };
     if let Some(storage) = program.layout_storage_arguments(reference) {
         elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
-        if let Some(mut semantic) = program
+        let is_closed = program
             .closed_data_field_definition(storage.semantic_type)
+            .is_some();
+        if let Some(mut semantic) = program
+            .data_field_definition(storage.semantic_type)
             .cloned()
         {
             // This is a field view of the original semantic application, not a
             // declaration or an owned wrapper. Every member keeps T's symbols,
             // regions, predicates, relevance and cleanup disposition.
             semantic.generic_instance = Some(reference);
-            program.retain_data_application_definition(reference, semantic, true);
+            // Symbolic fields do not establish closed storage or geometry.
+            program.retain_data_application_definition(reference, semantic, is_closed);
         }
         return;
     }
@@ -305,10 +312,8 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         .iter()
         .zip(&arguments)
         .all(|(parameter, argument)| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Value { .. }
-            ) || closed_type(program, *argument)
+            matches!(parameter.kind, TypeParameterKind::Value { .. })
+                || closed_type(program, *argument)
         });
     // Const evaluation can already have retained a declaration with exact
     // extents and constructor facts. Runtime carrier equality alone is not
@@ -318,19 +323,10 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     // below rather than borrowing a layout-equivalent use's lifetime relation.
     if let Some(instance) = program.closed_data_definition(reference).cloned()
         && let Some(origin) = instance.generic_instance
-        && let Some(identity) = typed_trees::type_identity::applied_type_identity(
-            program,
-            reference,
-            SymbolHandle::invalid(),
-            &[],
-        )
-        && typed_trees::type_identity::applied_type_identity(
-            program,
-            origin,
-            SymbolHandle::invalid(),
-            &[],
-        )
-        .is_some_and(|retained| retained == identity)
+        && let Some(identity) =
+            applied_type_identity(program, reference, SymbolHandle::invalid(), &[])
+        && applied_type_identity(program, origin, SymbolHandle::invalid(), &[])
+            .is_some_and(|retained| retained == identity)
     {
         retain_collection_results(program, &instance);
         program.retain_data_application_definition(reference, instance, true);
@@ -404,10 +400,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     program.retain_data_application_definition(reference, application, is_closed);
 }
 
-fn retain_collection_results(
-    program: &mut TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-) {
+fn retain_collection_results(program: &mut TypedTrees, definition: &DataDefinition) {
     let mut references = Vec::new();
     for member in program.data_members(definition) {
         match member {
@@ -498,8 +491,8 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 ..
             } => {
                 // A nominal application's static operands can themselves be
-                // applied traits. They describe its closed contract, not a
-                // second stored data value. Closure must follow either exact
+                // applied traits or implementations. They describe its closed
+                // contract, not a second stored data value. Follow the exact
                 // declaration telescope rather than treating every Generic
                 // node as a data constructor.
                 let telescope = program
@@ -516,6 +509,16 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                             .map(|declaration| {
                                 (
                                     program.trait_type_parameters(declaration).len(),
+                                    declaration.lifetime_parameters.len(),
+                                )
+                            })
+                    })
+                    .or_else(|| {
+                        program
+                            .conformance_by_symbol(*base_symbol)
+                            .map(|declaration| {
+                                (
+                                    program.conformance_type_parameters(declaration).len(),
                                     declaration.lifetime_parameters.len(),
                                 )
                             })
@@ -568,10 +571,7 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     true
 }
 
-fn closed_expression(
-    program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
+fn closed_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     let mut expressions = Vec::new();
     validation::collect_expression_tree(program, expression, &mut expressions);
     !expressions.iter().any(|expression| {

@@ -10,6 +10,7 @@
 mod error;
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
+use abstract_operations_to_target_operations::lower_optimized_to_target_operations;
 use abstract_operations_to_target_operations::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
 };
@@ -19,10 +20,12 @@ use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use optimization_core::OptimizationExecutionPhase;
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
 use register_environment::baseline_target_register_environment;
+use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::optimize_selected_instructions;
+use target_operations_to_selected_instructions::stage_optimized_instruction_selection;
 
 /// Both application entries and separately emitted callables use these stages.
 pub(crate) fn lower_to_target(
@@ -43,10 +46,7 @@ pub(crate) fn lower_to_target(
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
         observation.enter(NativePipelineStage::AbstractToTarget);
-        let target =
-            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, request,
-            )
+        let target = lower_optimized_to_target_operations(optimized, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
@@ -61,11 +61,8 @@ pub(crate) fn emit_target(
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let selected = phase_profile::scope("06.1.d.04_stage_instruction_selection", || {
         observation.enter(NativePipelineStage::InstructionSelection);
-        target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-            optimized_target,
-            register_environment,
-        )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
+        stage_optimized_instruction_selection(optimized_target, register_environment)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     })?;
     let selected = phase_profile::scope("06.1.d.04b_optimize_selected_instructions", || {
         observation.enter(NativePipelineStage::SelectedOptimization);
@@ -80,10 +77,8 @@ pub(crate) fn emit_target(
     phase_profile::scope("06.1.d.06_stage_frame_realization", || {
         let machine = phase_profile::scope("06.1.d.06.a_post_allocation_machine", || {
             observation.enter(NativePipelineStage::PostAllocationMachine);
-            register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
-                &allocation.current(),
-            )
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+            stage_optimized_post_allocation_machine_plan(&allocation.current())
+                .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
         })?;
         let current = allocation.current();
         let selected = current.selected();

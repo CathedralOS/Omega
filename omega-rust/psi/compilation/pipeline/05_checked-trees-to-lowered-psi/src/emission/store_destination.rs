@@ -2,6 +2,7 @@
 //! Local field stores share root admission here; each operation separately
 //! checks its replacement and the receiving frontier checks live custody.
 
+use crate::expression_preparation::bindings::structural_local_by_root;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 
@@ -58,13 +59,9 @@ pub(crate) fn local_store_place<'a>(
         argument,
         structural_type: selected_type,
         ..
-    } = crate::expression_preparation::bindings::structural_local_by_root(
-        locals,
-        facts::PlaceRoot::Symbol(symbol),
-    )
-    .ok_or(LoweringError::Unsupported(
-        "store names an unknown structural local",
-    ))?;
+    } = structural_local_by_root(locals, facts::PlaceRoot::Symbol(symbol)).ok_or(
+        LoweringError::Unsupported("store names an unknown structural local"),
+    )?;
     if !matches!(
         argument.access,
         terminal_psi::mutating_access_pair_pattern!()
@@ -152,13 +149,9 @@ pub(crate) fn descriptor_home(
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId, bool), LoweringError> {
     let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } =
-        crate::expression_preparation::bindings::structural_local_by_root(
-            locals,
-            facts::PlaceRoot::Symbol(symbol),
-        )
-        .ok_or(LoweringError::Unsupported(
-            "descriptor store names an unknown structural local",
-        ))?;
+        structural_local_by_root(locals, facts::PlaceRoot::Symbol(symbol)).ok_or(
+            LoweringError::Unsupported("descriptor store names an unknown structural local"),
+        )?;
     if !argument.path.is_empty() {
         return unsupported("descriptor store local is not a whole home");
     }

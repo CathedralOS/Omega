@@ -1,0 +1,12 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "package_owned_callable_identity");
+    Build::depend(builder, Source::Path { location: "library" });
+    Build::select_provider<clock::Clock, other_clock::clock::DependencyClock>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, clock::main);
+    Build::select_provider<clock::Clock, other_clock::clock::DependencyClock>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, clock::main);
+    Build::select_provider<clock::Clock, other_clock::clock::DependencyClock>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, clock::main);
+    Build::select_provider<clock::Clock, other_clock::clock::DependencyClock>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, clock::main);
+}

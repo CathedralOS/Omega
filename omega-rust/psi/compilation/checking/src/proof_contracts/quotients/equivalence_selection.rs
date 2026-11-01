@@ -5,6 +5,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
+use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::proposition::ProofSubstitutions;
@@ -246,25 +247,23 @@ fn row_has_exact_equivalence_premises(
 
 pub(crate) fn fact_is_exact_relation_pair(
     program: &dyn crate::CheckingInput,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &ProofFact,
     relation: &typed_trees::proposition::PropositionDefinition,
     left: &typed_trees::signature::StateParameter,
     right: &typed_trees::signature::StateParameter,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> bool {
     match fact {
-        typed_trees::domain::ProofFact::Proposition(application) => {
-            exact_relation_application_matches(
-                program,
-                application,
-                relation.symbol,
-                left.symbol,
-                right.symbol,
-                left.type_reference,
-                right.type_reference,
-            )
-        }
-        typed_trees::domain::ProofFact::Expression(actual) => {
+        ProofFact::Proposition(application) => exact_relation_application_matches(
+            program,
+            application,
+            relation.symbol,
+            left.symbol,
+            right.symbol,
+            left.type_reference,
+            right.type_reference,
+        ),
+        ProofFact::Expression(actual) => {
             let typed_trees::proposition::PropositionBody::Transparent {
                 proposition:
                     typed_trees::proposition::PropositionFormula::BooleanExpression(expected),
@@ -314,7 +313,7 @@ pub(crate) fn fact_is_exact_relation_pair(
                     ProofSubstitutions::ByParameter(&substitutions),
                 )
         }
-        typed_trees::domain::ProofFact::Membership(_) => false,
+        ProofFact::Membership(_) => false,
     }
 }
 

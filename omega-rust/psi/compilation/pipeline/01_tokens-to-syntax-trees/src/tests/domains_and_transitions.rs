@@ -1,8 +1,13 @@
+use super::inline_assembly::instruction_statements;
 use crate::parser::parse_syntax_trees;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
+use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
+use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceNode;
 
 /// The ranking-clause tests count arena handles rather than compare trees;
@@ -240,9 +245,7 @@ fn projects_default_domain_case_predicate() {
             .data_members(data.members)
             .iter()
             .map(|member| match member {
-                syntax_trees::item::DataMember::Variant(variant) => {
-                    parsed.items.proof_facts(variant.where_facts).len()
-                }
+                DataMember::Variant(variant) => parsed.items.proof_facts(variant.where_facts).len(),
                 _ => panic!("expected only variant members"),
             });
     assert_eq!(
@@ -285,7 +288,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
         .data_members(data.members)
         .iter()
         .find_map(|member| match member {
-            syntax_trees::item::DataMember::Field(field) => Some(field),
+            DataMember::Field(field) => Some(field),
             _ => None,
         })
         .expect("data field");
@@ -298,8 +301,8 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
     assert!(matches!(
         constraints,
         [
-            syntax_trees::types::TypeConstraintNode::Domain(name),
-            syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
+            TypeConstraintNode::Domain(name),
+            TypeConstraintNode::ArithmeticDomain(
                 numerics::arithmetic::ArithmeticDomain::Saturating
             )
         ] if name.name.as_str(&parsed) == "Finite"
@@ -320,9 +323,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     let rate = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) if data.name.as_str(&parsed) == "Rate" => {
-                Some(data)
-            }
+            Item::Data(data) if data.name.as_str(&parsed) == "Rate" => Some(data),
             _ => None,
         })
         .expect("Rate data");
@@ -331,7 +332,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
         .data_members(rate.members)
         .iter()
         .find_map(|member| match member {
-            syntax_trees::item::DataMember::Field(field) => Some(field),
+            DataMember::Field(field) => Some(field),
             _ => None,
         })
         .expect("Rate::value field");
@@ -340,8 +341,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     else {
         panic!("quantity should be a constrained carrier");
     };
-    let [syntax_trees::types::TypeConstraintNode::Domain(domain)] =
-        parsed.type_references.constraints(*constraints)
+    let [TypeConstraintNode::Domain(domain)] = parsed.type_references.constraints(*constraints)
     else {
         panic!("quantity domain constraint");
     };
@@ -359,10 +359,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     let ExpressionNode::Binary(binary) = parsed.expressions.expression(*expression) else {
         panic!("open index should retain the divide expression");
     };
-    assert_eq!(
-        binary.operator,
-        syntax_trees::expression::BinaryOperator::Divide
-    );
+    assert_eq!(binary.operator, BinaryOperator::Divide);
     assert_eq!(parsed.display_expression_name(binary.left), "A");
     assert_eq!(parsed.display_expression_name(binary.right), "B");
 }
@@ -383,7 +380,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
         .data_members(data.members)
         .iter()
         .filter_map(|member| match member {
-            syntax_trees::item::DataMember::Field(field) => Some(field),
+            DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -399,9 +396,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
             .constraints(*constraints)
             .iter()
             .map(|constraint| match constraint {
-                syntax_trees::types::TypeConstraintNode::Domain(name) => {
-                    name.name.as_str(&parsed).to_owned()
-                }
+                TypeConstraintNode::Domain(name) => name.name.as_str(&parsed).to_owned(),
                 other => panic!("carry permission became {other:?}"),
             })
             .collect::<Vec<_>>()
@@ -677,11 +672,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "inspect" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "inspect" => Some(machine),
             _ => None,
         })
         .into_iter()
@@ -739,9 +730,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
         let inspect = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str(&parsed) == "inspect" =>
-                {
+                Item::Machine(machine) if machine.name.as_str(&parsed) == "inspect" => {
                     Some(machine)
                 }
                 _ => None,
@@ -850,18 +839,13 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
     let syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         panic!("field-value arm must have an equality guard");
     };
-    let syntax_trees::expression::ExpressionNode::Binary(equality) =
-        parsed.expressions.expression(guard)
-    else {
+    let ExpressionNode::Binary(equality) = parsed.expressions.expression(guard) else {
         panic!("field-value pattern should lower to binary equality");
     };
-    assert_eq!(
-        equality.operator,
-        syntax_trees::expression::BinaryOperator::Equal
-    );
+    assert_eq!(equality.operator, BinaryOperator::Equal);
     assert!(matches!(
         parsed.expressions.expression(equality.left),
-        syntax_trees::expression::ExpressionNode::Member(_)
+        ExpressionNode::Member(_)
     ));
 }
 
@@ -885,10 +869,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
-    let instructions = super::inline_assembly::instruction_statements(
-        &parsed,
-        parsed.items.statements(state.statements),
-    );
+    let instructions = instruction_statements(&parsed, parsed.items.statements(state.statements));
     let statement = *instructions.first().expect("asm transition");
     assert!(matches!(
         parsed.statements.statement(statement),
@@ -918,10 +899,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
-    let statements = super::inline_assembly::instruction_statements(
-        &parsed,
-        parsed.items.statements(state.statements),
-    );
+    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
     assert_eq!(statements.len(), 4, "let + three asm statements");
 
     let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {

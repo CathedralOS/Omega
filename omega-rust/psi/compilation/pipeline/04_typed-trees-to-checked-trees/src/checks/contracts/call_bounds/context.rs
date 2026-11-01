@@ -10,6 +10,10 @@ use super::{
     BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, FlowCallFact, FlowStateFact,
     OperatorSpelling,
 };
+use crate::checks::termination::proves_ranked_entry_requirement;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::flow::shared_call_frames_or;
+use crate::values::scalar_expression_type;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -167,12 +171,7 @@ fn prove(
     if head.is_some()
         && caller.machine_symbol == callee.symbol
         && matches!(site, validation::CallSite::TransitionNamed { .. })
-        && crate::checks::termination::proves_ranked_entry_requirement(
-            program,
-            callee,
-            goal,
-            &facts.termination.rank_arrivals,
-        )
+        && proves_ranked_entry_requirement(program, callee, goal, &facts.termination.rank_arrivals)
     {
         return Some(true);
     }
@@ -216,7 +215,7 @@ fn prove(
     let frames = caller_parameters
         .iter()
         .any(|parameter| parameter.is_mutable)
-        .then(|| crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames))
+        .then(|| shared_call_frames_or(call_frames, program, &mut owned_frames))
         .flatten();
     let bindings = caller_parameters
         .iter()
@@ -234,11 +233,7 @@ fn prove(
     // bound on another argument. Keep the complete later-argument suffix below:
     // even an unused formal's actual can overwrite a demanded capture.
     let mut goal_occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        goal,
-        &mut goal_occurrences,
-    );
+    append_expression_occurrences(program, goal, &mut goal_occurrences);
     let mut argument_bindings = Vec::new();
     for (position, (parameter, argument)) in explicit_parameters.zip(arguments).enumerate() {
         if !goal_occurrences.iter().any(|occurrence| {
@@ -478,11 +473,10 @@ fn comparison_is_admitted(
             return Some((None, None));
         }
         if let Some(literal) = program.expression_table.integer_node(expression) {
-            let primitive = crate::values::scalar_expression_type(
-                &checked_trees::CheckedScalarExpression::IntegerLiteral {
+            let primitive =
+                scalar_expression_type(&checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
-                },
-            )?;
+                })?;
             return primitive
                 .is_fixed_integer()
                 .then_some((Some(primitive), None));

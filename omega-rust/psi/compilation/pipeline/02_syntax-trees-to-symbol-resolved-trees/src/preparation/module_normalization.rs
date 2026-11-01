@@ -27,29 +27,33 @@
 //! declaring source at this boundary; unselected or nongeneric spellings
 //! reject here rather than drifting to a later stage's weaker error.
 
+use crate::constant::validate_scalar_initializer;
+use crate::preparation::generic_data::canonicalize_declared_const_definition;
+use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
+use crate::resolution::lowerer::ConstResolutionMode;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::ConstDefinition;
 use syntax_trees::item::Item;
+use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_with_selection(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::declaration_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_with_const_resolution_mode(
-        syntax,
-        selection,
-        crate::resolution::lowerer::ConstResolutionMode::Complete,
-    )
+    validate_with_const_resolution_mode(syntax, selection, ConstResolutionMode::Complete)
 }
 
 pub(crate) fn validate_with_const_resolution_mode(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::declaration_selection::ConstantSelection,
-    mode: crate::resolution::lowerer::ConstResolutionMode,
+    mode: ConstResolutionMode,
 ) -> Result<(), Vec<Diagnostic>> {
     let module_sources = syntax
         .root_items()
@@ -96,7 +100,7 @@ pub(crate) fn validate_with_const_resolution_mode(
         if !module_sources.contains(&constant.name.source_span().source_id) {
             continue;
         }
-        if mode != crate::resolution::lowerer::ConstResolutionMode::Complete {
+        if mode != ConstResolutionMode::Complete {
             // This is a declaration/dependency frontier, including literal
             // values whose declared geometry is still pending. Ordinary
             // resolution selects the namespace and carrier; complete resolution
@@ -106,10 +110,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                 syntax_type_references(&syntax).type_reference(constant.type_reference),
                 TypeReferenceNode::FixedArray { .. }
             ) {
-                crate::preparation::generic_data::canonicalize_declared_const_definition(
-                    syntax, constant,
-                )
-                .map_err(|reason| {
+                canonicalize_declared_const_definition(syntax, constant).map_err(|reason| {
                     vec![
                         Diagnostic::error(format!(
                             "module array constant `{}` is invalid: {reason}",
@@ -119,17 +120,15 @@ pub(crate) fn validate_with_const_resolution_mode(
                     ]
                 })?;
             } else {
-                crate::constant::validate_scalar_initializer(syntax, constant).map_err(
-                    |reason| {
-                        vec![
-                            Diagnostic::error(format!(
-                                "module scalar constant `{}` is invalid: {reason}",
-                                constant.name.as_str(syntax)
-                            ))
-                            .with_source_span(constant.name.source_span()),
-                        ]
-                    },
-                )?;
+                validate_scalar_initializer(syntax, constant).map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!(
+                            "module scalar constant `{}` is invalid: {reason}",
+                            constant.name.as_str(syntax)
+                        ))
+                        .with_source_span(constant.name.source_span()),
+                    ]
+                })?;
             }
         } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
             // A `Box<u64>`-style carrier cannot hold a canonical
@@ -158,30 +157,23 @@ pub(crate) fn validate_with_const_resolution_mode(
                 ]
             })?;
         } else {
-            crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
-                syntax,
-                constant,
-                Some(selection),
-            )
-            .map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!(
-                        "module-owned nominal constant `{}` is invalid: {reason}",
-                        constant.name.as_str(syntax)
-                    ))
-                    .with_source_span(constant.name.source_span()),
-                ]
-            })?;
+            canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
+                .map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!(
+                            "module-owned nominal constant `{}` is invalid: {reason}",
+                            constant.name.as_str(syntax)
+                        ))
+                        .with_source_span(constant.name.source_span()),
+                    ]
+                })?;
         }
     }
 
     Ok(())
 }
 
-pub(crate) fn module_literal_constant(
-    syntax: &SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> bool {
+pub(crate) fn module_literal_constant(syntax: &SyntaxTrees, constant: &ConstDefinition) -> bool {
     use syntax_trees::expression::ExpressionNode;
     if !scalar_literal_tree(syntax, constant.value) {
         return false;
@@ -207,7 +199,7 @@ pub(crate) fn module_literal_constant(
             }
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: syntax_trees::types::FixedArrayLength::Literal(_),
+                length: FixedArrayLength::Literal(_),
             } => type_reference = *element_type,
             _ => return false,
         }
@@ -219,8 +211,8 @@ pub(crate) fn module_literal_constant(
 /// other leaf — named, constrained, builtin — keeps its existing owner.
 fn generic_const_carrier_leaf<'a>(
     syntax: &'a SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> Option<&'a syntax_trees::identifier::Identifier> {
+    constant: &ConstDefinition,
+) -> Option<&'a Identifier> {
     let mut carrier = constant.type_reference;
     loop {
         carrier = match syntax.type_references.type_reference(carrier) {
@@ -231,10 +223,7 @@ fn generic_const_carrier_leaf<'a>(
     }
 }
 
-fn scalar_literal_tree(
-    syntax: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> bool {
+fn scalar_literal_tree(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
     use syntax_trees::expression::ExpressionNode;
     match syntax.expressions.expression(expression) {
         ExpressionNode::Boolean(_)

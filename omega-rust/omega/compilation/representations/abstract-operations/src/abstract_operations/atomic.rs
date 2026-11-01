@@ -43,10 +43,15 @@ use language_core::atomic::{
     AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
     MemoryOrdering,
 };
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralFieldId, ValueId};
-use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
+use semantic_vocabulary::{
+    BlockId, OperationId, PlaceId, StructuralFieldId, StructuralPlaceKind, ValueId,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralOperationResult, StructuralPathSegment as PathSegment,
+};
 
 use crate::{AbstractOperation, AbstractResult};
+use scalar_owned_storage::contains_only_scalars;
 
 mod scalar_owned_storage;
 
@@ -183,7 +188,7 @@ pub enum AtomicCoherenceViolation {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AbstractAtomicLocation {
     pub root: PlaceId,
-    pub path: Vec<StructuralPathSegment>,
+    pub path: Vec<PathSegment>,
     pub field: StructuralFieldId,
 }
 
@@ -200,35 +205,28 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
     arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     left: PlaceId,
-    left_path: &[StructuralPathSegment],
+    left_path: &[PathSegment],
     right: PlaceId,
-    right_path: &[StructuralPathSegment],
+    right_path: &[PathSegment],
 ) -> bool {
     let immutable_image = |root| {
         places.iter().any(|place| {
             place.id == root
-                && matches!(
-                    place.kind,
-                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
-                )
+                && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
         })
     };
     // A fresh owned scalar-only value holds neither an atomic cell nor a
     // descriptor reaching one. Passing its value cannot lend another root's
     // atomic backing. Do not extend this to borrowed, unknown, or reference-
     // bearing storage merely because the roots have different names.
-    let scalar_owned = |root, path: &[StructuralPathSegment]| {
-        !path.contains(&StructuralPathSegment::Referent)
+    let scalar_owned = |root, path: &[PathSegment]| {
+        !path.contains(&PathSegment::Referent)
             && places.iter().any(|place| {
                 place.id == root
                     && match place.kind {
-                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            structural_type,
-                            ..
-                        } => scalar_owned_storage::contains_only_scalars(
-                            types.clone(),
-                            structural_type,
-                        ),
+                        StructuralPlaceKind::OperationResult {
+                            structural_type, ..
+                        } => contains_only_scalars(types.clone(), structural_type),
                         _ => false,
                     }
             })
@@ -238,16 +236,15 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
             && !immutable_image(right)
             && !scalar_owned(left, left_path)
             && !scalar_owned(right, right_path)
-            && (left_path.contains(&StructuralPathSegment::Referent)
-                || right_path.contains(&StructuralPathSegment::Referent)
+            && (left_path.contains(&PathSegment::Referent)
+                || right_path.contains(&PathSegment::Referent)
                 || !arrivals.into_iter().any(|parameters| {
                     let exclusive = |root| {
                         parameters.iter().any(|parameter| {
                             parameter.place == root
                                 && matches!(
                                     parameter.access,
-                                    terminal_psi::StructuralAccess::Owned
-                                        | terminal_psi::StructuralAccess::MutableBorrow
+                                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
                                 )
                         })
                     };
@@ -541,17 +538,8 @@ pub fn happens_before_atomic_coherence_violation(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     entry: BlockId,
-    projection_before_edge: impl Fn(
-        BlockId,
-        BlockId,
-        PlaceId,
-    ) -> Option<(PlaceId, Vec<StructuralPathSegment>)>,
-    projections_may_alias: impl Fn(
-        PlaceId,
-        &[StructuralPathSegment],
-        PlaceId,
-        &[StructuralPathSegment],
-    ) -> bool,
+    projection_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
+    projections_may_alias: impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
 ) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
     // Atomic events claimable by a retained edge, keyed by the operation
     // identity they stand under across the whole activation. Duplicate
@@ -655,17 +643,8 @@ fn reaching_writes(
     block: BlockId,
     index: usize,
     location: &AbstractAtomicLocation,
-    projection_before_edge: &impl Fn(
-        BlockId,
-        BlockId,
-        PlaceId,
-    ) -> Option<(PlaceId, Vec<StructuralPathSegment>)>,
-    projections_may_alias: &impl Fn(
-        PlaceId,
-        &[StructuralPathSegment],
-        PlaceId,
-        &[StructuralPathSegment],
-    ) -> bool,
+    projection_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
+    projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
 ) -> BTreeSet<ReachingWrite> {
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
@@ -747,12 +726,7 @@ fn reaching_writes(
 fn invalidates_location(
     operation: &AbstractOperation,
     location: &AbstractAtomicLocation,
-    projections_may_alias: &impl Fn(
-        PlaceId,
-        &[StructuralPathSegment],
-        PlaceId,
-        &[StructuralPathSegment],
-    ) -> bool,
+    projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
 ) -> bool {
     // Establishing a local home begins its residency. A descriptor may capture
     // existing backing, so retain the exact establishment without inventing an
@@ -790,8 +764,8 @@ fn invalidates_location(
         match operation {
             AbstractOperation::StructuralScalarFieldStore { .. }
             | AbstractOperation::AtomicEvent { .. } => {
-                mutation.path.contains(&StructuralPathSegment::Referent)
-                    || location.path.contains(&StructuralPathSegment::Referent)
+                mutation.path.contains(&PathSegment::Referent)
+                    || location.path.contains(&PathSegment::Referent)
                     || mutation.field == Some(location.field)
                         && carrier_paths_may_overlap(mutation.path, &location.path)
             }
@@ -803,27 +777,19 @@ fn invalidates_location(
 /// Atomic carriers are static record/array projections. Only unequal declared
 /// fields or unequal fixed elements establish disjointness; a runtime selector
 /// can hit the atomic element, and unsupported vocabulary grants no exclusion.
-fn carrier_paths_may_overlap(
-    left: &[StructuralPathSegment],
-    right: &[StructuralPathSegment],
-) -> bool {
+fn carrier_paths_may_overlap(left: &[PathSegment], right: &[PathSegment]) -> bool {
     for (left, right) in left.iter().zip(right) {
         match (left, right) {
-            (StructuralPathSegment::Field(left), StructuralPathSegment::Field(right))
-                if left != right =>
-            {
+            (PathSegment::Field(left), PathSegment::Field(right)) if left != right => {
                 return false;
             }
-            (StructuralPathSegment::FixedIndex(left), StructuralPathSegment::FixedIndex(right))
-                if left != right =>
-            {
+            (PathSegment::FixedIndex(left), PathSegment::FixedIndex(right)) if left != right => {
                 return false;
             }
-            (StructuralPathSegment::Field(_), StructuralPathSegment::Field(_))
-            | (StructuralPathSegment::FixedIndex(_), StructuralPathSegment::FixedIndex(_))
-            | (StructuralPathSegment::FixedIndex(_), StructuralPathSegment::RuntimeIndex { .. })
-            | (StructuralPathSegment::RuntimeIndex { .. }, StructuralPathSegment::FixedIndex(_)) => {
-            }
+            (PathSegment::Field(_), PathSegment::Field(_))
+            | (PathSegment::FixedIndex(_), PathSegment::FixedIndex(_))
+            | (PathSegment::FixedIndex(_), PathSegment::RuntimeIndex { .. })
+            | (PathSegment::RuntimeIndex { .. }, PathSegment::FixedIndex(_)) => {}
             _ => return true,
         }
     }

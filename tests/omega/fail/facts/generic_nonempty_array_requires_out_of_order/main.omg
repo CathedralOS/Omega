@@ -1,0 +1,14 @@
+// Expected exit: 0.
+machine last<const Count: u64>(text: &[u8; Count]) -> u8
+requires text[Count - 1] == 0
+requires Count > 0
+{
+    text[Count - 1]
+}
+machine main() crashes Trap {
+    let bytes: [u8; 14] = "NSApplication\0";
+    let observed: u8 = last<14>(&bytes);
+    transition observed == 0 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

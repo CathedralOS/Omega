@@ -1,5 +1,6 @@
 //! Dependency-first scheduling and occurrence-qualified staging names.
 
+use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use package_source::ImmutableSourceResolution;
@@ -43,7 +44,7 @@ pub(crate) fn package_build_root(
     build_root: &Path,
     key: &PackageKey,
     resolution: &ImmutableSourceResolution,
-    purpose: crate::declarations::DependencyPurpose,
+    purpose: DependencyPurpose,
 ) -> PathBuf {
     // The staging sponsor creates one child of the existing session root.
     // Encode the occurrence in that child name rather than inventing an
@@ -59,6 +60,7 @@ pub(crate) fn package_build_root(
 #[cfg(test)]
 mod tests {
     use super::package_build_root;
+    use crate::declarations::DependencyPurpose;
     use crate::declarations::{PackageKey, PackageName};
     use package_source::{ImmutableSourceResolution, SourceContentDigest, SourceLineage};
     use std::path::Path;
@@ -73,31 +75,17 @@ mod tests {
         let second = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"b"));
 
         assert_ne!(
-            package_build_root(
-                Path::new("build"),
-                &key,
-                &first,
-                crate::declarations::DependencyPurpose::Product
-            ),
+            package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Product),
             package_build_root(
                 Path::new("build"),
                 &key,
                 &second,
-                crate::declarations::DependencyPurpose::Product
+                DependencyPurpose::Product
             )
         );
-        let product = package_build_root(
-            Path::new("build"),
-            &key,
-            &first,
-            crate::declarations::DependencyPurpose::Product,
-        );
-        let helper = package_build_root(
-            Path::new("build"),
-            &key,
-            &first,
-            crate::declarations::DependencyPurpose::Build,
-        );
+        let product =
+            package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Product);
+        let helper = package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Build);
         assert_ne!(product, helper);
         assert_eq!(product.parent(), Some(Path::new("build")));
         assert_eq!(helper.parent(), Some(Path::new("build")));

@@ -3,6 +3,7 @@
 //! they are not a pointer to the caller's value copy or a new shared snapshot.
 use super::LiveDefinitions;
 use crate::LoweringError;
+use crate::lowering::structural_layout::{internal_parameter_shape, structural_shape};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
@@ -82,12 +83,7 @@ pub(super) fn argument(
     let (selected, shape, offset, indices) = if argument.path.is_empty() {
         (
             root_type,
-            crate::lowering::structural_layout::structural_shape(
-                root_type,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?,
+            structural_shape(root_type, types, &mut BTreeMap::new(), &mut BTreeSet::new())?,
             0,
             Vec::new(),
         )
@@ -134,12 +130,7 @@ pub(super) fn argument(
         path: argument.path.clone(),
         root_structural_type: root_type,
         structural_type: selected,
-        shape: crate::lowering::structural_layout::internal_parameter_shape(
-            selected,
-            shape,
-            argument.access,
-            types,
-        ),
+        shape: internal_parameter_shape(selected, shape, argument.access, types),
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,

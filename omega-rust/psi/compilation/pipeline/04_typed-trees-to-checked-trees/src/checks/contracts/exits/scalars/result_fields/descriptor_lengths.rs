@@ -7,6 +7,7 @@
 //! recursive guarantee being checked; ranking and loan authority remain separate.
 use super::super::super::super::prover::call_guarantees::arithmetic;
 use super::super::ExitScalars;
+use crate::borrow::owner_path_from_place_segments;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
 use validation::{CanonicalPlace, ScopedArithmeticValue};
@@ -75,10 +76,7 @@ impl ExitScalars<'_, '_> {
             {
                 return None;
             }
-            let path = crate::borrow::owner_path_from_place_segments(
-                self.program,
-                &source.source.segments,
-            );
+            let path = owner_path_from_place_segments(self.program, &source.source.segments);
             if !validation::loan_carrier_has_owned_storage(
                 self.program,
                 entry.symbol,

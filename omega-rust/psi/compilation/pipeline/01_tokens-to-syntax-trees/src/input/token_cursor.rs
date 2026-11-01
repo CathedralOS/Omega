@@ -3,6 +3,7 @@ use crate::diagnostics::render_diagnostic as diagnostics;
 use crate::input::delimited::find_top_level_punctuation;
 use crate::input::literals::{parse_integer_literal, validate_float_literal};
 use arena::{Handle, HandleSpan};
+use language_core::ReferenceAccess;
 use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, Span};
 use syntax_trees::FloatSpelling;
@@ -283,7 +284,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if is_identifier_token_for_parser(token) {
-            Ok((self.identifier_from_token(token), rest))
+            let span = self.source_span(token);
+            Ok((Identifier::source_backed(self.source_owner, span), rest))
         } else {
             Err(diagnostics::expected(self, token, "identifier"))
         }
@@ -435,21 +437,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     /// The reference-access modifier after `&`: `mut` for Mutable, `write`
     /// for WriteOnly, otherwise Shared (consuming nothing).
-    pub(crate) fn take_reference_access(
-        self,
-    ) -> Result<(language_core::ReferenceAccess, Self), ParseError> {
+    pub(crate) fn take_reference_access(self) -> Result<(ReferenceAccess, Self), ParseError> {
         if self.at_contextual("mut") {
-            Ok((
-                language_core::ReferenceAccess::Mutable,
-                self.take_contextual("mut")?,
-            ))
+            Ok((ReferenceAccess::Mutable, self.take_contextual("mut")?))
         } else if self.at_contextual("write") {
-            Ok((
-                language_core::ReferenceAccess::WriteOnly,
-                self.take_contextual("write")?,
-            ))
+            Ok((ReferenceAccess::WriteOnly, self.take_contextual("write")?))
         } else {
-            Ok((language_core::ReferenceAccess::Shared, self))
+            Ok((ReferenceAccess::Shared, self))
         }
     }
 
@@ -530,11 +524,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
 
         false
-    }
-
-    fn identifier_from_token(&self, token: &Token) -> Identifier {
-        let source_span = self.source_span(token);
-        Identifier::source_backed(self.source_owner, source_span)
     }
 
     pub(crate) fn split_at_top_level_punctuation(

@@ -1,4 +1,5 @@
 use super::normal_cleanup::CompletionBoundary;
+use crate::build_time::observe_build_time_value;
 use crate::interpreter::evaluator::{
     BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, CheckedTrees,
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
@@ -7,6 +8,7 @@ use crate::interpreter::evaluator::{
     TypedTrees, Value, ambient_step_budget, expression_table, statement_table, trap,
     type_reference_table, unsupported, wrap_to_width,
 };
+use validation::field_domains::data_definition_by_symbol_or_name;
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
         program: crate::interpreter::BuildMachineProgram<'program>,
@@ -414,9 +416,7 @@ impl<'program> Evaluator<'program> {
                  during build-time evaluation"
             )));
         }
-        crate::build_time::observe_build_time_value(&value, &|reference| {
-            self.read_reference(reference)
-        })
+        observe_build_time_value(&value, &|reference| self.read_reference(reference))
     }
 
     // ---- explicit data construction ----------------------------------------
@@ -560,11 +560,7 @@ impl<'program> Evaluator<'program> {
             {
                 let program = self.program;
                 let definition = program.closed_data_definition(type_reference).or_else(|| {
-                    validation::field_domains::data_definition_by_symbol_or_name(
-                        program,
-                        *base_symbol,
-                        base_name,
-                    )
+                    data_definition_by_symbol_or_name(program, *base_symbol, base_name)
                 });
                 if let Some(definition) = definition
                     && matches!(

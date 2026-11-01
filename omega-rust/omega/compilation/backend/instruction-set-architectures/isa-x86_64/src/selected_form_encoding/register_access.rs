@@ -19,10 +19,11 @@ use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalReg
 use selected_instructions::ControlRegister;
 use selected_instructions::SystemRegister;
 use selected_instructions::{
-    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineBarrier,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedTrapBehavior,
-    MachineMemoryEffect, MachineSemanticKind as Semantic, MachineSizeKnowledge,
-    MachineTrapBehavior, RegisterOperation as Operation, SelectedInstructionKind,
+    InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey,
+    MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind as Semantic, MachineSizeKnowledge, MachineTrapBehavior, MemoryFenceKind,
+    RegisterOperation as Operation, RegisterTargetApplicability, SelectedInstructionKind,
 };
 
 pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
@@ -33,19 +34,13 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
         Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
-        Operation::MemoryFence(kind)
-            if kind.target() == selected_instructions::RegisterTargetApplicability::X86_64 =>
-        {
+        Operation::MemoryFence(kind) if kind.target() == RegisterTargetApplicability::X86_64 => {
             Semantic::MemoryFence
         }
         Operation::ProcessorHalt => Semantic::ProcessorHalt,
         Operation::InterruptControl(_) => Semantic::InterruptControl,
-        Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => {
-            Semantic::SystemRegisterRead
-        }
-        Operation::SystemWrite(selected_instructions::SystemRegister::Rflags) => {
-            Semantic::SystemRegisterWrite
-        }
+        Operation::SystemRead(SystemRegister::Rflags) => Semantic::SystemRegisterRead,
+        Operation::SystemWrite(SystemRegister::Rflags) => Semantic::SystemRegisterWrite,
         _ => return None,
     })
 }
@@ -66,19 +61,11 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
         Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
-        Semantic::MemoryFence => {
-            Operation::MemoryFence(selected_instructions::MemoryFenceKind::Full)
-        }
+        Semantic::MemoryFence => Operation::MemoryFence(MemoryFenceKind::Full),
         Semantic::ProcessorHalt => Operation::ProcessorHalt,
-        Semantic::InterruptControl => {
-            Operation::InterruptControl(selected_instructions::InterruptControlKind::Disable)
-        }
-        Semantic::SystemRegisterRead => {
-            Operation::SystemRead(selected_instructions::SystemRegister::Rflags)
-        }
-        Semantic::SystemRegisterWrite => {
-            Operation::SystemWrite(selected_instructions::SystemRegister::Rflags)
-        }
+        Semantic::InterruptControl => Operation::InterruptControl(InterruptControlKind::Disable),
+        Semantic::SystemRegisterRead => Operation::SystemRead(SystemRegister::Rflags),
+        Semantic::SystemRegisterWrite => Operation::SystemWrite(SystemRegister::Rflags),
         _ => return None,
     })
 }
@@ -94,8 +81,8 @@ fn scratch(operation: Operation) -> &'static [&'static str] {
         Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
         Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
         Operation::PortRead => &["rax", "rdx", "r10"],
-        Operation::SystemRead(selected_instructions::SystemRegister::Rflags)
-        | Operation::SystemWrite(selected_instructions::SystemRegister::Rflags) => &["r10", "r15"],
+        Operation::SystemRead(SystemRegister::Rflags)
+        | Operation::SystemWrite(SystemRegister::Rflags) => &["r10", "r15"],
         Operation::PortWrite => &["rax", "rdx", "r10", "r11"],
         Operation::ModelSpecificRead | Operation::ModelSpecificWrite => {
             &["rax", "rcx", "rdx", "r10", "r11"]
@@ -121,8 +108,8 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             },
         )
     };
-    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags)
-        || operation == Operation::SystemWrite(selected_instructions::SystemRegister::Rflags)
+    if operation == Operation::SystemRead(SystemRegister::Rflags)
+        || operation == Operation::SystemWrite(SystemRegister::Rflags)
     {
         let stack_pointer = physical
             .view_named("rsp")
@@ -144,12 +131,11 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
         if !operation.produces_value() {
             encoded.implicit_unit_defs = register_model::sorted_units(units("rflags"));
         }
-        encoded.memory =
-            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
-        encoded.stack = selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+        encoded.memory = MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+            stack_pointer,
+            byte_count: 8,
+        };
+        encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
             stack_pointer,
             byte_count: 8,
         };
@@ -253,8 +239,8 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
     if let Operation::InterruptControl(kind) = operation {
         return if registers.is_empty() {
             Ok(vec![match kind {
-                selected_instructions::InterruptControlKind::Disable => 0xfa,
-                selected_instructions::InterruptControlKind::Enable => 0xfb,
+                InterruptControlKind::Disable => 0xfa,
+                InterruptControlKind::Enable => 0xfb,
             }])
         } else {
             Err(Error::OperandCountMismatch)
@@ -267,7 +253,7 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
             Err(Error::OperandCountMismatch)
         };
     }
-    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags) {
+    if operation == Operation::SystemRead(SystemRegister::Rflags) {
         let [destination] = registers else {
             return Err(Error::OperandCountMismatch);
         };
@@ -279,7 +265,7 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
         move_register(&mut bytes, 15, *destination, true);
         return Ok(bytes);
     }
-    if operation == Operation::SystemWrite(selected_instructions::SystemRegister::Rflags) {
+    if operation == Operation::SystemWrite(SystemRegister::Rflags) {
         let [source] = registers else {
             return Err(Error::OperandCountMismatch);
         };
@@ -441,9 +427,9 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
             0xfa | 0xfb => {
                 decoded.push(Decoded::Physical(Operation::InterruptControl(
                     if bytes[cursor] == 0xfa {
-                        selected_instructions::InterruptControlKind::Disable
+                        InterruptControlKind::Disable
                     } else {
-                        selected_instructions::InterruptControlKind::Enable
+                        InterruptControlKind::Enable
                     },
                 )));
                 cursor += 1;
@@ -585,7 +571,7 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
             ))
         .then_some(());
     }
-    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags) {
+    if operation == Operation::SystemRead(SystemRegister::Rflags) {
         let [destination] = registers else {
             return None;
         };
@@ -602,7 +588,7 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
         ] if actual == destination)
         .then_some(());
     }
-    if operation == Operation::SystemWrite(selected_instructions::SystemRegister::Rflags) {
+    if operation == Operation::SystemWrite(SystemRegister::Rflags) {
         let [source] = registers else {
             return None;
         };
@@ -761,8 +747,7 @@ pub(crate) fn footprint(
         },
         writes_rflags: matches!(
             operation,
-            Operation::SystemWrite(selected_instructions::SystemRegister::Rflags)
-                | Operation::InterruptControl(_)
+            Operation::SystemWrite(SystemRegister::Rflags) | Operation::InterruptControl(_)
         ),
         encoded: effects(operation),
     }
@@ -863,7 +848,7 @@ mod tests {
 
     #[test]
     fn flags_snapshot_has_one_balanced_full_width_observation() {
-        let operation = Operation::SystemRead(selected_instructions::SystemRegister::Rflags);
+        let operation = Operation::SystemRead(SystemRegister::Rflags);
         for destination in 0..16 {
             if destination == 4 {
                 assert!(encode(operation, &[destination]).is_err());
@@ -892,23 +877,17 @@ mod tests {
         let encoded = effects(operation);
         assert!(matches!(
             encoded.memory,
-            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                byte_count: 8,
-                ..
-            }
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { byte_count: 8, .. }
         ));
         assert!(matches!(
             encoded.stack,
-            selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
-                byte_count: 8,
-                ..
-            }
+            MachineEncodedStackEffect::TemporaryBytesV1 { byte_count: 8, .. }
         ));
     }
 
     #[test]
     fn flags_restore_reads_one_saved_place_and_balances_the_stack() {
-        let operation = Operation::SystemWrite(selected_instructions::SystemRegister::Rflags);
+        let operation = Operation::SystemWrite(SystemRegister::Rflags);
         for source in 0..16 {
             if source == 4 {
                 assert!(encode(operation, &[source]).is_err());
@@ -924,10 +903,7 @@ mod tests {
         let encoded = effects(operation);
         assert!(matches!(
             encoded.memory,
-            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                byte_count: 8,
-                ..
-            }
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { byte_count: 8, .. }
         ));
         assert!(!encoded.implicit_unit_defs.is_empty());
     }
@@ -958,7 +934,7 @@ mod tests {
 
     #[test]
     fn interrupt_control_retains_direction_without_operands_or_hidden_effects() {
-        use selected_instructions::InterruptControlKind::{Disable, Enable};
+        use InterruptControlKind::{Disable, Enable};
         for (kind, opcode, wrong) in [(Disable, 0xfa, 0xfb), (Enable, 0xfb, 0xfa)] {
             let operation = Operation::InterruptControl(kind);
             assert_eq!(encode(operation, &[]).unwrap(), [opcode]);

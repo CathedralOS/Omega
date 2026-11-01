@@ -192,10 +192,12 @@ The fixture also checks shared Terminal allocation, single-target byte equality,
 and native/reloaded-Terminal execution. Its source/Build/publication counters
 remain coarse observations; full numbered source/Psi invocation acceptance is
 still open.
-Composition admission runs once per application, before optimization. Psi lends
-an ordered, lazily projected stream of canonical entry, callback and physical
-adapter roots; Omega prepares the exclusion/provider context once and judges
-each root separately. Root-specific attribution and first-refusal precedence
+Composition admission runs once per application, after canonical publication.
+Psi projects ordered entry, callback and physical-adapter roots with deferred
+source diagnostics, and retains their pre-optimization semantic operations in
+Terminal. Omega prepares the exclusion/provider context once and judges each
+root's selected semantic closure, without calling product policy from Psi or
+depending on optional optimization. Root-specific attribution and first-refusal precedence
 survive, including missing-body checks when no authored service exclusion
 resolves. This does not remove source-side callback selection or replace its
 complete dormant-declaration checks with emitted-call reachability.
@@ -355,7 +357,13 @@ named-map capture, inherited signature order and simultaneous type bindings.
 Requests and their refusal results remain in source order. Omega follows these
 arena-backed associations rather than traversing trait requirements or rebuilding
 application scopes for every target. It still selects each deployment's policy
-body and evaluates the policy. Publishing these applications and their closed
+body and admits its compiler-run closure. The compiler publishes one immutable
+policy-code dependency through ordinary Psi production per checked source;
+target children share it. Initial policy activation and callback-geometry
+reevaluation both execute that catalog in Terminal, with finite Terminal fuel
+and metered storage/results, not the checked-source interpreter. This dependency
+is distinct from the final Product artifact: it does not yet make Product
+provider settlement Terminal-only. Publishing these applications and their closed
 storage/contract inputs in Terminal, rather than retaining source coordinates,
 remains the next connected migration.
 
@@ -1149,7 +1157,7 @@ demand and selected rows independently. Reference preparation never copies or
 mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
-target independently admits the unoptimized composition and retains its own
+target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
@@ -1486,9 +1494,10 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
   publication. Omega consumers supply product policy and reporting directly;
-  they do not assemble the stages or wrap this production entrance. Exclusion admission
-  borrows the unoptimized Terminal composition inside that sequence, without
-  exporting or cloning its checked-source lowering.
+  they do not assemble the stages or wrap this production entrance. Psi returns
+  ordered composition roots and diagnostic payloads as data. Omega checks
+  exclusions after publication against retained pre-optimization semantic
+  operations, without exporting or cloning checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.

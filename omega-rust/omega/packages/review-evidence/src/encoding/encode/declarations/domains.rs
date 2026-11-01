@@ -5,6 +5,7 @@ use crate::record::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
+use language_semantics::CarryPermission;
 
 pub(crate) fn encode_domain_alias_atom(
     encoder: &mut Encoder,
@@ -61,14 +62,11 @@ pub(crate) fn encode_domain_establishment_route(
 }
 
 /// Shared closed permission encoding for alias atoms and contract facts.
-pub(crate) fn encode_carry_permission(
-    encoder: &mut Encoder,
-    permission: language_semantics::CarryPermission,
-) {
+pub(crate) fn encode_carry_permission(encoder: &mut Encoder, permission: CarryPermission) {
     match permission {
-        language_semantics::CarryPermission::AcrossSuspend => encoder.tag("across_suspend", 0),
-        language_semantics::CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
-        language_semantics::CarryPermission::AnyThread => encoder.tag("any_thread", 2),
-        language_semantics::CarryPermission::MovableAddress => encoder.tag("movable_address", 3),
+        CarryPermission::AcrossSuspend => encoder.tag("across_suspend", 0),
+        CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
+        CarryPermission::AnyThread => encoder.tag("any_thread", 2),
+        CarryPermission::MovableAddress => encoder.tag("movable_address", 3),
     };
 }

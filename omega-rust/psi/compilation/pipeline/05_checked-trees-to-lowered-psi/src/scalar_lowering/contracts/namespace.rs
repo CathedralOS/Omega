@@ -3,6 +3,7 @@
 
 use super::super::{CheckedBooleanExpression, CheckedScalarExpression, LoweringError};
 use super::{ContractStructuralResult, ContractViewNamespace};
+use crate::proofs::contract_predicates::validate_math_namespace;
 
 pub(super) fn validate(
     predicate: &CheckedBooleanExpression,
@@ -86,12 +87,8 @@ fn inspect(
             inspect(right, namespace)
         }
         CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
-            crate::proofs::contract_predicates::validate_math_namespace(left, &|operand| {
-                scalar(operand, namespace)
-            })?;
-            crate::proofs::contract_predicates::validate_math_namespace(right, &|operand| {
-                scalar(operand, namespace)
-            })
+            validate_math_namespace(left, &|operand| scalar(operand, namespace))?;
+            validate_math_namespace(right, &|operand| scalar(operand, namespace))
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {

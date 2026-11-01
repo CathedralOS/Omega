@@ -7,6 +7,7 @@
 //! Normal return joins the caller's checked region catalogue against stored case
 //! membership. Local extraction cannot manufacture the caller's claim identities,
 //! and refreshing one region cannot re-establish disjoint moved siblings.
+use crate::custody::{project_structural_value, verified_structural_place};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -16,6 +17,7 @@ use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment,
 };
+use terminal_semantics::structural_paths_may_overlap;
 
 impl TerminalExecution<'_> {
     /// Capture the normal-return catalogue of the exact operation. Ordinary
@@ -44,17 +46,11 @@ impl TerminalExecution<'_> {
         let mut claims = self.live_claims.clone();
         let mut frontier = self.live_affine_frontier.clone();
         for completion in completions {
-            let owner = crate::custody::verified_structural_place(
-                &self.structural_values,
-                completion.place,
-            )?;
+            let owner = verified_structural_place(&self.structural_values, completion.place)?;
             // Authenticate the captured region even when its active case has
             // no linear claims. Stale bytes are never a restored owner.
-            let returned = crate::custody::project_structural_value(
-                &self.structural_types(),
-                owner,
-                &completion.path,
-            )?;
+            let returned =
+                project_structural_value(&self.structural_types(), owner, &completion.path)?;
             if completion
                 .claims
                 .iter()
@@ -226,10 +222,7 @@ impl TerminalExecution<'_> {
                 && selected.is_empty()
                 && !self.live_affine_frontier.iter().any(|entry| {
                     entry.place == source
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &entry.path,
-                            &argument.path,
-                        )
+                        && structural_paths_may_overlap(&entry.path, &argument.path)
                 })
             {
                 return Ok(self.live_claims.clone());
@@ -282,7 +275,7 @@ impl TerminalExecution<'_> {
                 .collect();
             if claims.values().any(|held| {
                 held.place == restored.place
-                    && terminal_semantics::structural_paths_may_overlap(&held.path, &restored.path)
+                    && structural_paths_may_overlap(&held.path, &restored.path)
             }) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }

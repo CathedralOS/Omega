@@ -25,6 +25,7 @@ use crate::proof_contracts::arithmetic_domains::{
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
@@ -336,12 +337,8 @@ fn collect_state_numeric_observations_batch(
                 continue;
             }
             let delivered = match statement {
-                typed_trees::statement::StatementNode::LocalData(local) => {
-                    Some(local.initial_value)
-                }
-                typed_trees::statement::StatementNode::Assignment(assignment) => {
-                    Some(assignment.value)
-                }
+                StatementNode::LocalData(local) => Some(local.initial_value),
+                StatementNode::Assignment(assignment) => Some(assignment.value),
                 _ => None,
             };
             if let Some(delivered) = delivered {
@@ -451,8 +448,8 @@ fn collect_numeric_observations(
             .get(statement_index)
     {
         let delivered = match statement {
-            typed_trees::statement::StatementNode::LocalData(local) => Some(local.initial_value),
-            typed_trees::statement::StatementNode::Assignment(assignment) => Some(assignment.value),
+            StatementNode::LocalData(local) => Some(local.initial_value),
+            StatementNode::Assignment(assignment) => Some(assignment.value),
             _ => None,
         };
         if let Some(delivered) = delivered {
@@ -973,10 +970,7 @@ impl StructuralPrefixVisitor for Observations {
             .filter(|expression| expression.is_valid())
             .collect();
         if roots.len() > 1
-            && !matches!(
-                statement,
-                typed_trees::statement::StatementNode::Transition(_)
-            )
+            && !matches!(statement, StatementNode::Transition(_))
             && judge.frame_resolver().is_some_and(|frames| {
                 roots.iter().all(|&root| {
                     frames

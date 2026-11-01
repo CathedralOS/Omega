@@ -2,8 +2,10 @@
 //! These historical conditions are independent of current-storage facts and
 //! the selecting caller. Unknown observations widen a route, never erase it.
 
-use super::summary_predicates::{SummaryCrashPredicate, SummaryCrashRouteGuard};
+use super::summary_predicates::{SummaryCrashPredicate, SummaryCrashRouteGuard as RouteGuard};
+use crate::facts::boolean_predicates::entry_path_necessary_condition;
 use crate::flow::active_context_handles;
+use crate::values::occupies_scalar_position;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CheckedStructuralPredicatePathSegment as Path, CrashPredicateExpression as Expression,
@@ -40,9 +42,7 @@ impl<'a> EntryConditions<'a> {
                     .state_parameters(entry)
                     .iter()
                     .enumerate()
-                    .filter(|(_, parameter)| {
-                        crate::values::occupies_scalar_position(self.program, parameter)
-                    })
+                    .filter(|(_, parameter)| occupies_scalar_position(self.program, parameter))
                     .map(|(position, _)| u32::try_from(position))
                     .collect::<Result<Vec<_>, _>>()
                     .ok()
@@ -63,14 +63,11 @@ pub(super) struct MachineEntryConditions<'a> {
 }
 
 impl MachineEntryConditions<'_> {
-    pub(super) fn at_call(&self, call: &checked_trees::FlowCallFact) -> SummaryCrashRouteGuard {
+    pub(super) fn at_call(&self, call: &checked_trees::FlowCallFact) -> RouteGuard {
         self.from_contexts(call.entry_semantic_contexts)
     }
 
-    pub(super) fn at_site(
-        &self,
-        location: checked_trees::CrashSiteLocation,
-    ) -> SummaryCrashRouteGuard {
+    pub(super) fn at_site(&self, location: checked_trees::CrashSiteLocation) -> RouteGuard {
         self.query
             .flow
             .control
@@ -86,7 +83,7 @@ impl MachineEntryConditions<'_> {
                         statement.statement_index == location.statement_ordinal() as usize
                     })
             })
-            .map_or(SummaryCrashRouteGuard::Truth, |statement| {
+            .map_or(RouteGuard::Truth, |statement| {
                 self.from_contexts(statement.entry_semantic_contexts)
             })
     }
@@ -94,25 +91,23 @@ impl MachineEntryConditions<'_> {
     fn from_contexts(
         &self,
         contexts: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
-    ) -> SummaryCrashRouteGuard {
+    ) -> RouteGuard {
         if self.scalars.is_none() {
-            return SummaryCrashRouteGuard::Truth;
+            return RouteGuard::Truth;
         }
         let contexts = active_context_handles(&self.query.flow.contexts, contexts);
-        let Some(condition) = crate::facts::boolean_predicates::entry_path_necessary_condition(
-            self.query.semantic,
-            &contexts,
-            self.machine,
-        ) else {
-            return SummaryCrashRouteGuard::Truth;
+        let Some(condition) =
+            entry_path_necessary_condition(self.query.semantic, &contexts, self.machine)
+        else {
+            return RouteGuard::Truth;
         };
         let Some(identity) = self.boolean(&condition, 0) else {
-            return SummaryCrashRouteGuard::Truth;
+            return RouteGuard::Truth;
         };
         if condition == Boolean::Constant(true) {
-            return SummaryCrashRouteGuard::Truth;
+            return RouteGuard::Truth;
         }
-        SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+        RouteGuard::Predicate(SummaryCrashPredicate {
             identity,
             builtin_meaning: true,
             scalar: Some(condition),

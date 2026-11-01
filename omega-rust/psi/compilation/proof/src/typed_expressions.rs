@@ -6,11 +6,14 @@
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTreeTables;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementTable;
+use typed_trees::types::TypeReferenceNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 
 /// Read view of a program's expression table: a chain that starts with this
@@ -97,16 +100,12 @@ fn element_type_reference(
         return None;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-            element_type_reference(program, *referee)
-        }
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        TypeReferenceNode::Reference { referee, .. } => element_type_reference(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
             element_type_reference(program, *base_type)
         }
-        typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-            Some(*element_type)
-        }
-        typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
+        TypeReferenceNode::Slice { element_type } => Some(*element_type),
         _ => None,
     }
 }
@@ -187,10 +186,8 @@ fn type_reference_for_symbol(
                 .iter()
                 .find(|parameter| parameter.symbol == symbol)
                 .and_then(|parameter| match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                        Some(type_reference)
-                    }
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => Some(type_reference),
                     _ => None,
                 })
         })
@@ -240,7 +237,7 @@ pub(crate) fn call_expression_return_type(
     program: &dyn ::validation::CheckingInput,
     _machine: &Machine,
     _state: &State,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     callable_return_type_by_symbol(program, call.target_symbol)
 }

@@ -1,13 +1,10 @@
 use super::RangeFacts;
+use symbols::SymbolHandle;
 
 mod aliases;
 
 impl RangeFacts<'_> {
-    pub(in crate::checks::ranges) fn prove_const_binder_floor(
-        &mut self,
-        symbol: symbols::SymbolHandle,
-        floor: i64,
-    ) {
+    pub(in super::super) fn prove_const_binder_floor(&mut self, symbol: SymbolHandle, floor: i64) {
         if let Some((_, known)) = self
             .const_binder_floors
             .iter_mut()
@@ -19,10 +16,7 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in crate::checks::ranges) fn const_binder_floor(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<i64> {
+    pub(in super::super) fn const_binder_floor(&self, symbol: SymbolHandle) -> Option<i64> {
         self.const_binder_floors
             .iter()
             .find_map(|(known, floor)| (*known == symbol).then_some(*floor))
@@ -30,10 +24,10 @@ impl RangeFacts<'_> {
 
     /// `index` is strictly less than this const binder. The binder's symbol,
     /// not its spelling, is the identity: a same-named local is not an extent.
-    pub(in crate::checks::ranges) fn prove_below_const_binder(
+    pub(in super::super) fn prove_below_const_binder(
         &mut self,
         index: String,
-        binder: symbols::SymbolHandle,
+        binder: SymbolHandle,
     ) {
         if !binder.is_valid()
             || self
@@ -46,11 +40,7 @@ impl RangeFacts<'_> {
         self.below_const_binders.push((index, binder));
     }
 
-    pub(in crate::checks::ranges) fn below_const_binder(
-        &self,
-        index: &str,
-        binder: symbols::SymbolHandle,
-    ) -> bool {
+    pub(in super::super) fn below_const_binder(&self, index: &str, binder: SymbolHandle) -> bool {
         binder.is_valid()
             && self
                 .below_const_binders
@@ -58,10 +48,7 @@ impl RangeFacts<'_> {
                 .any(|(known_index, known_binder)| known_index == index && *known_binder == binder)
     }
 
-    pub(in crate::checks::ranges) fn const_binders_strictly_above(
-        &self,
-        index: &str,
-    ) -> Vec<symbols::SymbolHandle> {
+    pub(in super::super) fn const_binders_strictly_above(&self, index: &str) -> Vec<SymbolHandle> {
         self.below_const_binders
             .iter()
             .filter(|(known_index, _)| known_index == index)
@@ -69,7 +56,7 @@ impl RangeFacts<'_> {
             .collect()
     }
 
-    pub(in crate::checks::ranges) fn prove_index(&mut self, collection: String, index: String) {
+    pub(in super::super) fn prove_index(&mut self, collection: String, index: String) {
         if !self
             .proven_indexes
             .iter()
@@ -82,7 +69,7 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in crate::checks::ranges) fn index_is_proven(&self, collection: &str, index: &str) -> bool {
+    pub(in super::super) fn index_is_proven(&self, collection: &str, index: &str) -> bool {
         self.proven_indexes
             .iter()
             .any(|(known_collection, known_index)| {
@@ -93,9 +80,7 @@ impl RangeFacts<'_> {
     /// Every proven `(collection, index)` label pair, for callers that test
     /// many pairs against one unchanged roster: one set lookup per pair
     /// instead of a scan of the whole roster per pair.
-    pub(in crate::checks::ranges) fn proven_index_pairs(
-        &self,
-    ) -> std::collections::BTreeSet<(&str, &str)> {
+    pub(in super::super) fn proven_index_pairs(&self) -> std::collections::BTreeSet<(&str, &str)> {
         self.proven_indexes
             .iter()
             .map(|(collection, index)| (collection.as_str(), index.as_str()))
@@ -104,7 +89,7 @@ impl RangeFacts<'_> {
 
     /// The index labels proven valid inside `collection`, in seed order. Edge
     /// transport re-keys these pairs onto the callee's parameter names.
-    pub(in crate::checks::ranges) fn proven_index_labels<'a>(
+    pub(in super::super) fn proven_index_labels<'a>(
         &'a self,
         collection: &'a str,
     ) -> impl Iterator<Item = &'a String> + 'a {
@@ -115,7 +100,7 @@ impl RangeFacts<'_> {
     }
 
     /// The collection labels `index` is proven inside, in seed order.
-    pub(in crate::checks::ranges) fn proven_collections_for_index<'a>(
+    pub(in super::super) fn proven_collections_for_index<'a>(
         &'a self,
         index: &'a str,
     ) -> impl Iterator<Item = &'a String> + 'a {
@@ -125,7 +110,7 @@ impl RangeFacts<'_> {
             .map(|(collection, _)| collection)
     }
 
-    pub(in crate::checks::ranges) fn prove_index_upper_bound(
+    pub(in super::super) fn prove_index_upper_bound(
         &mut self,
         index: String,
         exclusive_upper_bound: i64,
@@ -147,11 +132,7 @@ impl RangeFacts<'_> {
             .push((index, exclusive_upper_bound));
     }
 
-    pub(in crate::checks::ranges) fn index_upper_bound_is_proven(
-        &self,
-        index: &str,
-        length: usize,
-    ) -> bool {
+    pub(in super::super) fn index_upper_bound_is_proven(&self, index: &str, length: usize) -> bool {
         let Ok(length) = i64::try_from(length) else {
             return false;
         };
@@ -163,7 +144,7 @@ impl RangeFacts<'_> {
 
     /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
     /// Used to carry a bound across `field = otherfield + const`.
-    pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {
+    pub(in super::super) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {
         self.proven_index_upper_bounds
             .iter()
             .filter(|(known_index, _)| known_index == index)
@@ -171,11 +152,7 @@ impl RangeFacts<'_> {
             .min()
     }
 
-    pub(in crate::checks::ranges) fn index_value_is_proven(
-        &self,
-        collection: &str,
-        index: i64,
-    ) -> bool {
+    pub(in super::super) fn index_value_is_proven(&self, collection: &str, index: i64) -> bool {
         if index < 0 {
             return false;
         }
@@ -190,13 +167,13 @@ impl RangeFacts<'_> {
     }
 
     /// Records that `name` is provably `>= 0`.
-    pub(in crate::checks::ranges) fn prove_non_negative(&mut self, name: String) {
+    pub(in super::super) fn prove_non_negative(&mut self, name: String) {
         if !self.proven_non_negatives.iter().any(|known| known == &name) {
             self.proven_non_negatives.push(name);
         }
     }
 
-    pub(in crate::checks::ranges) fn non_negative_is_proven(&self, name: &str) -> bool {
+    pub(in super::super) fn non_negative_is_proven(&self, name: &str) -> bool {
         self.proven_non_negatives.iter().any(|known| known == name)
     }
 
@@ -263,18 +240,18 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
+    pub(in super::super) fn prove_at_most(&mut self, lower: String, upper: String) {
         self.record_ordering(lower, upper, false);
     }
 
     /// `lower < upper` — the strict counterpart of `prove_at_most`. Every
     /// consumer that accepts `<=` also accepts `<` (it is the stronger fact);
     /// only the bound-chaining consumers below read the flag.
-    pub(in crate::checks::ranges) fn prove_strictly_less(&mut self, lower: String, upper: String) {
+    pub(in super::super) fn prove_strictly_less(&mut self, lower: String, upper: String) {
         self.record_ordering(lower, upper, true);
     }
 
-    pub(in crate::checks::ranges) fn at_most_is_proven(&self, lower: &str, upper: &str) -> bool {
+    pub(in super::super) fn at_most_is_proven(&self, lower: &str, upper: &str) -> bool {
         self.proven_orderings
             .iter()
             .any(|(known_lower, known_upper, _)| known_lower == lower && known_upper == upper)
@@ -288,7 +265,7 @@ impl RangeFacts<'_> {
     /// is bounded only relative to the decreasing pointer (which carries the loop
     /// invariant). Sound because `at_most` is seeded from `<`/`<=` guards and
     /// dropped on reassignment, so it reflects a fact live at the access.
-    pub(in crate::checks::ranges) fn index_upper_bound_is_proven_via_ordering(
+    pub(in super::super) fn index_upper_bound_is_proven_via_ordering(
         &self,
         index: &str,
         collection: &str,
@@ -325,7 +302,7 @@ impl RangeFacts<'_> {
     /// `index < u <= floor <= len`. The `u - 1` spelling reuses the strict
     /// index-value floor check: `u - 1 < floor` is `u <= floor` for integers,
     /// and stored bounds are always positive so `u - 1` cannot underflow.
-    pub(in crate::checks::ranges) fn index_upper_bound_within_length_floor(
+    pub(in super::super) fn index_upper_bound_within_length_floor(
         &self,
         index: &str,
         collection: &str,
@@ -339,7 +316,7 @@ impl RangeFacts<'_> {
     /// the floor gives `index <= pivot < u <= floor <= len`. One level of
     /// chaining, the same soundness argument as
     /// `index_upper_bound_is_proven_via_ordering` over a symbolic length.
-    pub(in crate::checks::ranges) fn index_upper_bound_within_length_floor_via_ordering(
+    pub(in super::super) fn index_upper_bound_within_length_floor_via_ordering(
         &self,
         index: &str,
         collection: &str,
@@ -378,21 +355,14 @@ impl RangeFacts<'_> {
     /// two-pointer case where `j` runs down but stays `> i >= 0`). Sound because
     /// `at_most` is seeded from `<`/`<=` guards and dropped on reassignment, so it
     /// reflects a relation live at the access.
-    pub(in crate::checks::ranges) fn non_negative_is_proven_via_ordering(
-        &self,
-        index: &str,
-    ) -> bool {
+    pub(in super::super) fn non_negative_is_proven_via_ordering(&self, index: &str) -> bool {
         self.proven_orderings
             .iter()
             .filter(|(_, upper, _)| upper == index)
             .any(|(lower, _, _)| self.non_negative_is_proven(lower))
     }
 
-    pub(in crate::checks::ranges) fn prove_range_bound(
-        &mut self,
-        collection: String,
-        bound: String,
-    ) {
+    pub(in super::super) fn prove_range_bound(&mut self, collection: String, bound: String) {
         if !self
             .proven_range_bounds
             .iter()
@@ -405,11 +375,7 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in crate::checks::ranges) fn range_bound_is_proven(
-        &self,
-        collection: &str,
-        bound: &str,
-    ) -> bool {
+    pub(in super::super) fn range_bound_is_proven(&self, collection: &str, bound: &str) -> bool {
         self.proven_range_bounds
             .iter()
             .any(|(known_collection, known_bound)| {
@@ -417,7 +383,7 @@ impl RangeFacts<'_> {
             })
     }
 
-    pub(in crate::checks::ranges) fn range_bound_value_is_proven(
+    pub(in super::super) fn range_bound_value_is_proven(
         &self,
         collection: &str,
         bound: i64,
@@ -440,7 +406,7 @@ impl RangeFacts<'_> {
             .any(|length| bound <= length)
     }
 
-    pub(in crate::checks::ranges) fn prove_minimum_length(
+    pub(in super::super) fn prove_minimum_length(
         &mut self,
         collection: String,
         minimum_length: i64,
@@ -461,7 +427,7 @@ impl RangeFacts<'_> {
         self.minimum_lengths.push((collection, minimum_length));
     }
 
-    pub(in crate::checks::ranges) fn minimum_length(&self, collection: &str) -> Option<i64> {
+    pub(in super::super) fn minimum_length(&self, collection: &str) -> Option<i64> {
         self.minimum_lengths
             .iter()
             .find_map(|(known_collection, minimum_length)| {
@@ -473,11 +439,7 @@ impl RangeFacts<'_> {
     /// `length` elements (e.g. the subslice `a..b` over constant bounds has
     /// length `b - a`). Zero represents an empty live prefix; negative lengths
     /// are not valid collection extents.
-    pub(in crate::checks::ranges) fn prove_exact_length(
-        &mut self,
-        collection: String,
-        length: i64,
-    ) {
+    pub(in super::super) fn prove_exact_length(&mut self, collection: String, length: i64) {
         if length < 0 {
             return;
         }
@@ -498,7 +460,7 @@ impl RangeFacts<'_> {
         self.exact_lengths.push((collection, length));
     }
 
-    pub(in crate::checks::ranges) fn exact_length(&self, collection: &str) -> Option<i64> {
+    pub(in super::super) fn exact_length(&self, collection: &str) -> Option<i64> {
         self.exact_lengths
             .iter()
             .find_map(|(known_collection, length)| {
@@ -512,7 +474,7 @@ impl RangeFacts<'_> {
     /// is reassigned — the facts described the old value, and keeping them
     /// (the merge in `prove_minimum_length` keeps the larger floor) would let a
     /// stale floor prove indexes into the new, possibly shorter value.
-    pub(in crate::checks::ranges) fn forget_collection_facts(&mut self, collection: &str) {
+    pub(in super::super) fn forget_collection_facts(&mut self, collection: &str) {
         self.minimum_lengths
             .retain(|(known, _)| known != collection);
         self.exact_lengths.retain(|(known, _)| known != collection);
@@ -530,7 +492,7 @@ impl RangeFacts<'_> {
     /// exactly `n - start`. Only meaningful for a start-only window — a
     /// constant-bounded window `[a..b)` already pins its exact length `b - a`
     /// independent of the parent.
-    pub(in crate::checks::ranges) fn prove_shrunk_window_length(
+    pub(in super::super) fn prove_shrunk_window_length(
         &mut self,
         child: &str,
         parent: &str,
@@ -556,7 +518,7 @@ impl RangeFacts<'_> {
     /// end)` offsets into the parent when known. The relation is the basis for
     /// conservative subslice-overlap reasoning (two windows of the same base are
     /// assumed to overlap unless proven disjoint).
-    pub(in crate::checks::ranges) fn prove_window_parent(
+    pub(in super::super) fn prove_window_parent(
         &mut self,
         child: String,
         parent: String,
@@ -580,7 +542,7 @@ impl RangeFacts<'_> {
     }
 
     /// The recorded parent (base) collection a window was carved from, if any.
-    pub(in crate::checks::ranges) fn window_parent(&self, child: &str) -> Option<&str> {
+    pub(in super::super) fn window_parent(&self, child: &str) -> Option<&str> {
         self.window_parents
             .iter()
             .find_map(|(known_child, known_parent, _)| {
@@ -604,7 +566,7 @@ impl RangeFacts<'_> {
     /// end)` over the shared base from the recorded window bounds (literal vs.
     /// literal, disjoint windows). Any side with unknown bounds falls back to the
     /// conservative assumption that the windows overlap.
-    pub(in crate::checks::ranges) fn windows_may_overlap(&self, left: &str, right: &str) -> bool {
+    pub(in super::super) fn windows_may_overlap(&self, left: &str, right: &str) -> bool {
         if left == right {
             return true;
         }

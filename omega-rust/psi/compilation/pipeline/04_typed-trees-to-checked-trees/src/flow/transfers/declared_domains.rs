@@ -3,7 +3,15 @@
 //! needs no provenance, and a write through a reference local keeps each
 //! candidate's membership exactly when it held before the write.
 
-use validation::CanonicalPlace;
+use facts::FactRef;
+use facts::PlaceSegment;
+use language_semantics::SemanticDomainId;
+use validation::field_domains::assignment_target_domain_identities;
+use validation::field_domains::assignment_target_type_reference;
+use validation::field_domains::declared_type_domain_rows;
+use validation::field_domains::domain_constraint_identities;
+use validation::field_domains::domain_requires_provenance;
+use validation::{CanonicalPlace, find_state_in_machine};
 
 use super::{
     ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
@@ -23,7 +31,7 @@ pub(super) fn establish(
     target_is_exact: bool,
     mut candidate_targets: Vec<CanonicalPlace>,
     assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
-    refs: &mut HandleSpan<facts::FactRef>,
+    refs: &mut HandleSpan<FactRef>,
 ) {
     // #66 read-narrowing across a write: initializing or assigning any
     // domain-refined declared place ESTABLISHES that destination's domain. The
@@ -42,21 +50,16 @@ pub(super) fn establish(
         StatementNode::Assignment(assignment) => {
             match (
                 program.machine_by_symbol(machine_symbol),
-                validation::find_state_in_machine(program, machine_symbol, state_symbol),
+                find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
-                    validation::field_domains::assignment_target_domain_identities(
-                        program,
-                        machine,
-                        state,
-                        assignment.target,
-                    )
+                    assignment_target_domain_identities(program, machine, state, assignment.target)
                 }
                 _ => Vec::new(),
             }
         }
         StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            validation::field_domains::domain_constraint_identities(program, local.type_reference)
+            domain_constraint_identities(program, local.type_reference)
         }
         _ => Vec::new(),
     };
@@ -65,14 +68,10 @@ pub(super) fn establish(
     // facts before this statement, never these newly seeded predicate facts.
     let declared_target_domains: Vec<_> = declared_target_domains
         .into_iter()
-        .filter(|(symbol, _)| {
-            !validation::field_domains::domain_requires_provenance(program, *symbol)
-        })
+        .filter(|(symbol, _)| !domain_requires_provenance(program, *symbol))
         .collect();
     let membership_fact =
-        |place: PlaceHandle,
-         domain_symbol: SymbolHandle,
-         semantic_domain: language_semantics::SemanticDomainId| Fact {
+        |place: PlaceHandle, domain_symbol: SymbolHandle, semantic_domain: SemanticDomainId| Fact {
             place: FactPlace::Place(place),
             point: ProgramPoint::Statement {
                 machine_symbol,
@@ -110,23 +109,14 @@ pub(super) fn establish(
             }
             StatementNode::Assignment(assignment) => program
                 .machine_by_symbol(machine_symbol)
-                .zip(validation::find_state_in_machine(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                ))
+                .zip(find_state_in_machine(program, machine_symbol, state_symbol))
                 .and_then(|(machine, state)| {
-                    validation::field_domains::assignment_target_type_reference(
-                        program,
-                        machine,
-                        state,
-                        assignment.target,
-                    )
+                    assignment_target_type_reference(program, machine, state, assignment.target)
                 }),
             _ => None,
         };
         if let Some(reference) = declared_type {
-            let rows = validation::field_domains::declared_type_domain_rows(program, reference);
+            let rows = declared_type_domain_rows(program, reference);
             if !rows.is_empty() {
                 let target = semantic.places.get(target_place);
                 let root = target.root;
@@ -137,10 +127,7 @@ pub(super) fn establish(
                 for row in rows {
                     if row.path.is_empty()
                         || row.transfer
-                        || validation::field_domains::domain_requires_provenance(
-                            program,
-                            row.domain_symbol,
-                        )
+                        || domain_requires_provenance(program, row.domain_symbol)
                     {
                         continue;
                     }
@@ -163,7 +150,7 @@ pub(super) fn establish(
         && target_segments.iter().any(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+                PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. }
             )
         })
     {
@@ -204,9 +191,8 @@ pub(super) fn establish(
                             matches!(
                                 (target, candidate),
                                 (
-                                    facts::PlaceSegment::Index { .. }
-                                        | facts::PlaceSegment::FixedIndex { .. },
-                                    facts::PlaceSegment::FixedIndex { .. }
+                                    PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. },
+                                    PlaceSegment::FixedIndex { .. }
                                 )
                             ) || target == candidate
                         })

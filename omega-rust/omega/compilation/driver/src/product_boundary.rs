@@ -566,9 +566,9 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
-fn terminal_cohorts_retain_admitted_products() {
+fn terminal_cohorts_retain_prepared_products() {
     let source = include_str!("terminal/terminal_artifact.rs");
-    assert!(source.contains("struct AdmittedTerminalProduct"));
+    assert!(source.contains("struct PreparedTerminalProduct"));
     assert_absent(
         &[source],
         "cohort reconstructs",
@@ -952,7 +952,7 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
         .split("pub(crate) fn evaluate_default_calling_application(")
         .nth(1)
         .unwrap()
-        .split("pub fn compute_boundary_calling_plans(")
+        .split("pub fn prepare_boundary_calling_plans<")
         .next()
         .unwrap();
     assert_absent(
@@ -989,6 +989,21 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
     assert!(computation.contains("calling.requests()"));
     assert!(computation.contains("signatures.applied_declaration(application)"));
     assert!(computation.contains("calling.bindings(application)"));
+    assert!(computation.contains("admitted_program_machine_closure_symbols("));
+    assert!(!computation.contains("evaluate_machine_symbol_for_invocation_measured("));
+    let callback = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    assert!(callback.contains(".evaluate(realization.policy_symbol, target_profile, &signature)"));
+    assert!(!callback.contains("evaluate_materialized_calling_policy_plan("));
+    let code = include_str!("terminal/calling_policy_code.rs");
+    assert!(code.contains(".calling_policy_code"));
+    assert!(code.contains("TerminalProductionRequest::new("));
+    assert_eq!(code.matches("TerminalProductionRequest::new(").count(), 1);
+    let execution =
+        include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
+    assert!(execution.contains("evaluate_terminal_calling_policy("));
+    assert!(!execution.contains("TerminalProductionRequest"));
     let preparation = include_str!(
         "../../../../psi/compilation/representations/typed-trees/src/service_declarations/signatures/calling_applications.rs"
     );
@@ -1367,7 +1382,10 @@ fn terminal_consumers_call_psi_without_a_product_wrapper() {
         1
     );
     let policy = include_str!("terminal/behavior_exclusions.rs");
-    assert!(policy.contains("impl psi_compiler::TerminalCompositionAdmission"));
+    assert!(policy.contains("pub(super) fn admit("));
+    assert!(product.contains("policy.admit("));
+    assert!(product.contains("produced.roots.into_iter()"));
+    assert!(!product.contains("dyn psi_compiler::TerminalCompositionAdmission"));
 }
 
 #[test]
@@ -1413,17 +1431,23 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 }
 
 #[test]
-fn terminal_composition_admission_owns_the_application_root_loop() {
+fn terminal_composition_admission_follows_canonical_publication() {
     let producer = include_str!(
         "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
     );
-    assert_eq!(producer.matches("application.admit(").count(), 1);
+    assert_eq!(producer.matches("application.prepare_roots(").count(), 1);
+    assert!(!producer.contains("admission.admit("));
+    assert!(!producer.contains("policy.admit("));
     assert!(!producer.contains("retained_source_machine("));
     let composition = include_str!(
-        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
     );
-    assert_eq!(composition.matches("admission.admit(").count(), 1);
-    assert!(composition.contains("admission.admit(&lowered.semantic_module, &mut roots)"));
+    assert!(composition.contains("entry.chain(callbacks).chain(adapter).collect()"));
+    assert!(!composition.contains("admission.admit("));
+    let product = include_str!("terminal/terminal_artifact.rs");
+    let publication = product.find(".into_parts()").unwrap();
+    let admission = product.find("policy.admit(").unwrap();
+    assert!(publication < admission);
     assert!(!composition.contains("for machine in std::iter::once(selection.machine)"));
     let policy = include_str!("terminal/behavior_exclusions.rs");
     assert_eq!(
@@ -1839,7 +1863,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(selection.contains("pub callback_roots: terminal_psi::PreparedTerminalRoots"));
     let custody =
         include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
-    assert!(custody.contains("pub callback_roots: Option<&'a crate::PreparedTerminalRoots>"));
+    assert!(custody.contains("pub composition: Option<crate::TerminalCompositionRoots<'a>>"));
     assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
     let preparation = include_str!(
         "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
@@ -1877,7 +1901,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(declarations.contains("usage.selected_actual_envelope"));
     assert!(declarations.contains("usage.callback_entry.map("));
     let admission = include_str!(
-        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
     );
     assert!(admission.contains("entry.chain(callbacks).chain(adapter)"));
     assert!(admission.contains("roots.retained_roots(&lowered.semantic_module)"));

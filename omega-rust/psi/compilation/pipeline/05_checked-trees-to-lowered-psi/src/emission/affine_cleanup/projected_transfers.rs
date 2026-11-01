@@ -9,6 +9,7 @@
 //! transferred subtree to make the remaining partition fit.
 use super::{LoweringError, block_position, unsupported};
 use crate::call_operands::structural_arguments;
+use crate::lowering_error::ProjectedCustodyObservation;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
@@ -489,17 +490,15 @@ fn observe(
             place, observation, ..
         } = &mut error
         {
-            *observation = Some(Box::new(
-                crate::lowering_error::ProjectedCustodyObservation {
-                    operation: operation.id,
-                    kind,
-                    root_declarations: roots
-                        .iter()
-                        .filter(|(root, _)| root == place)
-                        .map(|(_, structural_type)| *structural_type)
-                        .collect(),
-                },
-            ));
+            *observation = Some(Box::new(ProjectedCustodyObservation {
+                operation: operation.id,
+                kind,
+                root_declarations: roots
+                    .iter()
+                    .filter(|(root, _)| root == place)
+                    .map(|(_, structural_type)| *structural_type)
+                    .collect(),
+            }));
         }
         error
     })

@@ -13,6 +13,7 @@ use providers;
 // native handle and the Windows message buffer throughout the render loop.
 public boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires title[10] == 0
         reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +

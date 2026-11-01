@@ -105,7 +105,7 @@ impl TypedTrees {
             let arguments = application
                 .arguments
                 .iter()
-                .map(|argument| self.static_operand_type_reference(argument))
+                .map(|argument| self.static_operand_type_reference_in_scope(argument, owner))
                 .collect::<Result<Vec<_>, _>>()?;
             let lifetimes = application
                 .lifetime_arguments

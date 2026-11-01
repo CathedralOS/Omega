@@ -3,6 +3,9 @@
 //! bitwise and immediate-LEA encoding, and mutation rejection.
 
 use super::*;
+use crate::selected_form_encoding::{
+    MachineAlternativeFamily as Family, SelectedInstructionKind as Kind,
+};
 
 #[test]
 fn scalar_call_is_explicitly_refused_before_encoding() {
@@ -10,12 +13,12 @@ fn scalar_call_is_explicitly_refused_before_encoding() {
     assert_eq!(
         encode_x86_64_selected_form(
             &physical,
-            SelectedInstructionKind::CallScalar {
+            Kind::CallScalar {
                 target: selected_instructions::SelectedCallTarget::Machine(
                     MachineId::new(1).unwrap()
                 ),
             },
-            alternative(MachineAlternativeFamily::ReturnUnit, 0),
+            alternative(Family::ReturnUnit, 0),
             &[],
         ),
         Err(X86_64SelectedFormEncodingError::LayoutDependentForm),
@@ -23,8 +26,8 @@ fn scalar_call_is_explicitly_refused_before_encoding() {
 }
 
 fn for_zero_extend(
-    kind: SelectedInstructionKind,
-    family: MachineAlternativeFamily,
+    kind: Kind,
+    family: Family,
     byte_length: usize,
     mut inspect: impl FnMut(&ValidatedPhysicalRegisterModel, &[RegisterViewId], &[u8]),
 ) {
@@ -49,8 +52,8 @@ fn for_zero_extend(
             .unwrap();
             let copy = encode_x86_64_selected_form(
                 &physical,
-                SelectedInstructionKind::CopyI64,
-                alternative(MachineAlternativeFamily::CopyI64, 0),
+                Kind::CopyI64,
+                alternative(Family::CopyI64, 0),
                 &operands,
             )
             .unwrap();
@@ -78,21 +81,16 @@ fn for_zero_extend(
 
 #[test]
 fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
-    for_zero_extend(
-        SelectedInstructionKind::ZeroExtendU8,
-        MachineAlternativeFamily::ZeroExtendU8,
-        4,
-        |_, _, _| {},
-    );
+    for_zero_extend(Kind::ZeroExtendU8, Family::ZeroExtendU8, 4, |_, _, _| {});
 }
 
 #[test]
 fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
-    let kind = SelectedInstructionKind::ZeroExtendU32;
-    let key = alternative(MachineAlternativeFamily::ZeroExtendU32, 0);
+    let kind = Kind::ZeroExtendU32;
+    let key = alternative(Family::ZeroExtendU32, 0);
     for_zero_extend(
         kind,
-        MachineAlternativeFamily::ZeroExtendU32,
+        Family::ZeroExtendU32,
         3,
         |physical, operands, bytes| {
             // A 32-bit MOV writes the full parent register with zero upper bits.
@@ -100,8 +98,8 @@ fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
             assert_eq!(bytes[1], 0x89);
             let narrow = encode_x86_64_selected_form(
                 physical,
-                SelectedInstructionKind::ZeroExtendU8,
-                alternative(MachineAlternativeFamily::ZeroExtendU8, 0),
+                Kind::ZeroExtendU8,
+                alternative(Family::ZeroExtendU8, 0),
                 operands,
             )
             .unwrap();
@@ -127,7 +125,7 @@ fn r12_is_a_valid_rex_extended_sib_index() {
     let encoded = encode_x86_64_selected_form(
         &physical,
         exact_add(),
-        alternative(MachineAlternativeFamily::ExactAddI64, 0),
+        alternative(Family::ExactAddI64, 0),
         &[r12, r12, rax],
     )
     .unwrap();
@@ -141,19 +139,15 @@ fn compare_i64_is_canonical_register_cmp_with_exact_footprint() {
     let rbx = physical.model().view_named("rbx").unwrap().id;
     let r8 = physical.model().view_named("r8").unwrap().id;
     let r9 = physical.model().view_named("r9").unwrap().id;
-    let alternative = alternative(MachineAlternativeFamily::CompareI64, 0);
+    let alternative = alternative(Family::CompareI64, 0);
     for (operands, expected) in [
         ([rax, rbx], [0x48, 0x39, 0xd8]),
         ([r8, r9], [0x4d, 0x39, 0xc8]),
         ([rax, rax], [0x48, 0x39, 0xc0]),
     ] {
-        let encoded = encode_x86_64_selected_form(
-            &physical,
-            SelectedInstructionKind::CompareI64,
-            alternative,
-            &operands,
-        )
-        .unwrap();
+        let encoded =
+            encode_x86_64_selected_form(&physical, Kind::CompareI64, alternative, &operands)
+                .unwrap();
         assert_eq!(encoded.bytes(), expected);
         assert_eq!(encoded.footprint().register_reads, operands);
         assert!(encoded.footprint().register_writes.is_empty());
@@ -167,13 +161,13 @@ fn compare_i64_immediate_is_canonical_cmp_imm32_with_exact_footprint() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let rax = physical.model().view_named("rax").unwrap().id;
     let r12 = physical.model().view_named("r12").unwrap().id;
-    let alternative = alternative(MachineAlternativeFamily::CompareI64Immediate, 0);
+    let alternative = alternative(Family::CompareI64Immediate, 0);
     for (operand, immediate, expected) in [
         (rax, 0, [0x48, 0x81, 0xf8, 0x00, 0x00, 0x00, 0x00]),
         (rax, 4095, [0x48, 0x81, 0xf8, 0xff, 0x0f, 0x00, 0x00]),
         (r12, 4095, [0x49, 0x81, 0xfc, 0xff, 0x0f, 0x00, 0x00]),
     ] {
-        let kind = SelectedInstructionKind::CompareI64Immediate {
+        let kind = Kind::CompareI64Immediate {
             immediate: IntegerValue::Unsigned(immediate),
         };
         let encoded =
@@ -210,7 +204,7 @@ fn compare_i64_immediate_is_canonical_cmp_imm32_with_exact_footprint() {
         );
     }
     for immediate in [IntegerValue::Unsigned(4096), IntegerValue::Signed(-1)] {
-        let kind = SelectedInstructionKind::CompareI64Immediate { immediate };
+        let kind = Kind::CompareI64Immediate { immediate };
         assert!(encode_x86_64_selected_form(&physical, kind, alternative, &[rax]).is_err());
     }
 }
@@ -221,10 +215,10 @@ fn scalar_sizes_and_subtraction_alias_partitions_are_exact() {
     let views = ["rax", "rbx", "rcx"].map(|name| physical.model().view_named(name).unwrap().id);
     let materialize = encode_x86_64_selected_form(
         &physical,
-        SelectedInstructionKind::MaterializeI64 {
+        Kind::MaterializeI64 {
             value: IntegerValue::Signed(-1),
         },
-        alternative(MachineAlternativeFamily::MaterializeI64, 0),
+        alternative(Family::MaterializeI64, 0),
         &views[..1],
     )
     .unwrap();
@@ -235,14 +229,14 @@ fn scalar_sizes_and_subtraction_alias_partitions_are_exact() {
         ([views[0], views[1], views[1]], 2, 6),
         ([views[0], views[1], views[2]], 3, 6),
     ] {
-        let kind = SelectedInstructionKind::ExactSubtractI64 {
+        let kind = Kind::ExactSubtractI64 {
             obligation: ObligationId::new(2).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([4; 32]),
         };
         let encoded = encode_x86_64_selected_form(
             &physical,
             kind,
-            alternative(MachineAlternativeFamily::ExactSubtractI64, variant),
+            alternative(Family::ExactSubtractI64, variant),
             &homes,
         )
         .unwrap();
@@ -253,7 +247,7 @@ fn scalar_sizes_and_subtraction_alias_partitions_are_exact() {
             validate_x86_64_selected_form_encoding(
                 &physical,
                 kind,
-                alternative(MachineAlternativeFamily::ExactSubtractI64, variant),
+                alternative(Family::ExactSubtractI64, variant),
                 &homes,
                 &corrupted,
             )
@@ -266,7 +260,7 @@ fn scalar_sizes_and_subtraction_alias_partitions_are_exact() {
 fn exact_multiply_alias_partitions_encode_and_decode() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let views = ["rax", "rbx", "rcx"].map(|name| physical.model().view_named(name).unwrap().id);
-    let kind = SelectedInstructionKind::ExactMultiplyI64 {
+    let kind = Kind::ExactMultiplyI64 {
         obligation: ObligationId::new(2).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([4; 32]),
     };
@@ -276,7 +270,7 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
         ([views[0], views[1], views[1]], 2, 4),
         ([views[0], views[1], views[2]], 3, 7),
     ] {
-        let key = alternative(MachineAlternativeFamily::ExactMultiplyI64, variant);
+        let key = alternative(Family::ExactMultiplyI64, variant);
         let encoded = encode_x86_64_selected_form(&physical, kind, key, &homes).unwrap();
         assert_eq!(encoded.bytes().len(), size);
         let decoded =
@@ -301,7 +295,7 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
     let encoded = encode_x86_64_selected_form(
         &physical,
         kind,
-        alternative(MachineAlternativeFamily::ExactMultiplyI64, 3),
+        alternative(Family::ExactMultiplyI64, 3),
         &homes,
     )
     .unwrap();
@@ -309,7 +303,7 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
         validate_x86_64_selected_form_encoding(
             &physical,
             kind,
-            alternative(MachineAlternativeFamily::ExactMultiplyI64, 0),
+            alternative(Family::ExactMultiplyI64, 0),
             &homes,
             encoded.bytes(),
         )
@@ -321,8 +315,8 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
 fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let views = ["rax", "r9", "r12"].map(|name| physical.model().view_named(name).unwrap().id);
-    let kind = SelectedInstructionKind::WrappingAddI64;
-    let key = alternative(MachineAlternativeFamily::WrappingAddI64, 0);
+    let kind = Kind::WrappingAddI64;
+    let key = alternative(Family::WrappingAddI64, 0);
     for left in views {
         for right in views {
             for output in views {
@@ -351,7 +345,7 @@ fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
                     encode_x86_64_selected_form(
                         &physical,
                         kind,
-                        alternative(MachineAlternativeFamily::ExactAddI64, 0),
+                        alternative(Family::ExactAddI64, 0),
                         &operands
                     )
                     .is_err()
@@ -360,7 +354,7 @@ fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
                     validate_x86_64_selected_form_encoding(
                         &physical,
                         kind,
-                        alternative(MachineAlternativeFamily::ExactAddI64, 0),
+                        alternative(Family::ExactAddI64, 0),
                         &operands,
                         encoded.bytes()
                     )
@@ -376,16 +370,8 @@ fn bitwise_operations_preserve_aliases_and_reject_opcode_corruption() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let views = ["rax", "r9", "r12"].map(|name| physical.model().view_named(name).unwrap().id);
     for (kind, family, expected_opcode) in [
-        (
-            SelectedInstructionKind::BitwiseAndI64,
-            MachineAlternativeFamily::BitwiseAndI64,
-            0x21,
-        ),
-        (
-            SelectedInstructionKind::BitwiseXorI64,
-            MachineAlternativeFamily::BitwiseXorI64,
-            0x31,
-        ),
+        (Kind::BitwiseAndI64, Family::BitwiseAndI64, 0x21),
+        (Kind::BitwiseXorI64, Family::BitwiseXorI64, 0x31),
     ] {
         let alternative = alternative(family, 0);
         for left in views {
@@ -447,7 +433,7 @@ fn immediate_lea_uses_declared_size_extremes() {
     let r12 = physical.model().view_named("r12").unwrap().id;
     let fact = AcceptedObligationFactIdentity::from_bytes([5; 32]);
     for (base, immediate, size) in [(rax, 0, 4), (rax, 4095, 7), (r12, 0, 5), (r12, 4095, 8)] {
-        let kind = SelectedInstructionKind::ExactAddI64Immediate {
+        let kind = Kind::ExactAddI64Immediate {
             immediate: IntegerValue::Unsigned(immediate),
             obligation: ObligationId::new(3).unwrap(),
             accepted_fact: fact,
@@ -455,7 +441,7 @@ fn immediate_lea_uses_declared_size_extremes() {
         let encoded = encode_x86_64_selected_form(
             &physical,
             kind,
-            alternative(MachineAlternativeFamily::ExactAddI64Immediate, 0),
+            alternative(Family::ExactAddI64Immediate, 0),
             &[base, rax],
         )
         .unwrap();
@@ -479,12 +465,12 @@ fn subtract_immediate_lea_is_negative_canonical_and_flag_transparent() {
             vec![0x49, 0x8d, 0x84, 0x24, 0x01, 0xf0, 0xff, 0xff],
         ),
     ] {
-        let kind = SelectedInstructionKind::ExactSubtractI64Immediate {
+        let kind = Kind::ExactSubtractI64Immediate {
             immediate: IntegerValue::Unsigned(immediate),
             obligation: ObligationId::new(4).unwrap(),
             accepted_fact: fact,
         };
-        let alternative = alternative(MachineAlternativeFamily::ExactSubtractI64Immediate, 0);
+        let alternative = alternative(Family::ExactSubtractI64Immediate, 0);
         let encoded =
             encode_x86_64_selected_form(&physical, kind, alternative, &[base, rax]).unwrap();
         assert_eq!(encoded.bytes(), expected);
@@ -514,10 +500,10 @@ fn subtract_immediate_lea_is_negative_canonical_and_flag_transparent() {
 #[test]
 fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let zero = SelectedInstructionKind::MaterializeI64 {
+    let zero = Kind::MaterializeI64 {
         value: IntegerValue::Unsigned(0),
     };
-    let xor_zero = alternative(MachineAlternativeFamily::MaterializeI64, 1);
+    let xor_zero = alternative(Family::MaterializeI64, 1);
     for (name, bytes) in [
         ("rax", [0x48, 0x31, 0xc0]),
         ("rdi", [0x48, 0x31, 0xff]),
@@ -538,7 +524,7 @@ fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
             .unwrap();
         // The baseline ten-byte move is not the variant-one form and the
         // variant-one bytes are not the baseline.
-        let baseline = alternative(MachineAlternativeFamily::MaterializeI64, 0);
+        let baseline = alternative(Family::MaterializeI64, 0);
         let moved = encode_x86_64_selected_form(&physical, zero, baseline, &destination).unwrap();
         assert_eq!(moved.bytes().len(), 10);
         assert!(!moved.footprint().writes_rflags);
@@ -573,7 +559,7 @@ fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
         assert_eq!(
             encode_x86_64_selected_form(
                 &physical,
-                SelectedInstructionKind::MaterializeI64 { value },
+                Kind::MaterializeI64 { value },
                 xor_zero,
                 &destination,
             ),

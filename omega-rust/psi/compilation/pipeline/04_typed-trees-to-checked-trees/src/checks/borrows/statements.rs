@@ -1,3 +1,12 @@
+use crate::borrow::argument_borrow_loan_place;
+use crate::borrow::calls::replaces_reference_loan;
+use crate::borrow::view_link::substituted_result_is_view_free;
+use crate::checks::ownership_occurrences::SelectedEvaluation;
+use crate::checks::ownership_occurrences::statement_steps;
+use crate::collections::push_unique;
+use crate::flow::FlowOwnershipEventSource;
+use crate::flow::call_flows;
+use crate::flow::shared_call_frames_or;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use validation::find_state_in_machine;
@@ -87,7 +96,7 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 let establishing = facts.borrow.calls.get(loan.established_by_call);
-                let mut actual = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+                let mut actual = call_flows(&facts.flow.control, state_flow.calls)
                     .iter()
                     .filter(|call| {
                         call.statement_index == statement.statement_index
@@ -206,8 +215,8 @@ pub(super) fn check_statement_borrows<'p>(
             .flow
             .borrow_loan_constraints(statement.entry_constraints)
             .collect::<Vec<_>>();
-        let mut selected = crate::checks::ownership_occurrences::SelectedEvaluation::new();
-        let occurrences = crate::checks::ownership_occurrences::statement_steps(
+        let mut selected = SelectedEvaluation::new();
+        let occurrences = statement_steps(
             program,
             machine,
             state,
@@ -301,15 +310,10 @@ pub(super) fn check_statement_borrows<'p>(
                         })
                     {
                         current_loans.retain(|loan| {
-                            !crate::borrow::calls::replaces_reference_loan(
-                                program,
-                                &facts.borrow,
-                                call,
-                                *loan,
-                            )
+                            !replaces_reference_loan(program, &facts.borrow, call, *loan)
                         });
                         for handle in call.completed_reference_loans.handles() {
-                            crate::collections::push_unique(&mut current_loans, handle);
+                            push_unique(&mut current_loans, handle);
                         }
                     }
                     for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
@@ -317,7 +321,7 @@ pub(super) fn check_statement_borrows<'p>(
                             && !loan.established_by_call.is_valid()
                             && loan.formation_expression == *expression
                     }) {
-                        crate::collections::push_unique(&mut current_loans, handle);
+                        push_unique(&mut current_loans, handle);
                     }
                 }
                 StatementStep::Move {
@@ -342,10 +346,7 @@ pub(super) fn check_statement_borrows<'p>(
                     // Call transfers use their own checked occurrence and
                     // argument authority; production targets have no operand.
                     if !event.expression.is_valid()
-                        || !matches!(
-                            event.source,
-                            crate::flow::FlowOwnershipEventSource::Statement { .. }
-                        )
+                        || !matches!(event.source, FlowOwnershipEventSource::Statement { .. })
                     {
                         continue;
                     }
@@ -381,7 +382,7 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
         let mut owned_frames = None;
-        let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
+        let frames = shared_call_frames_or(call_frames, program, &mut owned_frames);
         let binding_replacement = frames.is_some_and(|frames| {
             frames.assignment_replaces_reference_binding(machine, statement_node) == Some(true)
         });
@@ -732,9 +733,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             validation::expression_result_type_reference(program, machine, source, *argument)?;
         if [parameter.type_reference, actual]
             .into_iter()
-            .all(|reference| {
-                crate::borrow::view_link::substituted_result_is_view_free(program, reference, &[])
-            })
+            .all(|reference| substituted_result_is_view_free(program, reference, &[]))
         {
             continue;
         }
@@ -750,7 +749,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
                 return None;
             };
         }
-        let place = crate::borrow::argument_borrow_loan_place(
+        let place = argument_borrow_loan_place(
             program,
             source.symbol,
             call.statement_index,
@@ -771,18 +770,16 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             };
         } else {
             let (_, local) = program.state_local_declaration(source, root)?;
-            if !crate::borrow::view_link::substituted_result_is_view_free(
-                program,
-                local.type_reference,
-                &[],
-            ) || !call_frames?.local_backing_survives_state_jump(
-                machine,
-                source,
-                call.statement_index,
-                target,
-                arguments,
-                root,
-            ) {
+            if !substituted_result_is_view_free(program, local.type_reference, &[])
+                || !call_frames?.local_backing_survives_state_jump(
+                    machine,
+                    source,
+                    call.statement_index,
+                    target,
+                    arguments,
+                    root,
+                )
+            {
                 return None;
             }
         }

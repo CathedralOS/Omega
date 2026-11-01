@@ -2,7 +2,7 @@
 
 use crate::{AbstractFunctionResult, AbstractOperation, AbstractParameter};
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, ServiceId, StructuralTypeId};
-use terminal_psi::{EntryClaim, StructuralParameterDeclaration};
+use terminal_psi::{EntryClaim, StructuralParameterDeclaration as ParameterDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractFunction {
@@ -13,7 +13,7 @@ pub struct AbstractFunction {
     pub entry: BlockId,
     /// Runtime values supplied by the caller, in declared terminal-Psi order.
     pub parameters: Vec<AbstractParameter>,
-    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub structural_parameters: Vec<ParameterDeclaration>,
     pub result: AbstractFunctionResult,
     /// Generic live claims supplied by the caller/root installation.
     pub entry_claims: Vec<EntryClaim>,
@@ -36,11 +36,8 @@ macro_rules! structural_parameter_accessor {
     ($name:ty) => {
         impl $name {
             /// The structural parameter arriving at `place`, when declared.
-            pub fn structural_parameter(
-                &self,
-                place: PlaceId,
-            ) -> Option<&StructuralParameterDeclaration> {
-                StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
+            pub fn structural_parameter(&self, place: PlaceId) -> Option<&ParameterDeclaration> {
+                ParameterDeclaration::find_by_place(&self.structural_parameters, place)
             }
         }
     };
@@ -55,18 +52,13 @@ impl AbstractFunction {
     }
 
     /// Every block entry's structural parameters, in block order.
-    pub fn block_structural_parameters(
-        &self,
-    ) -> impl Iterator<Item = &StructuralParameterDeclaration> + '_ {
+    pub fn block_structural_parameters(&self) -> impl Iterator<Item = &ParameterDeclaration> + '_ {
         self.block_entries
             .iter()
             .flat_map(|entry| &entry.structural_parameters)
     }
     /// The block structural parameter keyed `place`, when any entry declares it.
-    pub fn block_structural_parameter(
-        &self,
-        place: PlaceId,
-    ) -> Option<&StructuralParameterDeclaration> {
+    pub fn block_structural_parameter(&self, place: PlaceId) -> Option<&ParameterDeclaration> {
         self.block_structural_parameters()
             .find(|parameter| parameter.place == place)
     }
@@ -81,7 +73,7 @@ impl AbstractFunction {
     /// state parameter receives a new place. Storage operations must resolve
     /// both through this query, then check access, multiplicity and qualifications;
     /// consulting only the entrance roster makes equivalent programs disagree.
-    pub fn arrival_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
+    pub fn arrival_parameter(&self, place: PlaceId) -> Option<&ParameterDeclaration> {
         let mut found = None;
         for parameter in self
             .structural_parameters
@@ -119,7 +111,7 @@ impl AbstractBlockEntry {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractBlockEntry {
     pub block: BlockId,
-    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub structural_parameters: Vec<ParameterDeclaration>,
     /// Scalar parameters in canonical Terminal-Psi declaration order. This is
     /// retained independently of incoming bindings so entry and otherwise
     /// unreferenced declarations cannot disappear during lowering.

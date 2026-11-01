@@ -3,6 +3,7 @@ use super::{
     HostedEntryStorage, HostedReceiverBinding, finish_receiver_shim, invalid,
     recipe_index_for_runtime_position,
 };
+use crate::hosted_unit_entry::EntrySurface::WindowsReceiver;
 use diagnostics::Diagnostic;
 use object_file::{ObjectPlan, ObjectSymbolHandle};
 
@@ -163,9 +164,7 @@ pub(super) fn prepare(
         &bytes,
         "omega_windows_x86_64_installed_entry_ram",
         &fields,
-        |symbol, offset| {
-            crate::hosted_unit_entry::EntrySurface::WindowsReceiver.shim(symbol, offset)
-        },
+        |symbol, offset| WindowsReceiver.shim(symbol, offset),
     )
 }
 fn pointer(

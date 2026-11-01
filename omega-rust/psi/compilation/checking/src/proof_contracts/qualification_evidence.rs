@@ -1,3 +1,4 @@
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::value_custody::places::unwrapped_type_reference;
 use crate::value_custody::type_references::type_references_match;
@@ -31,7 +32,7 @@ pub struct BoundaryQualificationObligation {
 /// may refute completed predicates or form exact postcondition operands; these
 /// obligations grant no body assumption, ordinary-call guarantee or supply.
 pub fn boundary_provider_qualification_obligations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<BoundaryQualificationObligation> {
     use typed_trees::trait_definition::AppliedTraitScope;
@@ -158,17 +159,14 @@ pub fn boundary_provider_qualification_obligations(
 }
 
 pub(crate) fn validate_qualification_authorization(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_boundary_requirements(program, diagnostics);
     validate_external_machine_claims(program, diagnostics);
 }
 
-fn validate_boundary_requirements(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+fn validate_boundary_requirements(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for trait_definition in program
         .traits()
         .iter()
@@ -189,11 +187,7 @@ fn validate_boundary_requirements(
                         membership.domain,
                     ) {
                         if !expression_table(program).names_reserved_result(membership.value)
-                            && !expression_is_mutable_parameter(
-                                program,
-                                signature,
-                                membership.value,
-                            )
+                            && mutable_parameter(program, signature, membership.value).is_none()
                         {
                             diagnostics.push(Diagnostic::error(format!(
                                 "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result` or an exact mutable parameter",
@@ -265,7 +259,7 @@ fn validate_boundary_requirements(
 /// parameters, but this must not widen ordinary generic matching: runtime type
 /// arguments still require exact normalized identity.
 fn lifetime_erased_nominal_carriers_match(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     application: typed_trees::types::TypeReferenceHandle,
     nominal: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -297,7 +291,7 @@ fn lifetime_erased_nominal_carriers_match(
 }
 
 fn validate_external_machine_claims(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines().iter().filter(|machine| {
@@ -353,16 +347,8 @@ fn validate_external_machine_claims(
 /// provider mints the membership into caller storage it borrows mutably, the
 /// out-parameter direction of `ensures result in D`. Immutable parameters
 /// stay caller premises — nothing may establish into them.
-fn expression_is_mutable_parameter(
-    program: &dyn crate::CheckingInput,
-    signature: &typed_trees::signature::StateSignature,
-    expression: ExpressionHandle,
-) -> bool {
-    mutable_parameter(program, signature, expression).is_some()
-}
-
 fn mutable_parameter<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     signature: &'a typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<&'a typed_trees::signature::StateParameter> {
@@ -379,7 +365,7 @@ fn mutable_parameter<'a>(
 /// constraints) lets the provider write caller storage. An owned `mut`
 /// binding dies with the callee, so its ensures cannot mint caller claims.
 fn is_mutable_reference(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -398,7 +384,7 @@ fn is_mutable_reference(
 /// Declaration refinement and occurrence evidence use the same classification;
 /// only the selected admitted crossing may originate the resulting authority.
 pub fn boundary_qualification_authorization(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner_symbol: SymbolHandle,
     signature: &StateSignature,
     contract_kind: SignatureContractKind,
@@ -468,7 +454,7 @@ pub fn boundary_qualification_authorization(
 /// slot is erased from the semantic identity, so both sides compare by head
 /// nominal when no runtime generic arguments remain.
 fn return_type_matches_domain_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     return_type: TypeReferenceHandle,
     domain_target: TypeReferenceHandle,
 ) -> bool {
@@ -487,7 +473,7 @@ fn return_type_matches_domain_target(
 }
 
 fn nominal_head_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let unwrapped = program.unwrapped_type_reference(type_reference)?;

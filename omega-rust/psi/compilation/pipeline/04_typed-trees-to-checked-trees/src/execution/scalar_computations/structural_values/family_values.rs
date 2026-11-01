@@ -4,6 +4,7 @@
 use super::super::{
     Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, TypeReferenceNode,
 };
+use super::value_predicates::structural_carriers_match;
 use super::value_predicates::{zeroed_integer_literal, zeroed_scalar_array_parts};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
@@ -336,11 +337,7 @@ impl Builder<'_, '_> {
             .program
             .closed_data_definition(constructor.type_reference)?
             .symbol;
-        if !super::value_predicates::structural_carriers_match(
-            self.program,
-            constructor.type_reference,
-            expected,
-        ) {
+        if !structural_carriers_match(self.program, constructor.type_reference, expected) {
             return None;
         }
         let mut fields = Vec::with_capacity(constructor.fields.len());

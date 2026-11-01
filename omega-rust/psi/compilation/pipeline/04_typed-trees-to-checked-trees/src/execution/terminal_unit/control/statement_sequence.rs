@@ -47,44 +47,41 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 use std::ops::Bound;
 
 mod assignments;
-pub(in crate::execution::terminal_unit) mod bounded_byte_values;
+pub(in super::super) mod bounded_byte_values;
 mod completion;
 mod local_data;
 mod reference_retirement;
 mod result_consumption;
 mod statement_call;
 mod storage_initializer;
-pub(in crate::execution::terminal_unit) use result_consumption::{
+pub(in super::super) use result_consumption::{
     append_exit_reference_releases, append_reference_releases, captured_reference_result,
     consume_result, consume_results, consume_retained_results, prepare_value_operands,
     release_matches,
 };
 
-pub(in crate::execution::terminal_unit) struct StatementSequence {
-    pub(in crate::execution::terminal_unit) scalar_result:
-        Option<CheckedUnitScalarResultBindingPlan>,
-    pub(in crate::execution::terminal_unit) scalar_control:
-        Option<checked_trees::CheckedUnitScalarControlPlan>,
-    pub(in crate::execution::terminal_unit) structural_result:
-        Option<CheckedUnitStructuralReturnPlan>,
-    pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
+pub(in super::super) struct StatementSequence {
+    pub(in super::super) scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
+    pub(in super::super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
+    pub(in super::super) structural_result: Option<CheckedUnitStructuralReturnPlan>,
+    pub(in super::super) operations: Vec<CheckedUnitEffectOperationPlan>,
     /// Exact restoration debt at the end of the operation prefix. Its exit
     /// owner requires closure for normal completion, not crash abandonment.
-    pub(in crate::execution::terminal_unit) windows: super::super::borrowed_windows::OpenWindows,
+    pub(in super::super) windows: super::super::borrowed_windows::OpenWindows,
     /// Every silent place loan the sequence admitted, in statement order.
-    pub(in crate::execution::terminal_unit) place_loans: Vec<checked_trees::CheckedPlaceLoanPlan>,
-    pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
+    pub(in super::super) place_loans: Vec<checked_trees::CheckedPlaceLoanPlan>,
+    pub(in super::super) structural_local_symbols: Vec<SymbolHandle>,
     /// Every structural result binding the sequence established, keyed by
     /// the authored root it publishes (a `let` local's symbol or an
     /// anonymous operand's expression). A state's successor edges plan their
     /// own operand calls against these, as a later statement's call would.
-    pub(in crate::execution::terminal_unit) structural_results:
+    pub(in super::super) structural_results:
         Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
     /// The dense scalar binding ordinal the next retained result takes after
     /// this sequence: the prefix's immutable bindings, then every scalar
     /// result the sequence retained. A guarded arm's terminal call result
     /// numbers here, in the namespace its arm inherits.
-    pub(in crate::execution::terminal_unit) next_scalar_binding: usize,
+    pub(in super::super) next_scalar_binding: usize,
 }
 
 /// The construction context every statement producer reads and extends: the
@@ -96,7 +93,7 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
 /// own planner and `build` staged it again at every dispatch site; the prefix
 /// is identical for all of them, so one owner carries it and each producer's
 /// remaining fields name only the ledger its statement kind extends.
-pub(in crate::execution::terminal_unit) struct Construction<'a, 'program, 'shapes> {
+pub(in super::super) struct Construction<'a, 'program, 'shapes> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleeClosure,
@@ -172,14 +169,6 @@ fn erased_alias_locals(
     erased
 }
 
-/// A record pattern's marker (`let __destructure#x#y = self.pair;`) carries
-/// only the spelled field set validation checks for exhaustiveness. The
-/// pattern's bindings are its per-field locals, each an ordinary re-read of
-/// the same place, so the marker declares no storage and plans no operation.
-fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
-    local.role == language_core::LocalBindingRole::RecordPattern
-}
-
 /// A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
 /// arm's transition; the arm, not the sequence, binds its fields.
 fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
@@ -197,7 +186,7 @@ fn statement_call_target(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn build(
+pub(in super::super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
@@ -750,7 +739,7 @@ pub(in crate::execution::terminal_unit) fn build(
 /// scalar-control plan wraps the same terminator with its primitive carrier;
 /// structural result machines ask the predicate directly so a transition-only
 /// body counts as producing its result at the terminator.
-pub(in crate::execution::terminal_unit) fn returning_terminator(
+pub(in super::super) fn returning_terminator(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -845,7 +834,7 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
     returning_tail.then_some((terminator, prefix_count))
 }
 
-pub(in crate::execution::terminal_unit) fn scalar_control(
+pub(in super::super) fn scalar_control(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,

@@ -4,7 +4,9 @@
 //! parameter obligations to actual ordinary calls (including terminal calls),
 //! preserving source coordinates and the original address. A cycle needs real
 //! backing, and opaque ingress never becomes a native-width assumption.
+use super::reference_input::{borrowed_scalar_source, root_type};
 use crate::SelectedInstructionError;
+use crate::structural_inputs::structural_reference_input::projected_scalar_codec;
 use legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
     LegalizedScalarInstructionKind as I, LegalizedScalarTerminator as T,
@@ -119,17 +121,15 @@ impl<'program> ForeignScalarBackings<'program> {
                 let declaration = signature
                     .structural_place(origin.place)
                     .ok_or_else(SelectedInstructionError::custody)?;
-                let pointer_ingress =
-                    super::reference_input::borrowed_scalar_source(function, origin.place)
-                        .is_some()
-                        || origin
-                            .path
-                            .contains(&terminal_psi::StructuralPathSegment::Referent);
+                let pointer_ingress = borrowed_scalar_source(function, origin.place).is_some()
+                    || origin
+                        .path
+                        .contains(&terminal_psi::StructuralPathSegment::Referent);
                 // Preserve exact declaration-local storage geometry (including
                 // fields of borrowed records). Only a scalar descriptor or an
                 // actual pointer crossing has an unknown incoming codec.
                 if !pointer_ingress {
-                    let root = super::reference_input::root_type(function, origin.place)
+                    let root = root_type(function, origin.place)
                         .ok_or_else(SelectedInstructionError::custody)?;
                     let footprint = inline_footprint(function, root, &origin.path);
                     if let Some(actual) = footprint {
@@ -240,11 +240,7 @@ fn inline_footprint(
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<u32> {
     let signature = function.structural.as_ref()?;
-    let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-        root,
-        path,
-        &signature.structural_types,
-    );
+    let codec = projected_scalar_codec(root, path, &signature.structural_types);
     if let Some(codec) = codec {
         return Some(u32::from(codec.byte_size()));
     }
@@ -258,10 +254,6 @@ fn inline_footprint(
     else {
         return None;
     };
-    crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-        element,
-        &[],
-        &signature.structural_types,
-    )
-    .map(|codec| u32::from(codec.byte_size()))
+    projected_scalar_codec(element, &[], &signature.structural_types)
+        .map(|codec| u32::from(codec.byte_size()))
 }

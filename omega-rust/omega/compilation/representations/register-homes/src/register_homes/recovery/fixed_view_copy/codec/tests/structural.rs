@@ -1,7 +1,6 @@
 //! Ordinary structural metadata and envelope custody.
 mod placement;
-use super::plan;
-use super::selected_payload_offset;
+use super::{plan, selected_payload_offset};
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
@@ -13,6 +12,8 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{MachineId, ObligationId, OperationId, PlaceId};
 
+use crate::digest_encoder::content_identity;
+use optimization_core::AcceptedObligationFactIdentity;
 use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 fn call_plan(clobbers: &[MachineRegister], shadow_bytes: u16) -> CallPlan {
     CallPlan {
@@ -173,9 +174,7 @@ fn activation_local_roster_and_memory_roles_round_trip() {
                 value: semantic_vocabulary::ValueId::new(67).unwrap(),
                 length: semantic_vocabulary::ValueId::new(71).unwrap(),
                 obligation: ObligationId::new(73).unwrap(),
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    [79; 32],
-                ),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([79; 32]),
             },
             1,
         ),
@@ -439,7 +438,7 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     let mut payload_and_digest_tamper = encoded;
     payload_and_digest_tamper[matches[0]..matches[0] + 2]
         .copy_from_slice(&0x4568_u16.to_le_bytes());
-    let payload_digest = <[u8; 32]>::from(crate::digest_encoder::content_identity(
+    let payload_digest = <[u8; 32]>::from(content_identity(
         &payload_and_digest_tamper[payload_offset..],
     ));
     payload_and_digest_tamper[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
@@ -459,9 +458,7 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     assert_eq!(matches.len(), 1, "call clobber marker must be unique");
     let mut noncanonical = plan.encode().unwrap();
     noncanonical[matches[0] + 8..matches[0] + 12].copy_from_slice(&[1, 0, 0, 0]);
-    let payload_digest = <[u8; 32]>::from(crate::digest_encoder::content_identity(
-        &noncanonical[payload_offset..],
-    ));
+    let payload_digest = <[u8; 32]>::from(content_identity(&noncanonical[payload_offset..]));
     noncanonical[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
     assert_eq!(
         FixedViewCopyPlan::decode(&noncanonical),

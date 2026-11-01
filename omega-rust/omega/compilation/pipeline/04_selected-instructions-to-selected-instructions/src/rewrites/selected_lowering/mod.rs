@@ -11,10 +11,9 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
 };
 
-pub(crate) use catalog::enabled_pair_rules;
 pub(crate) use catalog::{
     SELECTED_LOWERING_RULE_CATALOG, SelectedLoweringRuleCatalogEntry,
-    SelectedLoweringRuleCatalogError,
+    SelectedLoweringRuleCatalogError, enabled_pair_rules,
 };
 pub(crate) use literal_fold::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,

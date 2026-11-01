@@ -5,8 +5,12 @@ use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::accepted_fact;
 use crate::legalization::scalar_graph_input;
+use crate::structural_inputs::structural_reference_input::{
+    element_leaf_projection, primitive_read_geometry, primitive_store, storage_address_geometry,
+};
 use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarInstructionKind;
+use scalar_graph_input::structural_case::{membership_layout, structural_transport_layout};
 use semantic_vocabulary::ScalarType;
 
 macro_rules! o {
@@ -35,9 +39,7 @@ pub(super) fn project_structural_case_membership(
         return Err(Error::custody());
     }
     let (case_tag, tag_byte_offset, elements) =
-        scalar_graph_input::structural_case::membership_layout(
-            optimized, *source, path, *case, plan,
-        )?;
+        membership_layout(optimized, *source, path, *case, plan)?;
     // A runtime element joins its selector and certificate, as a
     // primitive read's does.
     let indices = o!(optimized => unit => *psi_operation => &elements)?;
@@ -82,14 +84,7 @@ pub(super) fn project_structural_leaf_copy(
         _ => return Err(Error::custody()),
     };
     let (byte_offset, shape, elements) =
-        scalar_graph_input::structural_case::structural_transport_layout(
-            optimized,
-            psi_operation,
-            source,
-            path,
-            result,
-            plan,
-        )?;
+        structural_transport_layout(optimized, psi_operation, source, path, result, plan)?;
     let indices = o!(optimized => unit => psi_operation => &elements)?;
     Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
         result: result.clone(),
@@ -205,13 +200,8 @@ pub(super) fn project_primitive_scalar_read(
         let root_type = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
             .ok_or(Error::custody())?;
         let geometry =
-            crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                root_type,
-                path,
-                result.scalar_type,
-                &unit.structural_types,
-            )
-            .ok_or(Error::custody())?;
+            primitive_read_geometry(root_type, path, result.scalar_type, &unit.structural_types)
+                .ok_or(Error::custody())?;
         o!(optimized => unit => *psi_operation => &geometry.elements)?
     };
     Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
@@ -236,13 +226,8 @@ pub(super) fn project_write_only_primitive_store(
     else {
         unreachable!("dispatched project_write_only_primitive_store")
     };
-    let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
-        destination,
-        path,
-        value.scalar_type,
-        &unit.structural_types,
-    )
-    .ok_or(Error::custody())?;
+    let geometry = primitive_store(destination, path, value.scalar_type, &unit.structural_types)
+        .ok_or(Error::custody())?;
     Ok(LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
         destination: destination.clone(),
         path: path.clone(),
@@ -603,13 +588,8 @@ pub(super) fn project_element_view_read(
             )
             .ok_or(Error::custody())?;
             let (_, _, elements) =
-                crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                    element,
-                    path,
-                    result.scalar_type,
-                    &unit.structural_types,
-                )
-                .ok_or(Error::custody())?;
+                element_leaf_projection(element, path, result.scalar_type, &unit.structural_types)
+                    .ok_or(Error::custody())?;
             o!(optimized => unit => *psi_operation => &elements)?
         },
     })
@@ -691,12 +671,8 @@ pub(super) fn project_storage_address(
     }
     let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
         .ok_or(Error::custody())?;
-    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
-        root,
-        path,
-        &unit.structural_types,
-    )
-    .ok_or(Error::custody())?;
+    let geometry =
+        storage_address_geometry(root, path, &unit.structural_types).ok_or(Error::custody())?;
     let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
     Ok(LegalizedScalarInstructionKind::StorageAddress {
         source: *source,

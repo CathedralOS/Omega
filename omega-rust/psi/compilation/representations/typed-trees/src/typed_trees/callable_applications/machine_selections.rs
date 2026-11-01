@@ -31,7 +31,7 @@ impl TypedTrees {
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> Result<(), &'static str> {
-        let application = self.expression_table.static_machine_application(provider);
+        let application = self.static_machine_application(provider);
         let selected = application.registration_operation;
         let machine = self.machine_by_symbol(application.binding_declaration);
         let forwarded = if machine.is_none() {
@@ -49,9 +49,10 @@ impl TypedTrees {
             .filter_map(|binding| match binding.value {
                 StaticMachineBindingValue::Type(actual)
                 | StaticMachineBindingValue::Const(actual) => Some(Ok((binding.parameter, actual))),
-                StaticMachineBindingValue::Conformance(_) => None,
-                _ => Some(Err(
-                    "applied machine callable has an unclosed machine or runtime operand",
+                StaticMachineBindingValue::Conformance(_)
+                | StaticMachineBindingValue::Machine(_) => None,
+                StaticMachineBindingValue::RuntimeValue { .. } => Some(Err(
+                    "applied machine callable has an unclosed runtime operand",
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -59,14 +60,18 @@ impl TypedTrees {
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match &binding.value {
-                StaticMachineBindingValue::Conformance(argument) => {
+                StaticMachineBindingValue::Conformance(argument)
+                | StaticMachineBindingValue::Machine(argument) => {
                     Some((binding.parameter, argument.clone()))
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
         let lifetimes = self
-            .static_machine_application_lifetimes(provider)
+            .static_application_lifetimes_for_declaration(
+                provider,
+                application.binding_declaration,
+            )?
             .iter()
             .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
             .collect::<Vec<_>>();
@@ -90,9 +95,17 @@ impl TypedTrees {
                 .machine_type_parameters(machine)
                 .iter()
                 .any(|parameter| {
-                    !substitutions
-                        .iter()
-                        .any(|(symbol, _)| *symbol == parameter.symbol)
+                    let supplied = match &parameter.kind {
+                        crate::data::TypeParameterKind::Machine { .. } => {
+                            static_arguments.iter().any(|(symbol, argument)| {
+                                *symbol == parameter.symbol && argument.symbol.is_valid()
+                            })
+                        }
+                        _ => substitutions
+                            .iter()
+                            .any(|(symbol, _)| *symbol == parameter.symbol),
+                    };
+                    !supplied
                 })
             {
                 return Err("applied machine callable has an incomplete provider tuple");
@@ -132,33 +145,58 @@ impl TypedTrees {
             }
             forwarded.ok_or("applied callable lost its forwarded contract")?
         };
+        let provider_lifetime_declaration = application.lifetime_binding_declaration;
+        let provider_lifetime_owner = application.lexical_owner;
         let signature = CallableApplication {
             region_scope: application.binding_declaration,
             lifetime_declaration: selected,
             lifetimes: lifetimes
                 .into_iter()
-                .map(|(parameter, argument)| CallableLifetimeBinding {
-                    parameter,
-                    argument,
-                    region: Default::default(),
-                    origin: CallableLifetimeOrigin::Lexical,
+                .map(|(parameter, argument)| {
+                    let region = crate::type_identity::lifetime_parameter_identity(
+                        self,
+                        application.lexical_owner,
+                        argument.as_str(),
+                    )
+                    .ok_or("applied provider region lost its supplying declaration")?;
+                    Ok(CallableLifetimeBinding {
+                        parameter,
+                        argument,
+                        region,
+                        origin: CallableLifetimeOrigin::Lexical,
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, &'static str>>()?,
             types: substitutions,
             static_arguments,
             ..CallableApplication::default()
         }
         .signature(self, &declared)?;
+        let provider_region_rows = self.static_machine_application_lifetimes(provider).to_vec();
+        let provider_lifetimes = self
+            .callable_lifetime_substitutions
+            .insert_many(provider_region_rows);
+        let invocation_source = self.static_machine_application(invocation);
+        let caller_lifetime_declaration = invocation_source.lifetime_binding_declaration;
+        let caller_lifetime_owner = invocation_source.lexical_owner;
         let source_required = required.clone();
         let caller_lifetimes = caller_lifetime_bindings
             .iter()
-            .map(|binding| CallableLifetimeBinding {
-                parameter: binding.parameter.clone(),
-                argument: binding.argument.clone(),
-                region: Default::default(),
-                origin: CallableLifetimeOrigin::Lexical,
+            .map(|binding| {
+                let region = crate::type_identity::lifetime_parameter_identity(
+                    self,
+                    caller_lifetime_owner,
+                    binding.argument.as_str(),
+                )
+                .ok_or("applied requirement region lost its supplying declaration")?;
+                Ok(CallableLifetimeBinding {
+                    parameter: binding.parameter.clone(),
+                    argument: binding.argument.clone(),
+                    region,
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, &'static str>>()?;
         let required = CallableApplication {
             lifetimes: caller_lifetimes,
             types: caller_substitutions.to_vec(),
@@ -205,6 +243,11 @@ impl TypedTrees {
                 source_required,
                 caller_operands,
                 caller_lifetimes,
+                caller_lifetime_declaration,
+                caller_lifetime_owner,
+                provider_lifetime_declaration,
+                provider_lifetime_owner,
+                provider_lifetimes,
             },
             signature,
         };

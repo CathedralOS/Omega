@@ -2,6 +2,7 @@
 //! body-proven descriptor forwarding associations. Lifetime roots never stand in for an address;
 //! an unchanged opaque ingress retains its parameter-relative identity.
 use super::{Captures, TypeReferenceHandle};
+use crate::completed_storage::FrozenReferenceSelection;
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
@@ -51,10 +52,8 @@ impl Captures<'_> {
                 operand,
                 path,
             ) {
-                crate::completed_storage::FrozenReferenceSelection::Unavailable => return None,
-                crate::completed_storage::FrozenReferenceSelection::Endpoint { leaf, .. }
-                    if !leaf.referents.is_empty() =>
-                {
+                FrozenReferenceSelection::Unavailable => return None,
+                FrozenReferenceSelection::Endpoint { leaf, .. } if !leaf.referents.is_empty() => {
                     return self.descriptor_referent_sources(leaf.referents, suffix);
                 }
                 _ => {}

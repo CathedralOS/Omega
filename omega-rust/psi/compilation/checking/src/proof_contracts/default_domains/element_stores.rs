@@ -22,6 +22,7 @@ use super::place_queries::{data_definition_for_expression, write_place_spelling}
 use super::state_flow::PlaceValuation;
 use super::symbolic_values::{LiteralValue, literal_value};
 use super::{InvariantWindow, TrackedPlace};
+use crate::CheckingInput;
 use crate::proof_contracts::collection_predicates::{
     self, ArgumentKnowledge, IntegerSet, unknown_knowledge,
 };
@@ -34,7 +35,7 @@ use typed_trees::state::State;
 /// Returns `false` when `target` is not such a store, leaving it to the
 /// ordinary field-store handling.
 pub(super) fn handle_element_store<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -176,7 +177,7 @@ pub(super) fn handle_element_store<'program>(
 }
 
 fn innermost_member(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut current = expression;
@@ -191,7 +192,7 @@ fn innermost_member(
 }
 
 fn data_field<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     definition: &DataDefinition,
     name: &str,
 ) -> Option<&'program DataField> {
@@ -210,7 +211,7 @@ fn data_field<'program>(
 /// so a cited element theorem, a bounded parameter, a local, and a call
 /// result all restore a collection predicate through one store.
 fn proved_stored_set(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -228,7 +229,7 @@ fn proved_stored_set(
 }
 
 fn element_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     field_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<IntegerSet> {
     match unknown_knowledge(program, field_type)? {
@@ -237,10 +238,7 @@ fn element_carrier(
     }
 }
 
-fn unknown_elements(
-    program: &dyn crate::CheckingInput,
-    field: &DataField,
-) -> Option<Vec<IntegerSet>> {
+fn unknown_elements(program: &dyn CheckingInput, field: &DataField) -> Option<Vec<IntegerSet>> {
     match unknown_knowledge(program, field.type_reference)? {
         ArgumentKnowledge::Array(elements) => Some(elements),
         _ => None,
@@ -251,7 +249,7 @@ fn unknown_elements(
 /// stores in this state left, else what the standing facts imply, else
 /// nothing. `None` when the field is not a fixed integer array.
 fn current_elements(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     place: &TrackedPlace<'_>,
     field: &DataField,
     standing: bool,
@@ -274,7 +272,7 @@ fn current_elements(
 
 /// Knowledge of another field a re-proved fact reads.
 fn other_field_knowledge(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     place: &TrackedPlace<'_>,
     field: &DataField,
     standing: bool,

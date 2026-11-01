@@ -1,5 +1,12 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbols::SymbolHandle;
+use language_semantics::Multiplicity;
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data::DataMember;
+use typed_trees::expression::BinaryOperator;
+use typed_trees::operator::has_builtin_spelled_expression_meaning;
+use typed_trees::types::TypeReferenceHandle;
+use validation::expression_result_type_reference;
+use validation::unique_data_definition_by_symbol;
 
 /// The ownership disposition of a value produced by a slice/string/collection
 /// operator result.
@@ -33,7 +40,7 @@ pub(in crate::flow::ownership) enum OperatorResultOwnership {
 /// move/borrow/drop emitters and a future copy/drop policy share one decision.
 pub(in crate::flow::ownership) fn classify_operator_result_ownership(
     program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
+    return_type: TypeReferenceHandle,
 ) -> OperatorResultOwnership {
     if !return_type.is_valid() {
         return OperatorResultOwnership::NoTransfer;
@@ -69,11 +76,10 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
 
 pub(in crate::flow::ownership) fn type_requires_ownership(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> bool {
     type_reference.is_valid()
-        && program.type_multiplicity(type_reference)
-            != language_semantics::Multiplicity::Unrestricted
+        && program.type_multiplicity(type_reference) != Multiplicity::Unrestricted
 }
 
 /// Transfer discipline of a value stored into an owned receiving home.
@@ -82,11 +88,10 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
 /// of its referent and of the reusable spelling of a reference expression.
 pub(super) fn stored_value_requires_transfer(
     program: &dyn ::validation::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> bool {
     reference.is_valid()
-        && program.stored_value_multiplicity(reference)
-            != language_semantics::Multiplicity::Unrestricted
+        && program.stored_value_multiplicity(reference) != Multiplicity::Unrestricted
 }
 
 pub(super) fn expression_is_place_like(
@@ -136,12 +141,8 @@ pub(super) fn intrinsic_enum_equality(
         return false;
     };
     let spelling = match binary.operator {
-        typed_trees::expression::BinaryOperator::Equal => {
-            language_core::operator_spelling::OperatorSpelling::Equal
-        }
-        typed_trees::expression::BinaryOperator::NotEqual => {
-            language_core::operator_spelling::OperatorSpelling::NotEqual
-        }
+        BinaryOperator::Equal => language_core::operator_spelling::OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => language_core::operator_spelling::OperatorSpelling::NotEqual,
         _ => return false,
     };
     let machine_symbol = program.symbols.get(state).parent;
@@ -155,17 +156,16 @@ pub(super) fn intrinsic_enum_equality(
     else {
         return false;
     };
-    if program.symbols.get(state.symbol).kind != symbols::SymbolKind::State
-        || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
+    if program.symbols.get(state.symbol).kind != SymbolKind::State
+        || program.symbols.get(machine.symbol).kind != SymbolKind::Machine
     {
         return false;
     }
     // Equality observes values, including constructed cases; a place-only query
     // cannot establish the type of a fresh constructor operand.
-    let operands = [binary.left, binary.right].map(|operand| {
-        validation::expression_result_type_reference(program, machine, state, operand)
-    });
-    let nominal = |reference: Option<typed_trees::types::TypeReferenceHandle>| {
+    let operands = [binary.left, binary.right]
+        .map(|operand| expression_result_type_reference(program, machine, state, operand));
+    let nominal = |reference: Option<TypeReferenceHandle>| {
         let mut reference = reference?;
         let mut seen = Vec::new();
         while !seen.contains(&reference) {
@@ -188,16 +188,10 @@ pub(super) fn intrinsic_enum_equality(
     // The nominal premise commits to one declaration row: a second row
     // bearing the operand's symbol cannot mint member evidence for the wrong
     // subject, so ambiguous identity declines the classification.
-    let Some(data) = validation::unique_data_definition_by_symbol(program, symbol) else {
+    let Some(data) = unique_data_definition_by_symbol(program, symbol) else {
         return false;
     };
     let members = program.data_members(data);
-    if members.is_empty() || !members.iter().all(|member| matches!(member, typed_trees::data::DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
-    typed_trees::operator::has_builtin_spelled_expression_meaning(
-        program,
-        machine.symbol,
-        expression,
-        spelling,
-        &operands,
-    )
+    if members.is_empty() || !members.iter().all(|member| matches!(member, DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
+    has_builtin_spelled_expression_meaning(program, machine.symbol, expression, spelling, &operands)
 }

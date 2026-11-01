@@ -8,9 +8,11 @@ use crate::tables::syntax_expressions;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
-    ExpressionHandle, ExpressionNode, MatchPattern, TableDestructurePattern, TableMatchArm,
-    TableMatchExpression, TableMatchField, TableSavedSubject,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern,
+    TableBinaryExpression, TableDestructurePattern, TableMatchArm, TableMatchExpression,
+    TableMatchField, TableMemberExpression, TableSavedSubject,
 };
+use symbol_resolved_trees::statement::OutcomeProofSelector;
 use syntax_trees::{SyntaxTrees, expression as syntax};
 
 pub(super) fn lower_match(
@@ -64,12 +66,10 @@ pub(super) fn lower_match(
                     .statements
                     .outcome_proof_selectors(pattern.proof_selectors)
                     .iter()
-                    .map(
-                        |selector| symbol_resolved_trees::statement::OutcomeProofSelector {
-                            output_field: lower_name(syntax_trees, &selector.output_field),
-                            binding: lower_name(syntax_trees, &selector.binding),
-                        },
-                    );
+                    .map(|selector| OutcomeProofSelector {
+                        output_field: lower_name(syntax_trees, &selector.output_field),
+                        binding: lower_name(syntax_trees, &selector.binding),
+                    });
                 let proof_selectors =
                     expression_table(lowerer).insert_match_proof_selectors(selectors);
                 lowerer.expression_match_captures.push(MatchArmCapture {
@@ -89,11 +89,9 @@ pub(super) fn lower_match(
                 ));
                 let mut condition = expression_table(lowerer).insert(ExpressionNode::Boolean(true));
                 for field in &fields {
-                    if let symbol_resolved_trees::expression::MatchFieldAction::Equal(expected) =
-                        field.action
-                    {
+                    if let MatchFieldAction::Equal(expected) = field.action {
                         let projected = expression_table(lowerer).insert(ExpressionNode::Member(
-                            symbol_resolved_trees::expression::TableMemberExpression {
+                            TableMemberExpression {
                                 receiver: saved,
                                 member_symbol: field.field_symbol,
                                 member: field.member.clone(),
@@ -101,16 +99,16 @@ pub(super) fn lower_match(
                             },
                         ));
                         let equality = expression_table(lowerer).insert(ExpressionNode::Binary(
-                            symbol_resolved_trees::expression::TableBinaryExpression {
+                            TableBinaryExpression {
                                 left: projected,
-                                operator: symbol_resolved_trees::expression::BinaryOperator::Equal,
+                                operator: BinaryOperator::Equal,
                                 right: expected,
                             },
                         ));
                         condition = expression_table(lowerer).insert(ExpressionNode::Binary(
-                            symbol_resolved_trees::expression::TableBinaryExpression {
+                            TableBinaryExpression {
                                 left: condition,
-                                operator: symbol_resolved_trees::expression::BinaryOperator::And,
+                                operator: BinaryOperator::And,
                                 right: equality,
                             },
                         ));
@@ -118,9 +116,9 @@ pub(super) fn lower_match(
                 }
                 if guard.is_valid() {
                     condition = expression_table(lowerer).insert(ExpressionNode::Binary(
-                        symbol_resolved_trees::expression::TableBinaryExpression {
+                        TableBinaryExpression {
                             left: condition,
-                            operator: symbol_resolved_trees::expression::BinaryOperator::And,
+                            operator: BinaryOperator::And,
                             right: guard,
                         },
                     ));

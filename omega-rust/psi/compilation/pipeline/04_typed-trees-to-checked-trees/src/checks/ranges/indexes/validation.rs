@@ -41,6 +41,7 @@
 //! to discharge. `ranges_seam_owns` (from `selected`) tells the operator
 //! `requires` check which indexed occurrences this check discharges.
 
+use super::super::arrays;
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{
@@ -153,11 +154,8 @@ pub(super) fn check_indexed_access(
 
     let length = expression_indexable_length(program, machine, state, facts, indexed.collection)
         .or_else(|| {
-            expression_type_reference(program, machine, state, indexed.collection).and_then(
-                |type_reference| {
-                    super::super::arrays::fixed_array_type_length(program, type_reference)
-                },
-            )
+            expression_type_reference(program, machine, state, indexed.collection)
+                .and_then(|type_reference| arrays::fixed_array_type_length(program, type_reference))
         });
     let diagnostic_count = diagnostics.len();
     let obligation_count = obligations.len();
@@ -175,9 +173,7 @@ pub(super) fn check_indexed_access(
         )
     } else if expression_is_slice(program, machine, state, indexed.collection)
         || expression_type_reference(program, machine, state, indexed.collection)
-            .and_then(|reference| {
-                super::super::arrays::bounded_byte_type_capacity(program, reference)
-            })
+            .and_then(|reference| arrays::bounded_byte_type_capacity(program, reference))
             .is_some()
     {
         check_unknown_length_slice_index(
@@ -192,7 +188,7 @@ pub(super) fn check_indexed_access(
         )
     } else if let Some(recipe) =
         expression_type_reference(program, machine, state, indexed.collection)
-            .map(|reference| super::super::arrays::fixed_array_type_recipe(program, reference))
+            .map(|reference| arrays::fixed_array_type_recipe(program, reference))
             .filter(|recipe| recipe.is_valid())
     {
         // A retained recipe extent: the judgment proves the index's own
@@ -210,9 +206,8 @@ pub(super) fn check_indexed_access(
             obligations,
         )
     } else if let Some(extent) =
-        expression_type_reference(program, machine, state, indexed.collection).and_then(
-            |reference| super::super::arrays::fixed_array_type_symbolic_extent(program, reference),
-        )
+        expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|reference| arrays::fixed_array_type_symbolic_extent(program, reference))
     {
         // A const-generic extent bound through a still-pending application
         // reads like a `ConstCall` length: its fold awaits selected execution,
@@ -292,9 +287,7 @@ pub(super) fn check_indexed_access(
     let builtin_geometry = length.is_some()
         || expression_is_slice(program, machine, state, indexed.collection)
         || expression_type_reference(program, machine, state, indexed.collection)
-            .and_then(|reference| {
-                super::super::arrays::bounded_byte_type_capacity(program, reference)
-            })
+            .and_then(|reference| arrays::bounded_byte_type_capacity(program, reference))
             .is_some();
     if builtin_geometry
         && facts
@@ -441,18 +434,6 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
         Some(attribution) => format!("{message}; {attribution}"),
         None => message,
     }
-}
-
-/// The display label of a hoisted computed-index temp's INITIALIZER (`__hoist_0`
-/// -> "self.k + 1"), found by name among the state's `let` statements. `None`
-/// when `index_label` is not a reserved `__hoist_` name or has no initializer.
-fn hoist_temp_initializer_label(
-    program: &dyn ::validation::CheckingInput,
-    state: &State,
-    index_label: &str,
-) -> Option<String> {
-    hoist_temp_initializer(program, state, index_label)
-        .map(|initializer| program.expression_table.display_name(initializer))
 }
 
 /// The initializer of a hoisted computed-index temp (`__hoist_N`), which its
@@ -613,7 +594,8 @@ fn check_known_length_index(
                 // hoisted index. Scoped to the reserved prefix: a USER local
                 // may see writes between its `let` and its use, where the
                 // initializer-label fact would describe a DIFFERENT value.
-                let initializer_label = hoist_temp_initializer_label(program, state, &index_label);
+                let initializer_label = hoist_temp_initializer(program, state, &index_label)
+                    .map(|initializer| program.expression_table.display_name(initializer));
                 let initializer_label = initializer_label.as_deref();
                 let upper_bound_proven = facts.index_is_proven(&collection_label, &index_label)
                     || expression_integer_carrier_maximum(program, machine, state, index)

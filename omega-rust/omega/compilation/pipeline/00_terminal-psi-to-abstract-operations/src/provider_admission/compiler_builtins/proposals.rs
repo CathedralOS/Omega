@@ -13,6 +13,8 @@ use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ServiceSchema;
 use provider_selection::selected_external_execution;
 use std::collections::BTreeSet;
+use symbols::BuiltinFunction;
+use target_operations::CompilerBuiltinExecution;
 
 pub use provider_selection::CompilerIntrinsicPlanProvenance;
 
@@ -180,7 +182,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
 fn nearest_directed_square_root(
     rounding: target_operations::IeeeFloatRoundingDirection,
     format: semantic_vocabulary::IeeeFloatFormat,
-) -> target_operations::CompilerBuiltinExecution {
+) -> CompilerBuiltinExecution {
     nearest_arithmetic(
         target_operations::IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding },
         format,
@@ -193,7 +195,7 @@ fn nearest_directed_binary(
     operation: target_operations::IeeeFloatBinaryOperation,
     rounding: target_operations::IeeeFloatRoundingDirection,
     format: semantic_vocabulary::IeeeFloatFormat,
-) -> target_operations::CompilerBuiltinExecution {
+) -> CompilerBuiltinExecution {
     nearest_arithmetic(
         target_operations::IeeeFloatArithmeticOperation::DirectedBinary {
             operation,
@@ -207,16 +209,14 @@ fn nearest_directed_binary(
 fn nearest_arithmetic(
     operation: target_operations::IeeeFloatArithmeticOperation,
     format: semantic_vocabulary::IeeeFloatFormat,
-) -> target_operations::CompilerBuiltinExecution {
-    target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format }
+) -> CompilerBuiltinExecution {
+    CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format }
 }
 
 /// Format-bearing builtin symbols name an operation, a directed mode, and
 /// one IEEE format. `nearest_arithmetic`, `nearest_directed_binary`, and
 /// `nearest_directed_square_root` already build that execution row.
-fn format_bearing_builtin(
-    function: symbols::BuiltinFunction,
-) -> Option<target_operations::CompilerBuiltinExecution> {
+fn format_bearing_builtin(function: BuiltinFunction) -> Option<CompilerBuiltinExecution> {
     use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
     use symbols::BuiltinFunction as Function;
     use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
@@ -322,7 +322,7 @@ fn format_bearing_builtin(
 fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
     boundary_format: Option<semantic_vocabulary::IeeeFloatFormat>,
-) -> Option<target_operations::CompilerBuiltinExecution> {
+) -> Option<CompilerBuiltinExecution> {
     use target_operations::CompilerBuiltinExecution;
     use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
     let ieee_format = |format| match format {
@@ -401,14 +401,14 @@ fn compiler_builtin_execution(
             }
 
             let operation = match function {
-                symbols::BuiltinFunction::FloatMinimum => Arithmetic::Minimum,
-                symbols::BuiltinFunction::FloatMaximum => Arithmetic::Maximum,
-                symbols::BuiltinFunction::FloatSquareRoot => Arithmetic::SquareRoot,
-                symbols::BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
-                symbols::BuiltinFunction::FloatIsInfinite => Arithmetic::IsInfinite,
-                symbols::BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,
-                symbols::BuiltinFunction::FloatIsNormal => Arithmetic::IsNormal,
-                symbols::BuiltinFunction::FloatIsSubnormal => Arithmetic::IsSubnormal,
+                BuiltinFunction::FloatMinimum => Arithmetic::Minimum,
+                BuiltinFunction::FloatMaximum => Arithmetic::Maximum,
+                BuiltinFunction::FloatSquareRoot => Arithmetic::SquareRoot,
+                BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
+                BuiltinFunction::FloatIsInfinite => Arithmetic::IsInfinite,
+                BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,
+                BuiltinFunction::FloatIsNormal => Arithmetic::IsNormal,
+                BuiltinFunction::FloatIsSubnormal => Arithmetic::IsSubnormal,
                 _ => return None,
             };
             (operation, boundary_format?)
@@ -510,12 +510,10 @@ mod tests {
         assert_eq!(format, semantic_vocabulary::IeeeFloatFormat::Binary64);
         assert!(matches!(
             compiler_builtin_execution(selected, Some(format)),
-            Some(
-                target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                    operation: target_operations::IeeeFloatArithmeticOperation::IsNan,
-                    format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                }
-            )
+            Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation: target_operations::IeeeFloatArithmeticOperation::IsNan,
+                format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+            })
         ));
     }
 }

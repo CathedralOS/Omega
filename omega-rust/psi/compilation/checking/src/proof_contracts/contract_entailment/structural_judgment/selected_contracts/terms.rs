@@ -281,6 +281,20 @@ impl StructuralJudge<'_> {
                     )
                 },
             ),
+            // A contract borrow names the already authenticated bound place.
+            // Preserve its captured value through nested predicate arguments,
+            // just as the ordinary contract reader does. This adds no origin,
+            // access or live-pointee observation to an unobserved descriptor.
+            ExpressionNode::Borrow(borrow) => self.bound_contract_term(
+                borrow.target,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                type_bindings,
+                result,
+                depth + 1,
+            ),
             ExpressionNode::Unary(unary) => structural_terms::logical_not_term_in_scope(
                 program,
                 None,

@@ -9,8 +9,11 @@
 //! contract. Unresolved calls supply no denotational authority.
 
 use crate::frozen_program::expression_table;
+use numerics::float_projection::FloatProjectionOperation;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
 
 mod normal_return;
 mod requirement_satisfiers;
@@ -64,7 +67,7 @@ pub(crate) fn abstract_value_call_signature(
 /// termination facts; conditional runtime result capture has a different owner.
 pub fn checked_value_call_candidate(
     program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     state: &typed_trees::state::State,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -88,7 +91,7 @@ pub fn checked_value_call_candidate(
 
 fn unchecked_value_call_candidate(
     program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     state: &typed_trees::state::State,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -172,7 +175,7 @@ fn each_reachable_checked_machine(
     program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
-    admits: impl Fn(&dyn crate::CheckingInput, &typed_trees::machine::Machine) -> bool,
+    admits: impl Fn(&dyn crate::CheckingInput, &Machine) -> bool,
 ) -> bool {
     let mut pending = vec![machine_symbol];
     let mut visited = Vec::new();
@@ -616,7 +619,7 @@ pub(crate) fn has_no_crash_routes(
 
 fn complete_family_members<'program>(
     program: &'program dyn crate::CheckingInput,
-    interface: &typed_trees::machine::Machine,
+    interface: &Machine,
 ) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
     let members = super::calls::target_family_members(program, interface)?;
     for member in members {
@@ -639,17 +642,12 @@ fn complete_family_members<'program>(
 pub(crate) fn selected_operator_authored_body<'program>(
     program: &'program dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
-) -> Option<(
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
-)> {
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
     if operator.is_boundary
-        || program.operator_contracts(operator).iter().any(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Crashes { .. }
-            )
-        })
+        || program
+            .operator_contracts(operator)
+            .iter()
+            .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
     {
         return None;
     }
@@ -675,21 +673,21 @@ pub fn selected_operator_has_closed_value_denotation(
     // A published crash ceiling describes possible abnormal completion, not
     // a total proof value. Closed kernel result equations describe normal
     // results only and cannot erase that separate selected interface effect.
-    if program.operator_contracts(operator).iter().any(|contract| {
-        matches!(
-            contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
-        )
-    }) || program.machine(operator.symbol).is_some_and(|machine| {
-        machine.suspends
-            || machine.blocks
-            || program.machine_declares_crash(machine)
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty()
-            || !program.machine_owned_data(machine).is_empty()
-    }) {
+    if program
+        .operator_contracts(operator)
+        .iter()
+        .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+        || program.machine(operator.symbol).is_some_and(|machine| {
+            machine.suspends
+                || machine.blocks
+                || program.machine_declares_crash(machine)
+                || !program
+                    .service_reach_rows
+                    .services(machine.service_reach_row)
+                    .is_empty()
+                || !program.machine_owned_data(machine).is_empty()
+        })
+    {
         return false;
     }
     if program
@@ -712,10 +710,7 @@ pub fn selected_operator_has_closed_value_denotation(
     let path = program.operator_path_members(operator.name);
     if let [namespace, name] = path
         && let Some(projection) =
-            numerics::float_projection::FloatProjectionOperation::from_source_identity(
-                namespace.as_str(),
-                name.as_str(),
-            )
+            FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())
         && float_projection_bindings::exact_toolchain_float_projection_primitive(
             program, operator, projection,
         )

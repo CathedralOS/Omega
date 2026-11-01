@@ -4,7 +4,8 @@
 
 use arena::Handle;
 use checked_trees::{
-    CheckFacts, CheckedCallBorrowLoanResource, FlowCallFact, IncomingReferenceIdentity, KeyedRows,
+    CheckFacts, CheckedCallBorrowLoanResource as LoanResource, FlowCallFact,
+    IncomingReferenceIdentity as ReferenceIdentity, KeyedRows,
 };
 use symbols::SymbolHandle;
 
@@ -12,8 +13,8 @@ type CallKey = (Handle<FlowCallFact>, SymbolHandle, SymbolHandle);
 
 pub(in crate::execution::terminal_unit) struct RetainedBorrowRecords<'facts> {
     facts: &'facts CheckFacts,
-    calls: KeyedRows<CallKey, CheckedCallBorrowLoanResource>,
-    incoming: KeyedRows<(SymbolHandle, SymbolHandle), IncomingReferenceIdentity>,
+    calls: KeyedRows<CallKey, LoanResource>,
+    incoming: KeyedRows<(SymbolHandle, SymbolHandle), ReferenceIdentity>,
 }
 
 impl<'facts> RetainedBorrowRecords<'facts> {
@@ -34,10 +35,7 @@ impl<'facts> RetainedBorrowRecords<'facts> {
         call: Handle<FlowCallFact>,
         machine: SymbolHandle,
         state: SymbolHandle,
-    ) -> Vec<(
-        Handle<CheckedCallBorrowLoanResource>,
-        &'facts CheckedCallBorrowLoanResource,
-    )> {
+    ) -> Vec<(Handle<LoanResource>, &'facts LoanResource)> {
         let arena = &self.facts.borrow.call_loan_resources;
         self.calls.with_rows(
             arena,
@@ -55,10 +53,7 @@ impl<'facts> RetainedBorrowRecords<'facts> {
         &self,
         machine: SymbolHandle,
         state: SymbolHandle,
-    ) -> Vec<(
-        Handle<IncomingReferenceIdentity>,
-        &'facts IncomingReferenceIdentity,
-    )> {
+    ) -> Vec<(Handle<ReferenceIdentity>, &'facts ReferenceIdentity)> {
         let arena = &self.facts.borrow.incoming_references;
         self.incoming.with_rows(
             arena,

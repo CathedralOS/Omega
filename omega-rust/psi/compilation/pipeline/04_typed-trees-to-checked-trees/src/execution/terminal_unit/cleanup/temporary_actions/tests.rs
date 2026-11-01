@@ -1,13 +1,13 @@
 use super::value_call_context;
 use checked_trees::{
-    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedControlResultPlan, CheckedStructuralAccess,
-    CheckedUnitStructuralParameterPlan,
+    CheckFacts, CheckedComposedUnitControlMachinePlan,
+    CheckedComposedUnitControlStatePlan as StatePlan, CheckedComposedUnitControlTerminatorPlan,
+    CheckedControlResultPlan, CheckedStructuralAccess, CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
 
-fn body(state: SymbolHandle) -> CheckedComposedUnitControlStatePlan {
-    CheckedComposedUnitControlStatePlan {
+fn body(state: SymbolHandle) -> StatePlan {
+    StatePlan {
         state,
         structural_parameters: vec![CheckedUnitStructuralParameterPlan {
             position: 0,
@@ -35,10 +35,7 @@ fn body(state: SymbolHandle) -> CheckedComposedUnitControlStatePlan {
     }
 }
 
-fn graph(
-    owner: SymbolHandle,
-    body: CheckedComposedUnitControlStatePlan,
-) -> CheckedComposedUnitControlMachinePlan {
+fn graph(owner: SymbolHandle, body: StatePlan) -> CheckedComposedUnitControlMachinePlan {
     CheckedComposedUnitControlMachinePlan {
         machine: owner,
         result: CheckedControlResultPlan::Unit,

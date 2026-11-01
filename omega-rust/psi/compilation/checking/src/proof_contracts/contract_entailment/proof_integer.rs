@@ -3,12 +3,16 @@
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, ProofFact,
 };
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{DispatchSelection, dispatch_arm_contexts};
+use symbols::BuiltinType;
+use typed_trees::expression::TableCastExpression;
+use typed_trees::types::TypeReferenceHandle;
 fn proof_builtin_type(
-    program: &dyn crate::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-    builtin: symbols::BuiltinType,
+    program: &dyn CheckingInput,
+    mut reference: TypeReferenceHandle,
+    builtin: BuiltinType,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
     loop {
@@ -23,10 +27,7 @@ fn proof_builtin_type(
     }
 }
 
-fn proof_nat_type(
-    program: &dyn crate::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
+fn proof_nat_type(program: &dyn CheckingInput, mut reference: TypeReferenceHandle) -> bool {
     use typed_trees::types::TypeReferenceNode;
     loop {
         match program.type_reference_table.type_reference(reference) {
@@ -66,10 +67,7 @@ fn proof_nat_type(
 
 /// Recognize mathematical Int terms without borrowing a machine integer's
 /// carrier or accidentally classifying a comparison as its operand type.
-pub fn proof_integer_expression(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
+pub fn proof_integer_expression(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     match expression_table(program).expression(expression) {
         ExpressionNode::Call(call)
             if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) =>
@@ -94,9 +92,7 @@ pub fn proof_integer_expression(
         }
         _ => {
             crate::proof_contracts::proof_embeddings::expression_type_reference(program, expression)
-                .is_some_and(|reference| {
-                    proof_builtin_type(program, reference, symbols::BuiltinType::Int)
-                })
+                .is_some_and(|reference| proof_builtin_type(program, reference, BuiltinType::Int))
         }
     }
 }
@@ -104,7 +100,7 @@ pub fn proof_integer_expression(
 /// Land the complete anonymous peer to unbounded Int. Fractional intermediate
 /// values remain exact; a fractional final value cannot become an integer.
 pub(crate) fn anonymous_integer_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {
     crate::value_custody::literals::anonymous_numeric_value(
@@ -122,7 +118,7 @@ pub(crate) fn anonymous_integer_value(
 /// structural proof terms. An anonymous peer must land exactly in Int; a
 /// finite runtime value enters this arithmetic only through its embedding.
 pub(crate) fn mathematical_integer_operands(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operands: [ExpressionHandle; 2],
 ) -> bool {
     let mathematical = operands.map(|operand| proof_integer_expression(program, operand));
@@ -135,10 +131,7 @@ pub(crate) fn mathematical_integer_operands(
             })
 }
 
-pub(crate) fn proof_nat_cast(
-    program: &dyn crate::CheckingInput,
-    cast: &typed_trees::expression::TableCastExpression,
-) -> bool {
+pub(crate) fn proof_nat_cast(program: &dyn CheckingInput, cast: &TableCastExpression) -> bool {
     !cast.form.is_recast()
         && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
         && cast.semantic_domain.is_empty()
@@ -150,7 +143,7 @@ pub(crate) fn proof_nat_cast(
 /// Formation is deliberately stricter than ordinary theorem validation:
 /// unknown is not proof, and callers supply only facts preceding this term.
 pub(crate) fn proof_integer_nonnegative(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
@@ -171,7 +164,7 @@ pub(crate) fn proof_integer_nonnegative(
 /// Nonzero is a formation premise, not a theorem the containing term may
 /// establish for itself. Only independently admitted preceding facts enter.
 pub(crate) fn proof_integer_nonzero(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
@@ -187,7 +180,7 @@ pub(crate) fn proof_integer_nonzero(
 }
 
 fn validate_proof_integer_formation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
@@ -308,7 +301,7 @@ fn validate_proof_integer_formation(
 /// terms need formation checking even though the fact is not an arithmetic
 /// hypothesis understood by this producer.
 pub(crate) fn validate_proof_fact_integer_formation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner_symbol: symbols::SymbolHandle,
     fact: &ProofFact,
     hypotheses: &[ExpressionHandle],
@@ -358,7 +351,7 @@ pub(crate) fn validate_proof_fact_integer_formation(
 /// evaluated by the same exact anonymous-number owner as proof admission;
 /// the portable literal representation retains a canonical sign and magnitude.
 pub fn anonymous_integer_math_literal(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<semantic_vocabulary::IntegerMathLiteral> {
     let value = anonymous_integer_value(program, expression)?;

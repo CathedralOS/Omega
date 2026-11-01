@@ -1,5 +1,6 @@
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 
+use super::super::VERSION;
 use super::plan;
 
 #[test]
@@ -15,12 +16,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
 #[test]
 fn envelope_rejects_non_current_formats() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    for version in [
-        0,
-        super::super::VERSION - 1,
-        super::super::VERSION + 1,
-        u32::MAX,
-    ] {
+    for version in [0, VERSION - 1, VERSION + 1, u32::MAX] {
         let mut encoded = plan.encode().unwrap();
         crate::codec_bytes::patch_encoded(&mut encoded, 8, version.to_le_bytes());
         assert_eq!(

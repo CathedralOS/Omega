@@ -6,6 +6,7 @@ use super::{
 use crate::CheckedUnitStructuralArgumentPlan;
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::keyed_rows::KeyedRows;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 
@@ -22,7 +23,7 @@ pub enum CheckedDispatchSubject {
         place: crate::CheckedUnitStructuralArgumentPlan,
         /// A completed-home alias for lexical SavedSubject reads. Zero for
         /// dispatches that introduce no payload bindings.
-        alias: typed_trees::expression::ExpressionHandle,
+        alias: ExpressionHandle,
     },
 }
 
@@ -55,7 +56,7 @@ impl CheckedDispatchSubject {
 /// parameter slot, and evaluation is not permission to copy an affine value.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseConstruction {
-    pub expression: typed_trees::expression::ExpressionHandle,
+    pub expression: ExpressionHandle,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
     pub case: SymbolHandle,
     pub fields: HandleSpan<CheckedScalarCaseComputationField>,
@@ -165,7 +166,7 @@ impl CheckedScalarComputationPlans {
         machine: SymbolHandle,
         state: SymbolHandle,
         statement: u32,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) -> Option<HandleSpan<CheckedScalarComputationHandle>> {
         self.projection_selectors_by_state.with_rows(
             &self.projection_selectors,
@@ -340,7 +341,7 @@ impl CheckedScalarComputationPlans {
         &self,
         root: &CheckedScalarComputationRoot,
         machine: SymbolHandle,
-        authored: typed_trees::expression::ExpressionHandle,
+        authored: ExpressionHandle,
         primitive_type: PrimitiveType,
     ) -> bool {
         root.machine == machine
@@ -379,7 +380,7 @@ pub struct CheckedProjectionSelectorRoot {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
-    pub expression: typed_trees::expression::ExpressionHandle,
+    pub expression: ExpressionHandle,
     pub evaluations: HandleSpan<CheckedScalarComputationHandle>,
 }
 
@@ -389,7 +390,7 @@ impl Default for CheckedProjectionSelectorRoot {
             machine: SymbolHandle::invalid(),
             state: SymbolHandle::invalid(),
             statement_ordinal: 0,
-            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            expression: ExpressionHandle::invalid(),
             evaluations: HandleSpan::default(),
         }
     }
@@ -420,10 +421,10 @@ impl Default for CheckedScalarComputationRoot {
 pub struct CheckedScalarComputation {
     /// Exact authored expression for a destination or call-argument root.
     /// Other intermediate nodes use the zero handle; source spans are not identity.
-    pub authored_root: typed_trees::expression::ExpressionHandle,
+    pub authored_root: ExpressionHandle,
     /// Pure value occurrence, separate from an enclosing folded destination.
     /// Generated short-circuit constants and non-value nodes use the zero handle.
-    pub value_source: typed_trees::expression::ExpressionHandle,
+    pub value_source: ExpressionHandle,
     pub primitive_type: PrimitiveType,
     /// Source-selected normal completion of this observation's temporary
     /// receiver, after its scalar snapshot and before the next operand. The
@@ -450,7 +451,7 @@ impl Default for CheckedScalarComputation {
 impl CheckedScalarComputation {
     /// The executed occurrence, not a folded enclosing destination or a pure
     /// value marker rewritten by an erased cast.
-    pub fn evaluated_expression(&self) -> typed_trees::expression::ExpressionHandle {
+    pub fn evaluated_expression(&self) -> ExpressionHandle {
         match &self.kind {
             CheckedScalarComputationKind::StorageAddress {
                 source_expression, ..
@@ -498,9 +499,7 @@ impl CheckedScalarComputation {
             } => *completion_expression,
             CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
-            CheckedScalarComputationKind::SelectedComparison { .. } => {
-                typed_trees::expression::ExpressionHandle::invalid()
-            }
+            CheckedScalarComputationKind::SelectedComparison { .. } => ExpressionHandle::invalid(),
         }
     }
 }
@@ -511,7 +510,7 @@ pub enum CheckedScalarComputationKind {
     /// its operand retains ordinary storage access and selector obligations.
     StorageAddress {
         operand_type: typed_trees::types::TypeReferenceHandle,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },
     /// Compare the contents of one evaluated byte carrier with a finite literal.
@@ -519,7 +518,7 @@ pub enum CheckedScalarComputationKind {
     /// only after that preparation and the length comparison succeed.
     ByteSequenceLiteralComparison {
         operand_type: typed_trees::types::TypeReferenceHandle,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         /// The finite literal's bytes.
         literal: source::SourceBytes,
         /// A declaration-owned upper extent bounds generated byte reads. The
@@ -535,7 +534,7 @@ pub enum CheckedScalarComputationKind {
     ByteSequencePredicate {
         predicate: language_semantics::byte_predicates::ByteSequencePredicate,
         operand_type: typed_trees::types::TypeReferenceHandle,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },
     /// Read one scalar field, or one literal element of a scalar array, at its
@@ -548,11 +547,11 @@ pub enum CheckedScalarComputationKind {
         atomic_ordering: Option<language_core::atomic::MemoryOrdering>,
         /// Complete observed scalar type, independent of the containing root.
         result_type: typed_trees::types::TypeReferenceHandle,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         /// Exact receiver occurrence before place normalization. Zero for a
         /// synthesized formal coordinate; lowering never reopens the member AST
         /// to associate this observation with an already completed operand.
-        receiver_expression: typed_trees::expression::ExpressionHandle,
+        receiver_expression: ExpressionHandle,
         /// Root storage carrier after borrowed ingress has been resolved.
         source_type: typed_trees::types::TypeReferenceHandle,
         /// The checked path retains stored-reference crossings and ends at the
@@ -572,11 +571,11 @@ pub enum CheckedScalarComputationKind {
     },
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         /// The source operation completed by this observation. A generated
         /// classifier inside a larger operation retains that operation as
         /// provenance above, but cannot run its enclosing normal cleanup.
-        completion_expression: typed_trees::expression::ExpressionHandle,
+        completion_expression: ExpressionHandle,
         /// Complete evaluated enum owner, established once before tag observation.
         /// Invalid for an existing place or a direct case constructor.
         receiver_value: super::structural_values::CheckedStructuralValueHandle,
@@ -593,7 +592,7 @@ pub enum CheckedScalarComputationKind {
     /// The full result reference retains domain instances; this node does not
     /// establish membership or authorize erasing the qualification at publication.
     Qualification {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
     },
@@ -603,9 +602,7 @@ pub enum CheckedScalarComputationKind {
     /// target's fold lands the `u64` literal at `expression` after checking
     /// (`CheckedTrees::landed_integer_constant`), and lowering emits that
     /// literal, never a callee or a source spelling.
-    RetainedConstant {
-        expression: typed_trees::expression::ExpressionHandle,
-    },
+    RetainedConstant { expression: ExpressionHandle },
     /// Pure source expression in the enclosing state's scalar namespace.
     Value(CheckedScalarExpression),
     /// Authored conversion at one cast occurrence that cannot travel the pure
@@ -614,7 +611,7 @@ pub enum CheckedScalarComputationKind {
     /// source occurrence and complete result type; checked qualification facts
     /// and boundary authorizations rejoin the exact use at publication.
     AuthoredCast {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
         /// Source checking proved this exact occurrence's partial integer
@@ -627,12 +624,12 @@ pub enum CheckedScalarComputationKind {
     /// `true` becomes 1 in the destination carrier, so this node keeps the
     /// cast's source occurrence without carrying a policy.
     BooleanToInteger {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         operand: CheckedScalarComputationHandle,
     },
     /// Save the subject once, then test arms in order and evaluate one result.
     Dispatch {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         subject: CheckedDispatchSubject,
         arms: HandleSpan<CheckedScalarDispatchArm>,
     },
@@ -642,7 +639,7 @@ pub enum CheckedScalarComputationKind {
     /// provider identity.
     Call {
         /// The exact evaluated invocation, independent of a folded outer root.
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         /// Genuine statement or declaration-application admission custody.
         source_call: crate::CheckedCallOrigin,
         callee: CheckedScalarCallee,
@@ -663,7 +660,7 @@ pub enum CheckedScalarComputationKind {
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant
         /// condition folds away and the destination root names that outer form.
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         condition: CheckedScalarComputationHandle,
         when_true: CheckedScalarComputationHandle,
         when_false: CheckedScalarComputationHandle,
@@ -674,7 +671,7 @@ pub enum CheckedScalarComputationKind {
     /// carriers are exact declaration views, parallel to selector operands.
     StorageObservation {
         root_type: typed_trees::types::TypeReferenceHandle,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
         collections: HandleSpan<typed_trees::types::TypeReferenceHandle>,
@@ -684,7 +681,7 @@ pub enum CheckedScalarComputationKind {
     /// Normal completion belongs to this whole occurrence; nested observations
     /// cannot replay the producers or lengthen the checked owner lifetimes.
     WithOperands {
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         operands: HandleSpan<CheckedScalarEvaluationOperand>,
         operand: CheckedScalarComputationHandle,
     },
@@ -692,7 +689,7 @@ pub enum CheckedScalarComputationKind {
     /// Parameter positions name only these computed operands, not source locals.
     Apply {
         /// Exact operation occurrence, retained when an enclosing selection folds.
-        source_expression: typed_trees::expression::ExpressionHandle,
+        source_expression: ExpressionHandle,
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
     },

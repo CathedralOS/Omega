@@ -2,6 +2,10 @@
 
 A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
 
+The [indexed handback production](indexed_handback/README.md) uses two bounded,
+distinct runtime indices and carries the writer's public postcondition through
+the same nine places. Its controls exercise RHS effects and current selectors.
+
 Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` in [TASKS.md](../../../../TASKS.md).
 The nine places now read `items[0]` through an opaque generic reference result:
 `capture<View>(source: View, marker: &mut u64, event: u64) -> View`, with

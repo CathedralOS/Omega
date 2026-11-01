@@ -1,14 +1,19 @@
 //! Copy one readable root's verified extent into fresh activation storage,
 //! and reseat a borrowed window's vacated field with the inverse copy.
+use super::runtime_address::{cross_references, footprint, projection_origin, scale};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use crate::SelectedInstructionError;
+use crate::selection::aggregate_result_input::{block_home, inline_argument_fragments};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use crate::selection::scalar_call_abi::load_transfer;
+use crate::structural_inputs::structural_reference_input::{
+    case_projection, leaf_copy_geometry, reference_formation_geometry, reference_source_geometry,
+};
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::PlaceId;
 
@@ -60,7 +65,7 @@ pub(super) fn copy(
             let root =
                 crate::selection::reference_input::root_type(function, *source).ok_or(invalid())?;
             Some(
-                crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
+                leaf_copy_geometry(
                     root,
                     path,
                     result.structural_type,
@@ -74,14 +79,7 @@ pub(super) fn copy(
             let signature = function.structural.as_ref().ok_or(invalid())?;
             let root =
                 crate::selection::reference_input::root_type(function, *source).ok_or(invalid())?;
-            Some(
-                crate::structural_inputs::structural_reference_input::case_projection(
-                    root,
-                    path,
-                    &signature.structural_types,
-                )
-                .ok_or(invalid())?,
-            )
+            Some(case_projection(root, path, &signature.structural_types).ok_or(invalid())?)
         }
         _ => None,
     };
@@ -89,14 +87,7 @@ pub(super) fn copy(
         .as_ref()
         .map_or(&[][..], |geometry| geometry.pointer_slots.as_slice());
     let (input, pointer_slots) = if geometry.is_some() {
-        super::runtime_address::projection_origin(
-            function,
-            builder,
-            row,
-            *source,
-            *byte_offset,
-            pointer_slots,
-        )?
+        projection_origin(function, builder, row, *source, *byte_offset, pointer_slots)?
     } else {
         // Whole-value copies retain descriptor bytes, not backing elements.
         (input, pointer_slots)
@@ -124,16 +115,10 @@ pub(super) fn copy(
     // joins the accumulating pointer in path order ahead of the first load
     // (`runtime_address`), the address model every runtime-projected access
     // shares.
-    let (input, leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        *source,
-        input,
-        indices,
-        pointer_slots,
-    )?;
+    let (input, leaf_index) =
+        cross_references(builder, row, *source, input, indices, pointer_slots)?;
     let indices = indices.get(leaf_index..).ok_or(invalid())?;
-    let input = super::runtime_address::scale(builder, row, *source, *byte_offset, input, indices)?;
+    let input = scale(builder, row, *source, *byte_offset, input, indices)?;
     copy_bytes(
         builder,
         row,
@@ -201,8 +186,7 @@ pub(super) fn reseat(
         // resolved against `destination.place` below.
         abstract_operations::StructuralWindowRoot::OwnedResult { .. } => true,
         abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
-            crate::selection::aggregate_result_input::block_home(source, parameter.place)
-                == Some((*block, parameter))
+            block_home(source, parameter.place) == Some((*block, parameter))
         }
     };
     if row.result.is_some() || !destination_admits {
@@ -231,18 +215,15 @@ pub(super) fn reseat(
         *field,
     )
     .ok_or(invalid())?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        destination.structural_type(),
-        &projection.path,
-        types,
-    )
-    .ok_or(invalid())?;
+    let geometry =
+        reference_source_geometry(destination.structural_type(), &projection.path, types)
+            .ok_or(invalid())?;
     if geometry.byte_offset != *byte_offset
         || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
     }
-    let (root, pointer_slots) = super::runtime_address::projection_origin(
+    let (root, pointer_slots) = projection_origin(
         source,
         builder,
         row,
@@ -250,7 +231,7 @@ pub(super) fn reseat(
         *byte_offset,
         &geometry.pointer_slots,
     )?;
-    let (root, leaf_index) = super::runtime_address::cross_references(
+    let (root, leaf_index) = cross_references(
         builder,
         row,
         destination.place(),
@@ -259,7 +240,7 @@ pub(super) fn reseat(
         pointer_slots,
     )?;
     let indices = indices.get(leaf_index..).ok_or_else(invalid)?;
-    let root = super::runtime_address::scale(
+    let root = scale(
         builder,
         row,
         destination.place(),
@@ -377,12 +358,7 @@ pub(super) fn project_operand<'indices>(
     let signature = source.structural.as_ref().ok_or_else(invalid)?;
     let root =
         crate::selection::reference_input::root_type(source, argument.place).ok_or_else(invalid)?;
-    let geometry =
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            root,
-            &argument.path,
-            &signature.structural_types,
-        )
+    let geometry = reference_formation_geometry(root, &argument.path, &signature.structural_types)
         .ok_or_else(invalid)?;
     if !geometry.readable
         || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
@@ -402,7 +378,7 @@ pub(super) fn project_operand<'indices>(
             &[][..],
         )
     } else {
-        super::runtime_address::projection_origin(
+        projection_origin(
             source,
             builder,
             row,
@@ -418,16 +394,10 @@ pub(super) fn project_operand<'indices>(
             indices,
         });
     };
-    let (input, consumed) = super::runtime_address::cross_references(
-        builder,
-        row,
-        argument.place,
-        input,
-        indices,
-        pointer_slots,
-    )?;
+    let (input, consumed) =
+        cross_references(builder, row, argument.place, input, indices, pointer_slots)?;
     let indices = indices.get(consumed..).ok_or_else(invalid)?;
-    let input = super::runtime_address::scale(
+    let input = scale(
         builder,
         row,
         argument.place,
@@ -466,7 +436,7 @@ fn copy_bytes(
             u32::from(width),
         )?;
         let value = transport_register(builder, from.place, load_offset)?;
-        super::runtime_address::footprint(
+        footprint(
             builder,
             row,
             from.place,
@@ -496,7 +466,7 @@ fn copy_bytes(
             store_offset,
             u32::from(width),
         )?;
-        super::runtime_address::footprint(
+        footprint(
             builder,
             row,
             to.place,
@@ -550,9 +520,7 @@ fn copy_from_fragments(
                 .find(|parameter| parameter.semantic.place == *place)
         })
         .ok_or_else(|| invalid())?;
-    if !crate::selection::aggregate_result_input::inline_argument_fragments(
-        &parameter.target.placement,
-    ) {
+    if !inline_argument_fragments(&parameter.target.placement) {
         return Err(invalid());
     }
     let leaf_end = byte_offset
@@ -600,7 +568,7 @@ fn copy_from_fragments(
             offset,
             width,
         )?;
-        super::runtime_address::footprint(
+        footprint(
             builder,
             row,
             destination.place,

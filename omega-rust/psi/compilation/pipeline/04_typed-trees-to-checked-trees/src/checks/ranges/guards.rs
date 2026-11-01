@@ -1,5 +1,6 @@
 mod bounds;
 
+use crate::checks::ranges::types::expression_enforced_declared_range;
 use crate::flow::expressions;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
@@ -118,13 +119,8 @@ pub(super) fn seed_value_vs_value_endpoints(
         facts
             .proven_index_upper_bound(&program.expression_table.display_name(bound_source))
             .and_then(|exclusive| exclusive.checked_sub(1)),
-        crate::checks::ranges::types::expression_enforced_declared_range(
-            program,
-            machine,
-            state,
-            bound_source,
-        )
-        .map(|(_, high)| high),
+        expression_enforced_declared_range(program, machine, state, bound_source)
+            .map(|(_, high)| high),
         immutable_parameter_endpoint(program, machine, state, bound_source),
         // A `.len` over declared fixed storage reads a constant: `hi <=
         // main.arr.len` on a `[T; 5]` field bounds `hi` by the declared

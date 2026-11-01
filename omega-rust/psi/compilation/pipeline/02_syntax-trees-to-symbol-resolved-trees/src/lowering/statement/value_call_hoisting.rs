@@ -88,7 +88,9 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     // A cast or nested expression does not hide its call's evaluation point.
     // Keep both operands intact rather than moving one call ahead of the other.
     // Literal match arms still share the existing single subject binding.
-    if expression_contains_call(lowerer, other_side) {
+    if expression_contains(lowerer, other_side, &|node| {
+        matches!(node, ExpressionNode::Call(_))
+    }) {
         return;
     }
     // A right-side call cannot move ahead of an earlier read or operation:
@@ -153,12 +155,6 @@ pub(crate) fn hoist_scalar_value_call_comparison(
         },
     };
     set_expression(lowerer, resolved_cmp, ExpressionNode::Binary(rewritten));
-}
-
-fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
-    expression_contains(lowerer, expression, &|node| {
-        matches!(node, ExpressionNode::Call(_))
-    })
 }
 
 /// Whether `expression` evaluates any node `selects`, including nodes inside

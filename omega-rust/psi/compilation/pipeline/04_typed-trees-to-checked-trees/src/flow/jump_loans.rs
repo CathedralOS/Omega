@@ -17,8 +17,11 @@
 use validation::CanonicalPlace;
 use validation::find_state_in_machine;
 
-use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
+use crate::flow::{
+    canonical_place_segments_equal, canonical_place_segments_may_overlap,
+    family_data_binding_parameter, local_jump, place_segment_has_unresolved_identity,
+};
 
 use checked_trees::BorrowCallFact;
 use facts::PlaceRoot;
@@ -147,11 +150,11 @@ impl TargetRun {
                     && !(binding.is_data_binding
                         && source.segments.len() < loan.segments.len()
                         && loan.segments.iter().all(|segment| {
-                            !crate::flow::place_segment_has_unresolved_identity(*segment)
+                            !place_segment_has_unresolved_identity(*segment)
                         })
                         && source.segments.iter().zip(&loan.segments).all(
                             |(source_segment, loan_segment)| {
-                                crate::flow::canonical_place_segments_equal(
+                                canonical_place_segments_equal(
                                     program,
                                     *source_segment,
                                     *loan_segment,
@@ -174,18 +177,14 @@ pub(super) fn target_run(
     state_symbol: SymbolHandle,
     call: &BorrowCallFact,
 ) -> TargetRun {
-    let Some(transfer) = crate::flow::local_jump(program, machine_symbol, state_symbol, call)
-    else {
+    let Some(transfer) = local_jump(program, machine_symbol, state_symbol, call) else {
         return TargetRun::Whole;
     };
     let target = transfer.target;
     let caller = find_state_in_machine(program, machine_symbol, state_symbol);
-    let data_parameter = crate::flow::family_data_binding_parameter(
-        program,
-        machine_symbol,
-        program.state_parameters(target),
-    )
-    .map(|parameter| parameter.symbol);
+    let data_parameter =
+        family_data_binding_parameter(program, machine_symbol, program.state_parameters(target))
+            .map(|parameter| parameter.symbol);
     TargetRun::Jump(
         loan_parameters(program, target)
             .map(|parameter| {

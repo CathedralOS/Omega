@@ -10,8 +10,10 @@ use super::failed;
 use crate::tables::expressions_of_mut;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 mod calls;
 mod demands;
+mod inference;
 use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
@@ -33,6 +35,7 @@ pub(crate) fn instantiate_requirement_applications(
                 "applied logical signatures: {message}"
             ))]
         })?;
+    inference::prepare(program)?;
     let demands = demands::collect(program);
     for demand in demands {
         let requirement = demand.requirement;
@@ -76,6 +79,7 @@ pub(crate) fn instantiate_requirement_applications(
             }
             vec![calls::InvocationTuple {
                 owner: demand.argument_owner,
+                lifetime_declaration: requirement,
                 arguments: Vec::new(),
                 lifetimes: Vec::new(),
             }]
@@ -94,6 +98,7 @@ pub(crate) fn instantiate_requirement_applications(
                     .into_iter()
                     .map(|arguments| calls::InvocationTuple {
                         owner: demand.argument_owner,
+                        lifetime_declaration: requirement,
                         arguments,
                         lifetimes: Vec::new(),
                     })
@@ -135,15 +140,15 @@ pub(crate) fn instantiate_requirement_applications(
             let mut open = false;
             for (parameter, argument) in parameters.iter().zip(&arguments) {
                 match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type
-                    | typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. } => {
+                    TypeParameterKind::Type
+                    | TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. } => {
                         let actual = program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, invocation.owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
                     }
-                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    TypeParameterKind::Machine { .. } => {
                         open |= program.symbols.get(argument.symbol).kind
                             == symbols::SymbolKind::MachineParameter;
                     }
@@ -153,21 +158,20 @@ pub(crate) fn instantiate_requirement_applications(
             if open {
                 continue;
             }
-            let bindings = invocation_bindings(program, &parameters, &arguments)?;
+            let bindings = invocation_bindings(program, invocation.owner, &parameters, &arguments)?;
             let application = expressions_of_mut(program).retain_static_machine_application(
                 requirement,
                 name.clone(),
                 &arguments,
             );
             let source = expressions_of_mut(program).static_machine_application_mut(application);
-            source.lexical_owner = if invocation.owner.is_valid() {
-                invocation.owner
-            } else {
-                requirement
-            };
+            source.lexical_owner = invocation.owner;
             source.binding_declaration = requirement;
-            expressions_of_mut(program)
-                .set_static_machine_application_lifetimes(application, &invocation.lifetimes);
+            expressions_of_mut(program).set_static_machine_application_lifetimes(
+                application,
+                requirement,
+                &invocation.lifetimes,
+            );
             expressions_of_mut(program)
                 .set_static_machine_application_bindings(application, &bindings);
             let instance = program
@@ -216,8 +220,11 @@ pub(super) fn selected_applications<'a>(
 
 /// Symbolic and executable requirement calls share one binding roster.
 /// Openness prevents executable instantiation, not substitution in a contract.
+/// Actual type payloads keep their supplying declaration before a receiving
+/// signature substitutes them for its own formal binders.
 pub(crate) fn invocation_bindings(
     program: &mut TypedTrees,
+    owner: SymbolHandle,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<Vec<StaticMachineBinding>, Vec<Diagnostic>> {
@@ -228,13 +235,13 @@ pub(crate) fn invocation_bindings(
             Ok(StaticMachineBinding {
                 parameter: parameter.symbol,
                 value: match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
+                    TypeParameterKind::Type => StaticMachineBindingValue::Type(
                         program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
                         // A runtime subject is not a closed value. Retain the
                         // exact subject beside its declared carrier, the same
                         // representation candidate selection uses; its roster
@@ -246,17 +253,11 @@ pub(crate) fn invocation_bindings(
                             && program
                                 .data_type_parameter_by_symbol(argument.symbol)
                                 .is_some_and(|source| {
-                                    matches!(
-                                        source.kind,
-                                        typed_trees::data::TypeParameterKind::Value { .. }
-                                    )
+                                    matches!(source.kind, TypeParameterKind::Value { .. })
                                 });
-                        if matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                        ) && (super::const_arguments::is_runtime_value_subject(
-                            program, argument,
-                        ) || forwarded_value)
+                        if matches!(parameter.kind, TypeParameterKind::Value { .. })
+                            && (super::const_arguments::is_runtime_value_subject(program, argument)
+                                || forwarded_value)
                             && program.static_const_argument_identity(argument).is_none()
                         {
                             StaticMachineBindingValue::RuntimeValue {
@@ -284,13 +285,13 @@ pub(crate) fn invocation_bindings(
                                 )
                             } else {
                                 program
-                                    .static_operand_type_reference(argument)
+                                    .static_operand_type_reference_in_scope(argument, owner)
                                     .map_err(|message| vec![Diagnostic::error(message)])?
                             };
                             StaticMachineBindingValue::Const(actual)
                         }
                     }
-                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    TypeParameterKind::Machine { .. } => {
                         StaticMachineBindingValue::Machine(argument.clone())
                     }
                     _ => {

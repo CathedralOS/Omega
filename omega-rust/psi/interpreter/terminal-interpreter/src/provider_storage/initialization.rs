@@ -16,6 +16,7 @@ use crate::record::storage::ConstructorStorage;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use access_plans::{
     InitializationResourceCompatibility, ValidatedAccessPlan, ValidatedResourceProfile,
+    validate_initialization_resources,
 };
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralPathSegment};
@@ -80,9 +81,7 @@ impl RuntimeProviderStorage {
                 available: binding.length,
             }));
         }
-        let Ok(compatibility) =
-            access_plans::validate_initialization_resources(placement, &supplied)
-        else {
+        let Ok(compatibility) = validate_initialization_resources(placement, &supplied) else {
             return Ok(Err(InitializationRejection::IncompatibleSupply));
         };
         let base = allocation
@@ -103,9 +102,7 @@ impl RuntimeProviderStorage {
         let Ok(admitted) = profile.restrict_to_loan(&loan) else {
             return Ok(Err(InitializationRejection::IncompatibleSupply));
         };
-        let Ok(compatibility) =
-            access_plans::validate_initialization_resources(placement, &admitted)
-        else {
+        let Ok(compatibility) = validate_initialization_resources(placement, &admitted) else {
             return Ok(Err(InitializationRejection::IncompatibleSupply));
         };
         // Each profile may select a different implementation of the same

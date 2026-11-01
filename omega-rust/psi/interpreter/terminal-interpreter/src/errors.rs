@@ -19,6 +19,10 @@ pub enum TerminalInterpretError {
     ZeroInitializedArgumentInvalid {
         argument_index: u32,
     },
+    StructuralContentsArgumentInvalid {
+        argument_index: u32,
+        reason: &'static str,
+    },
     /// A raw execution cannot acquire exit authority from its effect handler.
     UnboundExternalCompletions {
         missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,

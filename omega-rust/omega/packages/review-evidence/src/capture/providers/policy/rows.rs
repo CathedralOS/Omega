@@ -8,7 +8,10 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::PackagePolicyProviderRow;
 use diagnostics::Diagnostic;
-use provider_planning::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
+use language_semantics::type_identity::normalize_requirement_lifetime_partition;
+use provider_planning::{
+    ProviderPlanningContext, ProviderSchemaDeclaration, SelectedProviderReviewProvenance,
+};
 use symbols::SymbolHandle;
 use target::TargetProfile;
 
@@ -132,21 +135,13 @@ fn validate_lifetime_partition(
             Err(rejected("non-trait row retains a trait lifetime partition"))
         };
     };
-    let machines = compilation
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == realization)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+    let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected(
             "lifetime partition has no exact realization machine",
         ));
     };
     let application = provider_planning::provider_trait_application(
-        provider_planning::ProviderPlanningContext::new(
-            compilation.checking_input,
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(compilation.checking_input, source::DependencyScope::Product),
         plan,
         row,
         machine,
@@ -154,10 +149,7 @@ fn validate_lifetime_partition(
         requirement,
     )
     .ok_or_else(|| rejected("lifetime partition has no exact selected provider application"))?;
-    if language_semantics::type_identity::normalize_requirement_lifetime_partition(
-        application.lifetime_arguments(),
-    ) != retained
-    {
+    if normalize_requirement_lifetime_partition(application.lifetime_arguments()) != retained {
         return Err(rejected(
             "row lifetime partition differs from its declaring-trait application",
         ));

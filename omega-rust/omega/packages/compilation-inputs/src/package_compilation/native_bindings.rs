@@ -35,10 +35,18 @@ impl NativeBuildOutputs {
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
         if declarations.iter().any(|declaration| {
-            declaration.producer.package != package
-                || declaration.producer.declaration_path.is_empty()
-                || declaration.producer.callable_identity.is_empty()
-                || declaration.requirement_path.is_empty()
+            declaration.source.producer.package != package
+                || declaration.source.producer.declaration_path.is_empty()
+                || declaration.source.producer.callable_identity.is_empty()
+                || declaration.source.requirement_path.is_empty()
+                || declaration.requirement_identity.is_empty()
+                || declaration.requirement.kind() != symbols::SymbolKind::State
+                || declaration.requirement.source().dependency_scope
+                    != source::DependencyScope::Product
+                || declaration
+                    .dependency_alias
+                    .as_ref()
+                    .is_some_and(|alias| alias.is_empty())
         }) {
             return Err(
                 "native output changes its exact checked package or source declaration".into(),
@@ -74,6 +82,25 @@ impl NativeBuildOutputs {
 }
 
 impl super::PackageCompilationInputs {
+    /// Admit native declaration anchors by the same immutable source operation
+    /// as retained provider choices. Psi independently rejoins exact symbols
+    /// and checks the original direct dependency and temporal scope afterward.
+    pub fn admit_package_native_declarations(
+        &self,
+        handoff: &PackageBuildHandoff,
+    ) -> Result<Vec<CapturedNativeDeclaration>, Vec<diagnostics::Diagnostic>> {
+        handoff
+            .native_declarations()
+            .iter()
+            .map(|declaration| {
+                let mut admitted = declaration.clone();
+                admitted.requirement =
+                    self.admit_retained_product_declaration(handoff, &declaration.requirement)?;
+                Ok(admitted)
+            })
+            .collect()
+    }
+
     /// Relative import purpose, rather than the producer's own purpose, decides
     /// whether these outputs may supply the receiving Product.
     pub fn product_dependency_native_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {

@@ -7,6 +7,7 @@
 //! Static geometry needs no new capture, but every projected descendant keeps
 //! its lineage: a static child can still depend on a dynamic ancestor address.
 use crate::LoweringError;
+use crate::terminal_identities::lookup_type_id;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedStructuralControlTransferSourcePlan as Source,
     CheckedUnitStructuralArgumentSourcePlan as Root,
@@ -203,10 +204,7 @@ impl CapturedLoans {
                         {
                             if *previous != carrier_type_identity {
                                 let shape = |identity| {
-                                    let carrier = crate::terminal_identities::lookup_type_id(
-                                        &catalogs.type_ids,
-                                        identity,
-                                    )?;
+                                    let carrier = lookup_type_id(&catalogs.type_ids, identity)?;
                                     terminal_psi::find_structural_type(
                                         &catalogs.structural_types,
                                         carrier,
@@ -240,10 +238,7 @@ impl CapturedLoans {
                         } else {
                             types.push((group, carrier_type_identity));
                         }
-                        let carrier = crate::terminal_identities::lookup_type_id(
-                            &catalogs.type_ids,
-                            &carrier_type_identity,
-                        )?;
+                        let carrier = lookup_type_id(&catalogs.type_ids, &carrier_type_identity)?;
                         if plan.states[target].structural_parameters
                             [transfer.target_parameter_index as usize]
                             .access
@@ -450,8 +445,7 @@ impl CapturedLoans {
                             "captured state loan requires invocation carrier arrival",
                         ));
                     }
-                    let structural_type =
-                        crate::terminal_identities::lookup_type_id(&catalogs.type_ids, identity)?;
+                    let structural_type = lookup_type_id(&catalogs.type_ids, identity)?;
                     let place = super::super::super::super::place_id(
                         super::super::super::super::allocate_dense(&mut catalogs.next_place)?,
                     );

@@ -1,6 +1,9 @@
 //! Read a selected descriptor in its original home. Pointer crossings and
 //! runtime selectors keep their own ordered storage regions; this operation
 //! neither extracts a descriptor nor grants an independent payload loan.
+use super::runtime_address::{
+    cross_references, footprint, projection_base, projection_origin, scale,
+};
 use super::{
     Builder, LegalizedScalarFunction, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory,
     place_pointer, provenance, transport_register,
@@ -60,8 +63,7 @@ pub(super) fn completed_view_words(
     let Some(length) = length else {
         return Ok(None);
     };
-    let backing = super::runtime_address::projection_base(function, builder, row, source.place, 0)?
-        .ok_or_else(invalid)?;
+    let backing = projection_base(function, builder, row, source.place, 0)?.ok_or_else(invalid)?;
     Ok(Some([backing, length]))
 }
 
@@ -85,7 +87,7 @@ pub(super) fn backing(
             geometry.pointer_slots.as_slice(),
         )
     } else {
-        super::runtime_address::projection_origin(
+        projection_origin(
             function,
             builder,
             row,
@@ -95,16 +97,10 @@ pub(super) fn backing(
         )?
     };
     let pointer = pointer.ok_or_else(invalid)?;
-    let (pointer, leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        source.place,
-        pointer,
-        indices,
-        pointer_slots,
-    )?;
+    let (pointer, leaf_index) =
+        cross_references(builder, row, source.place, pointer, indices, pointer_slots)?;
     let leaf_indices = &indices[leaf_index..];
-    let pointer = super::runtime_address::scale(
+    let pointer = scale(
         builder,
         row,
         source.place,
@@ -132,7 +128,7 @@ pub(super) fn backing(
             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
         ) => {
-            super::runtime_address::footprint(
+            footprint(
                 builder,
                 row,
                 source.place,

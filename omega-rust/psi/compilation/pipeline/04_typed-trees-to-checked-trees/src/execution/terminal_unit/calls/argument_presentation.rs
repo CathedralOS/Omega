@@ -2,10 +2,11 @@
 //!
 //! This owner decides representation compatibility only. Call admission keeps
 //! source access, multiplicity, predicate obligations and live-loan custody.
+use super::boundary_admission::fixed_array_slice_view_is_admitted;
+use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_carrier, lent_storage_identity, substituted_formal_type,
 };
-use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 
 /// A representation relation, not authority to lend the selected storage.
 /// Array views additionally need initialized, unqualified backing and an
@@ -59,12 +60,9 @@ pub(crate) fn classify(
     {
         return Some(ArgumentPresentation::SharedScalarObservation);
     }
-    if super::boundary_admission::fixed_array_slice_view_is_admitted(
-        program,
-        projected_type,
-        formal,
-    ) && base_type_identity(program, formal, &[], substitutions)
-        .is_some_and(|identity| identity == target_identity)
+    if fixed_array_slice_view_is_admitted(program, projected_type, formal)
+        && base_type_identity(program, formal, &[], substitutions)
+            .is_some_and(|identity| identity == target_identity)
     {
         return Some(ArgumentPresentation::FixedArraySlice);
     }
@@ -113,15 +111,8 @@ pub(crate) fn classify(
 /// domain constraint shells.
 fn shared_view_reference(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { access, .. } => {
-                return *access == language_core::ReferenceAccess::Shared;
-            }
-            _ => return false,
-        }
-    }
+    crate::checks::reference_access(program, type_reference)
+        .is_some_and(|access| access == language_core::ReferenceAccess::Shared)
 }

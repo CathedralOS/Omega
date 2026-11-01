@@ -6,6 +6,7 @@
 use crate::PreparedNativeCompilation;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use diagnostics::Diagnostic;
+use image_emission::ExecutableImageEmissionRequest;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 
 /// Consume retained Terminal through the ordinary source-free native pipeline.
@@ -14,13 +15,7 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// returns the original complete image request, including its interpreter.
 pub fn compile(
     prepared: PreparedNativeCompilation<'_>,
-) -> Result<
-    crate::RealizedNativeProduct,
-    (
-        image_emission::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
+) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
     let PreparedNativeCompilation {
         retained,
         request,

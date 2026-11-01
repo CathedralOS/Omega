@@ -12,7 +12,12 @@ use typed_trees::expression::{
 };
 use typed_trees::types::TypeReferenceHandle;
 
+use super::dependencies::{free_positions, rebind_domain};
 use super::{Elaborator, ScalarCarrier};
+use validation::expression_traversal::children;
+use validation::mathematical_applications::{
+    integer_embedding_meaning, operand_type_reference, source_operations_have_same_meaning,
+};
 
 /// Construction-time custody of one opaque source operation. The selected
 /// source expression, declaration scope and complete result reference define
@@ -243,20 +248,17 @@ impl<'a> Elaborator<'a> {
             let carrier = self.integer_carrier();
             return self.numeric_literal(carrier, value);
         }
-        if validation::mathematical_applications::operand_type_reference(self.program, handle)
-            .is_some_and(|reference| {
-                self.program
-                    .primitive_type_reference(reference)
-                    .is_some_and(|primitive| primitive.is_fixed_integer())
-                    && self.program.arithmetic_domain_for_type_reference(reference)
-                        != numerics::arithmetic::ArithmeticDomain::Exact
-            })
-        {
+        if operand_type_reference(self.program, handle).is_some_and(|reference| {
+            self.program
+                .primitive_type_reference(reference)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+                && self.program.arithmetic_domain_for_type_reference(reference)
+                    != numerics::arithmetic::ArithmeticDomain::Exact
+        }) {
             return self.open_term(handle);
         }
-        let references = [binary.left, binary.right].map(|operand| {
-            validation::mathematical_applications::operand_type_reference(self.program, operand)
-        });
+        let references = [binary.left, binary.right]
+            .map(|operand| operand_type_reference(self.program, operand));
         let spelling = match binary.operator {
             BinaryOperator::Add => language_core::OperatorSpelling::Add,
             BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
@@ -305,17 +307,14 @@ impl<'a> Elaborator<'a> {
         // An opaque operation's declared result can be the first occurrence
         // of a data carrier. Elaborate that exact source domain before asking
         // which carrier it denotes; signature occurrence is not authority.
-        let source_type =
-            validation::mathematical_applications::operand_type_reference(self.program, handle);
+        let source_type = operand_type_reference(self.program, handle);
         let source_domain = source_type
             .map(|reference| self.elaborate_source_operand_type(reference))
             .transpose()?;
         let Some(carrier) = self.operand_carrier(handle) else {
             return Err(self.unsupported_expression(handle));
         };
-        if let Some(meaning) =
-            validation::mathematical_applications::integer_embedding_meaning(self.program, handle)
-        {
+        if let Some(meaning) = integer_embedding_meaning(self.program, handle) {
             return self.embedding_term(handle, meaning);
         }
         let result_type = match source_domain {
@@ -325,7 +324,7 @@ impl<'a> Elaborator<'a> {
         let mut dependencies = Vec::new();
         // A result domain can mention a generic binder that no value operand
         // reaches. Keep those exact type dependencies in the same telescope.
-        super::dependencies::free_positions(
+        free_positions(
             &self.arena,
             result_type,
             self.scope.len(),
@@ -367,14 +366,12 @@ impl<'a> Elaborator<'a> {
                     }
                 }
             }
-            validation::expression_traversal::children(self.program, node, |child| {
-                pending.push(child)
-            });
+            children(self.program, node, |child| pending.push(child));
         }
         let mut index = 0;
         while index < dependencies.len() {
             let position = dependencies[index];
-            super::dependencies::free_positions(
+            free_positions(
                 &self.arena,
                 self.scope[position].domain,
                 position,
@@ -388,7 +385,7 @@ impl<'a> Elaborator<'a> {
             operation.owner == self.source_owner
                 && operation.source_type == source_type
                 && (operation.expression == handle
-                    || validation::mathematical_applications::source_operations_have_same_meaning(
+                    || source_operations_have_same_meaning(
                         self.program,
                         self.source_owner,
                         operation.expression,
@@ -403,7 +400,7 @@ impl<'a> Elaborator<'a> {
                         .iter()
                         .map(|entry| entry.domain)
                         .collect::<Vec<_>>();
-                    domains.push(super::dependencies::rebind_domain(
+                    domains.push(rebind_domain(
                         &mut self.arena,
                         self.scope[*position].domain,
                         &old,
@@ -415,12 +412,8 @@ impl<'a> Elaborator<'a> {
                     .iter()
                     .map(|entry| entry.domain)
                     .collect::<Vec<_>>();
-                let mut ty = super::dependencies::rebind_domain(
-                    &mut self.arena,
-                    result_type,
-                    &old_domains,
-                    &dependencies,
-                );
+                let mut ty =
+                    rebind_domain(&mut self.arena, result_type, &old_domains, &dependencies);
                 for domain in domains.iter().rev() {
                     ty = self.arena.insert(Term::Pi {
                         domain: *domain,

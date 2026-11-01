@@ -36,7 +36,12 @@ mod conformance;
 pub mod conformance_applications;
 mod dynamic;
 mod named_implementations;
+mod provider_applications;
 mod provider_regions;
+pub(crate) use provider_applications::closed_requirement_provider_associations;
+pub use provider_applications::{
+    ProviderApplicationAssociation, ProviderApplicationIdentity, provider_application_associations,
+};
 pub mod refinement_fit;
 mod requirements;
 mod trait_implementation_arguments;

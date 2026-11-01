@@ -101,7 +101,12 @@ reaches ResourceProfileSupply crashes Trap
         true -> verify(retained)
         _ -> fail(retained)
     }
-    machine verify(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant {
+    // A nested machine carries its own contract: the registration proved by
+    // `register` arrives as a requirement and leaves as a guarantee.
+    machine verify(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+    requires storage in Registered
+    ensures result in Registered
+    {
         let observed: bool = observe_existing(&storage);
         transition observed {
             true -> (storage)

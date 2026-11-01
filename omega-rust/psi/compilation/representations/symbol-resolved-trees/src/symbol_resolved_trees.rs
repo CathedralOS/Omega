@@ -34,6 +34,17 @@ pub mod storage;
 pub mod type_system;
 pub mod values;
 
+use crate::constant::ConstDeclaration;
+use crate::data::{DataDefinition, TypeParameter};
+use crate::domain::{DomainDefinition, ProofFact};
+use crate::machine::{Machine, OwnedData};
+use crate::mathematical::{MathematicalType, MathematicalTypeHandle};
+use crate::name::DiagnosticName;
+use crate::signature::{SignatureContract, StateParameter, StateSignature};
+use crate::state::State;
+use crate::statement::Statement;
+use crate::trait_definition::{TraitDefinition, TraitRequirement};
+use crate::types::TypeReference;
 use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
@@ -47,8 +58,7 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use std::ops::{Deref, DerefMut};
-use symbols::JoinedPath;
-use symbols::SymbolTable;
+use symbols::{JoinedPath, SymbolHandle, SymbolTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTrees {
@@ -123,20 +133,14 @@ pub struct SymbolResolvedRoots {
 
 impl SymbolResolvedRoots {
     /// The trait definition keyed `symbol`.
-    pub fn trait_definition(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::trait_definition::TraitDefinition> {
+    pub fn trait_definition(&self, symbol: symbols::SymbolHandle) -> Option<&TraitDefinition> {
         self.traits
             .iter()
             .find(|definition| definition.symbol == symbol)
     }
 
     /// The const declaration keyed `symbol`.
-    pub fn const_declaration(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::constant::ConstDeclaration> {
+    pub fn const_declaration(&self, symbol: symbols::SymbolHandle) -> Option<&ConstDeclaration> {
         self.const_declarations
             .iter()
             .find(|declaration| declaration.symbol == symbol)
@@ -252,20 +256,14 @@ impl SymbolResolvedTrees {
     }
 
     /// The domain definition keyed `symbol`, when the trees declare it.
-    pub fn domain_definition_by_symbol(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::domain::DomainDefinition> {
+    pub fn domain_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&DomainDefinition> {
         self.domain_definitions
             .iter()
             .find(|definition| definition.symbol == symbol)
     }
 
     /// The data definition keyed `symbol`, when the trees declare it.
-    pub fn data_definition_by_symbol(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    pub fn data_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
         self.data_definitions
             .iter()
             .find(|definition| definition.symbol == symbol)
@@ -648,10 +646,7 @@ impl SymbolResolvedTrees {
         self.declarations().data_payload_fields.span_or_empty(span)
     }
 
-    pub fn data_type_parameters(
-        &self,
-        span: HandleSpan<data::TypeParameter>,
-    ) -> &[data::TypeParameter] {
+    pub fn data_type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.declarations().data_type_parameters.span_or_empty(span)
     }
 
@@ -661,10 +656,7 @@ impl SymbolResolvedTrees {
 
     /// One resolved mathematical type node (`Ordinary`/`Arrow`/`Application`)
     /// in a `let`/`boundary let` declaration's signature surface.
-    pub fn mathematical_type(
-        &self,
-        handle: mathematical::MathematicalTypeHandle,
-    ) -> &mathematical::MathematicalType {
+    pub fn mathematical_type(&self, handle: MathematicalTypeHandle) -> &MathematicalType {
         self.declarations().mathematical_types.get(handle)
     }
 
@@ -678,10 +670,7 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn proof_fact_source_span(
-        &self,
-        handle: Handle<domain::ProofFact>,
-    ) -> Option<source::SourceSpan> {
+    pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<SourceSpan> {
         self.declarations()
             .proof_fact_source_spans
             .get(proof_fact_source_span_index(handle))
@@ -701,17 +690,11 @@ impl SymbolResolvedTrees {
         self.declarations_mut().proof_fact_source_spans[index] = Some(source_span);
     }
 
-    pub fn domain_path_members(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn domain_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.declarations().domain_path_members.span_or_empty(span)
     }
 
-    pub fn operator_path_members(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn operator_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.declarations()
             .operator_path_members
             .span_or_empty(span)
@@ -729,17 +712,11 @@ impl SymbolResolvedTrees {
         self.declarations().operator_definitions.span_or_empty(span)
     }
 
-    pub fn measure_path_members(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn measure_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.operator_path_members(span)
     }
 
-    pub fn trait_machine_signatures(
-        &self,
-        span: HandleSpan<signature::StateSignature>,
-    ) -> &[signature::StateSignature] {
+    pub fn trait_machine_signatures(&self, span: HandleSpan<StateSignature>) -> &[StateSignature] {
         self.declarations()
             .trait_machine_signatures
             .span_or_empty(span)
@@ -777,55 +754,34 @@ impl SymbolResolvedTrees {
         }
     }
 
-    pub fn trait_type_parameters(
-        &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
-    ) -> &[data::TypeParameter] {
+    pub fn trait_type_parameters(&self, trait_definition: &TraitDefinition) -> &[TypeParameter] {
         self.data_type_parameters(trait_definition.type_parameters)
     }
 
-    pub fn trait_requirements(
-        &self,
-        span: HandleSpan<crate::trait_definition::TraitRequirement>,
-    ) -> &[crate::trait_definition::TraitRequirement] {
+    pub fn trait_requirements(&self, span: HandleSpan<TraitRequirement>) -> &[TraitRequirement] {
         self.declarations().trait_requirements.span_or_empty(span)
     }
 
-    pub fn state_parameters(
-        &self,
-        span: HandleSpan<signature::StateParameter>,
-    ) -> &[signature::StateParameter] {
+    pub fn state_parameters(&self, span: HandleSpan<StateParameter>) -> &[StateParameter] {
         self.declarations().state_parameters.span_or_empty(span)
     }
 
-    pub fn signature_invokes(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn signature_invokes(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.declarations().signature_invokes.span_or_empty(span)
     }
 
-    pub fn signature_contracts(
-        &self,
-        span: HandleSpan<signature::SignatureContract>,
-    ) -> &[signature::SignatureContract] {
+    pub fn signature_contracts(&self, span: HandleSpan<SignatureContract>) -> &[SignatureContract] {
         self.declarations().signature_contracts.span_or_empty(span)
     }
 
     /// The machine declaration keyed `symbol`.
     /// The trait definition keyed `symbol`.
-    pub fn trait_definition(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::trait_definition::TraitDefinition> {
+    pub fn trait_definition(&self, symbol: symbols::SymbolHandle) -> Option<&TraitDefinition> {
         self.roots.trait_definition(symbol)
     }
 
     /// The const declaration keyed `symbol`.
-    pub fn const_declaration(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::constant::ConstDeclaration> {
+    pub fn const_declaration(&self, symbol: symbols::SymbolHandle) -> Option<&ConstDeclaration> {
         self.roots
             .const_declarations
             .iter()
@@ -834,10 +790,7 @@ impl SymbolResolvedTrees {
 
     /// The const declaration whose authored symbol occupies `span` — the
     /// initializer walkers key declarations by provenance, not symbol.
-    pub fn const_declaration_at_source_span(
-        &self,
-        span: SourceSpan,
-    ) -> Option<&crate::constant::ConstDeclaration> {
+    pub fn const_declaration_at_source_span(&self, span: SourceSpan) -> Option<&ConstDeclaration> {
         self.roots
             .const_declarations
             .iter()
@@ -849,38 +802,23 @@ impl SymbolResolvedTrees {
         self.machines.by_symbol(symbol)
     }
 
-    pub fn machine_invokes(
-        &self,
-        machine: &crate::machine::Machine,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn machine_invokes(&self, machine: &Machine) -> &[DiagnosticName] {
         self.signature_invokes(machine.invokes)
     }
 
-    pub fn machine_type_parameters(
-        &self,
-        machine: &crate::machine::Machine,
-    ) -> &[data::TypeParameter] {
+    pub fn machine_type_parameters(&self, machine: &Machine) -> &[data::TypeParameter] {
         self.data_type_parameters(machine.type_parameters)
     }
 
-    pub fn machine_ranking_view(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
+    pub fn machine_ranking_view(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.declarations().ranking_views.span_or_empty(span)
     }
 
-    pub fn machine_contracts(
-        &self,
-        machine: &crate::machine::Machine,
-    ) -> &[signature::SignatureContract] {
+    pub fn machine_contracts(&self, machine: &Machine) -> &[signature::SignatureContract] {
         self.signature_contracts(machine.contracts)
     }
 
-    pub fn machine_state_handles(
-        &self,
-        span: HandleSpan<Handle<state::State>>,
-    ) -> &[Handle<state::State>] {
+    pub fn machine_state_handles(&self, span: HandleSpan<Handle<State>>) -> &[Handle<State>] {
         self.declarations()
             .machine_state_handles
             .span_or_empty(span)
@@ -890,10 +828,7 @@ impl SymbolResolvedTrees {
         self.declarations().machine_states.get(handle)
     }
 
-    pub fn machine_owned_data(
-        &self,
-        span: HandleSpan<crate::machine::OwnedData>,
-    ) -> &[crate::machine::OwnedData] {
+    pub fn machine_owned_data(&self, span: HandleSpan<OwnedData>) -> &[OwnedData] {
         self.declarations().machine_owned_data.span_or_empty(span)
     }
 
@@ -906,26 +841,17 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn state_statements(
-        &self,
-        span: HandleSpan<statement::Statement>,
-    ) -> &[statement::Statement] {
+    pub fn state_statements(&self, span: HandleSpan<Statement>) -> &[Statement] {
         self.declarations().state_statements.span_or_empty(span)
     }
 
-    pub fn child_type_references(
-        &self,
-        span: HandleSpan<types::TypeReference>,
-    ) -> &[types::TypeReference] {
+    pub fn child_type_references(&self, span: HandleSpan<TypeReference>) -> &[TypeReference] {
         self.declarations()
             .child_type_references
             .span_or_empty(span)
     }
 
-    pub fn child_type_reference(
-        &self,
-        handle: Handle<types::TypeReference>,
-    ) -> &types::TypeReference {
+    pub fn child_type_reference(&self, handle: Handle<TypeReference>) -> &TypeReference {
         self.declarations().child_type_references.get(handle)
     }
 
@@ -1104,8 +1030,11 @@ mod tests {
 
     use crate::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredSelectionExtensionRebaseError, AuthoredSelectionOccurrenceStore,
-        SymbolResolvedTrees, domain, expression, name::DiagnosticName, statement,
+        AuthoredDeclarationSelectionOccurrenceId, AuthoredSelectionExtensionRebaseError,
+        AuthoredSelectionOccurrenceStore, SymbolResolvedTrees, domain, expression,
+        name::DiagnosticName,
+        statement,
+        statement::{Statement, TransitionTarget},
     };
     use arena::HandleSpan;
     use source::{SourceId, SourceSpan, Span};
@@ -1179,9 +1108,7 @@ mod tests {
             .expect("valid selected symbol")
     }
 
-    fn tree_call(
-        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
-    ) -> statement::Statement {
+    fn tree_call(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> statement::Statement {
         statement::Statement::Call(statement::Call {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::from_arena_index(8),
@@ -1193,9 +1120,7 @@ mod tests {
         })
     }
 
-    fn named_target(
-        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
-    ) -> statement::TransitionTarget {
+    fn named_target(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> TransitionTarget {
         statement::TransitionTarget::Named(statement::NamedTransitionTarget {
             receiver_symbol: Default::default(),
             head_symbol: SymbolHandle::from_arena_index(8),
@@ -1207,9 +1132,7 @@ mod tests {
         })
     }
 
-    fn tree_transition(
-        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
-    ) -> statement::Statement {
+    fn tree_transition(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> Statement {
         statement::Statement::Transition(statement::Transition {
             target: named_target(occurrence),
             continuation: Some(named_target(occurrence)),

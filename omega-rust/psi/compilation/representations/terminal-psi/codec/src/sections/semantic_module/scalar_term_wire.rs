@@ -173,7 +173,11 @@ pub(crate) fn encode_scalar_term(
         ScalarTerm::IntegerBitwiseNot {
             scalar_type,
             operand,
-        } => encode_typed_unary_term(writer, 20, *scalar_type, operand, depth)?,
+        } => {
+            writer.u8(20);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, operand, depth + 1)?;
+        }
         ScalarTerm::IntegerWiden {
             source_type,
             target_type,
@@ -323,18 +327,6 @@ fn encode_typed_binary_term(
     encode_integer_type(writer, scalar_type);
     encode_scalar_term(writer, left, depth + 1)?;
     encode_scalar_term(writer, right, depth + 1)
-}
-
-fn encode_typed_unary_term(
-    writer: &mut Writer,
-    tag: u8,
-    scalar_type: IntegerType,
-    operand: &ScalarTerm,
-    depth: usize,
-) -> Result<(), CodecError> {
-    writer.u8(tag);
-    encode_integer_type(writer, scalar_type);
-    encode_scalar_term(writer, operand, depth + 1)
 }
 
 fn encode_shift_term(

@@ -11,6 +11,7 @@
 //! header invariants retain those input snapshots. This traversal does not grant
 //! recursive citation, termination, argument admission or reference authority.
 
+use super::super::super::return_values::exit_return_call_in_state;
 use super::{
     AdmittedGuarantee, Header, exit_return_expression, fixed_integer, is_result_reference,
 };
@@ -135,9 +136,7 @@ pub(super) fn proves(
             if exits.next().is_some() {
                 return false;
             }
-            if let Some(call) = super::super::super::return_values::exit_return_call_in_state(
-                program, facts, state_flow, exit,
-            ) {
+            if let Some(call) = exit_return_call_in_state(program, facts, state_flow, exit) {
                 let Some(callee) = program.machine_holding_state(call.target_symbol) else {
                     return false;
                 };

@@ -5,6 +5,7 @@
 //! at this observation; that disposition, not the read, settles its remaining
 //! claims and nominal obligations through the ordinary completion machinery.
 use super::{CheckedTrees, Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
+use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
 
 pub(super) fn lower(
     expansion: &mut Expansion<'_>,
@@ -117,15 +118,13 @@ pub(super) fn lower(
     if established {
         return Ok(observe);
     }
-    Ok(
-        crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
-            identities,
-            expansion.checked,
-            receiver_value,
-            expansion.structural_types,
-        )?
-        .finish(input_types, observe, expansion),
-    )
+    Ok(ValueRequest::prepare(
+        identities,
+        expansion.checked,
+        receiver_value,
+        expansion.structural_types,
+    )?
+    .finish(input_types, observe, expansion))
 }
 
 /// A retained receiver names one complete authored occurrence. Reservation,

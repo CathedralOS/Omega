@@ -70,6 +70,7 @@ pub use recovery_classification::{
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};
 
 pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
+use std::sync::Arc;
 
 /// Each function's digest for the receipt identity: a carried function's
 /// comes from its validated predecessor, whose rows it copies; every other
@@ -79,7 +80,7 @@ pub(crate) fn carried_digests<Function>(
     carried: &[bool],
     previous_digests: &[[u8; 32]],
     digest: impl Fn(&Function) -> [u8; 32],
-) -> std::sync::Arc<[[u8; 32]]> {
+) -> Arc<[[u8; 32]]> {
     functions
         .iter()
         .enumerate()
@@ -101,10 +102,10 @@ pub enum RecoveryReanalysisError {
 /// deferring whole-plan receipt hashing until placement succeeds.
 #[derive(Clone)]
 pub struct UnsealedRecoveryFacts {
-    liveness_functions: Vec<std::sync::Arc<selected_instructions::FunctionLiveness>>,
+    liveness_functions: Vec<Arc<selected_instructions::FunctionLiveness>>,
     liveness_materialized: Vec<bool>,
-    range_functions: Vec<std::sync::Arc<selected_instructions::FunctionLiveRanges>>,
-    legality_functions: Vec<std::sync::Arc<register_homes::FunctionAllocationLegality>>,
+    range_functions: Vec<Arc<selected_instructions::FunctionLiveRanges>>,
+    legality_functions: Vec<Arc<register_homes::FunctionAllocationLegality>>,
 }
 
 impl UnsealedRecoveryFacts {
@@ -122,13 +123,11 @@ impl UnsealedRecoveryFacts {
         }
     }
 
-    pub fn range_functions(&self) -> &[std::sync::Arc<selected_instructions::FunctionLiveRanges>] {
+    pub fn range_functions(&self) -> &[Arc<selected_instructions::FunctionLiveRanges>] {
         &self.range_functions
     }
 
-    pub fn legality_functions(
-        &self,
-    ) -> &[std::sync::Arc<register_homes::FunctionAllocationLegality>] {
+    pub fn legality_functions(&self) -> &[Arc<register_homes::FunctionAllocationLegality>] {
         &self.legality_functions
     }
 
@@ -160,7 +159,7 @@ impl UnsealedRecoveryFacts {
         }
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
-                liveness_functions[index] = std::sync::Arc::new(
+                liveness_functions[index] = Arc::new(
                     phase_profile::scope("06.1.d.05.i.1_liveness", || {
                         liveness::compute::compute_function_for_ranges(index, function)
                     })
@@ -172,7 +171,7 @@ impl UnsealedRecoveryFacts {
         let mut range_functions = self.range_functions.clone();
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
-                range_functions[index] = std::sync::Arc::new(
+                range_functions[index] = Arc::new(
                     phase_profile::scope("06.1.d.05.i.2_live_ranges", || {
                         live_ranges::compute::compute_function(
                             index,
@@ -205,7 +204,7 @@ impl UnsealedRecoveryFacts {
                 .map_err(RecoveryReanalysisError::Legality)?;
                 allocation_legality::validate::FunctionCounts::new(&computed, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
-                legality_functions[index] = std::sync::Arc::new(computed);
+                legality_functions[index] = Arc::new(computed);
             }
         }
         Ok(Self {
@@ -241,7 +240,7 @@ impl UnsealedRecoveryFacts {
                 && let Some(function) = next_plan.functions.get(index)
                 && let Ok(full) = liveness::compute::compute_function(index, function)
             {
-                liveness_functions[index] = std::sync::Arc::new(full);
+                liveness_functions[index] = Arc::new(full);
             }
         }
         let carried: Vec<bool> = next_plan
@@ -260,12 +259,12 @@ impl UnsealedRecoveryFacts {
                         .is_some_and(|a| {
                             liveness_functions
                                 .get(index)
-                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                                .is_some_and(|b| Arc::ptr_eq(a, b) || a == b)
                         })
                     && anchor_ranges.plan().functions.get(index).is_some_and(|a| {
                         self.range_functions
                             .get(index)
-                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                            .is_some_and(|b| Arc::ptr_eq(a, b) || a == b)
                     })
                     && anchor_legality
                         .plan()
@@ -274,7 +273,7 @@ impl UnsealedRecoveryFacts {
                         .is_some_and(|a| {
                             self.legality_functions
                                 .get(index)
-                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                                .is_some_and(|b| Arc::ptr_eq(a, b) || a == b)
                         })
             })
             .collect();

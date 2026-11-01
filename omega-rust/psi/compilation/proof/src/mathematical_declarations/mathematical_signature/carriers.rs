@@ -8,7 +8,7 @@ use numerics::bignum::BigInt;
 use numerics::literals::{FloatFormat, LandedIntegerType};
 
 use proof_admission::{Declaration, Level, Sort, Term, TermHandle};
-use symbols::{BuiltinTypeAtom, SymbolHandle};
+use symbols::{BuiltinTypeAtom, BuiltinTypeMember, SymbolHandle};
 use typed_trees::data::DataMember;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableMemberExpression, TableNamePath, UnaryOperator,
@@ -212,8 +212,7 @@ impl<'a> Elaborator<'a> {
     /// return type of a `machine` declaration, which carries no kernel
     /// declaration and lets its calls intern as opaque constants.
     pub(super) fn declaration_result_carrier(&self, symbol: SymbolHandle) -> Option<ScalarCarrier> {
-        if self.program.symbols.builtin_type_member(symbol)
-            == Some(symbols::BuiltinTypeMember::AddressBound)
+        if self.program.symbols.builtin_type_member(symbol) == Some(BuiltinTypeMember::AddressBound)
             || self.program.symbols.builtin_function_for_symbol(symbol)
                 == Some(symbols::BuiltinFunction::IntegerEmbed)
         {

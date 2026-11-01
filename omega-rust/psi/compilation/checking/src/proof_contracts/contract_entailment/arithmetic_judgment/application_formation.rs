@@ -5,6 +5,7 @@
 use super::{Engine, Polynomial};
 
 mod calls;
+mod dispatch;
 
 #[derive(Default)]
 struct ApplicationDecisions {
@@ -117,6 +118,19 @@ impl Engine<'_> {
                 if !formed_type(engine, program, formal.type_reference, input) {
                     return None;
                 }
+                // A representable mathematical value does not change the
+                // executable carrier of an already-typed result. Anonymous
+                // integer expressions land in the declared carrier; every
+                // other result keeps its resolved type, including joins.
+                if !crate::value_custody::literals::has_anonymous_numeric_results(program, *body) {
+                    let actual_type = engine.source_result_type(*body)?;
+                    if program.primitive_type_reference(actual_type) != Some(primitive)
+                        || program.arithmetic_domain_for_type_reference(actual_type)
+                            != program.arithmetic_domain_for_type_reference(declaration.return_type)
+                    {
+                        return None;
+                    }
+                }
                 let value = formed_value(engine, program, *body, 0, &mut decisions)?;
                 formed_type(engine, program, declaration.return_type, &value).then_some(value)
             },
@@ -172,11 +186,10 @@ fn formed_value(
             let primitive = program.primitive_type_reference(reference)?;
             engine.admit_integer_complement(primitive, &operand)
         }
-        ExpressionNode::Cast(cast)
-            if !cast.form.is_recast()
-                && cast.domain == ArithmeticDomain::Exact
-                && cast.semantic_domain.is_empty() =>
-        {
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
+            // Numeric conversion forms before its target policy qualifies
+            // future operations. Policy selection/erasure preserves this
+            // payload; it never repairs an out-of-range source or result.
             let value = formed_value(engine, program, cast.value, depth + 1, decisions)?;
             if !formed_type(engine, program, cast.target_type, &value) {
                 return None;
@@ -211,6 +224,9 @@ fn formed_value(
                 }
             }
             Some(value)
+        }
+        ExpressionNode::Match(dispatch) => {
+            dispatch::form(engine, expression, dispatch, depth, decisions)
         }
         ExpressionNode::Call(_) => calls::form(engine, program, expression, depth, decisions),
         ExpressionNode::Binary(binary) => {
@@ -278,6 +294,12 @@ fn formed_type(
     } = program.type_reference_table.type_reference(reference)
     {
         for constraint in program.type_reference_table.constraints(*constraints) {
+            // Policy is operation meaning, not an additional value predicate.
+            // Actual-to-formal carrier and policy correspondence is checked
+            // separately by the call owner before binding the telescope.
+            if matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)) {
+                continue;
+            }
             let TypeConstraintNode::Range {
                 minimum,
                 maximum,

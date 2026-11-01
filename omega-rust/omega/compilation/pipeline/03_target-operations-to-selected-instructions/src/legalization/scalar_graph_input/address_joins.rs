@@ -22,6 +22,10 @@
 use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::control_flow::sources::dominates;
+use crate::structural_inputs::structural_reference_input::{
+    fixed_byte_array_view, fixed_element_array_view, internal_borrow_shape, parameter_shape,
+    runtime_borrowed_projection,
+};
 use abstract_operations::control_flow::address_joins::is_address_join_in;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
@@ -81,20 +85,16 @@ pub(in crate::legalization) fn call_argument(
             Err(LegalizationError::custody())
         };
     }
-    let (selected, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-            parameter.structural_type,
-            &semantic.path,
-            semantic.access,
-            Some(destination.structural_type),
-            &plan.structural_types,
-        )
-        .ok_or(LegalizationError::custody())?;
-    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-        selected,
+    let (selected, offset, elements) = runtime_borrowed_projection(
+        parameter.structural_type,
+        &semantic.path,
+        semantic.access,
+        Some(destination.structural_type),
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
+    let shape = internal_borrow_shape(selected, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     let placement = call
         .parameters
         .get(parameter_ordinal)
@@ -147,24 +147,12 @@ fn window_argument(
 ) -> Option<Result<target_operations::TargetStructuralArgument, LegalizationError>> {
     let types = &plan.structural_types;
     let (source_byte_offset, length, stride) =
-        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
-            parameter,
-            semantic,
-            destination.structural_type,
-            types,
-        )
-        .map(|(offset, length)| (offset, length, 1))
-        .or_else(|| {
-            crate::structural_inputs::structural_reference_input::fixed_element_array_view(
-                parameter,
-                semantic,
-                destination.structural_type,
-                types,
-            )
-        })?;
-    let Some(shape) =
-        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
-    else {
+        fixed_byte_array_view(parameter, semantic, destination.structural_type, types)
+            .map(|(offset, length)| (offset, length, 1))
+            .or_else(|| {
+                fixed_element_array_view(parameter, semantic, destination.structural_type, types)
+            })?;
+    let Some(shape) = parameter_shape(destination, types) else {
         return Some(Err(LegalizationError::custody()));
     };
     let Some(placement) = call.parameters.get(parameter_ordinal) else {

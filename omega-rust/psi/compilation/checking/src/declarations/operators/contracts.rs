@@ -3,23 +3,20 @@
 //! These read authored declarations and value origins; they do not establish
 //! a checked judgment. Both compile-time preparation and checking use them.
 
+use crate::CheckingInput;
 use checked_trees::{CheckedOperatorFacts, CheckedValueFacts};
 use typed_trees::expression::ExpressionNode;
+use typed_trees::references::DeclarationSelection;
 
 /// Derive selections over the typed graph without claiming contract or flow proof.
 /// The caller must still check the selected executable program before execution.
-pub fn derive_pre_flow_operator_selections(
-    program: &dyn crate::CheckingInput,
-) -> CheckedOperatorFacts {
-    let values = crate::collect_executable_value_origins(
-        program,
-        &typed_trees::references::DeclarationSelection::all(),
-    );
+pub fn derive_pre_flow_operator_selections(program: &dyn CheckingInput) -> CheckedOperatorFacts {
+    let values = crate::collect_executable_value_origins(program, &DeclarationSelection::all());
     build_operator_facts(program, &values)
 }
 
 pub fn build_operator_facts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     crate::build_operator_uses(program, values)
@@ -28,7 +25,7 @@ pub fn build_operator_facts(
 }
 
 pub fn derive_checked_operator_realization_contracts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Vec<checked_trees::CheckedOperatorRealizationContract> {
     let mut rows = Vec::new();
     for machine in program.machines() {
@@ -66,7 +63,7 @@ pub fn derive_checked_operator_realization_contracts(
 }
 
 pub fn derive_checked_operator_crash_contracts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Vec<checked_trees::CheckedOperatorCrashContract> {
     use std::collections::BTreeMap;
     use typed_trees::{domain::ProofFact, signature::SignatureContractKind};

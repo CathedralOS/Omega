@@ -7,6 +7,7 @@
 //! Dynamic targets borrow the public requirement slot, never one table row.
 //! Their opaque selection operand stays separate from the ordinary argument ABI.
 
+use super::primitive_storage::retain_result;
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
@@ -27,6 +28,7 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
+use target_operations::TargetStructuralResultContract;
 use target_operations::{
     ScalarAbiValue, ScalarFunctionAbi, TargetCallResult, TargetStructuralArgument,
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
@@ -36,6 +38,7 @@ use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralArgument,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::is_descriptor;
 
 /// Only the published scalar operation requires a separately published ABI.
 /// This distinction never selects an operand transport algorithm.
@@ -422,11 +425,7 @@ fn land_result(
             {
                 return Err(LoweringError::DuplicateValue(result.value));
             }
-            TargetCallResult::Scalar(super::primitive_storage::retain_result(
-                call.psi_operation,
-                *result,
-                live,
-            )?)
+            TargetCallResult::Scalar(retain_result(call.psi_operation, *result, live)?)
         }
         AbstractStructuralCallResult::Structural { result, .. } => {
             let result_home =
@@ -446,9 +445,7 @@ fn land_result(
                         .result
                         .structural()
                         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                    target_operations::TargetStructuralResultContract::Machine(
-                        result_declaration.clone(),
-                    )
+                    TargetStructuralResultContract::Machine(result_declaration.clone())
                 }
                 AbstractCallSignature::Requirement(requirement) => {
                     let terminal_psi::BoundaryMachineResult::Structural(result_declaration) =
@@ -456,9 +453,7 @@ fn land_result(
                     else {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     };
-                    target_operations::TargetStructuralResultContract::Requirement(
-                        result_declaration.clone(),
-                    )
+                    TargetStructuralResultContract::Requirement(result_declaration.clone())
                 }
             };
             // Reference results own an address payload home, not referent
@@ -472,10 +467,7 @@ fn land_result(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if (bounded_owned_byte_result(result.structural_type, types)
-                || terminal_semantics::descriptor_results::is_descriptor(
-                    types.values().copied(),
-                    result.structural_type,
-                ))
+                || is_descriptor(types.values().copied(), result.structural_type))
                 && live
                     .views
                     .insert(result.place, (call.psi_operation, result.structural_type))

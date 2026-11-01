@@ -4,6 +4,7 @@
 //! Generic forwarding checks the declared evidence contract, while concrete
 //! selection closes the named map and checks its complete trait application.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
@@ -18,7 +19,7 @@ use super::conformance_applications::{
 };
 
 pub(super) fn validate_trait_implementation_arguments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     if let Err(reason) = validate_retained_implementation_arguments(program) {
@@ -144,7 +145,7 @@ pub(super) fn validate_trait_implementation_arguments(
 /// Both routes retain the caller's owner and applied regions: declaration
 /// parameter names alone cannot identify a region in the consuming scope.
 pub(super) fn validate_trait_implementation_application(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
     lifetime_arguments: &[typed_trees::name::Identifier],
@@ -167,7 +168,7 @@ pub(super) fn validate_trait_implementation_application(
 }
 
 pub(crate) fn validate_implementation_application(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     declaration: SymbolHandle,
     parameters: &[typed_trees::data::TypeParameter],
     declared_lifetimes: &[typed_trees::name::Identifier],
@@ -232,7 +233,7 @@ pub(crate) fn validate_implementation_application(
 }
 
 fn validate_binding(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     bound: &GenericConformanceBound,
     argument: TypeReferenceHandle,
     receiving_owner: SymbolHandle,
@@ -339,18 +340,23 @@ fn validate_binding(
 /// A prepared declaration demand is useful only while its exact source slot
 /// remains live. Re-derive its meaning from the original simultaneous scopes;
 /// a generated supplying application cannot establish its own capture custody.
-fn validate_retained_implementation_arguments(
-    program: &dyn crate::CheckingInput,
-) -> Result<(), String> {
+fn validate_retained_implementation_arguments(program: &dyn CheckingInput) -> Result<(), String> {
     use typed_trees::static_applications::StaticMachineBindingValue;
     let typed = program.typed_program();
     if !typed.data_implementation_applications.is_empty() {
-        let live = typed_trees::references::collect_program_type_occurrences(typed);
+        let mut owners = typed
+            .data_implementation_applications
+            .iter()
+            .map(|(_, selected)| selected.lexical_owner)
+            .collect::<Vec<_>>();
+        owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
+        owners.dedup();
+        let live = typed_trees::references::authored_type_occurrences(typed, &owners)
+            .into_iter()
+            .map(|occurrence| (occurrence.lexical_owner, occurrence.reference))
+            .collect::<std::collections::HashSet<_, symbols::BuildSymbolHasher>>();
         for (_, selected) in typed.data_implementation_applications.iter() {
-            if !live.iter().any(|occurrence| {
-                occurrence.reference == selected.source_application
-                    && occurrence.lexical_owner == selected.lexical_owner
-            }) {
+            if !live.contains(&(selected.lexical_owner, selected.source_application)) {
                 return Err(
                     "data implementation demand lost its live authored constructor occurrence"
                         .into(),

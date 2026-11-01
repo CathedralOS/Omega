@@ -2,7 +2,7 @@
 
 `let mut receipt: Receipt;` on a `[linear]` type owns only zeroed
 storage — `receipt = Receipt { code: 7 }` establishes the value and
-creates the obligation; `Receipt::ack(receipt)` transfers custody and
+creates the obligation; `ReceiptAck::ack(receipt)` transfers custody and
 discharges it. Entry spelled `machine Main::main() -> i32` (context-free,
 scalar result).
 

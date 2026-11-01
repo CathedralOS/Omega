@@ -8,7 +8,11 @@ use super::*;
 mod incoming_memberships;
 use crate::descriptor_lifetimes::{descriptor_location, descriptor_location_type, descriptor_path};
 
+use super::payload_predicates::introduction_predicate;
 pub use crate::descriptor_lifetimes::{DescriptorContentsQuery, DescriptorContentsStep};
+use semantic_vocabulary::ScalarRefinement;
+use semantic_vocabulary::ScalarType;
+use terminal_psi::StructuralPathQualification;
 
 /// Leaf-wise value transfer. Carrier custody still uses the exact flow graph;
 /// these queries describe possible payload locations, not write authority.
@@ -219,7 +223,7 @@ pub struct PayloadMembershipContract {
     pub scalar_requirements: Vec<semantic_vocabulary::Proposition>,
     pub carrier: StructuralTypeId,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
-    pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub projected_qualifications: Vec<StructuralPathQualification>,
 }
 
 impl PayloadMembershipContract {
@@ -263,12 +267,11 @@ pub(super) fn select_payload_memberships(
 ) -> Option<PayloadMembershipContract> {
     let path = descriptor_path(types, contract.carrier, address)?;
     let carrier = crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
-    let (mut qualifications, projected_qualifications) =
-        terminal_psi::StructuralPathQualification::select(
-            &contract.qualifications,
-            &contract.projected_qualifications,
-            &path,
-        );
+    let (mut qualifications, projected_qualifications) = StructuralPathQualification::select(
+        &contract.qualifications,
+        &contract.projected_qualifications,
+        &path,
+    );
     // The actual source field's primitive invariants hold at each valid
     // establishment and replacement. They classify this read independently of
     // the receiving copy's requested domain or a previous initializer's facts.
@@ -363,7 +366,7 @@ pub fn reference_backing_memberships(
     storage: Option<&terminal_psi::ReferenceStorageView>,
     result: &terminal_psi::StructuralOperationResult,
     mut source_contract: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
-) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
+) -> Result<Vec<StructuralPathQualification>, &'static str> {
     let StructuralTypeShape::Reference { referent, access } =
         terminal_psi::find_structural_type(types, result.structural_type)
             .ok_or("reference result has no declared carrier")?
@@ -413,8 +416,8 @@ fn reference_payload_memberships(
     referent: StructuralTypeId,
     access: StructuralAccess,
     mut source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
-) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
-    let mut common: Option<Vec<terminal_psi::StructuralPathQualification>> = None;
+) -> Result<Vec<StructuralPathQualification>, &'static str> {
+    let mut common: Option<Vec<StructuralPathQualification>> = None;
     for target in targets {
         let query = match target {
             DescriptorPayloadTarget::Storage(location) => {
@@ -454,11 +457,8 @@ fn reference_payload_memberships(
             &path,
             access,
         )?;
-        let (mut whole, mut projected) = terminal_psi::StructuralPathQualification::select(
-            &[],
-            &captured,
-            &[StructuralPathSegment::Referent],
-        );
+        let (mut whole, mut projected) =
+            StructuralPathQualification::select(&[], &captured, &[StructuralPathSegment::Referent]);
         crate::present_structural_memberships(
             types.iter(),
             domains.iter(),
@@ -467,7 +467,7 @@ fn reference_payload_memberships(
             &mut projected,
         )?;
         let mut captured = Vec::new();
-        terminal_psi::StructuralPathQualification::append_under(
+        StructuralPathQualification::append_under(
             &whole,
             &projected,
             &[StructuralPathSegment::Referent],
@@ -573,7 +573,7 @@ fn close_predicate_memberships(
         for domain in implied_predicate_memberships(types, domains, carrier, &whole) {
             contract
                 .projected_qualifications
-                .push(terminal_psi::StructuralPathQualification {
+                .push(StructuralPathQualification {
                     path: path.clone(),
                     domain,
                 });
@@ -609,12 +609,9 @@ fn admit_declared_scalar_refinement(
         {
             continue;
         }
-        let Some(predicate) = super::payload_predicates::introduction_predicate(
-            types,
-            domains,
-            domain,
-            &contract.qualifications,
-        ) else {
+        let Some(predicate) =
+            introduction_predicate(types, domains, domain, &contract.qualifications)
+        else {
             continue;
         };
         let mut proposition = predicate.proposition.clone();
@@ -635,12 +632,12 @@ fn admit_declared_scalar_refinement(
 fn rewrite_subject_as_refinement_value(
     proposition: &mut semantic_vocabulary::Proposition,
     subject: semantic_vocabulary::PlaceId,
-    carrier: semantic_vocabulary::ScalarType,
+    carrier: ScalarType,
 ) {
     fn rewrite_term(
         term: &mut semantic_vocabulary::ScalarTerm,
         subject: semantic_vocabulary::PlaceId,
-        carrier: semantic_vocabulary::ScalarType,
+        carrier: ScalarType,
     ) {
         use semantic_vocabulary::ScalarTerm;
         let replacement = match term {
@@ -650,40 +647,29 @@ fn rewrite_subject_as_refinement_value(
                 scalar_type,
             } if *root == subject
                 && path.is_empty()
-                && semantic_vocabulary::ScalarType::Integer(*scalar_type) == carrier =>
+                && ScalarType::Integer(*scalar_type) == carrier =>
             {
-                Some(ScalarTerm::value(
-                    semantic_vocabulary::ScalarRefinement::SUBJECT,
-                    carrier,
-                ))
+                Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
             }
             ScalarTerm::BooleanField { root, path }
-                if *root == subject
-                    && path.is_empty()
-                    && carrier == semantic_vocabulary::ScalarType::Boolean =>
+                if *root == subject && path.is_empty() && carrier == ScalarType::Boolean =>
             {
-                Some(ScalarTerm::value(
-                    semantic_vocabulary::ScalarRefinement::SUBJECT,
-                    carrier,
-                ))
+                Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
             }
             ScalarTerm::IeeeFloatField { root, path, format }
                 if *root == subject
                     && path.is_empty()
-                    && carrier == semantic_vocabulary::ScalarType::IeeeFloat(*format) =>
+                    && carrier == ScalarType::IeeeFloat(*format) =>
             {
-                Some(ScalarTerm::value(
-                    semantic_vocabulary::ScalarRefinement::SUBJECT,
-                    carrier,
-                ))
+                Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
             }
             ScalarTerm::StructuralRead {
                 root,
                 path,
                 scalar_type,
-            } if *root == subject && path.is_empty() && *scalar_type == carrier => Some(
-                ScalarTerm::value(semantic_vocabulary::ScalarRefinement::SUBJECT, carrier),
-            ),
+            } if *root == subject && path.is_empty() && *scalar_type == carrier => {
+                Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
+            }
             _ => None,
         };
         if let Some(replacement) = replacement {
@@ -697,7 +683,7 @@ fn rewrite_subject_as_refinement_value(
     fn rewrite_math(
         term: &mut semantic_vocabulary::IntegerMathTerm,
         subject: semantic_vocabulary::PlaceId,
-        carrier: semantic_vocabulary::ScalarType,
+        carrier: ScalarType,
     ) {
         if let semantic_vocabulary::IntegerMathTerm::Embed(inner) = term {
             rewrite_term(inner, subject, carrier);
@@ -709,7 +695,7 @@ fn rewrite_subject_as_refinement_value(
     fn rewrite_proposition(
         proposition: &mut semantic_vocabulary::Proposition,
         subject: semantic_vocabulary::PlaceId,
-        carrier: semantic_vocabulary::ScalarType,
+        carrier: ScalarType,
     ) {
         use semantic_vocabulary::Proposition;
         match proposition {
@@ -800,15 +786,11 @@ fn implied_predicate_memberships(
                 && (domain
                     .missing_membership_requirements(domains, qualifications)
                     .is_some_and(|missing| missing.is_empty())
-                    || super::payload_predicates::introduction_predicate(
-                        types,
-                        domains,
-                        domain,
-                        qualifications,
-                    )
-                    .is_some_and(|predicate| {
-                        predicate.proposition == semantic_vocabulary::Proposition::Truth
-                    }))
+                    || introduction_predicate(types, domains, domain, qualifications).is_some_and(
+                        |predicate| {
+                            predicate.proposition == semantic_vocabulary::Proposition::Truth
+                        },
+                    ))
         })
         .map(|domain| domain.id)
         .collect::<Vec<_>>();

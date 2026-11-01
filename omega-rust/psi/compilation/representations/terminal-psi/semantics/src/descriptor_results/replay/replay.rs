@@ -1,4 +1,8 @@
+use super::dispatch::join;
 use super::*;
+use crate::descriptor_lifetimes;
+use crate::descriptor_lifetimes::DescriptorFlowSource;
+use crate::descriptor_lifetimes::descriptor_location_type;
 use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
@@ -254,7 +258,7 @@ impl<'a> Replay<'a> {
                 {
                     continue;
                 }
-                let reference = crate::descriptor_lifetimes::descriptor_location_type(
+                let reference = descriptor_location_type(
                     self.types,
                     *machine.place_types.get(&prefix.root)?,
                     &prefix.path,
@@ -378,11 +382,7 @@ impl<'a> Replay<'a> {
             return Some(None);
         };
         let root_type = *machine.place_types.get(&location.root)?;
-        let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
-            self.types,
-            root_type,
-            &location.path,
-        )?;
+        let endpoint = descriptor_location_type(self.types, root_type, &location.path)?;
         Some(
             (!self.slot_kind.is_slot(self.types, endpoint)
                 && !is_descriptor(self.types.iter(), endpoint))
@@ -771,7 +771,7 @@ impl<'a> Replay<'a> {
         &self,
         machine: &DescriptorMachine,
         before: &State,
-        edge: &crate::descriptor_lifetimes::DescriptorFlowEdge,
+        edge: &descriptor_lifetimes::DescriptorFlowEdge,
         case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
         let mut after = self.transfer(
@@ -783,9 +783,7 @@ impl<'a> Replay<'a> {
             case_storage,
         )?;
         for binding in &edge.bindings {
-            if let crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query) =
-                &binding.source
-            {
+            if let DescriptorFlowSource::Contents(query) = &binding.source {
                 let structural_type = *machine.place_types.get(&binding.parameter.root)?;
                 let mut captured = Slots::from([(
                     binding.parameter.clone(),
@@ -1000,12 +998,9 @@ impl<'a> Replay<'a> {
             // including descriptor/call effects. Keep only requested edge
             // snapshots; ordinary custody queries remain pre-operation.
             if step.successors.iter().any(|edge| {
-                edge.bindings.iter().any(|binding| {
-                    matches!(
-                        binding.source,
-                        crate::descriptor_lifetimes::DescriptorFlowSource::Contents(_)
-                    )
-                })
+                edge.bindings
+                    .iter()
+                    .any(|binding| matches!(binding.source, DescriptorFlowSource::Contents(_)))
             }) {
                 arrivals.insert(position, after.clone());
             }
@@ -1077,10 +1072,7 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summary(*machine, depth))
                     .collect::<Option<Vec<_>>>()?;
-                Some(super::dispatch::join(
-                    direct_target_summary(&call.target)?,
-                    &summaries,
-                ))
+                Some(join(direct_target_summary(&call.target)?, &summaries))
             }
             target => direct_target_summary(target),
         }
@@ -1104,10 +1096,7 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summaries.get(machine)?.clone())
                     .collect::<Option<Vec<_>>>()?;
-                Some(super::dispatch::join(
-                    direct_target_summary(&call.target)?,
-                    &summaries,
-                ))
+                Some(join(direct_target_summary(&call.target)?, &summaries))
             }
             target => direct_target_summary(target),
         }

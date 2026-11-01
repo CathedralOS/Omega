@@ -19,6 +19,7 @@ pub(crate) struct LocalConstructionTrace {
     phase: Cell<&'static str>,
     state: Cell<Option<SymbolHandle>>,
     statement_index: Cell<Option<u32>>,
+    declined_step: Cell<Option<DeclinedStep>>,
 }
 
 /// One position of the trace, so a builder that set a statement aside for a
@@ -29,9 +30,23 @@ pub(crate) struct TraceMark {
     statement_index: Option<u32>,
 }
 
+/// A declined attempt belongs to one complete authored trace position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DeclineMark {
+    position: TraceMark,
+    state: Option<SymbolHandle>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DeclinedStep {
+    at: DeclineMark,
+    phase: &'static str,
+}
+
 impl LocalConstructionTrace {
     /// Enter a phase; the statement position resets with it.
     pub(crate) fn phase(&self, phase: &'static str) {
+        self.declined_step.set(None);
         self.phase.set(phase);
         self.statement_index.set(None);
     }
@@ -46,12 +61,32 @@ impl LocalConstructionTrace {
 
     /// Return to a marked position.
     pub(crate) fn restore(&self, mark: &TraceMark) {
+        self.declined_step.set(None);
         self.phase.set(mark.phase);
         self.statement_index.set(mark.statement_index);
     }
 
+    pub(crate) fn decline_mark(&self) -> DeclineMark {
+        DeclineMark {
+            position: self.mark(),
+            state: self.state.get(),
+        }
+    }
+
+    /// Keep the primary refusal site while naming the last attempted step.
+    /// A later builder clears this note even when it enters the same phase.
+    pub(crate) fn restore_with_declined_step(&self, mark: &DeclineMark) {
+        let phase = self.phase.get();
+        self.restore(&mark.position);
+        if self.state.get() == mark.state && phase != mark.position.phase {
+            self.declined_step
+                .set(Some(DeclinedStep { at: *mark, phase }));
+        }
+    }
+
     /// The call statement the current phase is planning.
     pub(crate) fn statement(&self, index: Option<u32>) {
+        self.declined_step.set(None);
         self.statement_index.set(index);
     }
 
@@ -59,6 +94,7 @@ impl LocalConstructionTrace {
     /// across that state's phases until the builder moves on. A fused graph's
     /// state may belong to another machine of its recursive component.
     pub(crate) fn state(&self, state: Option<SymbolHandle>) {
+        self.declined_step.set(None);
         self.state.set(state);
     }
 
@@ -80,11 +116,19 @@ impl LocalConstructionTrace {
             (Some(state), None) if self.state.get().is_some() => GapSite::State(state),
             _ => GapSite::Machine,
         };
+        let phase = match self.declined_step.get() {
+            Some(step) if step.at == self.decline_mark() => std::borrow::Cow::Owned(format!(
+                "{} (last declined step: {})",
+                self.phase.get(),
+                step.phase,
+            )),
+            _ => std::borrow::Cow::Borrowed(self.phase.get()),
+        };
         plan_gap(
             program,
             machine,
             site,
-            CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(self.phase.get())),
+            CheckedUnitPlanGapReason::Unsupported(phase),
         )
     }
 }

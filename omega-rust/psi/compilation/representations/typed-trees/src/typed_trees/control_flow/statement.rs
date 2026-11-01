@@ -7,6 +7,7 @@ mod assembly;
 mod control_graph;
 mod payloads;
 mod returns;
+use crate::expression::ExpressionHandle;
 pub use assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyControlPoint, AssemblyExit};
 pub use control_graph::{
     StatementControlBlock, StatementControlExit, StatementControlGraph, StatementExecutionIter,
@@ -56,7 +57,7 @@ pub struct StatementTable {
     assembly_graphs: Arena<AssemblyControlFlow>,
     assembly_blocks: Arena<AssemblyBlock>,
     statements: Arena<StatementNode>,
-    expression_handles: Arena<crate::expression::ExpressionHandle>,
+    expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<Identifier>,
     transition_targets: Arena<TransitionTargetNode>,
     outcome_proof_selectors: Arena<OutcomeProofSelector>,
@@ -97,7 +98,7 @@ impl StatementTable {
     // One entry per span column: the arena and its row type, the reserve
     // (with its overflow message), the patch and the append.
     crate::typed_trees::span_columns! {
-        expression_handles(crate::expression::ExpressionHandle)
+        expression_handles(ExpressionHandle)
             reserve reserve_expression_handles("expression handle span count overflow")
             set set_expression_handle_at_offset
             push push_expression_handle;
@@ -105,8 +106,8 @@ impl StatementTable {
 
     pub fn insert_expression_handles(
         &mut self,
-        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        expressions: impl IntoIterator<Item = ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
         self.expression_handles.insert_many(expressions)
     }
 
@@ -189,12 +190,13 @@ impl StatementTable {
         self.insert_transition_target(target)
     }
 
-    pub(super) fn remap_transition_target_symbols(
+    pub(super) fn remap_transition_target_symbols<'scope>(
         &mut self,
         target: TransitionTargetHandle,
         expressions: &mut crate::expression::ExpressionTable,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         if !target.is_valid() {
             return;
         }
@@ -271,10 +273,7 @@ impl StatementTable {
         self.statements.span_mut_or_empty(span)
     }
 
-    pub fn expression_handles(
-        &self,
-        span: HandleSpan<crate::expression::ExpressionHandle>,
-    ) -> &[crate::expression::ExpressionHandle] {
+    pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
     }
 
@@ -291,10 +290,7 @@ impl StatementTable {
     pub fn named_transition_target(
         &self,
         handle: TransitionTargetHandle,
-    ) -> Option<(
-        &TableNamePath,
-        HandleSpan<crate::expression::ExpressionHandle>,
-    )> {
+    ) -> Option<(&TableNamePath, HandleSpan<ExpressionHandle>)> {
         match self.transition_target(handle) {
             TransitionTargetNode::Named {
                 path, arguments, ..
@@ -376,7 +372,7 @@ pub enum StatementNode {
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
-    Expression(crate::expression::ExpressionHandle),
+    Expression(ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
 }
@@ -407,7 +403,7 @@ impl StatementNode {
     }
 
     /// The expression handle, if this statement is a bare expression.
-    pub fn as_expression(&self) -> Option<&crate::expression::ExpressionHandle> {
+    pub fn as_expression(&self) -> Option<&ExpressionHandle> {
         let StatementNode::Expression(expression) = self else {
             return None;
         };
@@ -445,14 +441,14 @@ pub enum AssemblyFactKind {
 
 impl Default for StatementNode {
     fn default() -> Self {
-        Self::Expression(crate::expression::ExpressionHandle::invalid())
+        Self::Expression(ExpressionHandle::invalid())
     }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableAssignment {
-    pub target: crate::expression::ExpressionHandle,
-    pub value: crate::expression::ExpressionHandle,
+    pub target: ExpressionHandle,
+    pub value: ExpressionHandle,
     /// Complete receiving value type, prepared after specialization. A range
     /// receives an array of its selected width, not its backing array or a
     /// borrowed view. This is a construction destination, never evidence that
@@ -480,7 +476,7 @@ pub struct TableCall {
     /// when static conformance dispatch rewrites `target_symbol`.
     pub static_requirement_dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
-    pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
@@ -498,7 +494,7 @@ pub struct TableLocalData {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
+    pub initial_value: ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
     pub is_mutable: bool,
     /// This binding has no authored annotation; its type is compiler-derived.
@@ -516,7 +512,7 @@ pub struct TableLocalData {
 impl TableLocalData {
     /// Normalized storage reservations expose no initializer value to proofs,
     /// constant folding, alias capture, or generic expression-root traversal.
-    pub fn ordinary_value_initializer(&self) -> Option<crate::expression::ExpressionHandle> {
+    pub fn ordinary_value_initializer(&self) -> Option<ExpressionHandle> {
         (self.role.has_ordinary_initializer() && self.initial_value.is_valid())
             .then_some(self.initial_value)
     }
@@ -529,7 +525,7 @@ impl Default for TableLocalData {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
-            initial_value: crate::expression::ExpressionHandle::invalid(),
+            initial_value: ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
             is_operand_capture: false,
@@ -586,7 +582,7 @@ pub enum TransitionExit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuardNode {
     Always,
-    When(crate::expression::ExpressionHandle),
+    When(ExpressionHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
@@ -596,7 +592,7 @@ pub enum TransitionTargetNode {
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
         path: TableNamePath,
         static_machine_parameter: SymbolHandle,
-        arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        arguments: HandleSpan<ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
         /// Exact authored target-name span. Generated targets retain the
         /// default span rather than inventing source provenance.
@@ -605,7 +601,7 @@ pub enum TransitionTargetNode {
             language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
         >,
     },
-    Value(crate::expression::ExpressionHandle),
+    Value(ExpressionHandle),
     #[default]
     Terminal,
 }

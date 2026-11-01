@@ -5,23 +5,22 @@
 //! other host operations. Only the compiler-owned declaration can carry this
 //! context; a similarly named source requirement grants no Build authority.
 
+use super::arguments::lower_statement_expression;
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildSelectionRequest, RootBindingOperand, RootBindingRequest,
 };
+use typed_trees::statement::StatementNode;
 
 pub(super) fn lower(
     lowerer: &mut Lowerer,
     binding: &symbol_resolved_trees::statement::RootBinding,
-) -> Result<typed_trees::statement::StatementNode, Diagnostic> {
+) -> Result<StatementNode, Diagnostic> {
     let described = binding.implementation_operand.is_valid();
-    let mut arguments = vec![super::arguments::lower_statement_expression(
-        lowerer,
-        binding.receiver,
-    )?];
+    let mut arguments = vec![lower_statement_expression(lowerer, binding.receiver)?];
     let implementation = if described {
-        arguments.push(super::arguments::lower_statement_expression(
+        arguments.push(lower_statement_expression(
             lowerer,
             binding.implementation_operand,
         )?);
@@ -40,9 +39,7 @@ pub(super) fn lower(
         arguments,
         Default::default(),
     )?;
-    Ok(typed_trees::statement::StatementNode::Expression(
-        expression,
-    ))
+    Ok(StatementNode::Expression(expression))
 }
 
 fn product_path(members: &[symbol_resolved_trees::name::DiagnosticName]) -> String {

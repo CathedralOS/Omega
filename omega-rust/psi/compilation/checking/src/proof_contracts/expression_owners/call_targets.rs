@@ -8,9 +8,11 @@ use super::inference::{
 };
 use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironment};
 use crate::frozen_program::expression_table;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbols::JoinedPath;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, TableMemberExpression};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -37,9 +39,7 @@ pub(super) fn authored_member_source_span(
     let mut retained = None;
     for occurrence in expression_table(program).authored_selection_occurrences(expression) {
         let selection = program.authored_declaration_selections().get(occurrence)?;
-        if selection.kind()
-            != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
-        {
+        if selection.kind() != AuthoredDeclarationSelectionKind::MemberAccess {
             continue;
         }
         let source_span = selection.source_span();
@@ -230,10 +230,7 @@ pub(super) fn executable_site_call_candidate(
             .iter()
             .filter(|parameter| {
                 parameter.name == call.target
-                    && matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    )
+                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
             })
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();

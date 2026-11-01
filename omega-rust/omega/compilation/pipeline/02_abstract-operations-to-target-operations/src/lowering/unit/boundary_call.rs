@@ -25,6 +25,7 @@ use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarCallArgument,
     TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
+use terminal_psi::BoundaryMachineResult;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 mod normalized_foreign;
@@ -242,9 +243,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is a valid type");
                     if result.scalar_type != ScalarType::Integer(u8_type)
                         || declaration.result
-                            != terminal_psi::BoundaryMachineResult::Scalar(
-                                ScalarType::Integer(u8_type).into(),
-                            )
+                            != BoundaryMachineResult::Scalar(ScalarType::Integer(u8_type).into())
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }

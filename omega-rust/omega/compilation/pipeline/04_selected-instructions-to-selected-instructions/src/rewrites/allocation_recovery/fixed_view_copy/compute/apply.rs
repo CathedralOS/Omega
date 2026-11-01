@@ -1,7 +1,6 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
 use super::{RegisterInstructionConstraint, ScalarType};
-use crate::FixedViewCopy;
-use crate::FixedViewCopyError;
+use crate::{FixedViewCopy, FixedViewCopyError};
 
 pub(super) fn apply_copy(
     function_index: usize,

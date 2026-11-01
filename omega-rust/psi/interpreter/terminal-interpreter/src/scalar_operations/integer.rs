@@ -5,14 +5,14 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation};
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::ScalarType;
-use terminal_psi::{Operation, OperationKind};
+use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use terminal_psi::{Operation, OperationKind, integer_less_or_equal_pair_pattern};
 
 /// The integer scalar type the verified result declares, or malformed when it
 /// is not an integer.
 pub(crate) fn integer_scalar_type(
     operation: &Operation,
-) -> Result<semantic_vocabulary::IntegerType, TerminalInterpretError> {
+) -> Result<IntegerType, TerminalInterpretError> {
     let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
         return Err(malformed());
     };
@@ -48,13 +48,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn integer_operand(
         &self,
         operand: semantic_vocabulary::ValueId,
-    ) -> Result<
-        (
-            semantic_vocabulary::IntegerType,
-            semantic_vocabulary::IntegerValue,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(IntegerType, IntegerValue), TerminalInterpretError> {
         match self.scalar_value(operand)? {
             TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
             _ => Err(malformed()),
@@ -72,11 +66,11 @@ impl TerminalExecution<'_> {
         right: semantic_vocabulary::ValueId,
     ) -> Result<
         (
-            semantic_vocabulary::IntegerType,
-            semantic_vocabulary::IntegerValue,
-            semantic_vocabulary::IntegerValue,
-            semantic_vocabulary::IntegerType,
-            semantic_vocabulary::IntegerType,
+            IntegerType,
+            IntegerValue,
+            IntegerValue,
+            IntegerType,
+            IntegerType,
         ),
         TerminalInterpretError,
     > {
@@ -116,8 +110,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let (terminal_psi::integer_less_or_equal_pair_pattern!(left, right, ..)) = operation.kind
-        else {
+        let (integer_less_or_equal_pair_pattern!(left, right, ..)) = operation.kind else {
             unreachable!("dispatched execute_integer_less_than")
         };
         self.require_boolean_result(operation)?;
@@ -155,11 +148,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
         operand: semantic_vocabulary::ValueId,
-        cast: fn(
-            semantic_vocabulary::IntegerType,
-            semantic_vocabulary::IntegerType,
-            semantic_vocabulary::IntegerValue,
-        ) -> Option<semantic_vocabulary::IntegerValue>,
+        cast: fn(IntegerType, IntegerType, IntegerValue) -> Option<IntegerValue>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let target_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
@@ -184,11 +173,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => IntegerWiden { operand });
-        self.execute_integer_unary_cast(
-            operation,
-            operand,
-            semantic_vocabulary::IntegerType::widen_value_to,
-        )
+        self.execute_integer_unary_cast(operation, operand, IntegerType::widen_value_to)
     }
 
     pub(crate) fn execute_integer_exact_cast(
@@ -196,11 +181,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => IntegerExactCast { operand, .. });
-        self.execute_integer_unary_cast(
-            operation,
-            operand,
-            semantic_vocabulary::IntegerType::exact_cast_value_to,
-        )
+        self.execute_integer_unary_cast(operation, operand, IntegerType::exact_cast_value_to)
     }
 
     pub(crate) fn execute_integer_bitwise_and(

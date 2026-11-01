@@ -9,6 +9,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::control;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
+use crate::selection::literal_compare_input::{folded_immediate, folded_zero};
 use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn emit(
@@ -158,9 +159,7 @@ pub(super) fn emit_branch_comparison(
     if !control::branch_suffix(source, block, operation_index) {
         return Err(invalid());
     }
-    if let Some(zero) =
-        crate::selection::literal_compare_input::folded_zero(source, block, operation_index)
-    {
+    if let Some(zero) = folded_zero(source, block, operation_index) {
         let input = if *left == zero.result.ok_or_else(invalid)?.value {
             *right
         } else {
@@ -183,9 +182,7 @@ pub(super) fn emit_branch_comparison(
         )?;
         return Ok(());
     }
-    if let Some(immediate) =
-        crate::selection::literal_compare_input::folded_immediate(source, block, operation_index)
-    {
+    if let Some(immediate) = folded_immediate(source, block, operation_index) {
         let immediate_value = match immediate.kind {
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value)) => value,
             _ => return Err(invalid()),

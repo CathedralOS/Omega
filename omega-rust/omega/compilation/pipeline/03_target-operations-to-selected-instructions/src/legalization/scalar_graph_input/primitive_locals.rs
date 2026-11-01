@@ -2,9 +2,12 @@
 //! A primitive observation leaves the carrier's claims and refinements intact.
 //! Validate its readable declaration and exact leaf geometry, independently of
 //! whole-carrier copying. Primitive local establishment keeps its own contract.
+use super::literals::declaration_producer;
+use super::structural_case::source_result;
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType, scalar_shape};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::value_type;
+use crate::structural_inputs::structural_reference_input::primitive_read_geometry;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,
@@ -91,13 +94,11 @@ pub(in crate::legalization) fn read_root_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    super::structural_case::source_result(function, place)
+    source_result(function, place)
         .ok()
         .map(|(_, result)| result.structural_type)
         .or_else(|| read_parameter(function, place).map(|parameter| parameter.structural_type))
-        .or_else(|| {
-            super::literals::declaration_producer(function, place).map(|(_, identity)| identity)
-        })
+        .or_else(|| declaration_producer(function, place).map(|(_, identity)| identity))
 }
 
 pub(super) fn validate(
@@ -148,9 +149,7 @@ pub(super) fn validate(
                         return Err(LegalizationError::custody());
                     }
                     local.structural_type
-                } else if let Ok((operation, local)) =
-                    super::structural_case::source_result(function, *source)
-                {
+                } else if let Ok((operation, local)) = source_result(function, *source) {
                     // The read observes this exact established carrier. Its
                     // claim roster describes ownership, not copy eligibility
                     // of the scalar leaf; geometry checks the complete path,
@@ -171,13 +170,7 @@ pub(super) fn validate(
                     }
                     parameter.structural_type
                 };
-                if crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                    identity,
-                    path,
-                    result.scalar_type,
-                    types,
-                )
-                .is_none()
+                if primitive_read_geometry(identity, path, result.scalar_type, types).is_none()
                     || scalar_shape(result.scalar_type).is_none()
                 {
                     return Err(LegalizationError::custody());

@@ -7,24 +7,6 @@ use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
 use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 use selected_instructions::{ArchitecturalUnitLiveRange, FunctionLiveRanges, LiveRangePoint};
 
-#[allow(dead_code)]
-pub(crate) fn compute(
-    function_index: usize,
-    function: &FunctionLiveRanges,
-    availability: &ValidatedAllocatorAvailability,
-    physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
-) -> Result<FunctionAllocationLegality, AllocationLegalityError> {
-    compute_reusing(
-        function_index,
-        function,
-        availability,
-        physical,
-        reservations,
-        None,
-    )
-}
-
 fn first_unit_diff_point(
     left: &ArchitecturalUnitLiveRange,
     right: &ArchitecturalUnitLiveRange,

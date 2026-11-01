@@ -5,7 +5,10 @@
 //! custody; it does not recheck their source arrangement. Qualifying a result
 //! still requires its separately checked authorization route.
 
+use super::super::calls::free_structural_scalar_entry_signature_traced;
 use super::boundary_contracts::boundary_scalar_requires;
+use super::boundary_contracts::pending_recipe_requires;
+use super::call_results::checked_structural_result_type;
 
 use crate::execution::terminal_unit::calls::{
     free_structural_scalar_signature, parameter_signatures,
@@ -53,7 +56,7 @@ pub(crate) fn build_boundary_machine(
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
     let signature = if machine.target_family_interface {
-        super::super::calls::free_structural_scalar_entry_signature_traced(
+        free_structural_scalar_entry_signature_traced(
             program,
             shapes,
             state,
@@ -99,7 +102,7 @@ pub(crate) fn build_boundary_machine(
     let (scalar_requires, pending_scalar_requires, pending_scalar_recipes) = match scalar_requires {
         Some(rows) => (rows, Vec::new(), Vec::new()),
         None => {
-            let (clauses, recipes) = super::boundary_contracts::pending_recipe_requires(
+            let (clauses, recipes) = pending_recipe_requires(
                 program,
                 program.machine_contracts(machine),
                 program.state_contracts(state),
@@ -284,6 +287,21 @@ pub(crate) fn build_dynamic_slot_plans(
     plans
 }
 
+/// One `Machine`-site planning gap for a boundary requirement, carrying the
+/// reason the requirement could not be published.
+fn machine_gap(
+    program: &dyn ::validation::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    message: &'static str,
+) -> checked_trees::CheckedUnitPlanGap {
+    crate::execution::terminal_unit::plan_gaps::plan_gap(
+        program,
+        signature.symbol,
+        crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+        checked_trees::CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(message)),
+    )
+}
+
 pub(crate) fn build_static_boundary_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -307,13 +325,10 @@ pub(crate) fn build_static_boundary_requirements(
                     .closed_requirement_application(signature.symbol)
                     .is_some_and(|application| application.declaring_trait == definition.symbol)
             {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed("boundary requirement: open trait application"),
-                    ),
+                    signature,
+                    "boundary requirement: open trait application",
                 ));
                 continue;
             }
@@ -383,15 +398,10 @@ pub(crate) fn build_static_boundary_requirements(
                 let Some(substitutions) =
                     specialized_signature_substitutions(program, facts, signature, type_parameters)
                 else {
-                    gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    gaps.push(machine_gap(
                         program,
-                        signature.symbol,
-                        crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                        checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                            std::borrow::Cow::Borrowed(
-                                "boundary requirement: unresolved invocation telescope",
-                            ),
-                        ),
+                        signature,
+                        "boundary requirement: unresolved invocation telescope",
                     ));
                     continue;
                 };
@@ -410,15 +420,10 @@ pub(crate) fn build_static_boundary_requirements(
                         )
                     })
             else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed(
-                            "boundary requirement: result shape or domain authorization",
-                        ),
-                    ),
+                    signature,
+                    "boundary requirement: result shape or domain authorization",
                 ));
                 continue;
             };
@@ -430,13 +435,10 @@ pub(crate) fn build_static_boundary_requirements(
                 &substitutions,
                 &LocalConstructionTrace::default(),
             ) else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed("boundary requirement: parameter signature"),
-                    ),
+                    signature,
+                    "boundary requirement: parameter signature",
                 ));
                 continue;
             };
@@ -444,15 +446,10 @@ pub(crate) fn build_static_boundary_requirements(
                 .contract_plans
                 .crash_capsule(definition.symbol, signature.symbol)
             else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed(
-                            "boundary requirement: checked contract commitment",
-                        ),
-                    ),
+                    signature,
+                    "boundary requirement: checked contract commitment",
                 ));
                 continue;
             };
@@ -463,13 +460,10 @@ pub(crate) fn build_static_boundary_requirements(
                 .iter()
                 .find(|(requirement, _)| *requirement == signature.symbol)
             else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed("boundary requirement: published service reach"),
-                    ),
+                    signature,
+                    "boundary requirement: published service reach",
                 ));
                 continue;
             };
@@ -486,15 +480,10 @@ pub(crate) fn build_static_boundary_requirements(
                 &scalar_parameters,
                 &[],
             ) else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed(
-                            "boundary requirement: structural precondition representation",
-                        ),
-                    ),
+                    signature,
+                    "boundary requirement: structural precondition representation",
                 ));
                 continue;
             };
@@ -520,15 +509,10 @@ pub(crate) fn build_static_boundary_requirements(
                 &[],
                 &closed,
             ) else {
-                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                gaps.push(machine_gap(
                     program,
-                    signature.symbol,
-                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        std::borrow::Cow::Borrowed(
-                            "boundary requirement: scalar precondition representation",
-                        ),
-                    ),
+                    signature,
+                    "boundary requirement: scalar precondition representation",
                 ));
                 continue;
             };
@@ -553,14 +537,7 @@ pub(crate) fn build_static_boundary_requirements(
                 ) {
                     Ok(outputs) => outputs,
                     Err(reason) => {
-                        gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
-                            program,
-                            signature.symbol,
-                            crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                            checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                                std::borrow::Cow::Borrowed(reason),
-                            ),
-                        ));
+                        gaps.push(machine_gap(program, signature, reason));
                         continue;
                     }
                 },
@@ -958,12 +935,7 @@ pub(crate) fn boundary_result_plan(
     // nor authorizes a provider. Keep carrier classification independent of
     // which admitted implementation will satisfy the requirement.
     if is_reference(program, type_reference) {
-        let carrier = super::call_results::checked_structural_result_type(
-            program,
-            shapes,
-            type_reference,
-            binders,
-        )?;
+        let carrier = checked_structural_result_type(program, shapes, type_reference, binders)?;
         return Some(CheckedBoundaryMachineResultPlan::Structural {
             type_identity: carrier.type_identity,
             multiplicity: carrier.multiplicity,

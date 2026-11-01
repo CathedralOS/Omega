@@ -2,18 +2,17 @@
 //! Folding happens in the source predicate's authenticated scope, before its
 //! remaining observations are transported to another value namespace.
 use super::{Boolean, BoundObservation, BoundPredicate, Operand};
+use facts::checked_boolean_triple_pattern;
+use typed_trees::data::DataMemberIdentity;
 
 pub(crate) fn fold_cases(
     predicate: &mut BoundPredicate,
-    mut resolve: impl FnMut(&BoundObservation, &typed_trees::data::DataMemberIdentity) -> Option<bool>,
+    mut resolve: impl FnMut(&BoundObservation, &DataMemberIdentity) -> Option<bool>,
 ) {
     fn visit(
         expression: &mut Boolean,
         bindings: &[BoundObservation],
-        resolve: &mut impl FnMut(
-            &BoundObservation,
-            &typed_trees::data::DataMemberIdentity,
-        ) -> Option<bool>,
+        resolve: &mut impl FnMut(&BoundObservation, &DataMemberIdentity) -> Option<bool>,
     ) {
         match expression {
             Boolean::StructuralCaseMembership { subject, case } => {
@@ -25,7 +24,7 @@ pub(crate) fn fold_cases(
                 }
             }
             Boolean::Not(operand) => visit(operand, bindings, resolve),
-            facts::checked_boolean_triple_pattern!(left, right, ..) => {
+            checked_boolean_triple_pattern!(left, right, ..) => {
                 visit(left, bindings, resolve);
                 visit(right, bindings, resolve);
             }

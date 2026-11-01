@@ -102,6 +102,16 @@ pub struct CheckedProductSource {
     /// Complete source demand is shared across targets without forcing fallible
     /// external declarations or treating nominal references as invocations.
     pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
+    /// Invocation-local compile-time dependency, shared across target children.
+    /// This is not a historical cache or the final Product artifact.
+    pub calling_policy_code: Arc<
+        std::sync::OnceLock<
+            Result<
+                Option<Arc<provider_planning::calling_policy_plans::CallingPolicyCode>>,
+                Vec<diagnostics::Diagnostic>,
+            >,
+        >,
+    >,
     /// One lazy declaration product for this immutable checked owner. Delaying
     /// preparation preserves provider-failure order and avoids unused work for
     /// consumers that do not request external declarations.

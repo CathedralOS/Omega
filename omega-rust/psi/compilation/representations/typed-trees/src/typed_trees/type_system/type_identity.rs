@@ -38,8 +38,9 @@ pub use language_semantics::type_identity::{
 };
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity,
-    applied_lifetime_parameter_identity_with_supplier, lifetime_parameter_identity,
-    lifetime_parameter_name, portable_lifetime_parameter_identity,
+    applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
+    declaration_lifetime_parameters, lifetime_parameter_identity, lifetime_parameter_name,
+    portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
@@ -48,6 +49,8 @@ pub use normalized_identities::{
 pub use static_operand_identity::StaticOperandIdentityRequest;
 
 use crate::TypedTrees;
+use crate::data;
+use crate::trait_definition::TraitDefinition;
 
 /// Mint or rejoin the canonical handle for one rendered structural key. All
 /// rendering happens outside the interner: producers compute their text,
@@ -529,6 +532,21 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
+    /// Read the exact prepared field telescope, including symbolic applications.
+    /// Field availability establishes neither closed storage nor geometry,
+    /// policy admission, access or value facts. The caller keeps the complete
+    /// qualified type for those judgments. References are not crossed.
+    pub fn data_field_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        self.closed_data_definition(reference)
+            .or_else(|| self.data_application_definition(reference))
+    }
+
     /// Read the retained field declaration of a qualified value carrier.
     /// The caller retains the complete qualified type for identity, validity,
     /// access and custody judgments; this query supplies no establishment.
@@ -536,7 +554,7 @@ impl TypedTrees {
     pub fn closed_data_field_definition(
         &self,
         reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         self.closed_data_definition(
             self.type_reference_table
                 .unconstrained_type_reference(reference),
@@ -556,7 +574,7 @@ impl TypedTrees {
     pub fn closed_data_definition(
         &self,
         reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         use crate::types::TypeReferenceNode;
 
         if !self.type_reference_table.contains_type_reference(reference) {
@@ -623,7 +641,7 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         self.closed_data_definition(reference)?;
         self.data_constructor_definition(reference, authored)
     }
@@ -633,7 +651,7 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
@@ -690,8 +708,8 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataVariant> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataVariant> {
+        use data::DataMember;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
             return None;
         }
@@ -722,7 +740,7 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataField> {
+    ) -> Option<&data::DataField> {
         self.closed_data_definition(reference)?;
         self.data_constructor_field(reference, authored, retained)
     }
@@ -734,8 +752,8 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataVariant> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataVariant> {
+        use data::DataMember;
         let instance = self.data_constructor_definition(reference, authored)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
             return None;
@@ -764,8 +782,8 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataField> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataField> {
+        use data::DataMember;
         let instance = self.data_constructor_definition(reference, authored)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
             return None;
@@ -778,14 +796,13 @@ impl TypedTrees {
         };
         self.data_constructor_definition(reference, source_owner)?;
         let source = self.unique_data_definition_by_symbol(source_owner)?;
-        let corresponding_field =
-            |original: &crate::data::DataField, selected: &crate::data::DataField| {
-                original.name == selected.name
-                    && original.identity == selected.identity
-                    && original.relevance == selected.relevance
-                    && selected.symbol.is_valid()
-                    && self.contains_type_reference(selected.type_reference)
-            };
+        let corresponding_field = |original: &data::DataField, selected: &data::DataField| {
+            original.name == selected.name
+                && original.identity == selected.identity
+                && original.relevance == selected.relevance
+                && selected.symbol.is_valid()
+                && self.contains_type_reference(selected.type_reference)
+        };
         for (ordinal, member) in self.data_members(source).iter().enumerate() {
             match member {
                 DataMember::Field(original) if original.symbol == retained => {
@@ -833,14 +850,14 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         retained: SymbolHandle,
         member_name: &str,
-    ) -> Option<&crate::data::DataField> {
+    ) -> Option<&data::DataField> {
         let instance = self.closed_data_definition(reference)?;
         let mut fields =
             self.data_members(instance)
                 .iter()
                 .enumerate()
                 .filter_map(|(ordinal, member)| {
-                    let crate::data::DataMember::Field(field) = member else {
+                    let data::DataMember::Field(field) = member else {
                         return None;
                     };
                     (field.name.as_str() == member_name).then_some((ordinal, field))
@@ -875,8 +892,7 @@ impl TypedTrees {
             return None;
         }
         let template = self.unique_data_definition_by_symbol(*base_symbol)?;
-        let crate::data::DataMember::Field(original) = self.data_members(template).get(ordinal)?
-        else {
+        let data::DataMember::Field(original) = self.data_members(template).get(ordinal)? else {
             return None;
         };
         (field.name == original.name
@@ -1403,10 +1419,7 @@ impl TypedTrees {
     /// Module-free and source-free semantic trees carry their complete path
     /// directly in the declaration, as for named machine identities. Package
     /// identity and exact symbol custody remain separate from this projection.
-    pub fn trait_declaration_path(
-        &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
-    ) -> String {
+    pub fn trait_declaration_path(&self, trait_definition: &TraitDefinition) -> String {
         if self
             .symbols
             .symbol_module(trait_definition.symbol)
@@ -1421,7 +1434,7 @@ impl TypedTrees {
     /// The derived parts of one trait machine requirement overload identity.
     fn trait_requirement_callable_identity_parts(
         &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
+        trait_definition: &TraitDefinition,
         requirement: &crate::signature::StateSignature,
     ) -> callable_identity::CallableIdentityParts {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
@@ -1510,7 +1523,7 @@ impl TypedTrees {
         &self,
         path: &str,
         owner_symbol: SymbolHandle,
-        type_parameters: &[crate::data::TypeParameter],
+        type_parameters: &[data::TypeParameter],
         parameters: &[crate::signature::StateParameter],
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
@@ -1533,7 +1546,16 @@ impl TypedTrees {
             .collect::<Vec<_>>()
             .join(",");
         callable_identity::CallableIdentityParts {
-            path: path.to_owned(),
+            // A callable's declaration path retains the same nominal owner
+            // as its types. Equal spellings in different managed packages or
+            // the toolchain are different requirements, even with equal ABI
+            // carriers. Ordinary source-free/local views keep their existing
+            // local path; qualification supplies no admission authority.
+            path: TypeIdentityContext::default().qualify_non_binder_name(
+                self,
+                owner_symbol,
+                path.to_owned(),
+            ),
             parameters,
             result_dispatch: self.normalized_result_dispatch_set(return_type),
         }
@@ -1542,7 +1564,7 @@ impl TypedTrees {
 
 fn callable_type_binders(
     owner: SymbolHandle,
-    parameters: &[crate::data::TypeParameter],
+    parameters: &[data::TypeParameter],
 ) -> Vec<(SymbolHandle, String)> {
     let mut binders = Vec::with_capacity(parameters.len() + 1);
     if owner.is_valid() {

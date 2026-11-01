@@ -3,6 +3,15 @@
 //! and floating-control preservation around returning foreign calls.
 
 use crate::ObjectError;
+use crate::codec_bytes::push_encoded;
+use crate::object_artifact::replay::instruction_loads::{
+    aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
+    x86_terminal_register,
+};
+use crate::object_artifact::replay::unit::scalar_call_custody::{
+    exact_preceding_unit_scalar_home_producer_count, expected_aarch64_stack_store,
+    expected_unit_scalar_result_bytes, expected_x86_stack_store, integer_shape,
+};
 use machine_code::{SemanticCodeAttribution, SemanticCodeSite};
 use object_file::RelocationKind;
 use semantic_vocabulary::MachineId;
@@ -346,6 +355,12 @@ pub(crate) fn validate_callback_plan_custody(
     Ok(())
 }
 
+/// The relative relocation names the byte after everything emitted so far, or
+/// the encoding overruns the address space and cannot be written at all.
+fn relocation_matches(base: usize, emitted: usize, target: usize) -> bool {
+    base.checked_add(emitted).is_some_and(|end| end == target)
+}
+
 pub(crate) fn validate_callback_address_bytes(
     target: NativeTarget,
     caller: MachineId,
@@ -361,21 +376,15 @@ pub(crate) fn validate_callback_address_bytes(
             machine_code::CallbackAddressDestination::Register(register),
             machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
         ) => {
-            let register =
-                crate::object_artifact::replay::instruction_loads::x86_terminal_register(register)
-                    .filter(|register| *register != 4)
-                    .ok_or_else(invalid)?;
+            let register = x86_terminal_register(register)
+                .filter(|register| *register != 4)
+                .ok_or_else(invalid)?;
             expected.extend_from_slice(&[
                 0x48 | (((register >> 3) & 1) << 2),
                 0x8d,
                 0x05 | ((register & 7) << 3),
             ]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);
@@ -386,20 +395,11 @@ pub(crate) fn validate_callback_address_bytes(
             machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
         ) => {
             expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);
-            crate::object_artifact::replay::unit::scalar_call_custody::expected_x86_stack_store(
-                &mut expected,
-                11,
-                byte_offset,
-            );
+            expected_x86_stack_store(&mut expected, 11, byte_offset);
         }
         (
             Architecture::X86_64,
@@ -409,23 +409,16 @@ pub(crate) fn validate_callback_address_bytes(
             },
             machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
         ) => {
-            let root = crate::object_artifact::replay::instruction_loads::x86_terminal_register(
-                root_register,
-            )
-            .filter(|register| *register != 4 && *register != 11)
-            .ok_or_else(invalid)?;
+            let root = x86_terminal_register(root_register)
+                .filter(|register| *register != 4 && *register != 11)
+                .ok_or_else(invalid)?;
             expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);
             expected.extend_from_slice(&[0x4c | u8::from(root >= 8), 0x89, 0x98 | (root & 7)]);
-            crate::codec_bytes::push_encoded(&mut expected, byte_offset.to_le_bytes());
+            push_encoded(&mut expected, byte_offset.to_le_bytes());
         }
         (
             Architecture::Aarch64,
@@ -435,18 +428,14 @@ pub(crate) fn validate_callback_address_bytes(
                 page_offset_relocation_offset,
             },
         ) => {
-            let register =
-                crate::object_artifact::replay::instruction_loads::aarch64_terminal_register(
-                    register,
-                )
-                .ok_or_else(invalid)?;
+            let register = aarch64_terminal_register(register).ok_or_else(invalid)?;
             if page_relocation_offset != callback.code_offset
                 || page_offset_relocation_offset
                     != callback.code_offset.checked_add(4).ok_or_else(invalid)?
             {
                 return Err(invalid());
             }
-            crate::codec_bytes::push_encoded(
+            push_encoded(
                 &mut expected,
                 (0x9000_0000 | u32::from(register)).to_le_bytes(),
             );
@@ -468,10 +457,10 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            crate::codec_bytes::push_encoded(&mut expected, 0x9000_0009u32.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut expected, 0x9100_0129u32.to_le_bytes());
+            push_encoded(&mut expected, 0x9000_0009u32.to_le_bytes());
+            push_encoded(&mut expected, 0x9100_0129u32.to_le_bytes());
             expected.extend_from_slice(
-                &crate::object_artifact::replay::unit::scalar_call_custody::expected_aarch64_stack_store(9, byte_offset)
+                &expected_aarch64_stack_store(9, byte_offset)
                     .ok_or_else(invalid)?
                     .to_le_bytes(),
             );
@@ -487,11 +476,7 @@ pub(crate) fn validate_callback_address_bytes(
                 page_offset_relocation_offset,
             },
         ) => {
-            let root =
-                crate::object_artifact::replay::instruction_loads::aarch64_terminal_register(
-                    root_register,
-                )
-                .ok_or_else(invalid)?;
+            let root = aarch64_terminal_register(root_register).ok_or_else(invalid)?;
             if page_relocation_offset != callback.code_offset
                 || page_offset_relocation_offset
                     != callback.code_offset.checked_add(4).ok_or_else(invalid)?
@@ -500,8 +485,8 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            crate::codec_bytes::push_encoded(&mut expected, 0x9000_0010u32.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut expected, 0x9100_0210u32.to_le_bytes());
+            push_encoded(&mut expected, 0x9000_0010u32.to_le_bytes());
+            push_encoded(&mut expected, 0x9100_0210u32.to_le_bytes());
             expected.extend_from_slice(
                 &(0xF900_0000_u32 | ((byte_offset / 8) << 10) | (u32::from(root) << 5) | 16)
                     .to_le_bytes(),
@@ -565,11 +550,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
             let Some(result_type) = result.home.scalar_type.as_integer() else {
                 return Err(invalid());
             };
-            let expected_shape =
-                crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
-                    result_type,
-                )
-                .ok_or_else(invalid)?;
+            let expected_shape = integer_shape(result_type).ok_or_else(invalid)?;
             if result.home.defining_operation
                 != match call.owner {
                     CallSiteOwner::Operation(operation) => operation,
@@ -742,8 +723,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
         {
             return Err(invalid());
         }
-        let expected = crate::object_artifact::replay::unit::scalar_call_custody::expected_unit_scalar_result_bytes(target, result)
-            .ok_or_else(invalid)?;
+        let expected = expected_unit_scalar_result_bytes(target, result).ok_or_else(invalid)?;
         let result_end = result
             .code_offset
             .checked_add(result.byte_count)
@@ -918,7 +898,7 @@ pub(crate) fn validate_foreign_scalar_source(
             if !function.unit_scalar_homes.contains(&home) {
                 return Err(invalid());
             }
-            crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_unit_scalar_home_producer_count(
+            exact_preceding_unit_scalar_home_producer_count(
                 function,
                 home,
                 attribution.operation_ordinal,
@@ -937,16 +917,8 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
     let (register, stack) = match argument.placement.locations.as_slice() {
         [calling_conventions::ValueLocation::Register { register, .. }] => (
             Some(match target.architecture {
-                Architecture::X86_64 => {
-                    crate::object_artifact::replay::instruction_loads::x86_terminal_register(
-                        *register,
-                    )?
-                }
-                Architecture::Aarch64 => {
-                    crate::object_artifact::replay::instruction_loads::aarch64_terminal_register(
-                        *register,
-                    )?
-                }
+                Architecture::X86_64 => x86_terminal_register(*register)?,
+                Architecture::Aarch64 => aarch64_terminal_register(*register)?,
             }),
             None,
         ),
@@ -997,11 +969,11 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                         bytes.push(0x41);
                     }
                     bytes.push(0xb8 | (register & 7));
-                    crate::codec_bytes::push_encoded(&mut bytes, (value_bits as u32).to_le_bytes());
+                    push_encoded(&mut bytes, (value_bits as u32).to_le_bytes());
                 }
                 Architecture::X86_64 => {
                     bytes.extend_from_slice(&[0x48 | ((register >> 3) & 1), 0xb8 | (register & 7)]);
-                    crate::codec_bytes::push_encoded(&mut bytes, value_bits.to_le_bytes());
+                    push_encoded(&mut bytes, value_bits.to_le_bytes());
                 }
                 Architecture::Aarch64 => {
                     for chunk in 0..4 {
@@ -1012,7 +984,7 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                                 | ((chunk as u32) << 21)
                                 | (immediate << 5)
                                 | u32::from(register);
-                            crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
+                            push_encoded(&mut bytes, instruction.to_le_bytes());
                         }
                     }
                 }
@@ -1024,7 +996,7 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
         machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             match target.architecture {
                 Architecture::X86_64 => {
-                    crate::object_artifact::replay::instruction_loads::expected_x86_stack_load(
+                    expected_x86_stack_load(
                         &mut bytes,
                         register,
                         outbound_bytes.checked_add(home.byte_offset)?,
@@ -1032,12 +1004,12 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                     )?;
                 }
                 Architecture::Aarch64 => {
-                    let instruction = crate::object_artifact::replay::instruction_loads::expected_aarch64_stack_load(
+                    let instruction = expected_aarch64_stack_load(
                         register,
                         outbound_bytes.checked_add(home.byte_offset)?,
                         home.shape.byte_size,
                     )?;
-                    crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
+                    push_encoded(&mut bytes, instruction.to_le_bytes());
                 }
             }
         }
@@ -1045,14 +1017,11 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
     if let Some(offset) = stack {
         match target.architecture {
             Architecture::X86_64 => {
-                crate::object_artifact::replay::unit::scalar_call_custody::expected_x86_stack_store(
-                    &mut bytes, register, offset,
-                );
+                expected_x86_stack_store(&mut bytes, register, offset);
             }
             Architecture::Aarch64 => {
-                let instruction =
-                    crate::object_artifact::replay::unit::scalar_call_custody::expected_aarch64_stack_store(register, offset)?;
-                crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
+                let instruction = expected_aarch64_stack_store(register, offset)?;
+                push_encoded(&mut bytes, instruction.to_le_bytes());
             }
         }
     }

@@ -2,7 +2,7 @@
 
 use super::host_io::{DirectoryEntrySnapshotKind, real_directory_entries};
 use super::{EBADF, ENOENT};
-use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall};
+use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, dirent_record_chunk};
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn real_read_dir(
@@ -40,9 +40,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Some(entries) => {
                     let records = crate::interpreter::evaluator::pack_dirent_records(&entries)?;
                     let start = position.initial.max(0) as usize;
-                    let (chunk, next_position) = crate::interpreter::evaluator::dirent_record_chunk(
-                        &records, start, count.host,
-                    );
+                    let (chunk, next_position) = dirent_record_chunk(&records, start, count.host);
                     if chunk.is_empty() {
                         0
                     } else {

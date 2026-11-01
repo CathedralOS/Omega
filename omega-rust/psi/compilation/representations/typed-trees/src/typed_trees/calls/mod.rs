@@ -7,6 +7,8 @@ pub mod finite_family;
 pub mod service;
 pub mod signature;
 pub mod static_applications;
+use crate::expression::ExpressionNode::Name;
+use crate::expression::TableCallExpression;
 
 impl super::TypedTrees {
     /// Rejoin the source qualifier to its exact selected callable declaration.
@@ -14,10 +16,7 @@ impl super::TypedTrees {
     /// limiting this query to machine bodies invents a read of their namespace
     /// during nested argument evaluation. Keep unknown or instance qualifiers
     /// observable, and leave actual operands on the ordinary ordered read path.
-    pub fn call_has_no_runtime_receiver_for_target(
-        &self,
-        call: &crate::expression::TableCallExpression,
-    ) -> bool {
+    pub fn call_has_no_runtime_receiver_for_target(&self, call: &TableCallExpression) -> bool {
         if let Some(owner) = self.machine_holding_state(call.target_symbol)
             && let Some(target) = self
                 .machine_states(owner)
@@ -68,7 +67,7 @@ impl super::TypedTrees {
             return false;
         }
         matches!(self.expression_table.expression(call.receiver),
-            crate::expression::ExpressionNode::Name(path) if path.symbol == owner.symbol)
+            Name(path) if path.symbol == owner.symbol)
     }
 
     /// A data- or implementation-qualified call names its owner without
@@ -79,7 +78,7 @@ impl super::TypedTrees {
     /// receiver.
     pub fn call_has_no_runtime_receiver(
         &self,
-        call: &crate::expression::TableCallExpression,
+        call: &TableCallExpression,
         owner: &crate::machine::Machine,
         target: &crate::state::State,
     ) -> bool {
@@ -92,9 +91,7 @@ impl super::TypedTrees {
         if !self.expression_table.expression_is_valid(call.receiver) {
             return false;
         }
-        let crate::expression::ExpressionNode::Name(path) =
-            self.expression_table.expression(call.receiver)
-        else {
+        let Name(path) = self.expression_table.expression(call.receiver) else {
             return false;
         };
         if path.symbol.is_valid()

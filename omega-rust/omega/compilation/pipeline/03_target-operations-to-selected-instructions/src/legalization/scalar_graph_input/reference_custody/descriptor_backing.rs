@@ -4,6 +4,9 @@
 //! Error closures retain the rejecting call site; passing the track-caller
 //! constructor as a function pointer reports Rust's adapter instead.
 use super::*;
+use optimization_unit_semantics::descriptor_results::{
+    captured_scalar_ordering, optimized_catalog_graph,
+};
 use std::borrow::Cow;
 use terminal_semantics::borrowed_storage::{Projection, Region};
 use terminal_semantics::descriptor_lifetimes::{DescriptorPosition, descriptor_path};
@@ -77,7 +80,7 @@ pub(super) fn prepare(
     {
         return Ok(Observations::default());
     }
-    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+    let graph = optimized_catalog_graph(
         &unit.functions,
         &unit.boundary_machines,
         types,
@@ -97,11 +100,7 @@ pub(super) fn prepare(
         .iter()
         .map(|function| (function.machine, function))
         .collect();
-    observations.ordering = Some(
-        optimization_unit_semantics::descriptor_results::captured_scalar_ordering(
-            function, &functions,
-        ),
-    );
+    observations.ordering = Some(captured_scalar_ordering(function, &functions));
     // An unavailable replay is not an empty origin set. A descriptor-dependent
     // formation below requires its exact observation and therefore fails closed.
     let Some(graph) = graph else {

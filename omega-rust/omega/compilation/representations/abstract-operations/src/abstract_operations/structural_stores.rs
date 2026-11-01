@@ -1,7 +1,8 @@
 //! The semantic storage authority retained by scalar field and primitive stores.
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use terminal_psi::{
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration,
 };
 
 /// A borrowed parameter and an owned operation result have different custody.
@@ -73,9 +74,7 @@ impl StructuralScalarStoreDestination {
     /// including an owned block parameter, carry their own authority.
     pub fn parameter(&self) -> Option<&StructuralParameterDeclaration> {
         match self {
-            Self::Parameter(parameter)
-                if parameter.access != terminal_psi::StructuralAccess::Owned =>
-            {
+            Self::Parameter(parameter) if parameter.access != StructuralAccess::Owned => {
                 Some(parameter)
             }
             Self::Parameter(_) => None,

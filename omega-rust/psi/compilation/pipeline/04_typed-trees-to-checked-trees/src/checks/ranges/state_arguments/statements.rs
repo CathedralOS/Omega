@@ -1,3 +1,4 @@
+use crate::checks::ranges::expression_transfer::expression_has_sink_effect;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
 use super::StateArgumentFacts;
@@ -60,23 +61,21 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
             match program.statement_table.transition_target(target) {
                 TransitionTargetNode::Named {
                     path, arguments, ..
-                } => program
-                    .machine_states(self.context.machine)
-                    .get(1..)
-                    .is_some_and(|states| states.iter().any(|state| state.symbol == path.symbol))
-                    || program
-                        .statement_table
-                        .expression_handles(*arguments)
-                        .iter()
-                        .any(|argument| {
-                            crate::checks::ranges::expression_transfer::expression_has_sink_effect(
-                                program, *argument, false,
-                            )
-                        }),
+                } => {
+                    program
+                        .machine_states(self.context.machine)
+                        .get(1..)
+                        .is_some_and(|states| {
+                            states.iter().any(|state| state.symbol == path.symbol)
+                        })
+                        || program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .any(|argument| expression_has_sink_effect(program, *argument, false))
+                }
                 TransitionTargetNode::Value(value) => {
-                    crate::checks::ranges::expression_transfer::expression_has_sink_effect(
-                        program, *value, false,
-                    )
+                    expression_has_sink_effect(program, *value, false)
                 }
                 TransitionTargetNode::Terminal => false,
             }

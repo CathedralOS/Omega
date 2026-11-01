@@ -1,6 +1,8 @@
 //! Exact closed selection identity, independent of proof-output or execution rungs.
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::typed_trees::ClosedConformanceConstArgument;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 
 /// A rewritten private target is not selection authority. Join the owner's
@@ -197,12 +199,7 @@ pub(crate) fn capture_binding_is_exact(
     let count = program
         .conformance_type_parameters(declaration)
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Machine { .. }
-            )
-        })
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
         .count();
     let selected = expression_table(program)
         .static_machine_application_selected_machines(capture.binding_application);
@@ -363,10 +360,7 @@ pub(crate) fn conformance_binding_is_exact(
             let value = reclosed.const_arguments.get(const_ordinal);
             const_ordinal += 1;
             match value {
-                Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
-                    value,
-                    ..
-                }) => Some(value),
+                Some(ClosedConformanceConstArgument::Evaluated { value, .. }) => Some(value),
                 _ => None,
             }
         } else {
@@ -394,7 +388,8 @@ pub(crate) fn conformance_binding_is_exact(
     }
     let lifetimes =
         expression_table(program).static_machine_application_lifetimes(binding_application);
-    let matches = lifetimes.len() == declaration.lifetime_parameters.len()
+    let matches = binding.lifetime_binding_declaration == declaration.symbol
+        && lifetimes.len() == declaration.lifetime_parameters.len()
         && lifetimes.len() == application.lifetime_arguments.len()
         && lifetimes
             .iter()

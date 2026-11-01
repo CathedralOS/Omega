@@ -163,9 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms (including structured and cross-carrier
-    bodies), nonscalar orders,
-    or dependent distances
+    other declared body forms, remaining nonscalar orders beyond fixed-integer
+    lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -180,9 +179,8 @@ retired-syntax deletions to completion.
   twins. Reject inaccessible descendants, accidental capture, stale parent
   facts, mismatched results, missing exact call markers, unclosed restoration,
   invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
+  `state` syntax. Finish the full affected sample/corpus migration and both
+  compiler implementations before closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -191,7 +189,7 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, remaining record-field and owned-array
+    remaining case/aggregate writes, record-field and owned-array
     predicate handback with current storage versions,
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
@@ -212,16 +210,12 @@ retired-syntax deletions to completion.
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
   - Carry one general predicate representation through formation, construction,
-    calls, matching, coverage, writes, and erasure so case membership plus the
-    established domain recovers type equality and guarded payload bounds while
-    preserving recursive/indexed data encoding obligations, exact subject
-    identity, first-case zero gating, and mutation restoration.
-  Acceptance: execute a generic typed extractor over Integer/Boolean and a
-  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
-  exercising the same predicate as a default domain and a named generic domain
-  through all nine fact places. Reject mismatched case/type construction,
-  unguarded inactive payload access, reversed bounds, stale facts after writes,
-  invalid zero establishment and the retired syntax.
+    calls, matching, coverage, writes, and erasure, preserving recursive/indexed
+    data encoding obligations, exact subject identity, first-case zero gating,
+    and mutation restoration.
+  Acceptance: reject mismatched case/type construction, unguarded inactive
+  payload access, reversed bounds, stale facts after writes, invalid zero
+  establishment and the retired syntax.
 
 - **STATIC-MACHINE-MIGRATION.** (also covers
   **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
@@ -399,11 +393,9 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 70 test files to boundary traits with explicit reach clauses, lift stage
-    04's template-dependent result borrow-elision fence for `core/task.omg`'s
-    generic `request_cancel` and `finish`, and preserve source-selected trait
-    tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
+    probe to boundary traits with explicit reach clauses, and preserve
+    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.
@@ -417,7 +409,6 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
   - Extend `OpenIndexOperationSelection` in
@@ -435,30 +426,20 @@ retired-syntax deletions to completion.
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
 
-- **ARITHMETIC-POLICY-REALIZATION.** (also covers **IMPLICIT-STORE-CONVERSION**)
-  Close remaining [numeric-policy](wiki/spec/language/numeric_values.md)
-  realization and the implicit-store-conversion rejection and migration under
-  [explicit coercion/erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure)
-  end to end (`omega run --both`).
-  Owners: `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/{assignments,operand_reports}.rs`,
-  stage 04 scalar checking, stage 05 expression preparation, and
-  `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
-  with its interpreter and native consumers.
-  - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
-    `tests/omega/pass/arithmetic`, `tests/omega/pass/core`, and
-    `tests/omega/pass/float` to explicit conversions (`as` requires
-    unchanged denotation and representability;
-    wrapping/clamping use
-    `core/numeric_conversion.omg`), producing one actionable diagnostic per
-    authored conversion error.
-  Acceptance: comparisons, conversions, and policy-explicit stores agree between
-  the interpreter and matching-host native execution across all six relations,
-  operand orientations, widths, signedness, and extrema above `i64::MAX`
-  (`python tools/corpus_gate.py --both --filter numeric_,runtime_explicit_call_,runtime_shift_count_domain_exit,runtime_comparison_signedness_exit,runtime_wrapping_operand_truncation_exit`);
-  `tests/omega/fail/arithmetic/implicit_{store_conversion,store_widening,store_call_result_conversion,call_operand_conversion,call_result_policy_change,integer_policy_erasure}_rejected`
-  and `fail/slices/signed_slice_index_upper_only` each report their intended
-  refusal.
+- **LOC-OMEGA-CONSOLIDATION.** Fold Omega-side (non-Psi) semantic duplication
+  where only data differs, deleting the superseded copy in the same change.
+  Base `55f4a84e523`; target net -1,500 lines across `omega-rust/omega/`.
+  - Per-ISA (`isa-x86_64`/`isa-aarch64`) selected-form test bodies that differ
+    only in roster, bytes and target move into `isa-conformance`: hosted exit,
+    read and write byte, floating control, scalar call, memory pointer and
+    integer normalization tests.
+  - Per-ISA register-catalog builder helpers (`view`, `fixed`, `allocatable`,
+    `merged_units`, `convention`) and the matching error enums move to
+    `register-model`.
+  - Driver test adapters (`TerminalImportAdapter` + `TerminalEffectHandler`
+    stubs) share one test-support type.
+  Acceptance: each family has one path and the old copies are gone; touched
+  crates' `mbx nextest run` and `corpus_gate --filter` on touched groups pass.
 
 ## Pipeline route
 
@@ -888,11 +869,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
-    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
-    with the original 256-width and mismatched-policy-argument reject controls.
-    Its exact source and unfinished repairs are retained at that checkpoint;
-    the completed storage/bit rows do not establish this composition.
+    The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
+    with the original 256-width and mismatched-policy-argument rejects.
+    Stored-descriptor reads/roundtrips, other-host execution and broader
+    reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
     [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
     also remains unqualified: preserve its distinct environment/storage regions
     and the same constant index through the original forwarding call.
@@ -1550,14 +1531,14 @@ defines the complete product bar.
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
   [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_placed_accessor_attachment` in
+  - Reuse `add_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/placed_views.rs`.
+    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
   - Extend native publication in
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
     and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/placed_view_inputs.rs`
+    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
     so direct-entry and subordinate placed-view loans establish, access, and
     retire with exact original backing and qualifications across Terminal Psi
     and native execution.

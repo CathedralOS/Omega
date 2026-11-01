@@ -1,0 +1,22 @@
+// The false index guard skips an out-of-bounds observation; the other call reads its exact left argument.
+// Expected exit: 0
+boundary trait Compare {
+    machine bytes(left: &[u8; 4], right: &[u8; 4], count: u64) -> i32
+    requires count <= 4
+    requires count == 4 || left[count] == 0
+    reaches;
+}
+data Packet { prefix: u8; bytes: [u8; 4]; suffix: u8; }
+machine main() reaches Compare crashes Trap {
+    let first: Packet = Packet { prefix: 0xa5, bytes: [0x61, 0x62, 0x63, 0], suffix: 0x5a };
+    let left: Packet = Packet { prefix: 0xa5, bytes: [0x61, 0, 0x63, 0], suffix: 0x5a };
+    let right: Packet = Packet { prefix: 0xa5, bytes: [0x62, 0x7f, 0x63, 0], suffix: 0x5a };
+    let equal: i32 = Compare::bytes(&first.bytes, &first.bytes, 4);
+    let different: i32 = Compare::bytes(&left.bytes, &right.bytes, 1);
+    transition equal == 0 && different < 0 && first.prefix == 0xa5 && first.suffix == 0x5a && left.prefix == 0xa5 && left.suffix == 0x5a && right.prefix == 0xa5 && right.suffix == 0x5a {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

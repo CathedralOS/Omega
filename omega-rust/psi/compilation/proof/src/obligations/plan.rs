@@ -6,10 +6,12 @@ use crate::obligations::ranges::float_range_bound;
 use crate::typed_expressions::type_reference_table;
 use arena::{Arena, HandleSpan};
 pub(crate) use facts::IntegerRange;
+use language_semantics::value_domain::ValueDomain;
 use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::dependent_ranges::DependentBoundClass;
+use typed_trees::dependent_ranges::dependent_range_maximum;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -190,10 +192,8 @@ impl ProofConstraint {
             // This lets `f64 in Finite` reuse the established finite-literal,
             // float-range, and invariant-window machinery without pretending
             // that an authored carrier domain was declared.
-            TypeConstraintNode::Domain(domain) => {
-                language_semantics::value_domain::ValueDomain::from_name(domain.as_str())
-                    .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
-            }
+            TypeConstraintNode::Domain(domain) => ValueDomain::from_name(domain.as_str())
+                .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name()))),
             TypeConstraintNode::Range {
                 minimum,
                 maximum,
@@ -230,23 +230,15 @@ impl ProofConstraint {
     ) -> Option<Self> {
         Self::from_node(program, base_type, constraint).or_else(|| match constraint {
             TypeConstraintNode::Domain(domain) => {
-                Self::exact_domain_interval(program, base_type, domain)
+                let (minimum, maximum) = validation::exact_declared_domain_carrier_interval(
+                    program,
+                    program.primitive_type_reference(base_type)?,
+                    domain,
+                )?;
+                Some(Self::IntegerRange { minimum, maximum })
             }
             _ => None,
         })
-    }
-
-    fn exact_domain_interval(
-        program: &dyn ::validation::CheckingInput,
-        base_type: TypeReferenceHandle,
-        domain: &typed_trees::types::DomainConstraint,
-    ) -> Option<Self> {
-        let (minimum, maximum) = validation::exact_declared_domain_carrier_interval(
-            program,
-            program.primitive_type_reference(base_type)?,
-            domain,
-        )?;
-        Some(Self::IntegerRange { minimum, maximum })
     }
 
     fn range_from_expression_handles(
@@ -306,11 +298,7 @@ impl ProofConstraint {
             // validation fence and the index prover read, so the plan cannot
             // order its class checks differently from the gate.
             if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64) {
-                match typed_trees::dependent_ranges::dependent_range_maximum(
-                    program,
-                    maximum,
-                    end_inclusive,
-                ) {
+                match dependent_range_maximum(program, maximum, end_inclusive) {
                     Some(DependentBoundClass::SelfField(symbolic)) => {
                         return Some(Self::IntegerRangeSymbolicMax {
                             minimum,

@@ -18,7 +18,7 @@ pub(super) fn validate(
     state: &State,
     actual_parameters: &[StateParameter],
     actual_type_parameters: &[TypeParameter],
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     let binders = program
         .state_signature_type_parameters(requirement)
         .iter()
@@ -41,9 +41,8 @@ pub(super) fn validate(
                 substitution_scope_starts: &application.substitution_scope_starts,
                 application_scopes: scopes,
                 binders: &binders,
-                lifetime_bindings: &[],
+                lifetime_applications: &[],
                 argument_owner: application.argument_owner,
-                supplied_telescope: false,
             },
             CallableBorrowContract {
                 lexical_owner: machine.symbol,
@@ -54,9 +53,8 @@ pub(super) fn validate(
                 substitution_scope_starts: &[],
                 application_scopes: &[],
                 binders: &binders,
-                lifetime_bindings: &[],
+                lifetime_applications: &[],
                 argument_owner: machine.symbol,
-                supplied_telescope: false,
             },
         )
     })

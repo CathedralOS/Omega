@@ -6,6 +6,7 @@ use crate::capture::semantics::declarations::{
 use crate::record::PackageReviewNominalIdentity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::operator::boundary_operator_requirement_identity;
 
 pub(crate) fn trait_requirement_identity(
     compilation: &PackageReviewInput<'_>,
@@ -110,10 +111,7 @@ pub(crate) fn provider_requirement_identity(
             let nominal = nominal_identity(compilation, requirement_symbol)?;
             Ok(PackageReviewNominalIdentity {
                 owner: nominal.owner,
-                path: typed_trees::operator::boundary_operator_requirement_identity(
-                    compilation.checking_input,
-                    operator,
-                ),
+                path: boundary_operator_requirement_identity(compilation.checking_input, operator),
             })
         }
     }

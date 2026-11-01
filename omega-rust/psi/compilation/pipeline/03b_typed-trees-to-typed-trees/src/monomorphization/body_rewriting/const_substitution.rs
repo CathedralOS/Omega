@@ -8,6 +8,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::name::Identifier;
+use validation::parameter_expression_result_type_reference;
 
 pub(crate) fn fixed_array_const_replacements(
     program: &dyn ::validation::CheckingInput,
@@ -398,9 +399,7 @@ fn closed_structural_argument(
                     .find_named_type_reference(literal.type_symbol)
             })
         }
-        _ => {
-            validation::parameter_expression_result_type_reference(program, owner, &[], *expression)
-        }
+        _ => parameter_expression_result_type_reference(program, owner, &[], *expression),
     };
     let Some(carrier) = carrier else {
         return Ok(None);

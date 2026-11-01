@@ -18,15 +18,21 @@
 //! the ordered comparison alone is not enough.
 
 use checked_trees::CheckFacts;
-use facts::{FactContextHandle, FactOrigin, FactPayload};
+use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload, FloatPredicate};
 use numerics::bignum::ExactFloat;
 use numerics::literals::FloatFormat;
-use typed_trees::domain::DomainDefinition;
+use typed_trees::domain::{DomainDefinition, domain_subject_reference};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::operator::{primitive_float_binary_semantics, resolve_named_expression_call};
+use typed_trees::operator::{
+    binary_operator_spelling, has_builtin_spelled_expression_meaning,
+    primitive_float_binary_semantics, resolve_named_expression_call,
+};
 use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use validation::CanonicalPlace;
+use validation::expression_result_type_reference;
+use validation::find_machine_by_entry_state;
 
 use crate::places::place_at;
 use crate::values::float_predicates::{comparison, has_ieee_meaning, literal};
@@ -131,16 +137,15 @@ fn required_subject_bound(
     domain: &DomainDefinition,
     predicate: ExpressionHandle,
     format: FloatFormat,
-) -> Option<facts::FloatPredicate> {
+) -> Option<FloatPredicate> {
     let binary = comparison(program, predicate)?;
-    let (operator, bound) =
-        if typed_trees::domain::domain_subject_reference(program, domain, binary.left) {
-            (binary.operator, binary.right)
-        } else if typed_trees::domain::domain_subject_reference(program, domain, binary.right) {
-            (binary.operator.mirrored(), binary.left)
-        } else {
-            return None;
-        };
+    let (operator, bound) = if domain_subject_reference(program, domain, binary.left) {
+        (binary.operator, binary.right)
+    } else if domain_subject_reference(program, domain, binary.right) {
+        (binary.operator.mirrored(), binary.left)
+    } else {
+        return None;
+    };
     let bound = literal(program, bound, format)?;
     let builtin = has_ieee_meaning(
         program,
@@ -155,7 +160,7 @@ fn required_subject_bound(
     if !builtin && !lowered_call {
         return None;
     }
-    facts::FloatPredicate::comparison(format, operator, &bound)
+    FloatPredicate::comparison(format, operator, &bound)
 }
 
 fn value_implies_bound(
@@ -167,10 +172,10 @@ fn value_implies_bound(
     statement_index: usize,
     value: ExpressionHandle,
     format: FloatFormat,
-    required: facts::FloatPredicate,
+    required: FloatPredicate,
 ) -> bool {
     if literal(program, value, format).is_some_and(|bound| {
-        facts::FloatPredicate::comparison(format, BinaryOperator::Equal, &bound)
+        FloatPredicate::comparison(format, BinaryOperator::Equal, &bound)
             .is_some_and(|observed| observed.implies(required))
     }) {
         return true;
@@ -210,7 +215,7 @@ fn premise_implies_bound(
     statement_index: usize,
     value: ExpressionHandle,
     format: FloatFormat,
-    required: facts::FloatPredicate,
+    required: FloatPredicate,
 ) -> bool {
     let Some(place) = place_at(program, state.symbol, statement_index, value) else {
         return false;
@@ -228,15 +233,9 @@ fn premise_implies_bound(
             return false;
         };
         let Some(reference) =
-            validation::expression_result_type_reference(program, machine, state, binary.left)
-                .or_else(|| {
-                    validation::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        binary.right,
-                    )
-                })
+            expression_result_type_reference(program, machine, state, binary.left).or_else(|| {
+                expression_result_type_reference(program, machine, state, binary.right)
+            })
         else {
             return false;
         };
@@ -244,7 +243,7 @@ fn premise_implies_bound(
             return false;
         }
         literal(program, bound, format)
-            .and_then(|bound| facts::FloatPredicate::comparison(format, operator, &bound))
+            .and_then(|bound| FloatPredicate::comparison(format, operator, &bound))
             .is_some_and(|observed| observed.implies(required))
     })
 }
@@ -258,12 +257,12 @@ fn nonnegative_difference(
     statement_index: usize,
     value: ExpressionHandle,
     format: FloatFormat,
-) -> Option<facts::FloatPredicate> {
+) -> Option<FloatPredicate> {
     let binary = comparison(program, value)?;
     if binary.operator != BinaryOperator::Subtract {
         return None;
     }
-    let reference = validation::expression_result_type_reference(program, machine, state, value)?;
+    let reference = expression_result_type_reference(program, machine, state, value)?;
     let primitive = program.primitive_type_reference(reference)?;
     let value_format = match primitive {
         PrimitiveType::F32 => FloatFormat::F32,
@@ -305,7 +304,7 @@ fn nonnegative_difference(
     if !left_finite || !right_finite || !ordered {
         return None;
     }
-    facts::FloatPredicate::comparison(
+    FloatPredicate::comparison(
         format,
         BinaryOperator::GreaterOrEqual,
         &ExactFloat::from_f64(0.0),
@@ -316,18 +315,17 @@ fn subtraction_has_ieee_meaning(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> bool {
     let expected_format = match program.primitive_type_reference(reference) {
         Some(PrimitiveType::F32) => FloatFormat::F32,
         Some(PrimitiveType::F64) => FloatFormat::F64,
         _ => return false,
     };
-    let Some(spelling) = typed_trees::operator::binary_operator_spelling(BinaryOperator::Subtract)
-    else {
+    let Some(spelling) = binary_operator_spelling(BinaryOperator::Subtract) else {
         return false;
     };
-    if typed_trees::operator::has_builtin_spelled_expression_meaning(
+    if has_builtin_spelled_expression_meaning(
         program,
         machine.symbol,
         expression,
@@ -343,8 +341,7 @@ fn subtraction_has_ieee_meaning(
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    let Some((target, _)) = validation::find_machine_by_entry_state(program, call.target_symbol)
-    else {
+    let Some((target, _)) = find_machine_by_entry_state(program, call.target_symbol) else {
         return false;
     };
     let Some(binding) = program.machine_token_binding_by_symbol(target.symbol) else {
@@ -408,8 +405,7 @@ fn left_is_at_least_right(
             machine.symbol,
             premise,
             binary.operator,
-            validation::expression_result_type_reference(program, machine, state, left)
-                .unwrap_or_default(),
+            expression_result_type_reference(program, machine, state, left).unwrap_or_default(),
         ) {
             return false;
         }
@@ -468,7 +464,7 @@ fn same_place(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-    expected: &validation::CanonicalPlace,
+    expected: &CanonicalPlace,
 ) -> bool {
     place_at(program, state.symbol, statement_index, expression)
         .is_some_and(|place| crate::flow::canonical_places_agree(program, &place, expected))
@@ -507,7 +503,7 @@ fn premise_expression(origin: FactOrigin, payload: FactPayload) -> Option<Expres
     }
     match payload {
         FactPayload::ContractBooleanExpression {
-            kind: facts::ContractFactKind::Requires | facts::ContractFactKind::Ensures,
+            kind: ContractFactKind::Requires | ContractFactKind::Ensures,
             expression,
             instantiated,
             ..

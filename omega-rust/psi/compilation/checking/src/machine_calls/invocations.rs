@@ -1,10 +1,12 @@
 use super::effect_inference::full_parameter_invocation;
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
+use typed_trees::signature::AuthoredInvocationTarget;
 use typed_trees::signature::StateParameter;
 
 pub(crate) fn validate_invocation_contracts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_declared_targets(program, diagnostics);
@@ -41,10 +43,7 @@ pub(crate) fn validate_invocation_contracts(
     }
 }
 
-fn validate_declared_targets(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+fn validate_declared_targets(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             validate_target_names(
@@ -73,7 +72,7 @@ fn validate_declared_targets(
 }
 
 fn validate_target_names(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: &str,
     targets: &[typed_trees::signature::AuthoredInvocation],
     parameters: &[StateParameter],
@@ -81,9 +80,7 @@ fn validate_target_names(
 ) {
     let mut seen = Vec::new();
     for target in targets {
-        if target.target != typed_trees::signature::AuthoredInvocationTarget::Unresolved
-            && seen.contains(&target.target)
-        {
+        if target.target != AuthoredInvocationTarget::Unresolved && seen.contains(&target.target) {
             diagnostics.push(Diagnostic::error(format!(
                 "callable `{owner}` declares `invokes {}` more than once",
                 target.name,
@@ -93,14 +90,14 @@ fn validate_target_names(
         seen.push(target.target);
 
         match target.target {
-            typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
+            AuthoredInvocationTarget::Unresolved => {
                 diagnostics.push(Diagnostic::error(format!(
                     "callable `{owner}` declares `invokes {}`, but `{}` is neither one of its boundary-binding parameters nor a known boundary trait",
                     target.name,
                     target.name,
                 )));
             }
-            typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+            AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
                 let parameter = parameters.iter().nth(ordinal as usize);
                 if parameter.is_none_or(|parameter| {
                     parameter.symbol != symbol
@@ -112,7 +109,7 @@ fn validate_target_names(
                     )));
                 }
             }
-            typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
+            AuthoredInvocationTarget::Service(symbol) => {
                 if !program
                     .traits()
                     .iter()
@@ -129,7 +126,7 @@ fn validate_target_names(
 }
 
 fn validate_conformance_refinement(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     summary: &flow_effects::MachineInvocationInference,
     diagnostics: &mut Vec<Diagnostic>,
@@ -223,7 +220,7 @@ fn validate_conformance_refinement(
 }
 
 fn report_missing_targets(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     parameters: &[StateParameter],
     actual: &[flow_effects::InvocationTarget],
     allowed: &[flow_effects::InvocationTarget],
@@ -245,7 +242,7 @@ fn report_missing_targets(
 }
 
 fn invocation_target_label(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     parameters: &[StateParameter],
     target: flow_effects::InvocationTarget,
 ) -> String {
@@ -269,14 +266,14 @@ fn invocation_target_label(
 /// Callers then admit the symbol against the boundary trait table their own
 /// way (`.find` for the definition, `.any().then_some` for the symbol).
 pub(crate) fn boundary_requirement_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
     typed_trees::invocations::boundary_requirement_symbol(program.typed_program(), type_reference)
 }
 
 fn boundary_trait_for_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
     let symbol = boundary_requirement_symbol(program, type_reference);

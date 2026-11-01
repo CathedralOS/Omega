@@ -12,10 +12,22 @@ use crate::values::scalar::structural_fields;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
 };
+use facts::PlaceRoot;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
+use numerics::literals::FloatFormat;
+use symbols::SymbolHandle;
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableBinaryExpression, UnaryOperator, ieee_float_value,
+};
+use typed_trees::operator::integer_peer_operand_carrier;
 use typed_trees::signature::StateParameter;
+use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
+use validation::CanonicalPlace;
+use validation::ExactIntegerCastFact;
+use validation::closed_record_scalar_projection;
+use validation::has_anonymous_operator_meaning;
+use validation::land_anonymous_integer_expression;
 
 /// Lower one call argument in the caller state's checked scalar namespace.
 /// Only the immutable scalar-prefix shape accepted by terminal scalar lowering
@@ -24,11 +36,11 @@ use typed_trees::types::PrimitiveType;
 pub(crate) fn lower_state_scalar_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     let parameters = program.state_parameters(state);
     let parameter_types = parameters
@@ -68,7 +80,7 @@ pub(crate) fn lower_state_scalar_expression(
 pub(crate) fn lower_unit_scalar_argument(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
@@ -95,11 +107,11 @@ pub(crate) fn lower_unit_scalar_argument(
 pub(crate) fn lower_unit_scalar_argument_for_places(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
-    mut bind: impl FnMut(&validation::CanonicalPlace, PrimitiveType) -> Option<CheckedScalarExpression>,
+    mut bind: impl FnMut(&CanonicalPlace, PrimitiveType) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
     let mut value = lower_unit_scalar_argument(
         program,
@@ -131,8 +143,8 @@ pub(crate) fn lower_unit_scalar_argument_for_places(
                     *parameter_position,
                     path,
                 )?;
-                validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
+                CanonicalPlace {
+                    root: PlaceRoot::Symbol(root),
                     segments,
                 }
             }
@@ -150,7 +162,7 @@ pub(crate) fn lower_unit_scalar_argument_for_places(
 
 pub(crate) fn unit_scalar_context(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     before_statement: usize,
 ) -> Option<(Vec<StateParameter>, Vec<PrimitiveType>, Vec<ScalarLocal>)> {
     let (parameters, parameter_types) =
@@ -182,9 +194,9 @@ pub(crate) fn unit_scalar_context(
 /// local values retain their own symbols rather than replaying initializers.
 pub(crate) fn unit_scalar_binding_symbols(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     before_statement: usize,
-) -> Option<Vec<symbols::SymbolHandle>> {
+) -> Option<Vec<SymbolHandle>> {
     let (parameters, _, locals) = unit_scalar_context(program, state, before_statement)?;
     Some(
         parameters
@@ -212,7 +224,7 @@ pub(crate) fn lower_index_expression(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     if let Some(value) =
         land_anonymous_scalar_expression(program, operators, expression, PrimitiveType::U64)
@@ -243,7 +255,7 @@ pub(crate) fn lower_return_expression(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     result_type: PrimitiveType,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     if let Some(value) =
         land_anonymous_scalar_expression(program, operators, expression, result_type)
@@ -297,36 +309,32 @@ pub(crate) fn land_anonymous_scalar_expression(
         && matches!(destination, PrimitiveType::F32 | PrimitiveType::F64)
     {
         let format = match destination {
-            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
-            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
             _ => return None,
         };
         return Some(CheckedScalarExpression::IeeeFloatLiteral {
-            value: typed_trees::expression::ieee_float_value(literal, format),
+            value: ieee_float_value(literal, format),
         });
     }
-    validation::land_anonymous_integer_expression(
-        program,
-        expression,
-        destination,
-        &[],
-        |expression| match operators.expression_use(expression) {
+    land_anonymous_integer_expression(program, expression, destination, &[], |expression| {
+        match operators.expression_use(expression) {
             Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
-            None => validation::has_anonymous_operator_meaning(program, expression),
-        },
-    )
+            None => has_anonymous_operator_meaning(program, expression),
+        }
+    })
     .map(|(literal, _)| CheckedScalarExpression::IntegerLiteral { literal })
 }
 
 pub(crate) fn lower_scalar_operands(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    binary: &typed_trees::expression::TableBinaryExpression,
+    binary: &TableBinaryExpression,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[ExactIntegerCastFact],
 ) -> Option<(
     (CheckedScalarExpression, ArithmeticDomain),
     (CheckedScalarExpression, ArithmeticDomain),
@@ -355,11 +363,7 @@ pub(crate) fn lower_scalar_operands(
             program,
             operators,
             binary.left,
-            typed_trees::operator::integer_peer_operand_carrier(
-                binary.operator,
-                destination,
-                false,
-            ),
+            integer_peer_operand_carrier(binary.operator, destination, false),
         )
     {
         left = Some((value, ArithmeticDomain::Exact));
@@ -371,7 +375,7 @@ pub(crate) fn lower_scalar_operands(
             program,
             operators,
             binary.right,
-            typed_trees::operator::integer_peer_operand_carrier(binary.operator, destination, true),
+            integer_peer_operand_carrier(binary.operator, destination, true),
         )
     {
         right = Some((value, ArithmeticDomain::Exact));
@@ -387,7 +391,7 @@ pub(crate) fn lower_scalar_expression(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     macro_rules! lower_child {
         ($expression:expr $(,)?) => {
@@ -440,7 +444,7 @@ pub(crate) fn lower_scalar_expression(
     // or selected from a closed constructor. The caller still checks its exact
     // destination carrier; this does not choose meaning for float operations.
     if let ExpressionNode::Float(literal) = program.expression_table.expression(expression) {
-        let value = typed_trees::expression::ieee_float_value(literal, literal.landing()?);
+        let value = ieee_float_value(literal, literal.landing()?);
         return Some((
             CheckedScalarExpression::IeeeFloatLiteral { value },
             ArithmeticDomain::Exact,
@@ -450,23 +454,14 @@ pub(crate) fn lower_scalar_expression(
     {
         return Some(read);
     }
-    if let Some((leaf, primitive)) =
-        validation::closed_record_scalar_projection(program, expression)
-    {
+    if let Some((leaf, primitive)) = closed_record_scalar_projection(program, expression) {
         let lowered = if is_integer(primitive) {
             let literal = program.expression_table.integer_node(leaf)?;
             CheckedScalarExpression::IntegerLiteral {
                 literal: if literal.landing().is_some() {
                     literal.clone()
                 } else {
-                    validation::land_anonymous_integer_expression(
-                        program,
-                        leaf,
-                        primitive,
-                        &[],
-                        |_| false,
-                    )?
-                    .0
+                    land_anonymous_integer_expression(program, leaf, primitive, &[], |_| false)?.0
                 },
             }
         } else {

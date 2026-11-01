@@ -200,6 +200,16 @@ where
                 continue;
             }
         }
+        // A Build row keyed to the selected target is that target's authored
+        // supply for the slot. Checked implementations that only other targets'
+        // rows select are in scope but are not its rivals; rows keyed to this
+        // same target still conflict with one another.
+        let keyed = covering
+            .iter()
+            .copied()
+            .filter(|(_, row)| row.build_keyed())
+            .collect::<Vec<_>>();
+        let covering = if keyed.is_empty() { covering } else { keyed };
         match covering.as_slice() {
             [] => {}
             [(candidate, _)] => choices.push(Choice {

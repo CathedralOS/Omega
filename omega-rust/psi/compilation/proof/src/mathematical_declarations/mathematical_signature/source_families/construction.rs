@@ -2,13 +2,20 @@
 //! children. A receiving application is not evidence that a value inhabits it.
 
 use super::super::Elaborator;
+use super::terms::{abstract_parameters, constructor_children, excludes_parameters};
 use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
+use language_core::BindingRelevance;
 use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle};
+use proof_admission::{CoreError, Declaration, check_type, judgment_assumption_closure};
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
+use validation::mathematical_applications::{
+    PreparedSourceConstructor, PreparedSourceEvidence, operand_type_reference,
+};
 
 /// Temporary named values are placeholders only while constructing a lambda.
 /// Each retained schema abstracts every placeholder, including dependent child
@@ -96,7 +103,7 @@ impl Elaborator<'_> {
             .state_parameters(state)
             .iter()
             .filter(|parameter| {
-                parameter.relevance == language_core::BindingRelevance::Erased
+                parameter.relevance == BindingRelevance::Erased
                     && self.known_source_constructor_family(parameter.type_reference)
             })
             .cloned()
@@ -153,11 +160,11 @@ impl Elaborator<'_> {
         let ty = self.elaborate_type_reference(reference)?;
         let temporary_parameters = self.source_constructor_context.parameters.clone();
         let parameters = self.source_constructor_dependencies(&[term, ty]);
-        let (schema, schema_type) =
-            super::terms::abstract_parameters(&mut self.arena, term, ty, &parameters).map_err(
-                |error| self.refuse(format!("source constructor abstraction failed: {error}")),
-            )?;
-        if !super::terms::excludes_parameters(
+        let (schema, schema_type) = abstract_parameters(&mut self.arena, term, ty, &parameters)
+            .map_err(|error| {
+                self.refuse(format!("source constructor abstraction failed: {error}"))
+            })?;
+        if !excludes_parameters(
             &self.arena,
             &self.declarations,
             &[schema, schema_type],
@@ -167,7 +174,7 @@ impl Elaborator<'_> {
                 "source constructor schema retains a temporary value or premise assumption".into(),
             ));
         }
-        proof_admission::check_type(
+        check_type(
             &mut self.arena,
             &Context::empty()
                 .with_signature(Signature::from_declarations(self.declarations.clone())),
@@ -181,11 +188,7 @@ impl Elaborator<'_> {
             ))
         })?;
         self.declarations
-            .push(proof_admission::Declaration::definition(
-                0,
-                schema_type,
-                schema,
-            ));
+            .push(Declaration::definition(0, schema_type, schema));
         let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression)
         else {
@@ -220,8 +223,9 @@ impl Elaborator<'_> {
                 self.refuse("source constructor schema lost its selected case".into())
             })?;
         let predicate_expressions = selected.predicate_expressions.clone();
-        self.prepared.source_constructors.append(
-            validation::mathematical_applications::PreparedSourceConstructor {
+        self.prepared
+            .source_constructors
+            .append(PreparedSourceConstructor {
                 expression,
                 constructor: expression,
                 source_type: reference,
@@ -232,8 +236,7 @@ impl Elaborator<'_> {
                 ty: schema_type,
                 parameters: parameters.iter().map(|(_, symbol, _)| *symbol).collect(),
                 predicate_expressions,
-            },
-        );
+            });
         self.source_constructor_context = SourceConstructorContext::default();
         Ok(())
     }
@@ -245,7 +248,7 @@ impl Elaborator<'_> {
         &self,
         roots: &[TermHandle],
     ) -> Vec<(u32, SymbolHandle, TermHandle)> {
-        let dependencies = proof_admission::judgment_assumption_closure(
+        let dependencies = judgment_assumption_closure(
             &self.arena,
             &Signature::from_declarations(self.declarations.clone()),
             roots,
@@ -269,8 +272,7 @@ impl Elaborator<'_> {
         domain: TermHandle,
     ) -> TermHandle {
         let position = self.declarations.len() as u32;
-        self.declarations
-            .push(proof_admission::Declaration::assumption(0, domain));
+        self.declarations.push(Declaration::assumption(0, domain));
         let term = self.constant(position);
         self.source_constructor_context
             .parameters
@@ -296,15 +298,15 @@ impl Elaborator<'_> {
                 .iter()
                 .any(|(_, row)| row.expression == expression)
         {
-            self.prepared.source_evidence.append(
-                validation::mathematical_applications::PreparedSourceEvidence {
+            self.prepared
+                .source_evidence
+                .append(PreparedSourceEvidence {
                     expression,
                     source_type: reference,
                     type_identity: self.program.normalized_type_identity(reference),
                     term,
                     ty,
-                },
-            );
+                });
         }
         Ok(term)
     }
@@ -343,9 +345,7 @@ impl Elaborator<'_> {
                     if let Some((ordinal, local)) =
                         self.program.state_local_declaration(state, symbol)
                     {
-                        if local.is_mutable
-                            || local.relevance != language_core::BindingRelevance::Erased
-                        {
+                        if local.is_mutable || local.relevance != BindingRelevance::Erased {
                             return Err(self.refuse("source indexed capture requires retained immutable erased constructor evidence".into()));
                         }
                         if self.program.normalized_type_identity(local.type_reference)
@@ -377,16 +377,10 @@ impl Elaborator<'_> {
                         "source indexed capture has no retained constructor derivation".into(),
                     )
                 })?;
-            let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
-                self.program,
-                &arena::Arena::default(),
-            );
+            let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
             let sites = owners.containing_statement_sites(expression);
-            if validation::expression_owners::source_declaration_owner(
-                self.program,
-                expression,
-                &owners,
-            ) != Some(self.source_owner)
+            if source_declaration_owner(self.program, expression, &owners)
+                != Some(self.source_owner)
                 || sites.is_empty()
                 || sites.iter().any(|(machine, state, statement)| {
                     let machine = &self.program.machines()[*machine];
@@ -489,11 +483,7 @@ impl Elaborator<'_> {
             let operand =
                 self.source_constructor_operand(expression, reference, &literal, field)?;
             self.span = Some(self.program.expression_table.source_span(operand));
-            let actual = validation::mathematical_applications::operand_type_reference(
-                self.program,
-                operand,
-            )
-            .ok_or_else(|| {
+            let actual = operand_type_reference(self.program, operand).ok_or_else(|| {
                 self.refuse("source recursive child has no retained actual application".into())
             })?;
             // Kernel descriptions can be structurally equal for distinct source
@@ -540,7 +530,7 @@ impl Elaborator<'_> {
             let expected = family.description.indexed_w(&mut self.arena, index);
             let context = Context::empty()
                 .with_signature(Signature::from_declarations(self.declarations.clone()));
-            match proof_admission::check_type(
+            match check_type(
                 &mut self.arena,
                 &context,
                 child,
@@ -548,10 +538,10 @@ impl Elaborator<'_> {
                 &mut Budget::new(DEFAULT_CONVERSION_STEPS),
             ) {
                 Ok(()) => children.push(child),
-                Err(proof_admission::CoreError::TypeMismatch { .. }) => {
+                Err(CoreError::TypeMismatch { .. }) => {
                     return Err(self.refuse(source_mismatch));
                 }
-                Err(proof_admission::CoreError::StepCeiling) => {
+                Err(CoreError::StepCeiling) => {
                     return Err(self.refuse(format!(
                         "source recursive child `{}` indexed application conversion exceeds the supported checking budget", field.name
                     )));
@@ -607,7 +597,7 @@ impl Elaborator<'_> {
         }
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
-        proof_admission::check_type(
+        check_type(
             &mut self.arena,
             &context,
             proof,
@@ -646,7 +636,7 @@ impl Elaborator<'_> {
                 second: label,
             });
         }
-        proof_admission::check_type(
+        check_type(
             &mut self.arena,
             &context,
             label,
@@ -662,7 +652,7 @@ impl Elaborator<'_> {
         // not the nondependent tuple type inferred for a raw pair literal.
         // Package the checked label as an ordinary transparent definition.
         let parameters = self.source_constructor_dependencies(&[label, family.description.carrier]);
-        let (label_body, label_type) = super::terms::abstract_parameters(
+        let (label_body, label_type) = abstract_parameters(
             &mut self.arena,
             label,
             family.description.carrier,
@@ -675,9 +665,7 @@ impl Elaborator<'_> {
         })?;
         let label_position = self.declarations.len() as u32;
         self.declarations
-            .push(proof_admission::Declaration::definition(
-                0, label_type, label_body,
-            ));
+            .push(Declaration::definition(0, label_type, label_body));
         let mut label = self.constant(label_position);
         for (position, _, _) in parameters {
             let argument = self.constant(position);
@@ -692,17 +680,14 @@ impl Elaborator<'_> {
             function: family.description.children,
             argument: label,
         });
-        let children_fn = super::terms::constructor_children(
-            &mut self.arena,
-            &family.description,
-            label,
-            &children,
-        )
-        .map_err(|error| {
-            self.refuse(format!(
-                "source constructor child-function production failed: {error}"
-            ))
-        })?;
+        let children_fn =
+            constructor_children(&mut self.arena, &family.description, label, &children).map_err(
+                |error| {
+                    self.refuse(format!(
+                        "source constructor child-function production failed: {error}"
+                    ))
+                },
+            )?;
         let next = self.arena.insert(Term::Apply {
             function: family.description.next,
             argument: label,
@@ -717,7 +702,7 @@ impl Elaborator<'_> {
             domain: child_domain,
             codomain,
         });
-        proof_admission::check_type(
+        check_type(
             &mut self.arena,
             &context,
             children_fn,
@@ -733,7 +718,7 @@ impl Elaborator<'_> {
         let expected = self.elaborate_type_reference(reference)?;
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
-        proof_admission::check_type(
+        check_type(
             &mut self.arena,
             &context,
             term,
