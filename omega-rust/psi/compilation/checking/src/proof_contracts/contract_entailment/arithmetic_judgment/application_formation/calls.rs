@@ -65,10 +65,13 @@ pub(super) fn form(
                     decisions,
                 )?)
             } else {
-                engine.captured_owned_call_input(*argument)?
+                engine.captured_record_call_input(*argument)?
             };
             if !crate::has_anonymous_numeric_results(program, *argument) {
-                let actual_type = engine.source_result_type(*argument)?;
+                let actual_type = match &input {
+                    IntegerApplicationInput::Record { type_reference, .. } => *type_reference,
+                    IntegerApplicationInput::Scalar(_) => engine.source_result_type(*argument)?,
+                };
                 if !crate::declared_input_type_matches(program, actual_type, *required_type) {
                     return None;
                 }
