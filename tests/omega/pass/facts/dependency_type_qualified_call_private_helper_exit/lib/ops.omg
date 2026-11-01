@@ -1,0 +1,16 @@
+module ops;
+
+public data Wrapped [copy] { value: u16; }
+
+machine Wrapped::widen(value: u16) -> u64
+ensures result == value as u64
+{
+    value as u64
+}
+
+public machine Wrapped::describe(left: &Wrapped, right: &Wrapped) -> u64
+requires left.value > 0
+ensures result == (left.value as u64) + (right.value as u64)
+{
+    Wrapped::widen(left.value) + Wrapped::widen(right.value)
+}

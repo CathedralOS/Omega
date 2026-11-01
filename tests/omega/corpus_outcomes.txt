@@ -370,6 +370,32 @@ fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms ex
 fail/facts/darwin_stat_abi/record_through_target_body_rejected rejected 51346ms expected @f19844409a95
 	machine `verify` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/dependency_type_qualified_call_by_value_rejected rejected 6236ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from main: total == 260 (needs fact `total == 260` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_operator_token_rejected rejected 6239ms expected @900e2e7ae6af
+	cannot prove requires contract for call add from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_private_helper_rejected rejected 6790ms expected @900e2e7ae6af
+	package `dependency_type_qualified_call_private_helper_rejected` (6ad6839e4afde5cda487f81a7faca4612568c81df0f3a978718f70faaaf6b818) selects private machine `ops::Wrapped::describe::describe`
+fail/facts/dependency_type_qualified_call_through_call_result_rejected rejected 6211ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_const_name_rejected rejected 6127ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_field_rejected rejected 6005ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: pair.left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_local_rejected rejected 5850ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_match_join_rejected rejected 5091ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_other_machine_rejected rejected 4788ms expected @900e2e7ae6af
+	cannot prove requires contract for call relay from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_other_state_rejected rejected 4822ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from check: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_parameter_rejected rejected 4805ms expected @900e2e7ae6af
+	cannot prove requires contract for call observe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dependency_type_qualified_call_through_target_body_rejected rejected 6611ms expected @900e2e7ae6af
+	cannot prove requires contract for call describe from X86Observe::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
+	cannot prove requires contract for call describe from ArmObserve::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -5903,6 +5929,18 @@ pass/facts/data_where_standing_through_other_machine_exit checked 6842ms check-t
 pass/facts/data_where_standing_through_other_state_exit checked 5470ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_parameter_exit checked 5373ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_target_body_exit checked 5527ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/dependency_type_qualified_call_by_value_exit checked 9091ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_operator_token_exit checked 7746ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_private_helper_exit checked 8823ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_call_result_exit checked 7755ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_const_name_exit checked 7786ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_field_exit checked 7741ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_local_exit checked 7982ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_match_join_exit checked 9043ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_other_machine_exit checked 9080ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_other_state_exit checked 9306ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_parameter_exit checked 7985ms check-target:macos_arm64 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_target_body_exit checked 7782ms check-target:macos_arm64 @900e2e7ae6af
 pass/facts/dependent_subtract_through_call_result_compile checked 5381ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/dependent_subtract_through_call_result_exit checked 4432ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/dependent_subtract_through_const_name_exit checked 5651ms check-target:macos_arm64 @911f6617ba9e
