@@ -564,6 +564,27 @@ pub struct CheckingMemos {
     /// even a machine with no qualifying expression populates only once.
     pub(crate) operand_fit_populated:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
+    /// One completed-case verdict per (machine, state, statement ordinal,
+    /// demanded value expression, observed reference), published by a
+    /// single per-machine population instead of a fresh prefix walk per
+    /// occurrence. `None` retains "processed, no proven case" so a later
+    /// query does not walk again.
+    pub(crate) completed_case_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                usize,
+                typed_trees::expression::ExpressionHandle,
+                typed_trees::types::TypeReferenceHandle,
+            ),
+            Option<symbols::SymbolHandle>,
+        >,
+    >,
+    /// Machines whose completed-case occurrences were already enumerated;
+    /// even a machine with no qualifying statement populates only once.
+    pub(crate) completed_case_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
