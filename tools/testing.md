@@ -125,6 +125,14 @@ concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
 
+Linux pilots share the post-merge workflow's `compiler-regression` cache prefix
+and `/tmp/ot` target directory. Both must match: GitHub's cache version includes
+the archived paths. This lets a fresh branch reuse main's compatible Cargo
+objects instead of starting a private cold cache. Windows pilots retain their
+own namespace because their runner image differs. Restored objects still pass
+Cargo's locked content-freshness checks and the gate authenticates the actual
+optimized executable before running its selected witnesses.
+
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
 containing `main.omg`, including nested fact-place paths.
