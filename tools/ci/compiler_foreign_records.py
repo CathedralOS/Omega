@@ -317,10 +317,12 @@ def owned_row(output, fact, specification, library, producer):
                  for path in folder.iterdir() if path.is_file()}
     (output / "resource-inputs.json").write_text(json.dumps(resources, indent=2) + "\n", encoding="utf-8")
     with provider_path(library) if library is not None else nullcontext():
-        inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects,
-                                                places=specification.places, replay_resources=specification.replay_resources, root_entry=specification.root_entry)
+        # Retain compiler/runtime observations before public package review;
+        # a slow admission must not hide an independent backend failure.
         status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
                                          positives, negatives, producer=producer)
+        inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects,
+                                                places=specification.places, replay_resources=specification.replay_resources, root_entry=specification.root_entry)
         try:
             compiler_fact_rows.measure(output, inventory, producer, additional_projects=projects, places=specification.places, root_entry=specification.root_entry)
         finally:
